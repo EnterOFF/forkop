@@ -125,13 +125,13 @@ function spinPhaseStyle() {
 }
 
 // src/helpers/svgEl.ts
-function svgEl(tag, attrs = {}, children = []) {
+function svgEl(tag, attrs = {}, children2 = []) {
   const NS = "http://www.w3.org/2000/svg";
   const el = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (v != null) el.setAttribute(k, String(v));
   }
-  (Array.isArray(children) ? children : [children]).filter(Boolean).forEach((ch) => el.appendChild(ch));
+  (Array.isArray(children2) ? children2 : [children2]).filter(Boolean).forEach((ch) => el.appendChild(ch));
   return el;
 }
 
@@ -822,11 +822,11 @@ function formatBytes(value) {
   }
   return prettyBytes(value);
 }
-function formatDate(seconds) {
-  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) {
+function formatDate(seconds2) {
+  if (typeof seconds2 !== "number" || !Number.isFinite(seconds2) || seconds2 <= 0) {
     return void 0;
   }
-  const date = new Date(seconds * 1e3);
+  const date = new Date(seconds2 * 1e3);
   if (Number.isNaN(date.getTime())) {
     return void 0;
   }
@@ -1526,9 +1526,9 @@ function showToast(message, type, duration = 3e3) {
 }
 
 // src/helpers/copyToClipboard.ts
-function copyToClipboard(text2) {
+function copyToClipboard(text4) {
   const textarea = document.createElement("textarea");
-  textarea.value = text2;
+  textarea.value = text4;
   document.body.appendChild(textarea);
   textarea.select();
   let copied = false;
@@ -2507,13 +2507,13 @@ function getListValues(value) {
 function childSections(configSections, type) {
   return configSections.filter((section) => section[".type"] === type);
 }
-function ownedChildSections(parent, children) {
-  return children.filter(
+function ownedChildSections(parent, children2) {
+  return children2.filter(
     (section) => section.section === parent[".name"]
   );
 }
-function childSectionsByOwner(children, ownerKey, ownerValue) {
-  return children.filter((section) => section[ownerKey] === ownerValue);
+function childSectionsByOwner(children2, ownerKey, ownerValue) {
+  return children2.filter((section) => section[ownerKey] === ownerValue);
 }
 function compactSettingsMap(settings) {
   return Object.keys(settings).length ? JSON.stringify(settings) : void 0;
@@ -2696,8 +2696,8 @@ function buildManualLinkByCode(section, selectorCodes) {
       const name = getProxyUrlName(link) || `Node #${index + 1}`;
       const base = `${sectionPrefix}${name}`;
       let code = base;
-      for (let number = 2; taken.has(code); number += 1) {
-        code = `${base} #${number}`;
+      for (let number3 = 2; taken.has(code); number3 += 1) {
+        code = `${base} #${number3}`;
       }
       taken.add(code);
       return available.has(code) && isCopyableProxyLink(link) ? [[code, link]] : [];
@@ -3181,8 +3181,8 @@ function getSectionSubscriptionTags(section, providers) {
 }
 function providerNumber(value, lower) {
   const upper = `${lower[0].toUpperCase()}${lower.slice(1)}`;
-  const number = Number(value?.[lower] ?? value?.[upper] ?? 0);
-  return Number.isFinite(number) ? number : 0;
+  const number3 = Number(value?.[lower] ?? value?.[upper] ?? 0);
+  return Number.isFinite(number3) ? number3 : 0;
 }
 function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
   const metadata = provider.subscriptionMetadata || {};
@@ -3787,9 +3787,9 @@ function startForkopLogFeed(onNewLog, resumeFrom = 0) {
         timeoutMs: FORKOP_CALL_TIMEOUT_MS
       });
       if (response.success) {
-        const lines = adopt(response.data);
+        const lines2 = adopt(response.data);
         if (started) {
-          for (const line of lines) {
+          for (const line of lines2) {
             try {
               onNewLog(line);
             } catch (error) {
@@ -4038,8 +4038,8 @@ function linkQuery(link) {
   if (start < 0) {
     return query;
   }
-  const text2 = link.slice(start + 1).split("#")[0];
-  for (const pair of text2.split("&")) {
+  const text4 = link.slice(start + 1).split("#")[0];
+  for (const pair of text4.split("&")) {
     const equals = pair.indexOf("=");
     const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
     if (key && !query.has(key)) {
@@ -5170,10 +5170,10 @@ function polledBandwidth(uploadTotal, downloadTotal) {
   if (!previous || at <= previous.at) {
     return null;
   }
-  const seconds = (at - previous.at) / 1e3;
+  const seconds2 = (at - previous.at) / 1e3;
   return {
-    up: Math.round(Math.max(0, uploadTotal - previous.up) / seconds),
-    down: Math.round(Math.max(0, downloadTotal - previous.down) / seconds)
+    up: Math.round(Math.max(0, uploadTotal - previous.up) / seconds2),
+    down: Math.round(Math.max(0, downloadTotal - previous.down) / seconds2)
   };
 }
 function applyWidgetsSnapshot(summary) {
@@ -5557,8 +5557,8 @@ function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
     return value ? _("Yes") : _("No");
   }
-  const text2 = `${value ?? ""}`.trim();
-  return text2 || _("No");
+  const text4 = `${value ?? ""}`.trim();
+  return text4 || _("No");
 }
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : _("N/A");
@@ -5667,12 +5667,12 @@ function renderUrlTestInfoModal(outbound) {
       "dl",
       { class: "fkp_dashboard-page__urltest-details__params" },
       fields.map(
-        ({ label, value, children }) => textE("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
+        ({ label, value, children: children2 }) => textE("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
           textE("dt", {}, label),
           textE(
             "dd",
             {},
-            children || [textE("span", {}, formatUrlTestModalValue(value))]
+            children2 || [textE("span", {}, formatUrlTestModalValue(value))]
           )
         ])
       )
@@ -5978,12 +5978,12 @@ function renderFallbackInfoModal(info) {
       "dl",
       { class: "fkp_dashboard-page__urltest-details__params" },
       fields.map(
-        ({ label, value, children }) => textE("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
+        ({ label, value, children: children2 }) => textE("div", { class: "fkp_dashboard-page__urltest-details__param" }, [
           textE("dt", {}, label),
           textE(
             "dd",
             {},
-            children || [textE("span", {}, formatUrlTestModalValue(value))]
+            children2 || [textE("span", {}, formatUrlTestModalValue(value))]
           )
         ])
       )
@@ -7802,10 +7802,10 @@ function renderButton({
   disabled,
   loading: loading3,
   onClick,
-  text: text2,
-  icon
+  text: text4,
+  icon: icon2
 }) {
-  const hasIcon = !!loading3 || !!icon;
+  const hasIcon = !!loading3 || !!icon2;
   function getWrappedIcon() {
     const iconWrap = textE("span", {
       class: "fkp-partial-button__icon"
@@ -7814,8 +7814,8 @@ function renderButton({
       iconWrap.appendChild(renderLoaderCircleIcon24());
       return iconWrap;
     }
-    if (icon) {
-      iconWrap.appendChild(icon());
+    if (icon2) {
+      iconWrap.appendChild(icon2());
       return iconWrap;
     }
     return iconWrap;
@@ -7844,13 +7844,13 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text2)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text4)]
   );
 }
 
 // src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text2, filename) {
-  const blob = new Blob([text2], { type: "text/plain;charset=utf-8" });
+function downloadAsTxt(text4, filename) {
+  const blob = new Blob([text4], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
@@ -7862,7 +7862,7 @@ function downloadAsTxt(text2, filename) {
 }
 
 // src/partials/modal/renderModal.ts
-function renderModal(text2, name, options) {
+function renderModal(text4, name, options) {
   let currentText = "";
   let refreshInFlight = false;
   let pendingRefresh = false;
@@ -8098,7 +8098,7 @@ ${currentText}
     startRefreshTimer();
     requestRefresh();
   }
-  updateText(text2 ?? "");
+  updateText(text4 ?? "");
   return body;
 }
 
@@ -8611,8 +8611,8 @@ function serviceActionFailureMessage(action) {
 var BUILD_ID = /\s+r\d+(?:[-+][0-9a-z]+)*$/i;
 function formatOsRelease(value) {
   const release = `${value ?? ""}`.trim();
-  const trimmed = release.replace(BUILD_ID, "").trim();
-  return trimmed || release;
+  const trimmed2 = release.replace(BUILD_ID, "").trim();
+  return trimmed2 || release;
 }
 
 // src/forkop/helpers/singBoxVersion.ts
@@ -8853,10 +8853,10 @@ async function showDiagnosticModal(action, title, name, load) {
   setDiagnosticActionLoading(action, true);
   try {
     const getText = diagnosticText(load);
-    const text2 = await getText({ maskValues: true });
+    const text4 = await getText({ maskValues: true });
     ui.showModal(
       title,
-      renderModal(text2, name, {
+      renderModal(text4, name, {
         getText,
         initialAutoRefresh: false,
         showMaskValuesToggle: true
@@ -9858,14 +9858,14 @@ function renderList(rows, closable) {
 function cellClass(column) {
   return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
 }
-function renderHeading(column, text2) {
-  return textE("div", { class: cellClass(column), role: "columnheader" }, text2);
+function renderHeading(column, text4) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text4);
 }
-function renderCell(column, children) {
-  return textE("div", { class: cellClass(column), role: "cell" }, children);
+function renderCell(column, children2) {
+  return textE("div", { class: cellClass(column), role: "cell" }, children2);
 }
-function renderValue(text2, className = "") {
-  const value = text2 || "-";
+function renderValue(text4, className = "") {
+  const value = text4 || "-";
   return textE(
     "span",
     {
@@ -9878,7 +9878,7 @@ function renderValue(text2, className = "") {
 }
 function renderSource(name, detail) {
   const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
-  const muted = (text2) => textE("span", { class: "fkp_monitoring-page__muted" }, text2);
+  const muted = (text4) => textE("span", { class: "fkp_monitoring-page__muted" }, text4);
   return textE(
     "span",
     {
@@ -9935,7 +9935,7 @@ function renderConnectionList(items, options) {
     options.closable
   );
 }
-function renderConnectionListState(text2, options) {
+function renderConnectionListState(text4, options) {
   return renderList(
     [
       textE(
@@ -9951,7 +9951,7 @@ function renderConnectionListState(text2, options) {
               class: ["fkp_monitoring-page__state", options.className].filter(Boolean).join(" "),
               role: "cell"
             },
-            text2
+            text4
           )
         ]
       )
@@ -10046,9 +10046,9 @@ var WEB_PORTS = /* @__PURE__ */ new Set(["80", "443"]);
 function normalize(value) {
   return value == null ? "" : String(value).trim();
 }
-function formatEndpoint(address, port) {
+function formatEndpoint(address, port2) {
   const normalizedAddress = domainToUnicode(normalize(address));
-  const normalizedPort = normalize(port);
+  const normalizedPort = normalize(port2);
   if (!normalizedAddress) {
     return "-";
   }
@@ -10179,12 +10179,12 @@ function formatDuration(ms) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1e3));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor(totalSeconds % 3600 / 60);
-  const seconds = totalSeconds % 60;
+  const seconds2 = totalSeconds % 60;
   const pad = (value) => String(value).padStart(2, "0");
   if (hours > 0) {
-    return `${hours}:${pad(minutes)}:${pad(seconds)}`;
+    return `${hours}:${pad(minutes)}:${pad(seconds2)}`;
   }
-  return `${minutes}:${pad(seconds)}`;
+  return `${minutes}:${pad(seconds2)}`;
 }
 function formatConnectionDuration(connection) {
   const startedAt = parseStartedAt(connection);
@@ -10204,9 +10204,9 @@ function getTargetCellParts(connection) {
   const metadata = connection.metadata || {};
   const host = normalizeString(metadata.host);
   const destinationIp = normalizeString(metadata.destinationIP);
-  const port = metadata.destinationPort;
+  const port2 = metadata.destinationPort;
   const primaryTarget = host || destinationIp;
-  const primary = primaryTarget ? formatEndpoint(primaryTarget, port) : "-";
+  const primary = primaryTarget ? formatEndpoint(primaryTarget, port2) : "-";
   return {
     primary,
     searchValue: [primary, host, destinationIp].filter(Boolean).join(" ")
@@ -10452,12 +10452,12 @@ function toListItem(connection) {
   };
 }
 function isTextSelectionInsideList() {
-  const list = document.getElementById("monitoring-connections");
+  const list2 = document.getElementById("monitoring-connections");
   const selection = window.getSelection?.();
-  if (!list || !selection || selection.isCollapsed) {
+  if (!list2 || !selection || selection.isCollapsed) {
     return false;
   }
-  return list.contains(selection.anchorNode) || list.contains(selection.focusNode);
+  return list2.contains(selection.anchorNode) || list2.contains(selection.focusNode);
 }
 function renderConnections(options = {}) {
   const container = document.getElementById("monitoring-connections");
@@ -10726,11 +10726,11 @@ function bindControls() {
   if (connectionsContainer) {
     connectionsContainer.onclick = (event) => {
       const target = event.target;
-      const button = target?.closest(
+      const button2 = target?.closest(
         ".fkp_monitoring-page__row-action"
       );
-      if (button?.value) {
-        void closeConnection(button.value);
+      if (button2?.value) {
+        void closeConnection(button2.value);
       }
     };
   }
@@ -11464,9 +11464,9 @@ function render4() {
 }
 
 // src/forkop/tabs/logs/filterLogs.ts
-function filterLogText(text2, query) {
+function filterLogText(text4, query) {
   const normalizedQuery = query.trim().toLowerCase();
-  return text2.split(/\r?\n/).filter((line) => {
+  return text4.split(/\r?\n/).filter((line) => {
     if (!line) {
       return false;
     }
@@ -11493,10 +11493,10 @@ function getVisibleLogs() {
   return filterLogText(rawLogs, getSearchQuery());
 }
 function renderActionButton2(id, label, disabled) {
-  const button = element2(id);
-  button.textContent = label;
-  button.title = label;
-  button.disabled = disabled;
+  const button2 = element2(id);
+  button2.textContent = label;
+  button2.title = label;
+  button2.disabled = disabled;
 }
 function renderLogs(scrollToTop = false) {
   const output = element2("logs-output");
@@ -11880,11 +11880,11 @@ function setActionLoading(action, loading3, local = false) {
     }
   });
 }
-function beginComponentAction(button) {
+function beginComponentAction(button2) {
   if (isAnyActionLoading()) {
     return false;
   }
-  setActionLoading(button.key, true, true);
+  setActionLoading(button2.key, true, true);
   return true;
 }
 function setCheckResult(component, status, latestVersion, releaseUrl = "") {
@@ -11952,11 +11952,11 @@ async function ackComponentActionJob(jobId) {
     logger.debug("[UPDATES]", "component action ack failed", error);
   }
 }
-function getExpectedLatestVersionForAction(button) {
-  if (button.component !== "forkop" || button.action !== "install") {
+function getExpectedLatestVersionForAction(button2) {
+  if (button2.component !== "forkop" || button2.action !== "install") {
     return void 0;
   }
-  return store.get().updatesChecks[button.component].latest_version || void 0;
+  return store.get().updatesChecks[button2.component].latest_version || void 0;
 }
 function getCheckToastMessage(status) {
   if (status === "outdated") {
@@ -12111,13 +12111,13 @@ async function followComponentActionState(state) {
     followedComponentJobs.delete(jobId);
   }
 }
-async function followAlreadyRunningComponentAction(button) {
+async function followAlreadyRunningComponentAction(button2) {
   const uiState = await refreshRuntimeUiState({ force: true });
   if (!uiState) {
     return false;
   }
   const state = uiState.actions.component.find(
-    (item) => item.running && item.component === button.component && item.action === button.action
+    (item) => item.running && item.component === button2.component && item.action === button2.action
   );
   if (!state) {
     return false;
@@ -12173,28 +12173,28 @@ function stopComponentActionStateWatcher() {
   componentActionStateUnsubscribe();
   componentActionStateUnsubscribe = null;
 }
-async function handleComponentAction(button) {
-  if (!beginComponentAction(button)) {
+async function handleComponentAction(button2) {
+  if (!beginComponentAction(button2)) {
     return;
   }
   let jobId = "";
   let ownsJobFollow = false;
   try {
     const startResponse = await ForkopShellMethods.componentActionStart(
-      button.component,
-      button.action
+      button2.component,
+      button2.action
     );
     if (!startResponse.success) {
       if (isComponentActionAlreadyRunningError(startResponse.error)) {
-        setActionLoading(button.key, false);
-        if (!await followAlreadyRunningComponentAction(button)) {
+        setActionLoading(button2.key, false);
+        if (!await followAlreadyRunningComponentAction(button2)) {
           await refreshComponentActionState();
         }
         return;
       }
       if (isTransientRpcError(startResponse.error)) {
-        if (!await followAlreadyRunningComponentAction(button)) {
-          setActionLoading(button.key, false);
+        if (!await followAlreadyRunningComponentAction(button2)) {
+          setActionLoading(button2.key, false);
           await refreshComponentActionState();
         }
         return;
@@ -12210,16 +12210,16 @@ async function handleComponentAction(button) {
     ownsJobFollow = true;
     const response = await ForkopShellMethods.waitComponentActionJob(
       jobId,
-      button.component,
-      button.action,
-      getExpectedLatestVersionForAction(button)
+      button2.component,
+      button2.action,
+      getExpectedLatestVersionForAction(button2)
     );
-    await completeComponentActionJob(button.key, jobId, response);
+    await completeComponentActionJob(button2.key, jobId, response);
   } catch (error) {
     logger.error("[UPDATES]", "handleComponentAction failed", error);
     if (!pageUnloading2) {
       const message = getErrorMessage(error, _("Failed to execute"));
-      setActionLoading(button.key, false);
+      setActionLoading(button2.key, false);
       if (!isTransientRpcError(message)) {
         showToast(message, "error");
       }
@@ -12927,7 +12927,7 @@ function updateDynamicListItemLabel(item, label) {
     labelNode.textContent = `${label || ""}`;
   }
 }
-function addDynamicListItem(widget, value, text2) {
+function addDynamicListItem(widget, value, text4) {
   if (!widget || !widget.node) {
     return null;
   }
@@ -12940,7 +12940,7 @@ function addDynamicListItem(widget, value, text2) {
     widget.dispatchCbiDynlistChange(widget.node, normalized);
     return null;
   }
-  widget.addItem(widget.node, normalized, text2 || null, false);
+  widget.addItem(widget.node, normalized, text4 || null, false);
   widget.dispatchCbiDynlistChange(widget.node, normalized);
   updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
   return findDynamicListItemByValue(widget.node, normalized);
@@ -13477,8 +13477,8 @@ function isValidHost(host) {
   const normalizedHost = unbracketHost(host);
   return isIPv4(normalizedHost) || isIPv6(normalizedHost) || validateDomain(normalizedHost).valid;
 }
-function isValidPort(port) {
-  const normalized = String(port ?? "");
+function isValidPort(port2) {
+  const normalized = String(port2 ?? "");
   const value = Number(normalized);
   return /^\d+$/.test(normalized) && value >= 1 && value <= 65535;
 }
@@ -13759,11 +13759,11 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
     return node;
   },
   syncSettingsButtonSize(item) {
-    const button = item && item.fkpDynamicListSettingsButton;
+    const button2 = item && item.fkpDynamicListSettingsButton;
     const height = item && item.clientHeight;
-    if (button && height > 0) {
-      button.style.setProperty("--fkp-dynlist-row-size", `${height}px`);
-      button.style.setProperty(
+    if (button2 && height > 0) {
+      button2.style.setProperty("--fkp-dynlist-row-size", `${height}px`);
+      button2.style.setProperty(
         "--fkp-dynlist-row-offset",
         `${item.clientTop}px`
       );
@@ -13771,18 +13771,18 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
   },
   syncSettingsButtons(dl) {
     Array.from(dl.children).forEach((item) => {
-      const button = item.fkpDynamicListSettingsButton;
-      if (item.classList.contains("item") && button && button.parentNode === dl && item.nextElementSibling !== button) {
-        item.after(button);
+      const button2 = item.fkpDynamicListSettingsButton;
+      if (item.classList.contains("item") && button2 && button2.parentNode === dl && item.nextElementSibling !== button2) {
+        item.after(button2);
       }
     });
   },
-  addItem(dl, value, text2, flash) {
+  addItem(dl, value, text4, flash) {
     if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
-    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text2) : text2;
+    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text4) : text4;
     ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
     const item = findDynamicListItemByValue(dl, value);
     const hasSettings = typeof this.options.hasSettings === "function" ? this.options.hasSettings(value) : true;
@@ -13867,7 +13867,7 @@ var ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
       updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
     });
     const control = node.querySelector(".add-item > .fkp-button-add-control");
-    const showValidity = (invalid2) => control?.classList.toggle("cbi-input-invalid", invalid2);
+    const showValidity = (invalid3) => control?.classList.toggle("cbi-input-invalid", invalid3);
     node.addEventListener("validation-failure", () => showValidity(true));
     node.addEventListener("validation-success", () => showValidity(false));
     showValidity(node.classList.contains("cbi-input-invalid"));
@@ -13986,15 +13986,15 @@ var SettingsDynamicList = form.DynamicList.extend({
           );
         }
       },
-      itemLabel: (itemValue, text2) => {
+      itemLabel: (itemValue, text4) => {
         if (typeof this.renderListItemLabel === "function") {
           return this.renderListItemLabel(
             this.childOwner(section_id),
             `${itemValue}`,
-            text2
+            text4
           );
         }
-        return text2;
+        return text4;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       hasEquivalentValue: (itemValue, dl) => {
@@ -14403,13 +14403,13 @@ function syncAnnotatedTextareaOverlay(textarea, wrapper, overlay) {
   overlay.scrollLeft = textarea.scrollLeft;
 }
 function renderAnnotatedTextareaOverlay(value, annotations) {
-  const text2 = value ? `${value}` : "";
+  const text4 = value ? `${value}` : "";
   const normalizedAnnotations = Array.isArray(annotations) ? annotations : [];
-  if (!text2.length) {
+  if (!text4.length) {
     return "&#8203;";
   }
   if (!normalizedAnnotations.length) {
-    return `${escapeHtml(text2)}${text2.endsWith("\n") ? "\n " : ""}`;
+    return `${escapeHtml(text4)}${text4.endsWith("\n") ? "\n " : ""}`;
   }
   let cursor2 = 0;
   let html = "";
@@ -14417,14 +14417,14 @@ function renderAnnotatedTextareaOverlay(value, annotations) {
     if (annotation.start < cursor2 || annotation.start >= annotation.end || annotation.start < 0) {
       return;
     }
-    html += escapeHtml(text2.slice(cursor2, annotation.start));
+    html += escapeHtml(text4.slice(cursor2, annotation.start));
     html += `<span class="fkp-annotated-textarea__invalid">${escapeHtml(
-      text2.slice(annotation.start, annotation.end)
+      text4.slice(annotation.start, annotation.end)
     )}</span>`;
     cursor2 = annotation.end;
   });
-  html += escapeHtml(text2.slice(cursor2));
-  if (text2.endsWith("\n")) {
+  html += escapeHtml(text4.slice(cursor2));
+  if (text4.endsWith("\n")) {
     html += "\n ";
   }
   return html;
@@ -14478,12 +14478,12 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 function parseCommentAwareListTokens(value) {
-  const text2 = value ? `${value}` : "";
+  const text4 = value ? `${value}` : "";
   const tokens = [];
-  const lines = text2.split(/\r\n|\r|\n/);
-  const newlines = text2.match(/\r\n|\r|\n/g) || [];
+  const lines2 = text4.split(/\r\n|\r|\n/);
+  const newlines = text4.match(/\r\n|\r|\n/g) || [];
   let offset = 0;
-  lines.forEach((line, index) => {
+  lines2.forEach((line, index) => {
     const hashIndex = line.indexOf("#");
     const slashIndex = line.indexOf("//");
     let commentIndex = -1;
@@ -14509,11 +14509,11 @@ function parseCommentAwareListTokens(value) {
   return tokens;
 }
 function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
-  const text2 = value ? `${value}` : "";
-  if (!text2.length) {
+  const text4 = value ? `${value}` : "";
+  if (!text4.length) {
     return { valid: true, message: "", annotations: [] };
   }
-  const tokens = parseCommentAwareListTokens(text2);
+  const tokens = parseCommentAwareListTokens(text4);
   if (!tokens.length) {
     return { valid: false, message: emptyMessage, annotations: [] };
   }
@@ -15428,8 +15428,8 @@ function reservedOverridePatchPath(document2) {
   });
 }
 function subscriptionRenameLines(value) {
-  const lines = Array.isArray(value) ? value : value ? [value] : [];
-  return lines.map((line) => `${line ?? ""}`.trim()).filter(Boolean);
+  const lines2 = Array.isArray(value) ? value : value ? [value] : [];
+  return lines2.map((line) => `${line ?? ""}`.trim()).filter(Boolean);
 }
 function validateRenameReplacement(replacement) {
   return /\$[0-9]+[A-Za-z_]/.test(`${replacement}`.replace(/\$\$/g, "")) ? _("Write ${1} instead of $1 when a letter follows the group number") : true;
@@ -15639,8 +15639,8 @@ function nextSubscriptionTag(sectionId, option2, values = listedSubscriptionValu
   const taken = new Set(
     configuredSubscriptionTags(sectionId, option2, [], values)
   );
-  for (let number = taken.size + 1; number < 1e5; number += 1) {
-    const value = `sub${number}`;
+  for (let number3 = taken.size + 1; number3 < 1e5; number3 += 1) {
+    const value = `sub${number3}`;
     if (!taken.has(value)) return value;
   }
   return `sub${Date.now()}`;
@@ -15689,157 +15689,1447 @@ function validateSubscriptionUrlEntry(_section_id, value) {
   return validation.valid ? true : _("Subscription must be an HTTP(S) URL or an absolute local path");
 }
 
-// src/forkop/tabs/sections/tunnels/openvpn.ts
-var OPENVPN_FIELDS = [
-  { path: "server", label: () => _("Server address") },
-  { path: "server_port", label: () => _("Server port"), number: true },
-  {
-    path: "network",
-    label: () => _("Transport"),
-    choices: ["udp", "udp4", "udp6", "tcp", "tcp4", "tcp6"]
-  },
-  {
-    path: "mode",
-    label: () => _("OpenVPN mode"),
-    choices: ["tls", "static_key"]
-  },
-  { path: "username", label: () => _("Username") },
-  { path: "password", label: () => _("Password"), secret: true },
-  { path: "tls.server_name", label: () => _("Server certificate name") },
-  { path: "tls.certificate", label: () => _("CA certificate"), pem: true },
-  {
-    path: "tls.client_certificate",
-    label: () => _("Client certificate"),
-    pem: true
-  },
-  { path: "tls.client_key", label: () => _("Client private key"), pem: true },
-  {
-    path: "tls.peer_fingerprint",
-    label: () => _("Server certificate fingerprints"),
-    list: true
-  },
-  {
-    path: "tls.control_wrap.type",
-    label: () => _("Control channel protection"),
-    choices: ["tls_auth", "tls_crypt", "tls_crypt_v2"]
-  },
-  {
-    path: "tls.control_wrap.key",
-    label: () => _("Control channel key"),
-    pem: true
-  },
-  {
-    path: "tls.control_wrap.direction",
-    label: () => _("Control channel key direction"),
-    choices: ["client", "server"]
-  },
-  { path: "data_ciphers", label: () => _("Data ciphers"), list: true },
-  { path: "data_ciphers_fallback", label: () => _("Fallback data cipher") },
-  { path: "cipher", label: () => _("Cipher") },
-  { path: "auth", label: () => _("Packet authentication algorithm") },
-  { path: "mtu", label: () => _("MTU"), number: true },
-  { path: "address", label: () => _("Tunnel addresses"), list: true },
-  { path: "peer_address", label: () => _("Peer tunnel address") },
-  { path: "static_key", label: () => _("Static key"), pem: true },
-  {
-    path: "key_direction",
-    label: () => _("Static key direction"),
-    choices: ["client", "server"]
-  }
-];
-function openVPNFieldKey(path) {
-  return `openvpn_${path.replaceAll(".", "_")}`;
-}
-function openVPNParent(object, path, create = false) {
-  const parts = path.split(".");
-  const key = parts.pop();
-  let parent = object;
-  for (const part of parts) {
-    if (parent[part] == null && create) parent[part] = {};
-    const next = parent[part];
-    if (!next || typeof next !== "object" || Array.isArray(next)) return null;
-    parent = next;
-  }
-  return { parent, key };
-}
-function pruneOpenVPNObjects(endpoint) {
-  const tls = endpoint.tls;
-  if (tls && typeof tls === "object") {
-    if (tls.control_wrap && !Object.keys(tls.control_wrap).length)
-      delete tls.control_wrap;
-    if (!Object.keys(tls).length) delete endpoint.tls;
-  }
-}
-function openVPNInitialSettings(endpoint) {
-  const extra = JSON.parse(JSON.stringify(endpoint));
-  delete extra.type;
-  delete extra.tag;
-  const settings = {};
-  for (const field of OPENVPN_FIELDS) {
-    const slot = openVPNParent(extra, field.path);
-    const value = slot?.parent[slot.key];
-    settings[openVPNFieldKey(field.path)] = field.list ? value == null ? [] : Array.isArray(value) ? value : [value] : Array.isArray(value) ? value.join("\n") : value == null ? "" : `${value}`;
-    if (slot) delete slot.parent[slot.key];
-  }
-  pruneOpenVPNObjects(extra);
-  settings.openvpn_extra = Object.keys(extra).length ? JSON.stringify(extra, null, 2) : "";
-  return settings;
-}
-function openVPNEndpoint(settings) {
-  const extra = `${settings.openvpn_extra || ""}`.trim();
-  const endpoint = extra ? parseOutboundJsonObject(extra) : {};
-  if (!endpoint || "type" in endpoint || "tag" in endpoint) return null;
-  for (const field of OPENVPN_FIELDS) {
-    const existing = openVPNParent(endpoint, field.path);
-    if (existing && existing.key in existing.parent) return null;
-    const input = settings[openVPNFieldKey(field.path)];
-    const text2 = field.secret || field.path === "username" ? `${input ?? ""}` : `${input ?? ""}`.trim();
-    if (!text2) continue;
-    const slot = openVPNParent(endpoint, field.path, true);
-    if (!slot) return null;
-    if (field.choices && !field.choices.includes(text2)) return null;
-    if (field.number && (!/^\d+$/u.test(text2) || Number(text2) < 1 || Number(text2) > 65535))
-      return null;
-    slot.parent[slot.key] = field.list ? (Array.isArray(input) ? input : [input]).map((value) => `${value}`.trim()).filter(Boolean) : field.number ? Number(text2) : field.pem ? text2.split(/\r?\n/u) : text2;
-  }
-  pruneOpenVPNObjects(endpoint);
-  return { ...endpoint, type: "openvpn-client" };
-}
-function addOpenVPNOptions(section) {
-  for (const field of OPENVPN_FIELDS) {
-    const o = section.option(
-      field.choices ? form.ListValue : field.pem ? form.TextValue : field.list ? form.DynamicList : form.Value,
-      openVPNFieldKey(field.path),
-      field.label()
-    );
-    o.depends("tunnel_type", "openvpn-client");
-    o.rmempty = true;
-    if (field.choices) {
-      o.value("", _("Default"));
-      field.choices.forEach((value) => o.value(value, value));
+// src/helpers/pem.ts
+var BEGIN = /^-----BEGIN ([A-Za-z0-9 #-]+)-----$/;
+function pemBlocks(text4) {
+  const blocks = [];
+  let current = null;
+  for (const raw of `${text4 || ""}`.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!current) {
+      const begin = BEGIN.exec(line);
+      if (begin) current = { label: begin[1], body: "", headers: [] };
+      continue;
     }
-    if (field.number) o.datatype = "range(1,65535)";
-    if (field.secret) o.password = true;
-    if (field.pem) {
-      o.rows = 5;
-      o.textarea = true;
-      configureTextareaOption(o);
+    if (line === `-----END ${current.label}-----`) {
+      blocks.push(current);
+      current = null;
+    } else if (/^[A-Za-z-]+:/.test(line)) {
+      current.headers.push(line);
+    } else {
+      current.body += line;
     }
   }
-  const extra = section.option(
-    form.TextValue,
-    "openvpn_extra",
-    _("Additional OpenVPN options"),
-    _(
-      "Native JSON options for routes, reconnect timers and other advanced settings. Fields shown above must be edited in the form."
+  return blocks;
+}
+function decodeBase64(body) {
+  const text4 = `${body || ""}`.replace(/\s+/g, "");
+  if (!text4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text4) || text4.length % 4 !== 0) {
+    return null;
+  }
+  try {
+    const binary = atob(text4);
+    return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  } catch (_error) {
+    return null;
+  }
+}
+function readTlv(bytes, offset, limit) {
+  if (offset + 2 > limit) return null;
+  const tag = bytes[offset];
+  let length = bytes[offset + 1];
+  let start = offset + 2;
+  if (length & 128) {
+    const count = length & 127;
+    if (count === 0 || count > 4 || start + count > limit) return null;
+    length = 0;
+    for (let i = 0; i < count; i += 1) length = length * 256 + bytes[start + i];
+    start += count;
+  }
+  const end = start + length;
+  return end <= limit ? { tag, start, end } : null;
+}
+function children(bytes, parent) {
+  const result = [];
+  for (let offset = parent.start; offset < parent.end; ) {
+    const item = readTlv(bytes, offset, parent.end);
+    if (!item) return [];
+    result.push(item);
+    offset = item.end;
+  }
+  return result;
+}
+function text2(bytes, item) {
+  const content = bytes.slice(item.start, item.end);
+  if (item.tag === 30) {
+    let result = "";
+    for (let i = 0; i + 1 < content.length; i += 2) {
+      result += String.fromCharCode(content[i] << 8 | content[i + 1]);
+    }
+    return result;
+  }
+  return new TextDecoder().decode(content);
+}
+var ATTRIBUTE_NAMES = {
+  "2.5.4.3": "CN",
+  "2.5.4.6": "C",
+  "2.5.4.7": "L",
+  "2.5.4.8": "ST",
+  "2.5.4.10": "O",
+  "2.5.4.11": "OU",
+  "1.2.840.113549.1.9.1": "emailAddress"
+};
+function objectIdentifier(bytes, item) {
+  const content = bytes.slice(item.start, item.end);
+  if (!content.length) return "";
+  const parts = [Math.floor(content[0] / 40), content[0] % 40];
+  let value = 0;
+  for (let i = 1; i < content.length; i += 1) {
+    value = value * 128 + (content[i] & 127);
+    if (!(content[i] & 128)) {
+      parts.push(value);
+      value = 0;
+    }
+  }
+  return parts.join(".");
+}
+function nameAttributes(bytes, name) {
+  const attributes = [];
+  for (const rdn of children(bytes, name)) {
+    for (const pair of children(bytes, rdn)) {
+      const [type, value] = children(bytes, pair);
+      if (!type || !value || type.tag !== 6) continue;
+      const oid = objectIdentifier(bytes, type);
+      attributes.push([ATTRIBUTE_NAMES[oid] || oid, text2(bytes, value)]);
+    }
+  }
+  return attributes;
+}
+function time(bytes, item) {
+  const value = text2(bytes, item);
+  const match = item.tag === 23 ? /^(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?Z$/.exec(value) : item.tag === 24 ? /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?Z$/.exec(value) : null;
+  if (!match) return null;
+  let year = Number(match[1]);
+  if (item.tag === 23) year += year < 50 ? 2e3 : 1900;
+  return new Date(
+    Date.UTC(
+      year,
+      Number(match[2]) - 1,
+      Number(match[3]),
+      Number(match[4]),
+      Number(match[5]),
+      Number(match[6] || 0)
     )
   );
-  extra.depends("tunnel_type", "openvpn-client");
-  extra.rows = 5;
-  extra.textarea = true;
-  extra.rmempty = true;
-  extra.validate = (_id, value) => !`${value || ""}`.trim() || parseOutboundJsonObject(value) ? true : _("Enter a valid JSON object");
-  configureTextareaOption(extra);
+}
+function certificateInfo(der) {
+  const certificate = readTlv(der, 0, der.length);
+  if (!certificate || certificate.tag !== 48) return null;
+  const tbs = children(der, certificate)[0];
+  if (!tbs || tbs.tag !== 48) return null;
+  const fields = children(der, tbs);
+  const base = fields[0]?.tag === 160 ? 1 : 0;
+  const validity = fields[base + 3];
+  const subject = fields[base + 4];
+  if (!validity || validity.tag !== 48 || !subject || subject.tag !== 48) {
+    return null;
+  }
+  const attributes = nameAttributes(der, subject);
+  const notAfter = children(der, validity)[1];
+  return {
+    commonName: attributes.find(([name]) => name === "CN")?.[1] || "",
+    subject: attributes.map(([name, value]) => `${name}=${value}`).join(", "),
+    notAfter: notAfter ? time(der, notAfter) : null
+  };
+}
+
+// src/helpers/openvpnMaterial.ts
+var PRIVATE_KEY_LABELS = {
+  "PRIVATE KEY": "",
+  "RSA PRIVATE KEY": "RSA",
+  "EC PRIVATE KEY": "EC"
+};
+function isRouterPath(value) {
+  return /^\/[^\n]*$/.test(value.trim());
+}
+function isoDate(date) {
+  return date.toISOString().slice(0, 10);
+}
+function invalid2(message) {
+  return { valid: false, message, summary: "" };
+}
+function certificatesCheck(text4, kind) {
+  const blocks = pemBlocks(text4).filter(
+    (block) => block.label === "CERTIFICATE"
+  );
+  if (!blocks.length) {
+    return invalid2(_("Paste a PEM certificate or load it from a file"));
+  }
+  const infos = [];
+  for (const block of blocks) {
+    const der = decodeBase64(block.body);
+    const info = der ? certificateInfo(der) : null;
+    if (!info) return invalid2(_("The certificate is damaged"));
+    infos.push(info);
+  }
+  const shown2 = kind === "ca" ? infos.reduce(
+    (soonest, info) => info.notAfter && (!soonest.notAfter || info.notAfter < soonest.notAfter) ? info : soonest
+  ) : infos[0];
+  const name = shown2.commonName || shown2.subject || _("no name");
+  const expired = !!shown2.notAfter && shown2.notAfter.getTime() < Date.now();
+  const validity = shown2.notAfter ? (expired ? _("expired on %s") : _("valid until %s")).format(
+    isoDate(shown2.notAfter)
+  ) : "";
+  const count = infos.length > 1 ? _("%d certificates").format(infos.length) : "";
+  return {
+    valid: true,
+    message: "",
+    summary: [count, name, validity].filter(Boolean).join(" \xB7 "),
+    expired
+  };
+}
+function keyCheck(text4) {
+  const blocks = pemBlocks(text4);
+  if (blocks.some(
+    (block) => block.label === "ENCRYPTED PRIVATE KEY" || block.headers.some((header) => /ENCRYPTED/.test(header))
+  )) {
+    return invalid2(
+      _(
+        "The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem"
+      )
+    );
+  }
+  const keys = blocks.filter((block) => block.label in PRIVATE_KEY_LABELS);
+  if (keys.length !== 1 || !decodeBase64(keys[0].body)) {
+    return invalid2(_("Paste a PEM private key or load it from a file"));
+  }
+  const type = PRIVATE_KEY_LABELS[keys[0].label];
+  return {
+    valid: true,
+    message: "",
+    summary: type ? _("%s private key").format(type) : _("Private key")
+  };
+}
+function staticKeyCheck(text4) {
+  const block = pemBlocks(text4).find(
+    (item) => item.label === "OpenVPN Static key V1"
+  );
+  if (!block || !/^[0-9a-fA-F]{512}$/.test(block.body)) {
+    return invalid2(_("Paste an OpenVPN static key or load it from a file"));
+  }
+  return {
+    valid: true,
+    message: "",
+    summary: _("OpenVPN static key, 2048 bits")
+  };
+}
+function cryptV2Check(text4) {
+  const block = pemBlocks(text4).find(
+    (item) => item.label === "OpenVPN tls-crypt-v2 client key"
+  );
+  if (!block || !decodeBase64(block.body)) {
+    return invalid2(
+      _("Paste an OpenVPN tls-crypt-v2 client key or load it from a file")
+    );
+  }
+  return { valid: true, message: "", summary: _("tls-crypt-v2 client key") };
+}
+function checkOpenVPNMaterial(kind, value) {
+  const text4 = `${value ?? ""}`.trim();
+  if (!text4) return { valid: true, message: "", summary: "" };
+  if (isRouterPath(text4)) {
+    return {
+      valid: true,
+      message: "",
+      summary: _("File on the router: %s").format(text4)
+    };
+  }
+  switch (kind) {
+    case "ca":
+    case "certificate":
+      return certificatesCheck(text4, kind);
+    case "key":
+      return keyCheck(text4);
+    case "static":
+      return staticKeyCheck(text4);
+    default:
+      return cryptV2Check(text4);
+  }
+}
+
+// src/helpers/parseOpenVPNConfig.ts
+var OPENVPN_DEFAULT_PORT = 1194;
+var OPENVPN_DEFAULT_DATA_CIPHERS = [
+  "AES-256-GCM",
+  "AES-128-GCM",
+  "CHACHA20-POLY1305"
+];
+var IGNORED = /* @__PURE__ */ new Set([
+  "auth-nocache",
+  "block-ipv6",
+  "block-outside-dns",
+  "cd",
+  "chroot",
+  "client",
+  "client-nat",
+  "connect-retry",
+  "connect-retry-max",
+  "connect-timeout",
+  "daemon",
+  "dev-node",
+  "dev-type",
+  "dhcp-option",
+  "disable-dco",
+  "down",
+  "down-pre",
+  "explicit-exit-notify",
+  "fast-io",
+  "float",
+  "group",
+  "hand-window",
+  "http-proxy-retry",
+  "ifconfig-nowarn",
+  "ignore-unknown-option",
+  "inactive",
+  "ip-win32",
+  "ipchange",
+  "key-method",
+  "link-mtu",
+  "local",
+  "log",
+  "log-append",
+  "lport",
+  "machine-readable-output",
+  "management",
+  "management-hold",
+  "management-query-passwords",
+  "mark",
+  "mute",
+  "mute-replay-warnings",
+  "ncp-disable",
+  "nobind",
+  "persist-key",
+  "persist-local-ip",
+  "persist-remote-ip",
+  "persist-tun",
+  "ping-timer-rem",
+  "providers",
+  "pull",
+  "pull-filter",
+  "push-peer-info",
+  "rcvbuf",
+  "redirect-gateway",
+  "redirect-private",
+  "register-dns",
+  "remap-usr1",
+  "resolv-retry",
+  "route",
+  "route-delay",
+  "route-gateway",
+  "route-ipv6",
+  "route-method",
+  "route-metric",
+  "route-noexec",
+  "route-nopull",
+  "route-pre-down",
+  "route-up",
+  "script-security",
+  "server-poll-timeout",
+  "setenv",
+  "setenv-opt",
+  "single-session",
+  "sndbuf",
+  "status",
+  "status-version",
+  "tls-client",
+  "tls-exit",
+  "tls-timeout",
+  "topology",
+  "tran-window",
+  "tun-ipv6",
+  "tun-mtu-extra",
+  "txqueuelen",
+  "up",
+  "up-delay",
+  "up-restart",
+  "user",
+  "verb",
+  "windows-driver",
+  "writepid"
+]);
+var SKIPPED = /* @__PURE__ */ new Set([
+  "auth-retry",
+  "crl-verify",
+  "http-proxy",
+  "http-proxy-option",
+  "remote-cert-ku",
+  "reneg-bytes",
+  "reneg-pkts",
+  "replay-window",
+  "socks-proxy",
+  "static-challenge",
+  "tls-ciphersuites",
+  "tls-groups",
+  "tls-version-max",
+  "verify-hash"
+]);
+var SERVER_DIRECTIVES = /* @__PURE__ */ new Set([
+  "mode",
+  "server",
+  "server-bridge",
+  "tls-server",
+  "dh",
+  "client-config-dir",
+  "ifconfig-pool"
+]);
+var OS_KEY_DIRECTIVES = /* @__PURE__ */ new Set([
+  "cryptoapicert",
+  "pkcs11-id",
+  "pkcs11-providers",
+  "management-external-key",
+  "management-external-cert"
+]);
+var ImportError = class extends Error {
+};
+function fail(message) {
+  throw new ImportError(message);
+}
+function tokenize(line) {
+  const tokens = [];
+  let token = "";
+  let quote = "";
+  let active = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (quote) {
+      if (char === quote) quote = "";
+      else if (char === "\\" && quote === '"' && i + 1 < line.length) {
+        i += 1;
+        token += line[i];
+      } else token += char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (active) tokens.push(token);
+      token = "";
+      active = false;
+      continue;
+    }
+    if (!active && (char === "#" || char === ";")) break;
+    active = true;
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "\\" && i + 1 < line.length) {
+      i += 1;
+      token += line[i];
+    } else token += char;
+  }
+  if (active) tokens.push(token);
+  return tokens;
+}
+function readDirectives(lines2, closing) {
+  const directives = [];
+  while (lines2.length) {
+    const line = lines2.shift();
+    const trimmed2 = line.trim();
+    if (closing && trimmed2.toLowerCase() === `</${closing}>`) return directives;
+    const open = /^<([A-Za-z0-9-]+)>$/.exec(trimmed2);
+    if (!open) {
+      const tokens = tokenize(line);
+      if (tokens.length) {
+        directives.push({
+          name: tokens[0].replace(/^--/, "").toLowerCase(),
+          args: tokens.slice(1)
+        });
+      }
+      continue;
+    }
+    const name = open[1].toLowerCase();
+    if (name === "connection") {
+      directives.push({
+        name,
+        args: [],
+        children: readDirectives(lines2, name)
+      });
+      continue;
+    }
+    const content = [];
+    let closed = false;
+    while (lines2.length) {
+      const inner = lines2.shift();
+      if (inner.trim().toLowerCase() === `</${name}>`) {
+        closed = true;
+        break;
+      }
+      content.push(inner);
+    }
+    if (!closed) fail(_("The <%s> block is not closed").format(open[1]));
+    directives.push({ name, args: [], inline: content.join("\n").trim() });
+  }
+  if (closing) fail(_("The <%s> block is not closed").format(closing));
+  return directives;
+}
+function basename(path) {
+  return path.split(/[\\/]/).pop().toLowerCase();
+}
+function isInlineReference(value) {
+  return /^\[\[?inline\]?\]$/i.test(`${value || ""}`);
+}
+function lines(value) {
+  return value.split(/\r?\n/).map((line) => line.trimEnd());
+}
+function number(value, directive) {
+  if (!/^\d+$/.test(`${value ?? ""}`)) {
+    fail(_("%s needs a whole number").format(directive));
+  }
+  return Number(value);
+}
+function port(value, directive) {
+  const result = number(value, directive);
+  if (result < 1 || result > 65535) {
+    fail(_("%s has an invalid port %s").format(directive, value));
+  }
+  return result;
+}
+function transport2(value, directive) {
+  const proto = `${value || ""}`.toLowerCase();
+  if (/^udp[46]?$/.test(proto)) return "udp";
+  if (/^tcp[46]?(-client)?$/.test(proto)) return "tcp";
+  if (/^tcp[46]?-server$/.test(proto)) {
+    fail(_("This is a server configuration, not a client profile"));
+  }
+  return fail(
+    _("%s names an unsupported protocol %s").format(directive, value)
+  );
+}
+function cipherName(value) {
+  return `${value || ""}`.toUpperCase();
+}
+function digestName(value) {
+  const name = `${value || ""}`.toUpperCase().replace(/^SHA-/, "SHA");
+  return name === "RMD160" ? "RIPEMD160" : name;
+}
+function netmaskLength(mask) {
+  const parts = `${mask || ""}`.split(".");
+  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) {
+    return -1;
+  }
+  const bits = parts.map((part) => Number(part).toString(2).padStart(8, "0")).join("");
+  return /^1*0*$/.test(bits) && bits.length === 32 ? bits.indexOf("0") : -1;
+}
+function looksLikeOpenVPNConfig(input) {
+  return /^\s*(client|remote|dev|proto|tls-client|<ca>|<connection>)(\s|$)/im.test(
+    `${input || ""}`
+  );
+}
+function material(state, directive, kind) {
+  let content = directive.inline;
+  if (content == null) {
+    const reference = directive.args[0];
+    if (!reference || isInlineReference(reference)) {
+      content = state.blocks.get(directive.name);
+      if (content == null) {
+        fail(_("The profile names no content for %s").format(directive.name));
+      }
+    } else {
+      content = state.files[basename(reference)];
+      if (content == null) {
+        fail(
+          _(
+            "The profile refers to the file %s. Select it together with the profile"
+          ).format(basename(reference))
+        );
+      }
+    }
+  }
+  const check = checkOpenVPNMaterial(kind, content.trim());
+  if (!check.valid) fail(`${directive.name}: ${check.message}`);
+  return content.trim();
+}
+function inlineDirection(directive) {
+  const value = directive.args[1];
+  return directive.inline == null && value != null ? value : "";
+}
+function addRemote(state, directive, network2) {
+  const [server, remotePort, proto] = directive.args;
+  if (!server) fail(_("remote names no server"));
+  if (remotePort != null) port(remotePort, "remote");
+  state.remotes.push({
+    server,
+    port: remotePort || "",
+    network: proto ? transport2(proto, "remote") : network2
+  });
+}
+function readConnection(state, directive) {
+  const before = state.remotes.length;
+  let network2 = "";
+  let connectionPort = "";
+  for (const child of directive.children || []) {
+    if (child.name === "proto") network2 = transport2(child.args[0], "proto");
+    else if (child.name === "port" || child.name === "rport") {
+      port(child.args[0], child.name);
+      connectionPort = child.args[0];
+    } else if (child.name === "remote") addRemote(state, child, "");
+  }
+  state.remotes.slice(before).forEach((remote) => {
+    remote.port || (remote.port = connectionPort);
+    remote.network || (remote.network = network2);
+  });
+}
+function readCompression(state, directive) {
+  const { endpoint } = state;
+  delete endpoint.compression;
+  delete endpoint.compression_lzo;
+  if (directive.name === "comp-lzo") {
+    const mode = `${directive.args[0] || "adaptive"}`.toLowerCase();
+    if (!["yes", "no", "adaptive"].includes(mode)) {
+      fail(_("comp-lzo has an unsupported mode %s").format(directive.args[0]));
+    }
+    endpoint.compression_lzo = mode;
+    return;
+  }
+  const algorithm = `${directive.args[0] || "stub"}`.toLowerCase();
+  if (algorithm === "lzo") endpoint.compression_lzo = "yes";
+  else if (["lz4", "lz4-v2", "stub", "stub-v2"].includes(algorithm)) {
+    endpoint.compression = algorithm;
+  } else if (algorithm !== "migrate") {
+    fail(
+      _("compress has an unsupported algorithm %s").format(directive.args[0])
+    );
+  }
+}
+function readDirective(state, directive) {
+  const { name, args } = directive;
+  const { endpoint, tls } = state;
+  if (IGNORED.has(name)) return;
+  if (SKIPPED.has(name)) {
+    state.skipped.add(name);
+    return;
+  }
+  if (SERVER_DIRECTIVES.has(name)) {
+    fail(_("This is a server configuration, not a client profile"));
+  }
+  if (OS_KEY_DIRECTIVES.has(name)) {
+    fail(
+      _(
+        "The key of this profile is kept by the operating system or a token and cannot be exported to the router"
+      )
+    );
+  }
+  switch (name) {
+    case "dev":
+      if (/^tap/i.test(args[0] || "")) {
+        fail(
+          _(
+            "The profile uses a TAP (layer 2) device. Only TUN profiles are supported"
+          )
+        );
+      }
+      return;
+    case "proto":
+      state.network = transport2(args[0], name);
+      return;
+    case "port":
+    case "rport":
+      port(args[0], name);
+      state.port = args[0];
+      return;
+    case "remote":
+      addRemote(state, directive, "");
+      return;
+    case "connection":
+      readConnection(state, directive);
+      return;
+    case "remote-random":
+      endpoint.remote_random = true;
+      return;
+    case "ca":
+      tls.certificate = lines(material(state, directive, "ca"));
+      return;
+    case "cert":
+      tls.client_certificate = lines(material(state, directive, "certificate"));
+      return;
+    case "extra-certs":
+      tls.extra_certificates = lines(material(state, directive, "certificate"));
+      return;
+    case "key":
+      tls.client_key = lines(material(state, directive, "key"));
+      return;
+    case "pkcs12":
+      fail(
+        _(
+          "The profile keeps its certificate in a PKCS#12 bundle. Export the certificate and the key as PEM files"
+        )
+      );
+      return;
+    case "askpass":
+      fail(
+        _(
+          "The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem"
+        )
+      );
+      return;
+    case "tls-auth":
+      state.wrap = {
+        type: "tls_auth",
+        key: lines(material(state, directive, "static"))
+      };
+      state.wrapDirection = inlineDirection(directive);
+      return;
+    case "tls-crypt":
+      state.wrap = {
+        type: "tls_crypt",
+        key: lines(material(state, directive, "static"))
+      };
+      return;
+    case "tls-crypt-v2":
+      state.wrap = {
+        type: "tls_crypt_v2",
+        key: lines(material(state, directive, "crypt-v2"))
+      };
+      return;
+    case "secret":
+      state.staticKey = material(state, directive, "static");
+      state.staticDirection = inlineDirection(directive);
+      return;
+    case "key-direction":
+      state.keyDirection = args[0] || "";
+      return;
+    case "auth-user-pass":
+      state.login = directive;
+      return;
+    case "verify-x509-name": {
+      if (!args[0]) fail(_("verify-x509-name names no certificate name"));
+      const type = `${args[1] || "subject"}`.toLowerCase();
+      if (!["subject", "name", "name-prefix"].includes(type)) {
+        fail(_("verify-x509-name has an unsupported type %s").format(args[1]));
+      }
+      tls.server_name = args[0];
+      tls.server_name_type = type;
+      return;
+    }
+    case "remote-cert-tls":
+      state.remoteCertTls = `${args[0] || ""}`.toLowerCase();
+      return;
+    case "remote-cert-eku":
+      if (/^(TLS Web Server Authentication|serverAuth|1\.3\.6\.1\.5\.5\.7\.3\.1)$/i.test(
+        args.join(" ")
+      )) {
+        state.remoteCertTls = "server";
+      } else {
+        state.skipped.add(name);
+      }
+      return;
+    case "ns-cert-type":
+      state.nsCertType = `${args[0] || ""}`.toLowerCase();
+      return;
+    case "peer-fingerprint": {
+      const fingerprints = `${directive.inline ?? args.join(" ")}`.split(/[\s,;]+/).filter(Boolean).map((value) => value.replace(/:/g, "").toLowerCase());
+      if (!fingerprints.length || fingerprints.some((value) => !/^[0-9a-f]{64}$/.test(value))) {
+        fail(_("peer-fingerprint needs SHA-256 fingerprints"));
+      }
+      tls.peer_fingerprint = fingerprints;
+      return;
+    }
+    case "tls-version-min":
+      tls.version_min = args[0];
+      return;
+    case "tls-cert-profile":
+      tls.certificate_profile = `${args[0] || ""}`.toLowerCase();
+      return;
+    case "tls-cipher":
+      tls.cipher = args[0];
+      return;
+    case "cipher":
+      state.cipher = cipherName(args[0]);
+      return;
+    case "data-ciphers":
+    case "ncp-ciphers":
+      state.dataCiphers = `${args[0] || ""}`.split(":").filter(Boolean).map(cipherName);
+      return;
+    case "data-ciphers-fallback":
+      state.fallback = cipherName(args[0]);
+      return;
+    case "auth":
+      endpoint.auth = digestName(args[0]);
+      return;
+    case "comp-lzo":
+    case "compress":
+      readCompression(state, directive);
+      return;
+    case "allow-compression":
+      endpoint.allow_compression = `${args[0] || ""}`.toLowerCase();
+      return;
+    case "tun-mtu":
+      endpoint.mtu = number(args[0], name);
+      return;
+    case "fragment":
+      endpoint.fragment = number(args[0], name);
+      return;
+    case "mssfix":
+      if (args[0] != null) {
+        const value = number(args[0], name);
+        if (value === 0) endpoint.mss_fix_disabled = true;
+        else endpoint.mss_fix = value;
+      }
+      return;
+    case "ping":
+      endpoint.ping_interval = number(args[0], name);
+      return;
+    case "ping-restart":
+      endpoint.ping_restart = number(args[0], name);
+      return;
+    case "keepalive":
+      endpoint.ping_interval = number(args[0], name);
+      endpoint.ping_restart = number(args[1], name);
+      return;
+    case "reneg-sec":
+      endpoint.renegotiate_interval = number(args[0], name);
+      return;
+    case "ifconfig": {
+      const length = netmaskLength(args[1]);
+      if (!args[0] || !args[1]) fail(_("ifconfig needs two addresses"));
+      if (length >= 0 && length < 31) {
+        state.addresses.push(`${args[0]}/${length}`);
+      } else {
+        state.addresses.push(`${args[0]}/32`);
+        state.peerAddress = args[1];
+      }
+      return;
+    }
+    case "ifconfig-ipv6":
+      if (!args[0]) fail(_("ifconfig-ipv6 needs an address"));
+      state.addresses.push(args[0].includes("/") ? args[0] : `${args[0]}/128`);
+      state.peerAddress6 = args[1] || "";
+      return;
+    default:
+      state.skipped.add(name);
+      return;
+  }
+}
+function seconds(value) {
+  return `${value}s`;
+}
+function finishServers(state) {
+  const { endpoint } = state;
+  const networks = state.remotes.map(
+    (remote) => remote.network || state.network
+  );
+  endpoint.network = networks[0];
+  const servers2 = state.remotes.map((remote, index) => {
+    const entry = {
+      server: remote.server,
+      server_port: port(remote.port || state.port, "remote")
+    };
+    if (networks[index] !== networks[0]) entry.network = networks[index];
+    return entry;
+  });
+  if (servers2.length === 1) Object.assign(endpoint, servers2[0]);
+  else endpoint.servers = servers2;
+  if (networks[0] === "tcp") delete endpoint.fragment;
+}
+function finishTimers(state) {
+  const { endpoint } = state;
+  if (endpoint.ping_interval != null) {
+    endpoint.ping_interval = seconds(endpoint.ping_interval);
+  }
+  if (endpoint.ping_restart === 0) {
+    delete endpoint.ping_restart;
+    endpoint.ping_restart_disabled = true;
+  } else if (endpoint.ping_restart != null) {
+    endpoint.ping_restart = seconds(endpoint.ping_restart);
+  }
+  if (endpoint.renegotiate_interval === 0) {
+    delete endpoint.renegotiate_interval;
+    endpoint.renegotiate_disabled = true;
+  } else if (endpoint.renegotiate_interval != null) {
+    endpoint.renegotiate_interval = seconds(endpoint.renegotiate_interval);
+  }
+}
+function keyDirectionName(value) {
+  return value === "0" ? "server" : value === "1" ? "client" : "";
+}
+function finishStaticKey(state) {
+  const { endpoint } = state;
+  endpoint.mode = "static_key";
+  endpoint.static_key = lines(state.staticKey);
+  const direction = keyDirectionName(
+    state.staticDirection || state.keyDirection
+  );
+  if (direction) endpoint.key_direction = direction;
+  endpoint.cipher = state.cipher || "BF-CBC";
+  if (/-(GCM|POLY1305)$/.test(`${endpoint.cipher}`)) {
+    fail(_("A static key profile needs a CBC cipher"));
+  }
+  if (!state.addresses.length) {
+    fail(_("A static key profile needs its tunnel addresses (ifconfig)"));
+  }
+  endpoint.address = state.addresses;
+  if (state.peerAddress) endpoint.peer_address = state.peerAddress;
+  if (state.peerAddress6) endpoint.peer_address_ipv6 = state.peerAddress6;
+  for (const key of [
+    "compression",
+    "compression_lzo",
+    "allow_compression",
+    "renegotiate_interval",
+    "renegotiate_disabled"
+  ]) {
+    delete endpoint[key];
+  }
+}
+function finishTls(state) {
+  const { endpoint, tls } = state;
+  if (!tls.certificate && !tls.peer_fingerprint) {
+    fail(_("The profile has no CA certificate (ca) to check the server by"));
+  }
+  if (!tls.client_certificate !== !tls.client_key) {
+    fail(
+      tls.client_certificate ? _("The profile has a client certificate but no key for it") : _("The profile has a client key but no certificate for it")
+    );
+  }
+  if (tls.extra_certificates) {
+    tls.client_certificate = [
+      ...tls.client_certificate || [],
+      ...tls.extra_certificates
+    ];
+    delete tls.extra_certificates;
+  }
+  if (state.wrap) {
+    if (state.wrap.type === "tls_auth") {
+      const direction = keyDirectionName(
+        state.wrapDirection || state.keyDirection
+      );
+      if (direction) state.wrap.direction = direction;
+    }
+    tls.control_wrap = state.wrap;
+  }
+  if (state.remoteCertTls !== "server") {
+    tls.remote_certificate_tls = "none";
+    if (state.nsCertType === "server") tls.ns_certificate_type = "server";
+  }
+  endpoint.tls = tls;
+  const fallback = state.fallback || state.cipher;
+  const ciphers = state.dataCiphers || OPENVPN_DEFAULT_DATA_CIPHERS;
+  if (state.cipher && !ciphers.includes(state.cipher)) {
+    endpoint.data_ciphers = [...ciphers, state.cipher];
+  } else if (state.dataCiphers) {
+    endpoint.data_ciphers = state.dataCiphers;
+  }
+  if (fallback) endpoint.data_ciphers_fallback = fallback;
+  if (!endpoint.allow_compression && (["yes", "adaptive"].includes(`${endpoint.compression_lzo}`) || ["lz4", "lz4-v2"].includes(`${endpoint.compression}`))) {
+    endpoint.allow_compression = "asym";
+  }
+  const login = state.login;
+  if (login) {
+    const reference = login.args[0];
+    const content = login.inline ?? (reference && !isInlineReference(reference) ? state.files[basename(reference)] : state.blocks.get("auth-user-pass"));
+    const [username = "", password = ""] = `${content || ""}`.split(/\r?\n/);
+    if (username) endpoint.username = username;
+    if (password) endpoint.password = password;
+  }
+}
+function buildEndpoint(input, files) {
+  const directives = readDirectives(`${input || ""}`.split(/\r?\n/));
+  const state = {
+    files: Object.fromEntries(
+      Object.entries(files).map(([name, content]) => [basename(name), content])
+    ),
+    blocks: new Map(
+      directives.filter((directive) => directive.inline != null).map((directive) => [directive.name, directive.inline])
+    ),
+    skipped: /* @__PURE__ */ new Set(),
+    endpoint: { type: "openvpn-client" },
+    tls: {},
+    remotes: [],
+    network: "udp",
+    port: `${OPENVPN_DEFAULT_PORT}`,
+    staticKey: "",
+    staticDirection: "",
+    keyDirection: "",
+    wrap: null,
+    wrapDirection: "",
+    cipher: "",
+    dataCiphers: null,
+    fallback: "",
+    remoteCertTls: "",
+    nsCertType: "",
+    login: null,
+    addresses: [],
+    peerAddress: "",
+    peerAddress6: ""
+  };
+  directives.forEach((directive) => readDirective(state, directive));
+  if (!state.remotes.length) {
+    fail(
+      looksLikeOpenVPNConfig(input) ? _("The profile names no server: it has no remote directive") : _("This is not an OpenVPN profile")
+    );
+  }
+  finishServers(state);
+  finishTimers(state);
+  if (state.staticKey) finishStaticKey(state);
+  else finishTls(state);
+  return {
+    endpoint: state.endpoint,
+    login: !state.staticKey && !!state.login,
+    skipped: [...state.skipped].sort()
+  };
+}
+function parseOpenVPNConfig(input, files = {}) {
+  try {
+    return { valid: true, ...buildEndpoint(input, files) };
+  } catch (error) {
+    if (error instanceof ImportError) {
+      return { valid: false, message: error.message };
+    }
+    throw error;
+  }
+}
+
+// src/forkop/tabs/sections/tunnels/openvpn.ts
+var DATA_CIPHERS = [
+  "AES-256-GCM",
+  "AES-128-GCM",
+  "CHACHA20-POLY1305",
+  "AES-192-GCM",
+  "AES-256-CBC",
+  "AES-192-CBC",
+  "AES-128-CBC",
+  "CAMELLIA-256-CBC",
+  "CAMELLIA-128-CBC",
+  "BF-CBC",
+  "NONE"
+];
+var STATIC_CIPHERS = DATA_CIPHERS.filter(
+  (cipher) => !/-(GCM|POLY1305)$/.test(cipher)
+);
+var DIGESTS = ["SHA1", "SHA256", "SHA384", "SHA512", "SHA224", "MD5"];
+var COMPRESSIONS = {
+  stub: { compression: "stub" },
+  "stub-v2": { compression: "stub-v2" },
+  lz4: { compression: "lz4", allow_compression: "asym" },
+  "lz4-v2": { compression: "lz4-v2", allow_compression: "asym" },
+  "lzo-no": { compression_lzo: "no" },
+  "lzo-yes": { compression_lzo: "yes", allow_compression: "asym" },
+  "lzo-adaptive": { compression_lzo: "adaptive", allow_compression: "asym" }
+};
+var COMPRESSION_LABELS = {
+  stub: "compress stub",
+  "stub-v2": "compress stub-v2",
+  lz4: "compress lz4",
+  "lz4-v2": "compress lz4-v2",
+  "lzo-no": "comp-lzo no",
+  "lzo-yes": "comp-lzo yes",
+  "lzo-adaptive": "comp-lzo adaptive"
+};
+var MANAGED = [
+  "type",
+  "tag",
+  "mode",
+  "network",
+  "server",
+  "server_port",
+  "servers",
+  "remote_random",
+  "username",
+  "password",
+  "tls",
+  "static_key",
+  "static_key_path",
+  "key_direction",
+  "cipher",
+  "address",
+  "peer_address",
+  "peer_address_ipv6",
+  "data_ciphers",
+  "data_ciphers_fallback",
+  "auth",
+  "compression",
+  "compression_lzo",
+  "allow_compression",
+  "mtu",
+  "fragment",
+  "mss_fix",
+  "mss_fix_disabled",
+  "ping_interval",
+  "ping_restart",
+  "ping_restart_disabled",
+  "renegotiate_interval",
+  "renegotiate_disabled"
+];
+var MANAGED_TLS = [
+  "certificate",
+  "certificate_path",
+  "client_certificate",
+  "client_certificate_path",
+  "client_key",
+  "client_key_path",
+  "control_wrap",
+  "server_name",
+  "server_name_type",
+  "remote_certificate_tls",
+  "ns_certificate_type",
+  "peer_fingerprint",
+  "certificate_profile",
+  "version_min",
+  "cipher"
+];
+var ADVANCED_DEFAULTS = {
+  openvpn_remote_random: "0",
+  openvpn_server_name: "",
+  openvpn_server_name_type: "name",
+  openvpn_verify_purpose: "server",
+  openvpn_peer_fingerprint: [],
+  openvpn_certificate_profile: "",
+  openvpn_tls_version_min: "",
+  openvpn_tls_cipher: "",
+  openvpn_data_ciphers: [],
+  openvpn_data_ciphers_fallback: "",
+  openvpn_auth: "",
+  openvpn_compression: "",
+  openvpn_mtu: "",
+  openvpn_fragment: "",
+  openvpn_mss_fix: "",
+  openvpn_ping_interval: "",
+  openvpn_ping_restart: "",
+  openvpn_renegotiate: ""
+};
+function text3(value) {
+  return `${value ?? ""}`;
+}
+function trimmed(value) {
+  return text3(value).trim();
+}
+function list(value) {
+  return value == null ? [] : Array.isArray(value) ? value.map(text3) : [text3(value)];
+}
+function material2(object, key) {
+  const content = list(object[key]).join("\n").trim();
+  return content || trimmed(object[`${key}_path`]);
+}
+function setMaterial(object, key, value) {
+  const content = trimmed(value);
+  if (!content) return;
+  if (isRouterPath(content)) {
+    object[`${key}_path`] = content;
+  } else {
+    object[key] = content.split(/\r?\n/).map((line) => line.trimEnd());
+  }
+}
+function secondsValue(value) {
+  const match = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(trimmed(value));
+  if (!match || !trimmed(value)) return trimmed(value);
+  const [, hours = "0", minutes = "0", seconds2 = "0"] = match;
+  return `${Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds2)}`;
+}
+function formatServer(server, port2, network2) {
+  const host = trimmed(server);
+  const address = isIPv6(host) ? `[${host}]` : host;
+  const scheme = network2 ? `${network2}://` : "";
+  return `${scheme}${address}:${port2 ?? OPENVPN_DEFAULT_PORT}`;
+}
+function parseOpenVPNServer(value) {
+  let rest = trimmed(value);
+  let network2 = "";
+  const scheme = /^(udp|tcp):\/\//i.exec(rest);
+  if (scheme) {
+    network2 = scheme[1].toLowerCase();
+    rest = rest.slice(scheme[0].length);
+  }
+  const hostPort = parseHostPort(rest);
+  if (hostPort) {
+    return isValidPort(hostPort.port) ? {
+      server: unbracketHost(hostPort.host),
+      port: Number(hostPort.port),
+      network: network2
+    } : null;
+  }
+  return rest && !rest.includes("/") && isValidHost(rest) ? { server: unbracketHost(rest), port: OPENVPN_DEFAULT_PORT, network: network2 } : null;
+}
+function compressionValue(endpoint) {
+  const lzo = trimmed(endpoint.compression_lzo);
+  if (["no", "yes", "adaptive"].includes(lzo)) return `lzo-${lzo}`;
+  const compression = trimmed(endpoint.compression);
+  return COMPRESSIONS[compression] ? compression : "";
+}
+function verifyPurpose(tls) {
+  if (trimmed(tls.remote_certificate_tls) !== "none") return "server";
+  return trimmed(tls.ns_certificate_type) === "server" ? "ns" : "none";
+}
+function keyDirectionValue(value) {
+  return value === "client" ? "1" : value === "server" ? "0" : "";
+}
+function keyDirectionName2(value) {
+  return value === "1" ? "client" : value === "0" ? "server" : "";
+}
+function advancedInUse(settings) {
+  return Object.entries(ADVANCED_DEFAULTS).some(
+    ([key, empty]) => Array.isArray(empty) ? normalizeOptionValues(settings[key]).length > 0 : trimmed(settings[key]) !== trimmed(empty)
+  );
+}
+function preservedFields(endpoint) {
+  const preserved = {};
+  Object.entries(endpoint).forEach(([key, value]) => {
+    if (!MANAGED.includes(key)) preserved[key] = value;
+  });
+  const tls = endpoint.tls || {};
+  const preservedTls = {};
+  Object.entries(tls).forEach(([key, value]) => {
+    if (!MANAGED_TLS.includes(key)) preservedTls[key] = value;
+  });
+  if (Object.keys(preservedTls).length) preserved.tls = preservedTls;
+  return preserved;
+}
+function openVPNInitialSettings(endpoint) {
+  const tls = endpoint.tls || {};
+  const wrap = tls.control_wrap || {};
+  const network2 = trimmed(endpoint.network).replace(/[46]$/, "") || "udp";
+  const staticMode = endpoint.mode === "static_key";
+  const servers2 = Array.isArray(endpoint.servers) && endpoint.servers.length ? endpoint.servers.map((entry) => {
+    const own = trimmed(entry.network).replace(/[46]$/, "");
+    return formatServer(
+      entry.server,
+      entry.server_port,
+      own && own !== network2 ? own : ""
+    );
+  }) : trimmed(endpoint.server) ? [formatServer(endpoint.server, endpoint.server_port, "")] : [];
+  const lzo = compressionValue(endpoint);
+  const settings = {
+    openvpn_servers: servers2,
+    openvpn_network: network2,
+    openvpn_mode: staticMode ? "static_key" : "tls",
+    openvpn_login: endpoint.username != null || endpoint.password != null ? "1" : "0",
+    openvpn_username: text3(endpoint.username),
+    openvpn_password: text3(endpoint.password),
+    openvpn_ca: material2(tls, "certificate"),
+    openvpn_cert: material2(tls, "client_certificate"),
+    openvpn_key: material2(tls, "client_key"),
+    openvpn_control_wrap: trimmed(wrap.type),
+    openvpn_control_wrap_key: material2(wrap, "key"),
+    openvpn_key_direction: keyDirectionValue(
+      staticMode ? endpoint.key_direction : wrap.direction
+    ),
+    openvpn_static_key: material2(endpoint, "static_key"),
+    openvpn_static_cipher: trimmed(endpoint.cipher),
+    openvpn_address: list(endpoint.address),
+    openvpn_peer_address: trimmed(endpoint.peer_address),
+    openvpn_peer_address_ipv6: trimmed(endpoint.peer_address_ipv6),
+    openvpn_remote_random: endpoint.remote_random ? "1" : "0",
+    openvpn_server_name: trimmed(tls.server_name),
+    openvpn_server_name_type: trimmed(tls.server_name_type) || "name",
+    openvpn_verify_purpose: verifyPurpose(tls),
+    openvpn_peer_fingerprint: list(tls.peer_fingerprint),
+    openvpn_certificate_profile: trimmed(tls.certificate_profile),
+    openvpn_tls_version_min: trimmed(tls.version_min),
+    openvpn_tls_cipher: trimmed(tls.cipher),
+    openvpn_data_ciphers: list(endpoint.data_ciphers),
+    openvpn_data_ciphers_fallback: trimmed(endpoint.data_ciphers_fallback),
+    openvpn_auth: trimmed(endpoint.auth),
+    openvpn_compression: lzo,
+    openvpn_mtu: trimmed(endpoint.mtu),
+    openvpn_fragment: trimmed(endpoint.fragment),
+    openvpn_mss_fix: endpoint.mss_fix_disabled ? "0" : trimmed(endpoint.mss_fix),
+    openvpn_ping_interval: secondsValue(endpoint.ping_interval),
+    openvpn_ping_restart: endpoint.ping_restart_disabled ? "0" : secondsValue(endpoint.ping_restart),
+    openvpn_renegotiate: endpoint.renegotiate_disabled ? "0" : secondsValue(endpoint.renegotiate_interval),
+    openvpn_preserved: JSON.stringify(preservedFields(endpoint))
+  };
+  settings.openvpn_advanced = advancedInUse(settings) ? "1" : "0";
+  return settings;
+}
+function mergePreserved(endpoint, settings) {
+  let preserved = {};
+  try {
+    preserved = JSON.parse(text3(settings.openvpn_preserved) || "{}");
+  } catch (_error) {
+    preserved = {};
+  }
+  const tls = {
+    ...preserved.tls || {},
+    ...endpoint.tls || {}
+  };
+  const result = { ...preserved, ...endpoint };
+  if (Object.keys(tls).length) result.tls = tls;
+  return result;
+}
+function servers(settings, network2) {
+  return normalizeOptionValues(settings.openvpn_servers).map(parseOpenVPNServer).filter(Boolean).map((entry) => {
+    const result = {
+      server: entry.server,
+      server_port: entry.port
+    };
+    if (entry.network && entry.network !== network2) {
+      result.network = entry.network;
+    }
+    return result;
+  });
+}
+function number2(value) {
+  return /^\d+$/.test(trimmed(value)) ? Number(trimmed(value)) : null;
+}
+function applyAdvanced(endpoint, tls, settings) {
+  if (settings.openvpn_advanced !== "1") return;
+  const tlsMode = settings.openvpn_mode !== "static_key";
+  if (settings.openvpn_remote_random === "1") endpoint.remote_random = true;
+  const mtu = number2(settings.openvpn_mtu);
+  if (mtu) endpoint.mtu = mtu;
+  const fragment = number2(settings.openvpn_fragment);
+  if (fragment && settings.openvpn_network !== "tcp")
+    endpoint.fragment = fragment;
+  const mssFix = number2(settings.openvpn_mss_fix);
+  if (mssFix === 0) endpoint.mss_fix_disabled = true;
+  else if (mssFix) endpoint.mss_fix = mssFix;
+  const ping = number2(settings.openvpn_ping_interval);
+  if (ping) endpoint.ping_interval = `${ping}s`;
+  const restart = number2(settings.openvpn_ping_restart);
+  if (restart === 0) endpoint.ping_restart_disabled = true;
+  else if (restart) endpoint.ping_restart = `${restart}s`;
+  Object.assign(
+    endpoint,
+    COMPRESSIONS[text3(settings.openvpn_compression)] || {}
+  );
+  if (!tlsMode) return;
+  const serverName = trimmed(settings.openvpn_server_name);
+  if (serverName) {
+    tls.server_name = serverName;
+    tls.server_name_type = trimmed(settings.openvpn_server_name_type) || "name";
+  }
+  if (settings.openvpn_verify_purpose === "none")
+    tls.remote_certificate_tls = "none";
+  if (settings.openvpn_verify_purpose === "ns") {
+    tls.remote_certificate_tls = "none";
+    tls.ns_certificate_type = "server";
+  }
+  const fingerprints = normalizeOptionValues(
+    settings.openvpn_peer_fingerprint
+  ).map((value) => value.replace(/:/g, "").toLowerCase());
+  if (fingerprints.length) tls.peer_fingerprint = fingerprints;
+  for (const [key, field] of [
+    ["certificate_profile", "openvpn_certificate_profile"],
+    ["version_min", "openvpn_tls_version_min"],
+    ["cipher", "openvpn_tls_cipher"]
+  ]) {
+    if (trimmed(settings[field])) tls[key] = trimmed(settings[field]);
+  }
+  const ciphers = normalizeOptionValues(settings.openvpn_data_ciphers);
+  if (ciphers.length) endpoint.data_ciphers = ciphers;
+  if (trimmed(settings.openvpn_data_ciphers_fallback)) {
+    endpoint.data_ciphers_fallback = trimmed(
+      settings.openvpn_data_ciphers_fallback
+    );
+  }
+  if (trimmed(settings.openvpn_auth))
+    endpoint.auth = trimmed(settings.openvpn_auth);
+  const renegotiate = number2(settings.openvpn_renegotiate);
+  if (renegotiate === 0) endpoint.renegotiate_disabled = true;
+  else if (renegotiate) endpoint.renegotiate_interval = `${renegotiate}s`;
+}
+function openVPNEndpoint(settings) {
+  const network2 = settings.openvpn_network === "tcp" ? "tcp" : "udp";
+  const endpoint = { type: "openvpn-client", network: network2 };
+  const tls = {};
+  const remotes = servers(settings, network2);
+  if (remotes.length === 1 && !remotes[0].network)
+    Object.assign(endpoint, remotes[0]);
+  else if (remotes.length) endpoint.servers = remotes;
+  if (settings.openvpn_mode === "static_key") {
+    endpoint.mode = "static_key";
+    setMaterial(endpoint, "static_key", settings.openvpn_static_key);
+    const direction = keyDirectionName2(settings.openvpn_key_direction);
+    if (direction) endpoint.key_direction = direction;
+    if (trimmed(settings.openvpn_static_cipher)) {
+      endpoint.cipher = trimmed(settings.openvpn_static_cipher);
+    }
+    const addresses = normalizeOptionValues(settings.openvpn_address);
+    if (addresses.length) endpoint.address = addresses;
+    for (const key of ["peer_address", "peer_address_ipv6"]) {
+      if (trimmed(settings[`openvpn_${key}`])) {
+        endpoint[key] = trimmed(settings[`openvpn_${key}`]);
+      }
+    }
+    applyAdvanced(endpoint, tls, settings);
+    return mergePreserved(endpoint, settings);
+  }
+  if (settings.openvpn_login === "1" || text3(settings.openvpn_username) || text3(settings.openvpn_password)) {
+    endpoint.username = text3(settings.openvpn_username);
+    endpoint.password = text3(settings.openvpn_password);
+  }
+  setMaterial(tls, "certificate", settings.openvpn_ca);
+  setMaterial(tls, "client_certificate", settings.openvpn_cert);
+  setMaterial(tls, "client_key", settings.openvpn_key);
+  const wrapType = trimmed(settings.openvpn_control_wrap);
+  if (wrapType) {
+    const wrap = { type: wrapType };
+    setMaterial(wrap, "key", settings.openvpn_control_wrap_key);
+    const direction = keyDirectionName2(settings.openvpn_key_direction);
+    if (wrapType === "tls_auth" && direction) wrap.direction = direction;
+    tls.control_wrap = wrap;
+  }
+  applyAdvanced(endpoint, tls, settings);
+  endpoint.tls = tls;
+  return mergePreserved(endpoint, settings);
+}
+function validateServerEntry(value) {
+  return parseOpenVPNServer(value) ? true : _("Enter a host and a port, such as vpn.example.com:1194");
+}
+function validateAddress(value) {
+  const address = trimmed(value);
+  if (!address.includes("/")) return _("Use an IP address with a CIDR prefix");
+  const validation = validateSubnet(address);
+  return validation.valid ? true : validation.message;
+}
+function validateOpenVPNSettings(settings) {
+  const servers2 = normalizeOptionValues(settings.openvpn_servers);
+  if (!servers2.length) return _("Add at least one OpenVPN server");
+  for (const server of servers2) {
+    const result = validateServerEntry(server);
+    if (result !== true) return `${server}: ${result}`;
+  }
+  if (settings.openvpn_mode === "static_key") {
+    if (!trimmed(settings.openvpn_static_key)) return _("Add the static key");
+    const addresses = normalizeOptionValues(settings.openvpn_address);
+    if (!addresses.length) {
+      return _("A static key tunnel needs its tunnel addresses");
+    }
+    if (addresses.some((address) => isIPv4(address.split("/")[0])) && !trimmed(settings.openvpn_peer_address)) {
+      return _(
+        "A static key tunnel with an IPv4 address needs the IPv4 address of the peer"
+      );
+    }
+    if (addresses.some((address) => isIPv6(address.split("/")[0])) && !trimmed(settings.openvpn_peer_address_ipv6)) {
+      return _(
+        "A static key tunnel with an IPv6 address needs the IPv6 address of the peer"
+      );
+    }
+    return true;
+  }
+  if (!trimmed(settings.openvpn_ca) && !(settings.openvpn_advanced === "1" && normalizeOptionValues(settings.openvpn_peer_fingerprint).length)) {
+    return _(
+      "Add the CA certificate the server certificate is checked against"
+    );
+  }
+  if (!trimmed(settings.openvpn_cert) !== !trimmed(settings.openvpn_key)) {
+    return _(
+      "The client certificate and its key go together: add both or neither"
+    );
+  }
+  if (settings.openvpn_login === "1" && !trimmed(settings.openvpn_username)) {
+    return _("Enter the username");
+  }
+  if (trimmed(settings.openvpn_control_wrap) && !trimmed(settings.openvpn_control_wrap_key)) {
+    return _("Add the key of the control channel protection");
+  }
+  return true;
+}
+function openVPNImportSummary(result) {
+  if (!result.valid) return "";
+  const endpoint = result.endpoint;
+  const tls = endpoint.tls || {};
+  const wrap = tls.control_wrap || {};
+  const count = Array.isArray(endpoint.servers) ? endpoint.servers.length : 1;
+  const parts = [
+    count > 1 ? _("%d servers").format(count) : `${formatServer(endpoint.server, endpoint.server_port, "")}`,
+    text3(endpoint.network).toUpperCase()
+  ];
+  if (endpoint.mode === "static_key") parts.push(_("static key"));
+  else {
+    if (tls.client_certificate) parts.push(_("client certificate"));
+    if (result.login) parts.push(_("username and password"));
+    if (wrap.type) parts.push(text3(wrap.type).replace(/_/g, "-"));
+  }
+  const lines2 = [parts.join(" \xB7 ")];
+  if (result.skipped.length) {
+    lines2.push(_("Not carried over: %s").format(result.skipped.join(", ")));
+  }
+  return lines2.join("\n");
 }
 
 // src/forkop/tabs/sections/tunnels/model.ts
@@ -16336,8 +17626,8 @@ function wireGuardPeerDisplayNameFromObject(peer) {
     return _("WireGuard peer");
   }
   const address = `${peer.address || ""}`.trim();
-  const port = Number(peer.port);
-  return address && Number.isInteger(port) ? `${address}:${port}` : address || _("WireGuard peer");
+  const port2 = Number(peer.port);
+  return address && Number.isInteger(port2) ? `${address}:${port2}` : address || _("WireGuard peer");
 }
 
 // src/forkop/tabs/sections/outboundNames.ts
@@ -16661,8 +17951,8 @@ function currentDraftOutboundNames(section_id) {
   return names.map((name) => {
     const base = `${name || ""}`.trim();
     let unique = base;
-    for (let number = 2; taken.has(unique); number += 1) {
-      unique = `${base} #${number}`;
+    for (let number3 = 2; taken.has(unique); number3 += 1) {
+      unique = `${base} #${number3}`;
     }
     taken.add(unique);
     return unique;
@@ -17438,7 +18728,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
       }, this)
     );
   },
-  renderListItemLabel(section_id, value, text2) {
+  renderListItemLabel(section_id, value, text4) {
     const name = childItemInputValue(
       section_id,
       value,
@@ -17447,7 +18737,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
     );
     return renderNetworkInterfaceListItem(
       this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
-      name || `${text2 ?? ""}`
+      name || `${text4 ?? ""}`
     );
   }
 });
@@ -18096,7 +19386,7 @@ function validateAmneziaSignature(value) {
 function parsePeerEndpoint(value) {
   const normalized = value.trim();
   let address = "";
-  let port = DEFAULT_WIREGUARD_PORT;
+  let port2 = DEFAULT_WIREGUARD_PORT;
   if (normalized.startsWith("[")) {
     const close = normalized.indexOf("]");
     if (close < 1) return null;
@@ -18105,7 +19395,7 @@ function parsePeerEndpoint(value) {
       if (normalized[close + 1] !== ":") return null;
       const parsed = parseUnsigned(normalized.slice(close + 2), 65535);
       if (!parsed || parsed < 1) return null;
-      port = parsed;
+      port2 = parsed;
     }
   } else {
     const separator = normalized.lastIndexOf(":");
@@ -18113,12 +19403,12 @@ function parsePeerEndpoint(value) {
       address = normalized.slice(0, separator);
       const parsed = parseUnsigned(normalized.slice(separator + 1), 65535);
       if (!parsed || parsed < 1) return null;
-      port = parsed;
+      port2 = parsed;
     } else {
       address = normalized;
     }
   }
-  return address && !address.startsWith(":") ? { address, port } : null;
+  return address && !address.startsWith(":") ? { address, port: port2 } : null;
 }
 function readSections(input) {
   const sections = [];
@@ -18211,7 +19501,7 @@ function rejectUnsupportedFields(source) {
 }
 function parseAmnezia(iface) {
   const amnezia = {};
-  const invalid2 = {
+  const invalid3 = {
     valid: false,
     message: _("Invalid AmneziaWG parameters")
   };
@@ -18219,21 +19509,21 @@ function parseAmnezia(iface) {
     const value = firstValue(iface, key);
     if (!value) continue;
     const parsed = parseUnsigned(value, 4294967295);
-    if (parsed === void 0) return invalid2;
+    if (parsed === void 0) return invalid3;
     amnezia[key] = parsed;
   }
   for (const key of AMNEZIA_PADDING_FIELDS2) {
     const value = firstValue(iface, key);
     if (!value) continue;
     const parsed = parseUnsigned(value, 65535);
-    if (parsed === void 0) return invalid2;
+    if (parsed === void 0) return invalid3;
     amnezia[key] = parsed;
   }
   for (const key of AMNEZIA_RANGE_FIELDS2) {
     const value = firstValue(iface, key);
     if (!value) continue;
     const parsed = parseRange(value, 4294967295);
-    if (parsed === void 0) return invalid2;
+    if (parsed === void 0) return invalid3;
     amnezia[AMNEZIA_ENDPOINT_KEYS[key] || key] = parsed;
   }
   for (const key of AMNEZIA_SIGNATURE_FIELDS2) {
@@ -18252,7 +19542,7 @@ function parseAmnezia(iface) {
     const value = firstValue(iface, key).toLowerCase();
     if (!value) continue;
     if (!["on", "off", "true", "false", "1", "0", "yes", "no"].includes(value))
-      return invalid2;
+      return invalid3;
     if (["on", "true", "1", "yes"].includes(value))
       amnezia[AMNEZIA_ENDPOINT_KEYS[key]] = true;
   }
@@ -18272,7 +19562,7 @@ function parseAmnezia(iface) {
     amnezia: Object.keys(amnezia).length > 0 ? amnezia : void 0
   };
 }
-function buildEndpoint(source) {
+function buildEndpoint2(source) {
   const unsupported = rejectUnsupportedFields(source);
   if (unsupported) return { valid: false, message: unsupported };
   const { iface } = source;
@@ -18376,9 +19666,9 @@ function buildEndpoint(source) {
 function parseWireGuardConfig(input) {
   const value = `${input || ""}`.trim();
   const link = readShareLink(value);
-  if (link) return buildEndpoint(link);
+  if (link) return buildEndpoint2(link);
   const source = readConfigFile(value);
-  return "message" in source ? { valid: false, message: source.message } : buildEndpoint(source);
+  return "message" in source ? { valid: false, message: source.message } : buildEndpoint2(source);
 }
 function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -18463,10 +19753,10 @@ async function parseWireGuardInput(input) {
     if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
-    const text2 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
-    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text2))
-      return parseWireGuardConfig(text2);
-    return importAmneziaProfile(JSON.parse(text2));
+    const text4 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text4))
+      return parseWireGuardConfig(text4);
+    return importAmneziaProfile(JSON.parse(text4));
   } catch {
     return {
       valid: false,
@@ -18485,6 +19775,781 @@ function validateTailscaleHostname(value) {
     return _("A host name holds at most 63 characters");
   }
   return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname) ? true : _("Use lowercase letters, digits and hyphens");
+}
+
+// src/forkop/tabs/sections/tunnels/material.ts
+var STYLE_ID = "fkp-material-styles";
+function injectMaterialStyles() {
+  if (document.getElementById(STYLE_ID)) return;
+  document.head.appendChild(
+    textE(
+      "style",
+      { id: STYLE_ID },
+      [
+        ".fkp-material{display:grid;gap:0.5em;max-inline-size:100%}",
+        ".fkp-material__row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;column-gap:0.5em;align-items:stretch}",
+        ".fkp-material__summary{box-sizing:border-box;inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;margin:0 !important;cursor:default;text-overflow:ellipsis}",
+        ".fkp-material__row > button{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
+        ".fkp-material textarea{font-family:monospace;font-size:12px}",
+        ".fkp-import-files{display:flex;flex-wrap:wrap;align-items:center;gap:0.5em 1em}",
+        ".fkp-import-files__names{color:var(--text-color-medium,#888);overflow-wrap:anywhere}",
+        ".fkp-import-summary{white-space:pre-line;overflow-wrap:anywhere}",
+        ".fkp-import-summary:empty{display:none}",
+        ".fkp-import-summary--invalid{color:var(--error-color-medium,#d44)}"
+      ].join("\n")
+    )
+  );
+}
+var ICONS = {
+  file: [
+    "M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z",
+    "M14 2v4a2 2 0 0 0 2 2h4",
+    "M12 12v6",
+    "m15 15-3-3-3 3"
+  ],
+  edit: [
+    "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"
+  ],
+  clear: ["M18 6 6 18", "m6 6 12 12"]
+};
+function icon(name) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  Object.entries({
+    viewBox: "0 0 24 24",
+    width: "16",
+    height: "16",
+    fill: "none",
+    stroke: "currentColor",
+    "stroke-width": "2",
+    "stroke-linecap": "round",
+    "stroke-linejoin": "round",
+    "aria-hidden": "true"
+  }).forEach(([key, value]) => svg.setAttribute(key, value));
+  ICONS[name].forEach((d) => {
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", d);
+    svg.appendChild(path);
+  });
+  return svg;
+}
+function button(label, name, disabled) {
+  return textE(
+    "button",
+    {
+      type: "button",
+      class: "btn cbi-button cbi-button-neutral",
+      title: label,
+      "aria-label": label,
+      disabled: disabled ? "" : null
+    },
+    icon(name)
+  );
+}
+function readMaterialFile(bytes) {
+  const text4 = new TextDecoder().decode(bytes);
+  if (text4.includes("-----BEGIN") || !certificateInfo(bytes)) return text4;
+  let binary = "";
+  bytes.forEach((byte) => binary += String.fromCharCode(byte));
+  const body = btoa(binary).replace(/.{64}/g, "$&\n").trim();
+  return `-----BEGIN CERTIFICATE-----
+${body}
+-----END CERTIFICATE-----`;
+}
+function formValueOf(option2) {
+  return (name) => {
+    const found = option2.map.lookupOption(name, "settings");
+    if (!found) return null;
+    const value = found[0].formvalue(found[1]);
+    return value ?? found[0].cfgvalue(found[1]);
+  };
+}
+function configureOpenVPNMaterial(option2, kind, required) {
+  const kindOf = () => typeof kind === "function" ? kind(formValueOf(option2)) : kind;
+  option2.rows = 8;
+  option2.wrap = "off";
+  option2.rmempty = true;
+  option2.validate = function(_sectionId, value) {
+    const content = `${value ?? ""}`.trim();
+    if (!content) return required(formValueOf(this)) || true;
+    const check = checkOpenVPNMaterial(kindOf(), content);
+    return check.valid ? true : check.message;
+  };
+  const renderWidget2 = option2.renderWidget;
+  option2.renderWidget = function(sectionId, optionIndex, cfgvalue) {
+    injectMaterialStyles();
+    const frame = renderWidget2.call(
+      this,
+      sectionId,
+      optionIndex,
+      cfgvalue
+    );
+    const textarea = frame.querySelector("textarea");
+    const readonly = !!(this.readonly ?? this.map.readonly);
+    const summary = textE("input", {
+      type: "text",
+      class: "cbi-input-text fkp-material__summary",
+      readonly: "",
+      tabindex: "-1"
+    });
+    const load = button(_("Load from a file"), "file", readonly);
+    const edit = button(_("Edit as text"), "edit", readonly);
+    const clear = button(_("Remove"), "clear", readonly);
+    const picker = textE("input", { type: "file" });
+    const widget = () => dom.findClassInstance(frame);
+    const refresh = () => {
+      const value = `${textarea?.value ?? ""}`.trim();
+      const check = checkOpenVPNMaterial(kindOf(), value);
+      const missing = value ? "" : required(formValueOf(this));
+      summary.value = value ? check.valid ? check.summary : check.message : "";
+      summary.placeholder = missing || _("Not set: load a file or paste the text");
+      summary.classList.toggle("cbi-input-invalid", !!missing || !check.valid);
+      summary.style.color = value && !check.valid ? "var(--error-color-medium,#d44)" : check.expired ? "var(--warn-color-medium,#c80)" : "";
+      summary.title = summary.value || summary.placeholder;
+      clear.style.visibility = value ? "" : "hidden";
+    };
+    const assign = (value) => {
+      const instance2 = widget();
+      if (instance2) {
+        instance2.setValue(value);
+        instance2.triggerValidation();
+      } else if (textarea) {
+        textarea.value = value;
+      }
+      textarea?.dispatchEvent(new Event("change", { bubbles: true }));
+      refresh();
+    };
+    const instance = widget();
+    if (instance) {
+      const setValue = instance.setValue.bind(instance);
+      instance.setValue = (value) => {
+        setValue(value);
+        window.setTimeout(refresh, 0);
+      };
+    }
+    load.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      picker.value = "";
+      picker.click();
+    });
+    picker.addEventListener("change", () => {
+      const file = picker.files?.[0];
+      if (!file) return;
+      file.arrayBuffer().then(
+        (buffer) => assign(readMaterialFile(new Uint8Array(buffer)).trim())
+      );
+    });
+    edit.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      frame.hidden = !frame.hidden;
+      if (!frame.hidden) textarea?.focus();
+    });
+    clear.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      assign("");
+    });
+    textarea?.addEventListener("input", refresh);
+    textarea?.addEventListener("change", refresh);
+    const initial = `${textarea?.value ?? ""}`.trim();
+    frame.hidden = !initial || checkOpenVPNMaterial(kindOf(), initial).valid;
+    refresh();
+    return textE("div", { class: "fkp-material" }, [
+      textE("div", { class: "fkp-material__row" }, [summary, load, edit, clear]),
+      frame
+    ]);
+  };
+}
+
+// src/forkop/tabs/sections/tunnels/openvpnForm.ts
+function secondsOption(section, name, title, description, placeholder) {
+  const o = section.option(form.Value, name, title, description);
+  o.datatype = "uinteger";
+  o.placeholder = placeholder;
+  o.rmempty = true;
+  return o;
+}
+function onKind(o, extra = {}) {
+  o.depends({ tunnel_type: "openvpn-client", ...extra });
+  return o;
+}
+function addOpenVPNOptions(section) {
+  const options = {};
+  const add = (name, o2) => {
+    options[name] = o2;
+    return o2;
+  };
+  const tls = { openvpn_mode: "tls" };
+  const staticKey = { openvpn_mode: "static_key" };
+  const advanced = { openvpn_advanced: "1" };
+  let o = add(
+    "openvpn_servers",
+    onKind(
+      section.option(
+        form.DynamicList,
+        "openvpn_servers",
+        _("Servers"),
+        _(
+          "Host and port of the OpenVPN server. With several, the next one is tried when a server does not answer. Put tcp:// or udp:// before a server that uses the other protocol"
+        )
+      )
+    )
+  );
+  o.placeholder = `vpn.example.com:${OPENVPN_DEFAULT_PORT}`;
+  o.rmempty = false;
+  o.validate = function(_sectionId, value) {
+    if (!trimmed(value)) {
+      const current = typeof this.formvalue === "function" ? this.formvalue("settings") : [];
+      return normalizeOptionValues(current).length ? true : _("Add at least one OpenVPN server");
+    }
+    return validateServerEntry(value);
+  };
+  o = add(
+    "openvpn_network",
+    onKind(section.option(form.ListValue, "openvpn_network", _("Transport")))
+  );
+  o.value("udp", "UDP");
+  o.value("tcp", "TCP");
+  o.default = "udp";
+  o.rmempty = false;
+  o = add(
+    "openvpn_mode",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_mode",
+        _("Mode"),
+        _(
+          "A static key is the outdated mode without certificates. Choose it only for a server that uses one"
+        )
+      )
+    )
+  );
+  o.value("tls", _("TLS (certificates)"));
+  o.value("static_key", _("Static key"));
+  o.default = "tls";
+  o.rmempty = false;
+  o = add(
+    "openvpn_login",
+    onKind(
+      section.option(
+        form.Flag,
+        "openvpn_login",
+        _("Username and password"),
+        _("The server asks for a username and a password (auth-user-pass)")
+      ),
+      tls
+    )
+  );
+  o.default = "0";
+  o.rmempty = false;
+  o = add(
+    "openvpn_username",
+    onKind(section.option(form.Value, "openvpn_username", _("Username")), {
+      ...tls,
+      openvpn_login: "1"
+    })
+  );
+  o.rmempty = false;
+  o.validate = (_sectionId, value) => trimmed(value) ? true : _("Enter the username");
+  o = add(
+    "openvpn_password",
+    onKind(section.option(form.Value, "openvpn_password", _("Password")), {
+      ...tls,
+      openvpn_login: "1"
+    })
+  );
+  o.password = true;
+  o.rmempty = true;
+  o = add(
+    "openvpn_ca",
+    onKind(
+      section.option(
+        form.TextValue,
+        "openvpn_ca",
+        _("CA certificate"),
+        _("The certificate the server certificate is checked against (ca)")
+      ),
+      tls
+    )
+  );
+  configureOpenVPNMaterial(
+    o,
+    "ca",
+    (value) => value("openvpn_advanced") === "1" && normalizeOptionValues(value("openvpn_peer_fingerprint")).length ? "" : _("Add the CA certificate the server certificate is checked against")
+  );
+  o = add(
+    "openvpn_cert",
+    onKind(
+      section.option(
+        form.TextValue,
+        "openvpn_cert",
+        _("Client certificate"),
+        _(
+          "The certificate this tunnel presents (cert). A server that asks only for a login needs none"
+        )
+      ),
+      tls
+    )
+  );
+  configureOpenVPNMaterial(
+    o,
+    "certificate",
+    (value) => trimmed(value("openvpn_key")) ? _("Add the certificate of the client key") : ""
+  );
+  o = add(
+    "openvpn_key",
+    onKind(
+      section.option(
+        form.TextValue,
+        "openvpn_key",
+        _("Client key"),
+        _("The private key of the client certificate (key)")
+      ),
+      tls
+    )
+  );
+  configureOpenVPNMaterial(
+    o,
+    "key",
+    (value) => trimmed(value("openvpn_cert")) ? _("Add the key of the client certificate") : ""
+  );
+  o = add(
+    "openvpn_control_wrap",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_control_wrap",
+        _("Control channel protection"),
+        _(
+          "The extra key the server wraps its handshake in: tls-auth, tls-crypt or tls-crypt-v2"
+        )
+      ),
+      tls
+    )
+  );
+  o.value("", _("None"));
+  o.value("tls_auth", "tls-auth");
+  o.value("tls_crypt", "tls-crypt");
+  o.value("tls_crypt_v2", "tls-crypt-v2");
+  o.rmempty = true;
+  o = add(
+    "openvpn_control_wrap_key",
+    section.option(
+      form.TextValue,
+      "openvpn_control_wrap_key",
+      _("Control channel key")
+    )
+  );
+  for (const type of ["tls_auth", "tls_crypt", "tls_crypt_v2"]) {
+    onKind(o, { ...tls, openvpn_control_wrap: type });
+  }
+  configureOpenVPNMaterial(
+    o,
+    (value) => value("openvpn_control_wrap") === "tls_crypt_v2" ? "crypt-v2" : "static",
+    () => _("Add the key of the control channel protection")
+  );
+  options.openvpn_control_wrap.onchange = () => window.setTimeout(
+    () => options.openvpn_control_wrap_key.triggerValidation("settings"),
+    0
+  );
+  o = add(
+    "openvpn_key_direction",
+    section.option(
+      form.ListValue,
+      "openvpn_key_direction",
+      _("Key direction"),
+      _("key-direction of the profile. Clients use 1")
+    )
+  );
+  o.value("1", "1");
+  o.value("0", "0");
+  o.value("", _("Both directions"));
+  o.default = "1";
+  o.rmempty = true;
+  onKind(o, { ...tls, openvpn_control_wrap: "tls_auth" });
+  onKind(o, staticKey);
+  o = add(
+    "openvpn_static_key",
+    onKind(
+      section.option(
+        form.TextValue,
+        "openvpn_static_key",
+        _("Static key"),
+        _("The shared key of the tunnel (secret)")
+      ),
+      staticKey
+    )
+  );
+  configureOpenVPNMaterial(o, "static", () => _("Add the static key"));
+  o = add(
+    "openvpn_static_cipher",
+    onKind(
+      section.option(form.ListValue, "openvpn_static_cipher", _("Cipher")),
+      staticKey
+    )
+  );
+  o.value("", _("Default (BF-CBC)"));
+  STATIC_CIPHERS.forEach((cipher) => o.value(cipher, cipher));
+  o.rmempty = true;
+  o = add(
+    "openvpn_address",
+    onKind(
+      section.option(
+        form.DynamicList,
+        "openvpn_address",
+        _("Tunnel addresses"),
+        _("The addresses of this end of the tunnel in CIDR format (ifconfig)")
+      ),
+      staticKey
+    )
+  );
+  o.placeholder = "10.8.0.2/32";
+  o.rmempty = false;
+  o.validate = (_sectionId, value) => trimmed(value) ? validateAddress(value) : true;
+  o = add(
+    "openvpn_peer_address",
+    onKind(
+      section.option(
+        form.Value,
+        "openvpn_peer_address",
+        _("Peer address"),
+        _("The IPv4 address of the other end of the tunnel")
+      ),
+      staticKey
+    )
+  );
+  o.datatype = 'ip4addr("nomask")';
+  o.rmempty = true;
+  o = add(
+    "openvpn_peer_address_ipv6",
+    onKind(
+      section.option(
+        form.Value,
+        "openvpn_peer_address_ipv6",
+        _("Peer IPv6 address"),
+        _("The IPv6 address of the other end of the tunnel")
+      ),
+      staticKey
+    )
+  );
+  o.datatype = 'ip6addr("nomask")';
+  o.rmempty = true;
+  o = add(
+    "openvpn_advanced",
+    onKind(
+      section.option(
+        form.Flag,
+        "openvpn_advanced",
+        _("Advanced settings"),
+        _(
+          "Server certificate checks, ciphers, compression, MTU and timers. Off, they keep their defaults"
+        )
+      )
+    )
+  );
+  o.default = "0";
+  o.rmempty = false;
+  o = add(
+    "openvpn_remote_random",
+    onKind(
+      section.option(
+        form.Flag,
+        "openvpn_remote_random",
+        _("Random server order"),
+        _("Try the servers in random order (remote-random)")
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    "openvpn_server_name",
+    onKind(
+      section.option(
+        form.Value,
+        "openvpn_server_name",
+        _("Server certificate name"),
+        _(
+          "The name the server certificate must carry (verify-x509-name). Empty: any certificate the CA issued"
+        )
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  o.rmempty = true;
+  o = add(
+    "openvpn_server_name_type",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_server_name_type",
+        _("Name match")
+      ),
+      {
+        ...tls,
+        ...advanced
+      }
+    )
+  );
+  o.value("name", _("Common name (name)"));
+  o.value("name-prefix", _("Start of the common name (name-prefix)"));
+  o.value("subject", _("Whole subject (subject)"));
+  o.default = "name";
+  o.rmempty = true;
+  o = add(
+    "openvpn_verify_purpose",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_verify_purpose",
+        _("Server certificate purpose"),
+        _(
+          "What proves the certificate was issued to a server and not to another client"
+        )
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  o.value("server", "remote-cert-tls server");
+  o.value("ns", "ns-cert-type server");
+  o.value("none", _("Do not check"));
+  o.default = "server";
+  o.rmempty = true;
+  o = add(
+    "openvpn_peer_fingerprint",
+    onKind(
+      section.option(
+        form.DynamicList,
+        "openvpn_peer_fingerprint",
+        _("Server certificate fingerprints"),
+        _(
+          "SHA-256 fingerprints the server certificate must match (peer-fingerprint). With them the CA certificate is not needed"
+        )
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  o.rmempty = true;
+  o.validate = (_sectionId, value) => !trimmed(value) || /^[0-9a-f]{64}$/.test(trimmed(value).replace(/:/g, "").toLowerCase()) ? true : _("Enter a SHA-256 fingerprint of 64 hex digits");
+  o = add(
+    "openvpn_certificate_profile",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_certificate_profile",
+        _("Certificate profile"),
+        _(
+          "Which signature algorithms and key sizes are accepted (tls-cert-profile)"
+        )
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  o.value("", _("Default (legacy)"));
+  o.value("preferred", "preferred");
+  o.value("insecure", _("insecure: also MD5 and short keys"));
+  o.value("suiteb", "suiteb");
+  o.rmempty = true;
+  o = add(
+    "openvpn_tls_version_min",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_tls_version_min",
+        _("Minimum TLS version")
+      ),
+      {
+        ...tls,
+        ...advanced
+      }
+    )
+  );
+  o.value("", _("Default (1.2)"));
+  ["1.0", "1.1", "1.2", "1.3"].forEach((version) => o.value(version, version));
+  o.rmempty = true;
+  o = add(
+    "openvpn_tls_cipher",
+    onKind(
+      section.option(
+        form.Value,
+        "openvpn_tls_cipher",
+        _("TLS ciphers"),
+        _(
+          "Cipher suites of the control channel up to TLS 1.2, separated by colons (tls-cipher)"
+        )
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  o.placeholder = "TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256";
+  o.rmempty = true;
+  o = add(
+    "openvpn_data_ciphers",
+    onKind(
+      section.option(
+        form.MultiValue,
+        "openvpn_data_ciphers",
+        _("Data ciphers"),
+        _("The ciphers offered to the server (data-ciphers). Empty: %s").format(
+          OPENVPN_DEFAULT_DATA_CIPHERS.join(", ")
+        )
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  DATA_CIPHERS.forEach((cipher) => o.value(cipher, cipher));
+  o.create = true;
+  o.rmempty = true;
+  o = add(
+    "openvpn_data_ciphers_fallback",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_data_ciphers_fallback",
+        _("Fallback cipher"),
+        _(
+          "The cipher of a server older than 2.4, which cannot agree on one (cipher, data-ciphers-fallback)"
+        )
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  o.value("", _("None"));
+  DATA_CIPHERS.forEach((cipher) => o.value(cipher, cipher));
+  o.rmempty = true;
+  o = add(
+    "openvpn_auth",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_auth",
+        _("Packet authentication"),
+        _("The digest of CBC ciphers and of tls-auth (auth)")
+      ),
+      advanced
+    )
+  );
+  o.value("", _("Default (SHA1)"));
+  DIGESTS.forEach((digest) => o.value(digest, digest));
+  o.rmempty = true;
+  o = add(
+    "openvpn_compression",
+    onKind(
+      section.option(
+        form.ListValue,
+        "openvpn_compression",
+        _("Compression"),
+        _("Only for a server that requires it: compression weakens encryption")
+      ),
+      advanced
+    )
+  );
+  o.value("", _("Off"));
+  Object.entries(COMPRESSION_LABELS).forEach(
+    ([value, label]) => o.value(value, label)
+  );
+  o.rmempty = true;
+  o = add(
+    "openvpn_mtu",
+    onKind(
+      section.option(form.Value, "openvpn_mtu", _("MTU"), _("tun-mtu")),
+      advanced
+    )
+  );
+  o.datatype = "range(576,65535)";
+  o.placeholder = "1500";
+  o.rmempty = true;
+  o = add(
+    "openvpn_fragment",
+    onKind(
+      section.option(
+        form.Value,
+        "openvpn_fragment",
+        _("Fragment size"),
+        _(
+          "Largest UDP packet before OpenVPN splits it (fragment). Only if the server uses it too"
+        )
+      ),
+      { ...advanced, openvpn_network: "udp" }
+    )
+  );
+  o.datatype = "range(68,65535)";
+  o.rmempty = true;
+  o = add(
+    "openvpn_mss_fix",
+    onKind(
+      section.option(
+        form.Value,
+        "openvpn_mss_fix",
+        _("MSS clamping"),
+        _(
+          "Largest packet size TCP connections are fitted to (mssfix). 0 switches it off"
+        )
+      ),
+      advanced
+    )
+  );
+  o.datatype = "range(0,65535)";
+  o.placeholder = "1492";
+  o.rmempty = true;
+  add(
+    "openvpn_ping_interval",
+    onKind(
+      secondsOption(
+        section,
+        "openvpn_ping_interval",
+        _("Ping interval, seconds"),
+        _("A server usually sets it itself (ping)"),
+        ""
+      ),
+      advanced
+    )
+  );
+  add(
+    "openvpn_ping_restart",
+    onKind(
+      secondsOption(
+        section,
+        "openvpn_ping_restart",
+        _("Reconnect after silence, seconds"),
+        _("A server usually sets it itself (ping-restart). 0 switches it off"),
+        "120"
+      ),
+      advanced
+    )
+  );
+  add(
+    "openvpn_renegotiate",
+    onKind(
+      secondsOption(
+        section,
+        "openvpn_renegotiate",
+        _("Key renegotiation, seconds"),
+        _("reneg-sec. 0 switches it off"),
+        "3600"
+      ),
+      { ...tls, ...advanced }
+    )
+  );
+  return options;
+}
+function applyImportedOpenVPN(map, options, result) {
+  const settings = openVPNInitialSettings(result.endpoint);
+  settings.openvpn_login = result.login ? "1" : "0";
+  setModalOptionValue(map, options.openvpn_advanced, settings.openvpn_advanced);
+  setModalOptionValue(map, options.openvpn_mode, settings.openvpn_mode);
+  setModalOptionValue(map, options.openvpn_login, settings.openvpn_login);
+  map.checkDepends();
+  Object.entries(options).forEach(([name, option2]) => {
+    if (name in settings) setModalOptionValue(map, option2, settings[name]);
+  });
+  map.data.set(
+    map.config,
+    "settings",
+    "openvpn_preserved",
+    settings.openvpn_preserved
+  );
+  map.checkDepends();
 }
 
 // src/forkop/tabs/sections/tunnels/validate.ts
@@ -18610,18 +20675,10 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
   if (kind !== "json" && !name) {
     return _("Enter a tunnel name");
   }
-  const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (kind === "openvpn-client") {
-    if (!endpoint)
-      return _(
-        "Invalid OpenVPN options or duplicate fields in additional JSON"
-      );
-    if (!endpoint.server && !endpoint.servers?.length)
-      return _("Enter a server address");
-    if (endpoint.mode === "static_key" && (!endpoint.static_key && !endpoint.static_key_path || !endpoint.address?.length))
-      return _("Static OpenVPN requires a key and tunnel addresses");
-    return true;
+    return validateOpenVPNSettings(settings);
   }
+  const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (!endpoint) {
     return kind === "json" ? _("Enter a valid JSON endpoint object") : _("Open peer settings and complete the configuration");
   }
@@ -18803,12 +20860,65 @@ function showWireGuardPeerSettingsModal(tunnelId, itemValue, option2, widget, it
     }
   });
 }
-function showTunnelImportModal(parentMap, fields) {
+function importedFormat(input) {
+  if (/^(vpn|wireguard|wg|awg|amneziawg):\/\//iu.test(input) || input.startsWith("{") || /^\s*\[(Interface|Peer)\]\s*$/imu.test(input)) {
+    return "wireguard";
+  }
+  return looksLikeOpenVPNConfig(input) ? "openvpn" : "";
+}
+var CONFIGURATION_FILE = /\.(ovpn|conf)$/iu;
+function renderImportFiles(attachments, onLoad) {
+  const picker = textE("input", {
+    type: "file",
+    multiple: true
+  });
+  const names = textE("span", { class: "fkp-import-files__names" });
+  const showNames = () => {
+    names.textContent = Object.keys(attachments).length ? _("Attached: %s").format(Object.keys(attachments).join(", ")) : _(
+      "A profile may refer to certificates and keys in files of their own: select them together with it"
+    );
+  };
+  picker.addEventListener("change", () => {
+    const selected = Array.from(picker.files || []);
+    Promise.all(
+      selected.map(
+        (file) => file.arrayBuffer().then((buffer) => ({
+          name: file.name,
+          content: readMaterialFile(new Uint8Array(buffer))
+        }))
+      )
+    ).then((files) => {
+      const configuration = files.find((file) => CONFIGURATION_FILE.test(file.name)) || files.find((file) => importedFormat(file.content.trim()));
+      files.filter((file) => file !== configuration).forEach((file) => attachments[file.name] = file.content);
+      showNames();
+      onLoad(configuration ? configuration.content : null);
+    });
+  });
+  showNames();
+  return textE("div", { class: "fkp-import-files" }, [
+    textE(
+      "button",
+      {
+        type: "button",
+        class: "btn cbi-button cbi-button-neutral",
+        click: (ev) => {
+          ev.preventDefault();
+          picker.value = "";
+          picker.click();
+        }
+      },
+      _("Select files\u2026")
+    ),
+    names
+  ]);
+}
+function showTunnelImportModal(parentMap, fields, openvpn) {
   const data = { settings: { configuration: "" } };
   const map = new form.JSONMap(data);
   const itemSection = map.section(form.NamedSection, "settings");
   itemSection.anonymous = true;
   itemSection.addremove = false;
+  const attachments = {};
   const configuration = itemSection.option(
     form.TextValue,
     "configuration",
@@ -18820,15 +20930,25 @@ function showTunnelImportModal(parentMap, fields) {
   configuration.rmempty = false;
   let failedInput = "";
   let importError = "";
-  configuration.validate = function(_itemId, value) {
-    const input = `${value || ""}`.trim();
+  let summary = null;
+  const check = (input) => {
     if (importError && input === failedInput) {
       return importError;
     }
     importError = "";
     failedInput = "";
     if (!input) {
-      return _("Paste a configuration, a wireguard:// link or a vpn:// link");
+      return _(
+        "Paste a WireGuard or OpenVPN configuration, a wireguard:// link or a vpn:// link"
+      );
+    }
+    const format = importedFormat(input);
+    if (format === "openvpn") {
+      const parsed2 = parseOpenVPNConfig(input, attachments);
+      return parsed2.valid ? true : parsed2.message;
+    }
+    if (!format) {
+      return _("This is neither a WireGuard nor an OpenVPN configuration");
     }
     if (/^vpn:\/\//iu.test(input) || input.startsWith("{")) {
       return true;
@@ -18836,21 +20956,50 @@ function showTunnelImportModal(parentMap, fields) {
     const parsed = parseWireGuardConfig(input);
     return parsed && parsed.valid === true ? true : parsed?.message || _("Invalid WireGuard configuration");
   };
+  configuration.validate = function(_itemId, value) {
+    const input = `${value || ""}`.trim();
+    const result = check(input);
+    if (summary) {
+      summary.classList.toggle("fkp-import-summary--invalid", result !== true);
+      summary.textContent = result !== true ? input ? result : "" : importedFormat(input) === "openvpn" ? openVPNImportSummary(parseOpenVPNConfig(input, attachments)) : "";
+    }
+    return result;
+  };
   configureTextareaOption(configuration);
+  injectMaterialStyles();
+  const files = itemSection.option(form.DummyValue, "_files");
+  files.renderWidget = () => renderImportFiles(attachments, (content) => {
+    const widget = configuration.getUIElement("settings");
+    if (content != null && widget) widget.setValue(content.trim());
+    configuration.triggerValidation("settings");
+  });
+  const summaryOption = itemSection.option(form.DummyValue, "_summary");
+  summaryOption.renderWidget = () => summary = textE("div", { class: "fkp-import-summary" });
+  const refuse = (input, message) => {
+    failedInput = input;
+    importError = message;
+    configuration.triggerValidation("settings");
+    throw new TypeError(importError);
+  };
   return renderStackedJsonSettingsModal(
     _("Import configuration"),
     map,
     async (settings) => {
-      const parsed = await parseWireGuardInput(
-        `${settings.configuration || ""}`
-      );
-      if (!parsed || parsed.valid !== true) {
-        failedInput = `${settings.configuration || ""}`.trim();
-        importError = parsed?.message || _("Invalid WireGuard configuration");
-        if (typeof configuration.triggerValidation === "function") {
-          configuration.triggerValidation("settings");
+      const input = `${settings.configuration || ""}`.trim();
+      if (importedFormat(input) === "openvpn") {
+        const parsed2 = parseOpenVPNConfig(input, attachments);
+        if (!parsed2.valid) refuse(input, parsed2.message);
+        else {
+          setModalOptionValue(parentMap, fields.type, "openvpn-client");
+          parentMap.checkDepends();
+          applyImportedOpenVPN(parentMap, openvpn, parsed2);
         }
-        throw new TypeError(importError);
+        return;
+      }
+      const parsed = await parseWireGuardInput(input);
+      if (!parsed || parsed.valid !== true) {
+        refuse(input, parsed?.message || _("Invalid WireGuard configuration"));
+        return;
       }
       applyImportedTunnelEndpoint(parentMap, fields, parsed.endpoint);
     },
@@ -18927,6 +21076,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   importButton.inputstyle = "apply";
   importButton.depends("tunnel_type", "wireguard");
   importButton.depends("tunnel_type", "amneziawg");
+  importButton.depends("tunnel_type", "openvpn-client");
   const warpGenerateButton = itemSection.option(
     form.Button,
     "_generate_warp_profile",
@@ -19043,7 +21193,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     return typeof endpoint.tag === "string" && endpoint.tag.trim() ? true : _("JSON endpoint must contain a non-empty tag");
   };
   configureTextareaOption(endpointJsonOption);
-  addOpenVPNOptions(itemSection);
+  const openvpnOptions = addOpenVPNOptions(itemSection);
   o = itemSection.option(
     form.Value,
     "warp_address",
@@ -19128,17 +21278,21 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   };
   const amneziaOptions = {};
   importButton.onclick = function() {
-    return showTunnelImportModal(map, {
-      type: typeOption,
-      address: addressOption,
-      privateKey: privateKeyOption,
-      listenPort: listenPortOption,
-      mtu: mtuOption,
-      peers: peersOption,
-      tunnelId,
-      wireguardJunk: wireguardJunkOption,
-      amnezia: amneziaOptions
-    });
+    return showTunnelImportModal(
+      map,
+      {
+        type: typeOption,
+        address: addressOption,
+        privateKey: privateKeyOption,
+        listenPort: listenPortOption,
+        mtu: mtuOption,
+        peers: peersOption,
+        tunnelId,
+        wireguardJunk: wireguardJunkOption,
+        amnezia: amneziaOptions
+      },
+      openvpnOptions
+    );
   };
   o = itemSection.option(
     form.Value,
@@ -20066,7 +22220,7 @@ function configureSectionSection(sectionRef) {
 }
 
 // src/forkop/tabs/servers/constants.ts
-var STYLE_ID = "forkop-server-styles";
+var STYLE_ID2 = "forkop-server-styles";
 var DEFAULT_PROTOCOL = "mixed";
 var CLIENT_TYPE = "server_client";
 var CLIENT_OWNER_OPTION = "server";
@@ -20666,17 +22820,17 @@ var systemPortsPromise = null;
 var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
-  const claim = (port, transports, owner) => {
-    const text2 = `${port || ""}`.trim();
-    if (!/^[0-9]+$/.test(text2)) {
+  const claim = (port2, transports, owner) => {
+    const text4 = `${port2 || ""}`.trim();
+    if (!/^[0-9]+$/.test(text4)) {
       return;
     }
-    transports.forEach((transport2) => {
-      const key = `${transport2}/${Number(text2)}`;
+    transports.forEach((transport3) => {
+      const key = `${transport3}/${Number(text4)}`;
       if (!owners.has(key)) owners.set(key, owner);
     });
   };
-  RESERVED_PORTS.forEach(([port, owner]) => claim(port, ["tcp", "udp"], owner));
+  RESERVED_PORTS.forEach(([port2, owner]) => claim(port2, ["tcp", "udp"], owner));
   if (uci.get(FORKOP_UCI_PACKAGE, "settings", "enable_native_api") === "1") {
     claim("9091", ["tcp"], _("sing-box API"));
   }
@@ -20714,9 +22868,9 @@ function loadSystemPorts() {
     const entries = [];
     const addListen = (value, owner) => {
       asList(value).forEach((item) => {
-        const port = `${item}`.trim().split(":").pop() ?? "";
-        if (/^[0-9]+$/.test(port)) {
-          entries.push({ port, owner });
+        const port2 = `${item}`.trim().split(":").pop() ?? "";
+        if (/^[0-9]+$/.test(port2)) {
+          entries.push({ port: port2, owner });
         }
       });
     };
@@ -20803,22 +22957,22 @@ function clientLabel(sectionId, client) {
   return `${client?.name || ""}`.trim() || getServerName(sectionId);
 }
 function transportQuery(sectionId, params, grpcKey) {
-  const transport2 = option(sectionId, "transport") || "tcp";
-  params.type = transport2 === "raw" ? "tcp" : transport2;
-  if (transport2 === "ws" || transport2 === "httpupgrade") {
+  const transport3 = option(sectionId, "transport") || "tcp";
+  params.type = transport3 === "raw" ? "tcp" : transport3;
+  if (transport3 === "ws" || transport3 === "httpupgrade") {
     params.path = option(sectionId, "transport_path");
     params.host = option(sectionId, "transport_host");
-  } else if (transport2 === "xhttp") {
+  } else if (transport3 === "xhttp") {
     params.path = option(sectionId, "transport_path") || "/";
     params.host = option(sectionId, "transport_host");
     params.mode = option(sectionId, "transport_xhttp_mode") || "auto";
-  } else if (transport2 === "grpc") {
+  } else if (transport3 === "grpc") {
     params[grpcKey] = option(sectionId, "transport_service_name");
-  } else if (transport2 === "http") {
+  } else if (transport3 === "http") {
     params.path = option(sectionId, "transport_path");
     params.host = optionList(sectionId, "transport_hosts").join(",");
   }
-  return transport2;
+  return transport3;
 }
 function tlsQuery(sectionId, params, includeSecurity) {
   const security = getEffectiveSecurity(sectionId);
@@ -20850,7 +23004,7 @@ function tlsQuery(sectionId, params, includeSecurity) {
 }
 function shareUrl(scheme, sectionId, userInfo, params, label) {
   const host = formatHostForUri(getPublicHost(sectionId));
-  const port = getListenPort(sectionId);
+  const port2 = getListenPort(sectionId);
   const query = encodeQuery(params || {});
   return [
     scheme,
@@ -20858,7 +23012,7 @@ function shareUrl(scheme, sectionId, userInfo, params, label) {
     userInfo ? `${userInfo}@` : "",
     host,
     ":",
-    port,
+    port2,
     query ? `?${query}` : "",
     "#",
     encodeURIComponent(label)
@@ -21230,8 +23384,8 @@ function qrRawCodewords(version) {
 function qrDataCodewords(version) {
   return qrRawCodewords(version) - QR_EC_CODEWORDS_PER_BLOCK_LOW[version] * QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
 }
-function qrEncodeText(text2) {
-  return Array.from(new TextEncoder().encode(text2));
+function qrEncodeText(text4) {
+  return Array.from(new TextEncoder().encode(text4));
 }
 function qrBuildDataCodewords(bytes, version) {
   const capacity = qrDataCodewords(version);
@@ -21456,8 +23610,8 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrSvgDataUri(text2) {
-  const bytes = qrEncodeText(text2);
+function qrSvgDataUri(text4) {
+  const bytes = qrEncodeText(text4);
   let version = 1;
   for (; version <= 40; version += 1) {
     const countBits = version <= 9 ? 8 : 16;
@@ -21485,14 +23639,14 @@ function qrSvgDataUri(text2) {
 }
 
 // src/forkop/tabs/servers/details.ts
-function svgEl2(tag, attrs = {}, children = []) {
+function svgEl2(tag, attrs = {}, children2 = []) {
   const element3 = document.createElementNS("http://www.w3.org/2000/svg", tag);
   Object.entries(attrs).forEach(([key, value]) => {
     if (value != null) {
       element3.setAttribute(key, `${value}`);
     }
   });
-  (Array.isArray(children) ? children : [children]).filter(Boolean).forEach((child) => element3.appendChild(child));
+  (Array.isArray(children2) ? children2 : [children2]).filter(Boolean).forEach((child) => element3.appendChild(child));
   return element3;
 }
 var ICON_PATHS = {
@@ -21534,9 +23688,9 @@ function iconSvg(name) {
     ICON_PATHS[name].map(([tag, attrs]) => svgEl2(tag, attrs))
   );
 }
-function copyText(text2) {
+function copyText(text4) {
   const textarea = document.createElement("textarea");
-  textarea.value = text2;
+  textarea.value = text4;
   textarea.style.position = "fixed";
   textarea.style.top = "0";
   textarea.style.left = "0";
@@ -21603,7 +23757,7 @@ function injectDetailsStyles() {
 }
 function renderCopyButton(value) {
   const label = _("Copy");
-  const button = textE(
+  const button2 = textE(
     "button",
     {
       class: "btn cbi-button cbi-button-neutral fkp-details__action",
@@ -21613,7 +23767,7 @@ function renderCopyButton(value) {
     },
     iconSvg("copy")
   );
-  button.addEventListener("click", (ev) => {
+  button2.addEventListener("click", (ev) => {
     ev.preventDefault();
     const copied = copyText(value);
     showToast(
@@ -21621,7 +23775,7 @@ function renderCopyButton(value) {
       copied ? "success" : "error"
     );
   });
-  return button;
+  return button2;
 }
 function renderCloseRow() {
   return textE("div", { class: "button-row fkp-details-actions" }, [
@@ -21755,10 +23909,10 @@ function onlyLink(sectionId, clients, context) {
   return links.length === 1 ? { caption: linkCaption(sectionId, entries[0], ""), link: links[0].link } : null;
 }
 function renderDetailsContent(sectionId, clients, context) {
-  const children = [];
+  const children2 = [];
   const entries = detailsEntries(sectionId, clients);
   if (!entries.length) {
-    children.push(
+    children2.push(
       textE(
         "div",
         { class: "fkp-details__empty" },
@@ -21766,7 +23920,7 @@ function renderDetailsContent(sectionId, clients, context) {
       )
     );
   } else {
-    children.push(
+    children2.push(
       textE(
         "div",
         { class: "fkp-details__clients" },
@@ -21776,7 +23930,7 @@ function renderDetailsContent(sectionId, clients, context) {
       )
     );
   }
-  return textE("div", { class: "fkp-details" }, children);
+  return textE("div", { class: "fkp-details" }, children2);
 }
 function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
@@ -21808,13 +23962,13 @@ function showServerDetailsModal(sectionId, clients) {
 
 // src/forkop/tabs/servers/controls.ts
 function injectServerStyles() {
-  if (document.getElementById(STYLE_ID)) {
+  if (document.getElementById(STYLE_ID2)) {
     return;
   }
   document.head.appendChild(
     textE(
       "style",
-      { id: STYLE_ID },
+      { id: STYLE_ID2 },
       [
         // The generate button sits in the same grid the child item list uses, so it
         // lines up with the input instead of floating next to it.
@@ -21868,8 +24022,8 @@ function addGenerateButton(optionRef, generate, title) {
     );
     const label = title || _("Generate");
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = renderGenerateButton(label, readonly);
-    button.addEventListener("click", (ev) => {
+    const button2 = renderGenerateButton(label, readonly);
+    button2.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       if (readonly) {
@@ -21894,13 +24048,13 @@ function addGenerateButton(optionRef, generate, title) {
       {
         class: rows ? "fkp-generate-row fkp-generate-row--rows" : "fkp-generate-row"
       },
-      [node, button]
+      [node, button2]
     );
     if (rows) {
       const measure = () => {
         const height = controlOf(node)?.offsetHeight || 0;
         if (height > 0) {
-          button.style.setProperty("--fkp-generate-row-size", `${height}px`);
+          button2.style.setProperty("--fkp-generate-row-size", `${height}px`);
         }
       };
       if (typeof ResizeObserver === "function") {
@@ -22015,20 +24169,20 @@ function addIssueButton(optionRef, label, request, offered) {
       cfgvalue
     );
     const readonly = this.readonly != null ? this.readonly : this.map.readonly;
-    const button = renderGenerateButton(label, readonly);
-    button.addEventListener("click", (ev) => {
+    const button2 = renderGenerateButton(label, readonly);
+    button2.addEventListener("click", (ev) => {
       ev.preventDefault();
       if (readonly) {
         return;
       }
-      button.disabled = true;
+      button2.disabled = true;
       request(sectionId, node).catch((error) => {
         console.warn(error?.message || "Failed to issue the file");
       }).finally(() => {
-        button.disabled = readonly ? true : false;
+        button2.disabled = readonly ? true : false;
       });
     });
-    const row = textE("div", { class: "fkp-generate-row" }, [node, button]);
+    const row = textE("div", { class: "fkp-generate-row" }, [node, button2]);
     if (typeof offered === "function") {
       showIssueButton(row, offered(getProtocol(sectionId)));
     }
@@ -22036,11 +24190,11 @@ function addIssueButton(optionRef, label, request, offered) {
   };
 }
 function showIssueButton(row, shown2) {
-  const button = row.querySelector(".fkp-generate");
-  if (!button) {
+  const button2 = row.querySelector(".fkp-generate");
+  if (!button2) {
     return;
   }
-  button.style.display = shown2 ? "" : "none";
+  button2.style.display = shown2 ? "" : "none";
   row.style.gridTemplateColumns = shown2 ? "" : "minmax(0,1fr)";
 }
 function offersCertificateButton(protocol) {
@@ -22139,8 +24293,8 @@ function validateRequiredText(_sectionId, value) {
   return hasControlCharacters(`${value}`) ? _("Value must not contain control characters") : true;
 }
 function validatePort(_sectionId, value) {
-  const port = parseInt(value, 10);
-  return /^[0-9]+$/.test(`${value}`) && port >= 1 && port <= 65535 ? true : _("Port must be between 1 and 65535");
+  const port2 = parseInt(value, 10);
+  return /^[0-9]+$/.test(`${value}`) && port2 >= 1 && port2 <= 65535 ? true : _("Port must be between 1 and 65535");
 }
 function validateUuid(_sectionId, value) {
   return /^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(
@@ -22297,7 +24451,7 @@ function validateListenPort(sectionId, value) {
   const owner = listenTransports(
     protocol,
     network2 ? liveOption(sectionId, network2) : ""
-  ).map((transport2) => owners.get(`${transport2}/${Number(`${value}`.trim())}`)).find(Boolean);
+  ).map((transport3) => owners.get(`${transport3}/${Number(`${value}`.trim())}`)).find(Boolean);
   return owner ? _("Port %s is already used by %s").format(value, owner) : true;
 }
 
@@ -23330,8 +25484,8 @@ function addSecurityOptions(section) {
 }
 function addTransportOptions(section) {
   const streamProtocols = protocolsWith("transport");
-  const onTransport = (o2, transport2) => streamProtocols.forEach(
-    (protocol) => o2.depends({ protocol, transport: transport2 })
+  const onTransport = (o2, transport3) => streamProtocols.forEach(
+    (protocol) => o2.depends({ protocol, transport: transport3 })
   );
   let o = section.option(form.ListValue, "transport", _("Transport"));
   TRANSPORTS.forEach(([value, label]) => o.value(value, label));
@@ -23347,7 +25501,7 @@ function addTransportOptions(section) {
   o.rmempty = true;
   o.validate = validateTransportPath;
   ["ws", "http", "httpupgrade", "xhttp"].forEach(
-    (transport2) => onTransport(o, transport2)
+    (transport3) => onTransport(o, transport3)
   );
   o = section.option(form.Value, "transport_host", _("Transport host"));
   o.placeholder = "example.com";
@@ -23355,7 +25509,7 @@ function addTransportOptions(section) {
   o.rmempty = true;
   o.validate = validateOptionalHost;
   ["ws", "httpupgrade", "xhttp"].forEach(
-    (transport2) => onTransport(o, transport2)
+    (transport3) => onTransport(o, transport3)
   );
   o = section.option(form.DynamicList, "transport_hosts", _("HTTP hosts"));
   o.placeholder = "example.com";
@@ -23595,8 +25749,8 @@ function lineFields(line, offset) {
   }
   return fields;
 }
-function analyzeStaticHosts(text2) {
-  const value = `${text2 || ""}`;
+function analyzeStaticHosts(text4) {
+  const value = `${text4 || ""}`;
   const annotations = [];
   const errors = [];
   let offset = 0;
@@ -24163,19 +26317,19 @@ function singBoxDurationSeconds(value) {
   return total > 0 ? Math.round(total) : null;
 }
 function isCronExpressibleInterval(value) {
-  const seconds = singBoxDurationSeconds(value);
-  if (seconds === null) {
+  const seconds2 = singBoxDurationSeconds(value);
+  if (seconds2 === null) {
     return false;
   }
-  if (seconds === 86400) {
+  if (seconds2 === 86400) {
     return true;
   }
-  if (seconds % 3600 === 0) {
-    const hours = seconds / 3600;
+  if (seconds2 % 3600 === 0) {
+    const hours = seconds2 / 3600;
     return hours >= 1 && hours <= 23;
   }
-  if (seconds % 60 === 0) {
-    const minutes = seconds / 60;
+  if (seconds2 % 60 === 0) {
+    const minutes = seconds2 / 60;
     return minutes >= 1 && minutes <= 59;
   }
   return false;
@@ -24392,7 +26546,7 @@ function restoreUnsavedUci(unsaved) {
 function renderSectionAdd(sectionRef, extraClass) {
   const el = textE("div", { class: "cbi-section-create" });
   const buttonTitle = sectionRef.titleFn("addbtntitle") || _("Add");
-  const button = textE(
+  const button2 = textE(
     "button",
     {
       class: "cbi-button cbi-button-add",
@@ -24405,7 +26559,7 @@ function renderSectionAdd(sectionRef, extraClass) {
   if (extraClass) {
     el.classList.add(extraClass);
   }
-  el.appendChild(button);
+  el.appendChild(button2);
   return el;
 }
 function addLabeledSection(sectionRef) {

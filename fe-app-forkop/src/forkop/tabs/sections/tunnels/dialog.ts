@@ -33,7 +33,14 @@ import { JSON_ENDPOINT_PLACEHOLDER } from '../constants';
 import { tunnelKindAvailable, tunnelKindCoreFeature } from '../coreSupport';
 import { missingCoreFeatureNote } from '../../../services/coreFeatures.service';
 import { parseOutboundJsonObject } from '../outboundJson';
-import { addOpenVPNOptions } from './openvpn';
+import { addOpenVPNOptions, applyImportedOpenVPN } from './openvpnForm';
+import { openVPNImportSummary } from './openvpn';
+import { injectMaterialStyles, readMaterialFile } from './material';
+import {
+  looksLikeOpenVPNConfig,
+  parseOpenVPNConfig,
+} from '../../../../helpers/parseOpenVPNConfig';
+import type { OpenVPNFiles } from '../../../../helpers/parseOpenVPNConfig';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
 import {
   AMNEZIA_COUNT_FIELDS,
@@ -168,15 +175,89 @@ function showWireGuardPeerSettingsModal(
   });
 }
 
+// What was pasted or loaded: an OpenVPN profile, or what the WireGuard import
+// reads - a configuration file, a share link, a vpn:// link or an Amnezia
+// profile.
+function importedFormat(input: string) {
+  if (
+    /^(vpn|wireguard|wg|awg|amneziawg):\/\//iu.test(input) ||
+    input.startsWith('{') ||
+    /^\s*\[(Interface|Peer)\]\s*$/imu.test(input)
+  ) {
+    return 'wireguard';
+  }
+  return looksLikeOpenVPNConfig(input) ? 'openvpn' : '';
+}
+
+const CONFIGURATION_FILE = /\.(ovpn|conf)$/iu;
+
+function renderImportFiles(
+  attachments: OpenVPNFiles,
+  onLoad: (configuration: string | null) => void,
+) {
+  // Kept off the page: a theme styles every file input it finds.
+  const picker = E('input', {
+    type: 'file',
+    multiple: true,
+  }) as HTMLInputElement;
+  const names = E('span', { class: 'fkp-import-files__names' });
+  const showNames = () => {
+    names.textContent = Object.keys(attachments).length
+      ? _('Attached: %s').format(Object.keys(attachments).join(', '))
+      : _(
+          'A profile may refer to certificates and keys in files of their own: select them together with it',
+        );
+  };
+  picker.addEventListener('change', () => {
+    const selected = Array.from(picker.files || []);
+    Promise.all(
+      selected.map((file) =>
+        file.arrayBuffer().then((buffer) => ({
+          name: file.name,
+          content: readMaterialFile(new Uint8Array(buffer)),
+        })),
+      ),
+    ).then((files) => {
+      const configuration =
+        files.find((file) => CONFIGURATION_FILE.test(file.name)) ||
+        files.find((file) => importedFormat(file.content.trim()));
+      files
+        .filter((file) => file !== configuration)
+        .forEach((file) => (attachments[file.name] = file.content));
+      showNames();
+      onLoad(configuration ? configuration.content : null);
+    });
+  });
+  showNames();
+  return E('div', { class: 'fkp-import-files' }, [
+    E(
+      'button',
+      {
+        type: 'button',
+        class: 'btn cbi-button cbi-button-neutral',
+        click: (ev: Event) => {
+          ev.preventDefault();
+          picker.value = '';
+          picker.click();
+        },
+      },
+      _('Select files…'),
+    ),
+    names,
+  ]);
+}
+
 function showTunnelImportModal(
   parentMap: CBIMap,
   fields: ImportedTunnelFields,
+  openvpn: Record<string, CBIOption>,
 ) {
   const data = { settings: { configuration: '' } };
   const map = new form.JSONMap(data);
   const itemSection = map.section(form.NamedSection, 'settings');
   itemSection.anonymous = true;
   itemSection.addremove = false;
+  const attachments: OpenVPNFiles = {};
 
   const configuration = itemSection.option(
     form.TextValue,
@@ -189,15 +270,25 @@ function showTunnelImportModal(
   configuration.rmempty = false;
   let failedInput = '';
   let importError = '';
-  configuration.validate = function (_itemId: string, value: unknown) {
-    const input = `${value || ''}`.trim();
+  let summary: HTMLElement | null = null;
+  const check = (input: string) => {
     if (importError && input === failedInput) {
       return importError;
     }
     importError = '';
     failedInput = '';
     if (!input) {
-      return _('Paste a configuration, a wireguard:// link or a vpn:// link');
+      return _(
+        'Paste a WireGuard or OpenVPN configuration, a wireguard:// link or a vpn:// link',
+      );
+    }
+    const format = importedFormat(input);
+    if (format === 'openvpn') {
+      const parsed = parseOpenVPNConfig(input, attachments);
+      return parsed.valid ? true : parsed.message;
+    }
+    if (!format) {
+      return _('This is neither a WireGuard nor an OpenVPN configuration');
     }
     // A vpn:// link and an Amnezia profile carry a compressed or nested
     // payload that only the import step decodes; a configuration file and a
@@ -210,22 +301,65 @@ function showTunnelImportModal(
       ? true
       : parsed?.message || _('Invalid WireGuard configuration');
   };
+  // What the import is going to fill in, or why it cannot: a mark on the field
+  // shows its reason only on hover.
+  configuration.validate = function (_itemId: string, value: unknown) {
+    const input = `${value || ''}`.trim();
+    const result = check(input);
+    if (summary) {
+      summary.classList.toggle('fkp-import-summary--invalid', result !== true);
+      summary.textContent =
+        result !== true
+          ? input
+            ? result
+            : ''
+          : importedFormat(input) === 'openvpn'
+            ? openVPNImportSummary(parseOpenVPNConfig(input, attachments))
+            : '';
+    }
+    return result;
+  };
   configureTextareaOption(configuration);
+
+  injectMaterialStyles();
+  const files = itemSection.option(form.DummyValue, '_files');
+  files.renderWidget = () =>
+    renderImportFiles(attachments, (content) => {
+      const widget = configuration.getUIElement('settings');
+      if (content != null && widget) widget.setValue(content.trim());
+      configuration.triggerValidation('settings');
+    });
+
+  const summaryOption = itemSection.option(form.DummyValue, '_summary');
+  summaryOption.renderWidget = () =>
+    (summary = E('div', { class: 'fkp-import-summary' }));
+
+  const refuse = (input: string, message: string): never => {
+    failedInput = input;
+    importError = message;
+    configuration.triggerValidation('settings');
+    throw new TypeError(importError);
+  };
 
   return renderStackedJsonSettingsModal(
     _('Import configuration'),
     map,
     async (settings: ChildSettings) => {
-      const parsed = await parseWireGuardInput(
-        `${settings.configuration || ''}`,
-      );
-      if (!parsed || parsed.valid !== true) {
-        failedInput = `${settings.configuration || ''}`.trim();
-        importError = parsed?.message || _('Invalid WireGuard configuration');
-        if (typeof configuration.triggerValidation === 'function') {
-          configuration.triggerValidation('settings');
+      const input = `${settings.configuration || ''}`.trim();
+      if (importedFormat(input) === 'openvpn') {
+        const parsed = parseOpenVPNConfig(input, attachments);
+        if (!parsed.valid) refuse(input, parsed.message);
+        else {
+          setModalOptionValue(parentMap, fields.type, 'openvpn-client');
+          parentMap.checkDepends();
+          applyImportedOpenVPN(parentMap, openvpn, parsed);
         }
-        throw new TypeError(importError);
+        return;
+      }
+      const parsed = await parseWireGuardInput(input);
+      if (!parsed || parsed.valid !== true) {
+        refuse(input, parsed?.message || _('Invalid WireGuard configuration'));
+        return;
       }
       applyImportedTunnelEndpoint(parentMap, fields, parsed.endpoint);
     },
@@ -325,6 +459,7 @@ export function showTunnelSettingsModal(
   importButton.inputstyle = 'apply';
   importButton.depends('tunnel_type', 'wireguard');
   importButton.depends('tunnel_type', 'amneziawg');
+  importButton.depends('tunnel_type', 'openvpn-client');
 
   const warpGenerateButton = itemSection.option(
     form.Button,
@@ -464,7 +599,7 @@ export function showTunnelSettingsModal(
   };
   configureTextareaOption(endpointJsonOption);
 
-  addOpenVPNOptions(itemSection);
+  const openvpnOptions = addOpenVPNOptions(itemSection);
 
   o = itemSection.option(
     form.Value,
@@ -566,17 +701,21 @@ export function showTunnelSettingsModal(
 
   const amneziaOptions: Record<string, CBIOption> = {};
   importButton.onclick = function () {
-    return showTunnelImportModal(map, {
-      type: typeOption,
-      address: addressOption,
-      privateKey: privateKeyOption,
-      listenPort: listenPortOption,
-      mtu: mtuOption,
-      peers: peersOption,
-      tunnelId,
-      wireguardJunk: wireguardJunkOption,
-      amnezia: amneziaOptions,
-    });
+    return showTunnelImportModal(
+      map,
+      {
+        type: typeOption,
+        address: addressOption,
+        privateKey: privateKeyOption,
+        listenPort: listenPortOption,
+        mtu: mtuOption,
+        peers: peersOption,
+        tunnelId,
+        wireguardJunk: wireguardJunkOption,
+        amnezia: amneziaOptions,
+      },
+      openvpnOptions,
+    );
   };
 
   o = itemSection.option(

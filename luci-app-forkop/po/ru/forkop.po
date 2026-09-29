@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 06:47+0300\n"
-"PO-Revision-Date: 2026-09-29 06:47+0300\n"
+"POT-Creation-Date: 2026-09-29 08:32+0300\n"
+"PO-Revision-Date: 2026-09-29 08:32+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -20,11 +20,29 @@ msgstr ""
 msgid "-- Select --"
 msgstr "-- Выберите --"
 
+msgid "%d certificates"
+msgstr "сертификатов: %d"
+
+msgid "%d servers"
+msgstr "серверов: %d"
+
 msgid "%s (section is unavailable)"
 msgstr "%s (секция недоступна)"
 
+msgid "%s has an invalid port %s"
+msgstr "%s: неверный порт %s"
+
 msgid "%s is set by the cascade connection of the section"
 msgstr "%s задаётся каскадным подключением секции"
+
+msgid "%s names an unsupported protocol %s"
+msgstr "%s: неподдерживаемый протокол %s"
+
+msgid "%s needs a whole number"
+msgstr "%s: нужно целое число"
+
+msgid "%s private key"
+msgstr "Приватный ключ %s"
 
 msgid "+ Add client"
 msgstr "+ Добавить клиента"
@@ -77,11 +95,38 @@ msgstr "Из этих настроек ссылку собрать нельзя.
 msgid "A name holds at most %d characters"
 msgstr "Имя не длиннее %d символов"
 
+msgid "A profile may refer to certificates and keys in files of their own: select them together with it"
+msgstr "Профиль может ссылаться на сертификаты и ключи в отдельных файлах — выберите их вместе с ним"
+
 msgid "A Reality key is 43 base64url characters"
 msgstr "Ключ Reality — это 43 символа base64url"
 
+msgid "A server usually sets it itself (ping-restart). 0 switches it off"
+msgstr "Обычно его задаёт сервер (ping-restart). 0 — выключить"
+
+msgid "A server usually sets it itself (ping)"
+msgstr "Обычно его задаёт сервер (ping)"
+
 msgid "A short ID holds at most 16 hex digits"
 msgstr "Short ID — не больше 16 hex-символов"
+
+msgid "A static key is the outdated mode without certificates. Choose it only for a server that uses one"
+msgstr "Статический ключ — устаревший режим без сертификатов. Выбирайте его, только если он включён на сервере"
+
+msgid "A static key profile needs a CBC cipher"
+msgstr "Профилю со статическим ключом нужен шифр CBC"
+
+msgid "A static key profile needs its tunnel addresses (ifconfig)"
+msgstr "Профилю со статическим ключом нужны адреса туннеля (ifconfig)"
+
+msgid "A static key tunnel needs its tunnel addresses"
+msgstr "Туннелю со статическим ключом нужны адреса туннеля"
+
+msgid "A static key tunnel with an IPv4 address needs the IPv4 address of the peer"
+msgstr "Туннелю со статическим ключом и IPv4-адресом нужен IPv4-адрес другой стороны"
+
+msgid "A static key tunnel with an IPv6 address needs the IPv6 address of the peer"
+msgstr "Туннелю со статическим ключом и IPv6-адресом нужен IPv6-адрес другой стороны"
 
 msgid "A URL or local path. The format is detected automatically"
 msgstr "URL или локальный путь. Формат определяется автоматически"
@@ -131,6 +176,9 @@ msgstr "Добавьте хотя бы один DNS-сервер"
 msgid "Add at least one domain"
 msgstr "Добавьте хотя бы один домен"
 
+msgid "Add at least one OpenVPN server"
+msgstr "Добавьте хотя бы один сервер OpenVPN"
+
 msgid "Add at least one server group"
 msgstr "Добавьте хотя бы одну группу серверов"
 
@@ -139,6 +187,21 @@ msgstr "Добавьте хотя бы одного пира WireGuard"
 
 msgid "Add header"
 msgstr "Добавить заголовок"
+
+msgid "Add the CA certificate the server certificate is checked against"
+msgstr "Добавьте сертификат центра сертификации, по которому проверяется сертификат сервера"
+
+msgid "Add the certificate of the client key"
+msgstr "Добавьте сертификат для ключа клиента"
+
+msgid "Add the key of the client certificate"
+msgstr "Добавьте ключ сертификата клиента"
+
+msgid "Add the key of the control channel protection"
+msgstr "Добавьте ключ защиты управляющего канала"
+
+msgid "Add the static key"
+msgstr "Добавьте статический ключ"
 
 msgid "Add URLTest"
 msgstr "Добавить URLTest"
@@ -152,14 +215,14 @@ msgstr "Добавляется перед именем каждого серве
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
 
-msgid "Additional OpenVPN options"
-msgstr "Дополнительные параметры OpenVPN"
-
 msgid "Additional packet padding"
 msgstr "Дополнительное заполнение пакета"
 
 msgid "Address of the coordination server. Change it if you use a custom server"
 msgstr "Адрес сервера координации. Меняйте, если используете свой"
+
+msgid "Advanced settings"
+msgstr "Дополнительные параметры"
 
 msgid "Advertise routes"
 msgstr "Раздавать маршруты"
@@ -218,6 +281,9 @@ msgstr "Нужно указать хотя бы один корректный д
 msgid "At least one valid IP or subnet must be specified."
 msgstr "Нужно указать хотя бы один корректный IP-адрес или подсеть."
 
+msgid "Attached: %s"
+msgstr "Приложены: %s"
+
 msgid "Auth token"
 msgstr "Токен авторизации"
 
@@ -263,6 +329,9 @@ msgstr "Bootstrap DNS-сервер должен быть указан IP-адр�
 msgid "Bootstrap DNS Servers"
 msgstr "Bootstrap DNS-серверы"
 
+msgid "Both directions"
+msgstr "Оба направления"
+
 msgid "Browser FakeIP check could not be completed"
 msgstr "Не удалось выполнить проверку FakeIP в браузере"
 
@@ -298,6 +367,9 @@ msgstr "Сертификат создан"
 
 msgid "Certificate path"
 msgstr "Путь к сертификату"
+
+msgid "Certificate profile"
+msgstr "Профиль сертификатов"
 
 msgid "Change the HTTP headers of the request"
 msgstr "Изменить HTTP-заголовки запроса"
@@ -335,6 +407,9 @@ msgstr "CIDR должен быть от 0 до 32 для IPv4 или от 0 до
 msgid "Cipher"
 msgstr "Шифр"
 
+msgid "Cipher suites of the control channel up to TLS 1.2, separated by colons (tls-cipher)"
+msgstr "Наборы шифров управляющего канала до TLS 1.2 через двоеточие (tls-cipher)"
+
 msgid "Clash API request timed out after it was sent"
 msgstr "Запрос к Clash API был отправлен, но истекло время ожидания ответа"
 
@@ -344,17 +419,20 @@ msgstr "Нажмите на сервер, чтобы закрепить его �
 msgid "Client"
 msgstr "Клиент"
 
+msgid "client certificate"
+msgstr "сертификат клиента"
+
 msgid "Client certificate"
 msgstr "Сертификат клиента"
 
 msgid "Client fingerprint"
 msgstr "Отпечаток клиента"
 
+msgid "Client key"
+msgstr "Ключ клиента"
+
 msgid "Client names must be unique"
 msgstr "Имена клиентов не должны повторяться"
-
-msgid "Client private key"
-msgstr "Закрытый ключ клиента"
 
 msgid "Client: %s"
 msgstr "Клиент: %s"
@@ -389,6 +467,12 @@ msgstr "Байты reserved Cloudflare WARP здесь не поддержива
 msgid "Collapse section"
 msgstr "Свернуть секцию"
 
+msgid "Common name (name)"
+msgstr "Имя CN (name)"
+
+msgid "comp-lzo has an unsupported mode %s"
+msgstr "comp-lzo: неподдерживаемый режим %s"
+
 msgid "Component update available"
 msgstr "Доступно обновление компонента"
 
@@ -398,8 +482,14 @@ msgstr "Период проверки обновлений"
 msgid "Components"
 msgstr "Компоненты"
 
+msgid "compress has an unsupported algorithm %s"
+msgstr "compress: неподдерживаемый алгоритм %s"
+
 msgid "compressed"
 msgstr "compressed"
+
+msgid "Compression"
+msgstr "Сжатие"
 
 msgid "Conditions"
 msgstr "Условия"
@@ -433,9 +523,6 @@ msgstr "Проверка соединения не прошла"
 
 msgid "Control channel key"
 msgstr "Ключ управляющего канала"
-
-msgid "Control channel key direction"
-msgstr "Направление ключа управляющего канала"
 
 msgid "Control channel protection"
 msgstr "Защита управляющего канала"
@@ -502,6 +589,18 @@ msgstr "Таймаут отклонения данных"
 
 msgid "Default"
 msgstr "По умолчанию"
+
+msgid "Default (1.2)"
+msgstr "По умолчанию (1.2)"
+
+msgid "Default (BF-CBC)"
+msgstr "По умолчанию (BF-CBC)"
+
+msgid "Default (legacy)"
+msgstr "По умолчанию (legacy)"
+
+msgid "Default (SHA1)"
+msgstr "По умолчанию (SHA1)"
 
 msgid "Delay in milliseconds before reloading Forkop after interface UP"
 msgstr "Задержка в миллисекундах перед перезапуском Forkop после поднятия интерфейса"
@@ -578,6 +677,9 @@ msgstr "DNS через секцию"
 msgid "DNS timeout"
 msgstr "Тайм-аут DNS"
 
+msgid "Do not check"
+msgstr "Не проверять"
+
 msgid "Does not match the WAN address"
 msgstr "Не совпадает с адресом WAN"
 
@@ -629,6 +731,9 @@ msgstr "Дублирующееся значение"
 msgid "Edit"
 msgstr "Редактировать"
 
+msgid "Edit as text"
+msgstr "Изменить как текст"
+
 msgid "Edit rule action"
 msgstr "Изменить"
 
@@ -656,6 +761,9 @@ msgstr "Введите отображаемое имя"
 msgid "Enter a header name"
 msgstr "Введите название заголовка"
 
+msgid "Enter a host and a port, such as vpn.example.com:1194"
+msgstr "Укажите адрес и порт, например vpn.example.com:1194"
+
 msgid "Enter a private key"
 msgstr "Введите приватный ключ"
 
@@ -673,6 +781,9 @@ msgstr "Введите адрес сервера"
 
 msgid "Enter a server group name"
 msgstr "Введите название группы серверов"
+
+msgid "Enter a SHA-256 fingerprint of 64 hex digits"
+msgstr "Укажите отпечаток SHA-256 из 64 шестнадцатеричных цифр"
 
 msgid "Enter a subscription tag"
 msgstr "Введите тег подписки"
@@ -703,6 +814,9 @@ msgstr "Введите секрет API"
 
 msgid "Enter at least one AmneziaWG parameter"
 msgstr "Введите хотя бы один параметр AmneziaWG"
+
+msgid "Enter the username"
+msgstr "Укажите имя пользователя"
 
 msgid "Ephemeral node"
 msgstr "Временный узел"
@@ -739,6 +853,9 @@ msgstr "Развернуть секцию"
 
 msgid "Expected status"
 msgstr "Ожидаемый статус"
+
+msgid "expired on %s"
+msgstr "истёк %s"
 
 msgid "Expires"
 msgstr "Истекает"
@@ -800,8 +917,8 @@ msgstr "FakeTLS-хост"
 msgid "Fallback"
 msgstr "Fallback"
 
-msgid "Fallback data cipher"
-msgstr "Резервный шифр канала данных"
+msgid "Fallback cipher"
+msgstr "Резервный шифр"
 
 msgid "Fallback details"
 msgstr "Детали Fallback"
@@ -811,6 +928,9 @@ msgstr "Детали Fallback недоступны"
 
 msgid "Fallback settings"
 msgstr "Настройки Fallback"
+
+msgid "File on the router: %s"
+msgstr "Файл на роутере: %s"
 
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
@@ -853,6 +973,9 @@ msgstr "прозрачный прокси Forkop"
 
 msgid "Forkop, YACD and sing-box updates download through the selected section"
 msgstr "Обновления Forkop, YACD и sing-box скачиваются через выбранную секцию"
+
+msgid "Fragment size"
+msgstr "Размер фрагмента"
 
 msgid "Generate"
 msgstr "Сгенерировать"
@@ -911,6 +1034,9 @@ msgstr "Скрывать значения"
 msgid "Host"
 msgstr "Хост"
 
+msgid "Host and port of the OpenVPN server. With several, the next one is tried when a server does not answer. Put tcp:// or udp:// before a server that uses the other protocol"
+msgstr "Адрес и порт сервера OpenVPN. Если серверов несколько, при недоступности одного подключение идёт к следующему. Перед сервером с другим протоколом допишите tcp:// или udp://"
+
 msgid "Host key generated"
 msgstr "Ключ хоста создан"
 
@@ -944,6 +1070,12 @@ msgstr "HTTP-коды успешной проверки. * — любой отв
 msgid "Idle timeout"
 msgstr "Таймаут простоя"
 
+msgid "ifconfig needs two addresses"
+msgstr "ifconfig: нужны два адреса"
+
+msgid "ifconfig-ipv6 needs an address"
+msgstr "ifconfig-ipv6: нужен адрес"
+
 msgid "Ignore client bandwidth"
 msgstr "Игнорировать полосу клиента"
 
@@ -967,6 +1099,9 @@ msgstr "Включить серверы"
 
 msgid "Includes connection setup and the TLS handshake"
 msgstr "Учитывает установку соединения и TLS-рукопожатие"
+
+msgid "insecure: also MD5 and short keys"
+msgstr "insecure: ещё MD5 и короткие ключи"
 
 msgid "Install"
 msgstr "Установить"
@@ -1024,9 +1159,6 @@ msgstr "Неверный IP-адрес"
 
 msgid "Invalid JSON format"
 msgstr "Неверный формат JSON"
-
-msgid "Invalid OpenVPN options or duplicate fields in additional JSON"
-msgstr "Некорректные параметры OpenVPN или повторяющиеся поля в дополнительном JSON"
 
 msgid "Invalid or unsupported Amnezia VPN link"
 msgstr "Недействительная или неподдерживаемая ссылка Amnezia VPN"
@@ -1100,11 +1232,26 @@ msgstr "Таймаут keepalive"
 msgid "Key"
 msgstr "Ключ"
 
+msgid "Key direction"
+msgstr "Направление ключа"
+
 msgid "Key path"
 msgstr "Путь к ключу"
 
+msgid "Key renegotiation, seconds"
+msgstr "Смена ключей, секунд"
+
+msgid "key-direction of the profile. Clients use 1"
+msgstr "key-direction из профиля. У клиентов обычно 1"
+
 msgid "Keyword must not contain spaces or commas"
 msgstr "Ключевое слово не должно содержать пробелы или запятые"
+
+msgid "Largest packet size TCP connections are fitted to (mssfix). 0 switches it off"
+msgstr "Наибольший размер пакета, под который подгоняются TCP-соединения (mssfix). 0 — выключить"
+
+msgid "Largest UDP packet before OpenVPN splits it (fragment). Only if the server uses it too"
+msgstr "Наибольший UDP-пакет, крупнее которого OpenVPN режет пакеты сам (fragment). Только если так настроен и сервер"
 
 msgid "Latency difference"
 msgstr "Разница задержки"
@@ -1147,6 +1294,9 @@ msgstr "Порт прослушивания"
 
 msgid "Lists updated"
 msgstr "Списки успешно обновлены"
+
+msgid "Load from a file"
+msgstr "Загрузить из файла"
 
 msgid "Loading connections..."
 msgstr "Загрузка подключений..."
@@ -1214,6 +1364,12 @@ msgstr "Метод"
 msgid "Minimum obfuscated packet size"
 msgstr "Минимальный размер пакета обфускации"
 
+msgid "Minimum TLS version"
+msgstr "Минимальная версия TLS"
+
+msgid "Mode"
+msgstr "Режим"
+
 msgid "Monitored Interfaces"
 msgstr "Наблюдаемые интерфейсы"
 
@@ -1222,6 +1378,9 @@ msgstr "Мониторинг"
 
 msgid "More details"
 msgstr "Подробнее"
+
+msgid "MSS clamping"
+msgstr "Ограничение MSS"
 
 msgid "MTU"
 msgstr "MTU"
@@ -1238,6 +1397,9 @@ msgstr "Н/Д"
 msgid "Name"
 msgstr "Имя"
 
+msgid "Name match"
+msgstr "Сравнение имени"
+
 msgid "Name must be unique"
 msgstr "Название должно быть уникальным"
 
@@ -1246,9 +1408,6 @@ msgstr "Префикс имени"
 
 msgid "Name suffix"
 msgstr "Суффикс имени"
-
-msgid "Native JSON options for routes, reconnect timers and other advanced settings. Fields shown above must be edited in the form."
-msgstr "Параметры sing-box в формате JSON: маршруты, таймеры переподключения и другие настройки. Поля, показанные выше, редактируются в форме."
 
 msgid "Network"
 msgstr "Сеть"
@@ -1286,6 +1445,9 @@ msgstr "Логи отсутствуют"
 msgid "No logs match the current filters"
 msgstr "Нет логов, соответствующих текущим фильтрам"
 
+msgid "no name"
+msgstr "без имени"
+
 msgid "No other marking rules found"
 msgstr "Другие правила маркировки не найдены"
 
@@ -1303,6 +1465,9 @@ msgstr "Узлы"
 
 msgid "None"
 msgstr "Нет"
+
+msgid "Not carried over: %s"
+msgstr "Не перенесено: %s"
 
 msgid "Not configured"
 msgstr "Не настроено"
@@ -1325,14 +1490,23 @@ msgstr "Не отвечает"
 msgid "Not running"
 msgstr "Не запущено"
 
+msgid "Not set: load a file or paste the text"
+msgstr "Не задано: загрузите файл или вставьте текст"
+
 msgid "Obfuscation"
 msgstr "Обфускация"
 
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"
 
+msgid "Off"
+msgstr "Выключено"
+
 msgid "One rule per line: pattern => replacement, applied in order. The pattern is a regular expression, $1 in the replacement keeps a captured group and ${1} keeps it in front of a letter. Example: ^HK-(.*)$ => Hong Kong $1"
 msgstr "По одному правилу в строке: шаблон => замена, применяются по порядку. Шаблон — регулярное выражение, $1 в замене сохраняет найденную группу, а ${1} сохраняет её перед буквой. Пример: ^HK-(.*)$ => Гонконг $1"
+
+msgid "Only for a server that requires it: compression weakens encryption"
+msgstr "Только если этого требует сервер: сжатие ослабляет шифрование"
 
 msgid "Only for devices"
 msgstr "Только для устройств"
@@ -1358,8 +1532,8 @@ msgstr "Открыть порт"
 msgid "Open tunnel settings and complete the configuration"
 msgstr "Откройте настройки туннеля и завершите конфигурацию"
 
-msgid "OpenVPN mode"
-msgstr "Режим OpenVPN"
+msgid "OpenVPN static key, 2048 bits"
+msgstr "Статический ключ OpenVPN, 2048 бит"
 
 msgid "Operation timed out"
 msgstr "Время ожидания истекло"
@@ -1379,8 +1553,8 @@ msgstr "Переопределить маршрутизацию"
 msgid "Override the WARP peer IP address or hostname"
 msgstr "Заменить IP-адрес или имя сервера WARP"
 
-msgid "Packet authentication algorithm"
-msgstr "Алгоритм аутентификации пакетов"
+msgid "Packet authentication"
+msgstr "Аутентификация пакетов"
 
 msgid "Padding"
 msgstr "Padding"
@@ -1394,8 +1568,20 @@ msgstr "Параллельно — запрос всем сразу, быстр�
 msgid "Password"
 msgstr "Пароль"
 
-msgid "Paste a configuration, a wireguard:// link or a vpn:// link"
-msgstr "Вставьте конфигурацию, ссылку wireguard:// или ссылку vpn://"
+msgid "Paste a PEM certificate or load it from a file"
+msgstr "Вставьте сертификат PEM или загрузите его из файла"
+
+msgid "Paste a PEM private key or load it from a file"
+msgstr "Вставьте приватный ключ PEM или загрузите его из файла"
+
+msgid "Paste a WireGuard or OpenVPN configuration, a wireguard:// link or a vpn:// link"
+msgstr "Вставьте конфигурацию WireGuard или OpenVPN, ссылку wireguard:// или vpn://"
+
+msgid "Paste an OpenVPN static key or load it from a file"
+msgstr "Вставьте статический ключ OpenVPN или загрузите его из файла"
+
+msgid "Paste an OpenVPN tls-crypt-v2 client key or load it from a file"
+msgstr "Вставьте клиентский ключ tls-crypt-v2 или загрузите его из файла"
 
 msgid "Path cannot be empty"
 msgstr "Путь не может быть пустым"
@@ -1409,11 +1595,17 @@ msgstr "Путь должен заканчиваться на %s"
 msgid "Paused while text is selected"
 msgstr "Пауза, пока выделен текст"
 
+msgid "Peer address"
+msgstr "Адрес другой стороны"
+
 msgid "Peer hostname or IP address"
 msgstr "Имя хоста или IP-адрес пира"
 
-msgid "Peer tunnel address"
-msgstr "Адрес узла на другом конце туннеля"
+msgid "Peer IPv6 address"
+msgstr "IPv6-адрес другой стороны"
+
+msgid "peer-fingerprint needs SHA-256 fingerprints"
+msgstr "peer-fingerprint: нужны отпечатки SHA-256"
 
 msgid "Peers"
 msgstr "Пиры"
@@ -1429,6 +1621,9 @@ msgstr "Выбрать домен"
 
 msgid "Pick a free port"
 msgstr "Выбрать свободный порт"
+
+msgid "Ping interval, seconds"
+msgstr "Интервал ping, секунд"
 
 msgid "Port %s is already used by %s"
 msgstr "Порт %s уже занят: %s"
@@ -1490,6 +1685,9 @@ msgstr "Публичный ключ"
 msgid "QR code"
 msgstr "QR-код"
 
+msgid "Random server order"
+msgstr "Случайный порядок серверов"
+
 msgid "Random trailers"
 msgstr "Случайные хвосты пакетов"
 
@@ -1507,6 +1705,9 @@ msgstr "Публичный ключ Reality"
 
 msgid "Reality short ID"
 msgstr "Reality short ID"
+
+msgid "Reconnect after silence, seconds"
+msgstr "Переподключение после тишины, секунд"
 
 msgid "Refill"
 msgstr "Сброс"
@@ -1529,6 +1730,12 @@ msgstr "Таймаут обновления ключа"
 msgid "Remote lists and rule sets download through the selected section"
 msgstr "Удалённые списки и наборы правил скачиваются через выбранную секцию"
 
+msgid "remote names no server"
+msgstr "remote: не указан сервер"
+
+msgid "Remove"
+msgstr "Удалить"
+
 msgid "Remove servers from the selection above"
 msgstr "Убрать серверы из выборки выше"
 
@@ -1540,6 +1747,9 @@ msgstr "Удалять узел из сети после отключения"
 
 msgid "Rename servers"
 msgstr "Переименование серверов"
+
+msgid "reneg-sec. 0 switches it off"
+msgstr "reneg-sec. 0 — выключить"
 
 msgid "Request the subscription through a section"
 msgstr "Запрашивать подписку через секцию"
@@ -1712,6 +1922,9 @@ msgstr "Выберите промежуточную секцию"
 msgid "Select at least one server or set a pattern"
 msgstr "Выберите хотя бы один сервер или задайте шаблон"
 
+msgid "Select files…"
+msgstr "Выбрать файлы…"
+
 msgid "Select the network interface to which the traffic will originate"
 msgstr "Выберите сетевой интерфейс, на который будет поступать трафик"
 
@@ -1745,11 +1958,17 @@ msgstr "сервер %s"
 msgid "Server address"
 msgstr "Адрес сервера"
 
+msgid "Server certificate checks, ciphers, compression, MTU and timers. Off, they keep their defaults"
+msgstr "Проверки сертификата сервера, шифры, сжатие, MTU и таймеры. Если выключено, действуют значения по умолчанию"
+
 msgid "Server certificate fingerprints"
 msgstr "Отпечатки сертификата сервера"
 
 msgid "Server certificate name"
 msgstr "Имя в сертификате сервера"
+
+msgid "Server certificate purpose"
+msgstr "Назначение сертификата сервера"
 
 msgid "Server details"
 msgstr "Детали сервера"
@@ -1780,6 +1999,9 @@ msgstr "Параметры серверов"
 
 msgid "Server port"
 msgstr "Порт сервера"
+
+msgid "Servers"
+msgstr "Серверы"
 
 msgid "Servers of these protocols are not imported"
 msgstr "Серверы этих протоколов не импортируются"
@@ -1813,6 +2035,9 @@ msgstr "Настройки не сохранены"
 
 msgid "Several servers give automatic failover. The protocol is set by a prefix: %s"
 msgstr "Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
+
+msgid "SHA-256 fingerprints the server certificate must match (peer-fingerprint). With them the CA certificate is not needed"
+msgstr "Отпечатки SHA-256, с которыми должен совпасть сертификат сервера (peer-fingerprint). С ними сертификат центра сертификации не нужен"
 
 msgid "Show a QR code"
 msgstr "Показать QR-код"
@@ -1874,20 +2099,20 @@ msgstr "Публичные ключи SSH"
 msgid "Start"
 msgstr "Запустить"
 
+msgid "Start of the common name (name-prefix)"
+msgstr "Начало имени CN (name-prefix)"
+
 msgid "Starting..."
 msgstr "Запуск..."
 
 msgid "Static DNS records"
 msgstr "Статичные DNS записи"
 
+msgid "static key"
+msgstr "статический ключ"
+
 msgid "Static key"
 msgstr "Статический ключ"
-
-msgid "Static key direction"
-msgstr "Направление статического ключа"
-
-msgid "Static OpenVPN requires a key and tunnel addresses"
-msgstr "Для статического OpenVPN нужны ключ и адреса туннеля"
 
 msgid "Status"
 msgstr "Статус"
@@ -1958,17 +2183,47 @@ msgstr "TCP Fast Open"
 msgid "Test latency"
 msgstr "Тестирование задержки"
 
+msgid "The <%s> block is not closed"
+msgstr "Блок <%s> не закрыт"
+
 msgid "The address the connection links point at"
 msgstr "Адрес, на который указывают ссылки подключения"
+
+msgid "The addresses of this end of the tunnel in CIDR format (ifconfig)"
+msgstr "Адреса этой стороны туннеля в формате CIDR (ifconfig)"
 
 msgid "The certificate and the key must be different files"
 msgstr "Сертификат и ключ должны быть разными файлами"
 
+msgid "The certificate is damaged"
+msgstr "Сертификат повреждён"
+
+msgid "The certificate the server certificate is checked against (ca)"
+msgstr "Сертификат, по которому проверяется сертификат сервера (ca)"
+
+msgid "The certificate this tunnel presents (cert). A server that asks only for a login needs none"
+msgstr "Сертификат, который предъявляет туннель (cert). Серверу, которому хватает логина, он не нужен"
+
 msgid "The check is scheduled by cron: use whole minutes up to 59m, whole hours up to 23h, or exactly 1d"
 msgstr "Проверку запускает cron: укажите целые минуты до 59m, целые часы до 23h или ровно 1d"
 
+msgid "The cipher of a server older than 2.4, which cannot agree on one (cipher, data-ciphers-fallback)"
+msgstr "Шифр для сервера старше 2.4, который не умеет договариваться о шифре (cipher, data-ciphers-fallback)"
+
+msgid "The ciphers offered to the server (data-ciphers). Empty: %s"
+msgstr "Шифры, которые предлагаются серверу (data-ciphers). Пусто — %s"
+
+msgid "The client certificate and its key go together: add both or neither"
+msgstr "Сертификат клиента и его ключ идут вместе: добавьте оба или ни одного"
+
+msgid "The digest of CBC ciphers and of tls-auth (auth)"
+msgstr "Хеш для шифров CBC и tls-auth (auth)"
+
 msgid "The domain a client sends in the TLS handshake"
 msgstr "Домен, который клиент передаёт в TLS-рукопожатии"
+
+msgid "The extra key the server wraps its handshake in: tls-auth, tls-crypt or tls-crypt-v2"
+msgstr "Дополнительный ключ, которым сервер защищает рукопожатие: tls-auth, tls-crypt или tls-crypt-v2"
 
 msgid "The group joins as the single node it has selected"
 msgstr "Группа участвует как один выбранный узел"
@@ -1982,8 +2237,23 @@ msgstr "Установленный sing-box собран без %s"
 msgid "The interface the traffic comes from"
 msgstr "Интерфейс, с которого исходит трафик"
 
+msgid "The IPv4 address of the other end of the tunnel"
+msgstr "IPv4-адрес другой стороны туннеля"
+
+msgid "The IPv6 address of the other end of the tunnel"
+msgstr "IPv6-адрес другой стороны туннеля"
+
+msgid "The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem"
+msgstr "Ключ защищён паролем. Сначала снимите его: openssl pkey -in key.pem -out key-plain.pem"
+
+msgid "The key of this profile is kept by the operating system or a token and cannot be exported to the router"
+msgstr "Ключ этого профиля хранится в системе или на токене, перенести его на роутер нельзя"
+
 msgid "The name must not contain /"
 msgstr "Имя не должно содержать /"
+
+msgid "The name the server certificate must carry (verify-x509-name). Empty: any certificate the CA issued"
+msgstr "Имя, которое должно быть в сертификате сервера (verify-x509-name). Пусто — подойдёт любой сертификат этого центра сертификации"
 
 msgid "The name this device appears under in the Tailscale console"
 msgstr "Под этим именем устройство видно в консоли Tailscale"
@@ -2000,11 +2270,41 @@ msgstr "Путь должен начинаться с /"
 msgid "The private key of the certificate"
 msgstr "Приватный ключ сертификата"
 
+msgid "The private key of the client certificate (key)"
+msgstr "Приватный ключ сертификата клиента (key)"
+
+msgid "The profile has a client certificate but no key for it"
+msgstr "В профиле есть сертификат клиента, но нет его ключа"
+
+msgid "The profile has a client key but no certificate for it"
+msgstr "В профиле есть ключ клиента, но нет его сертификата"
+
+msgid "The profile has no CA certificate (ca) to check the server by"
+msgstr "В профиле нет сертификата центра сертификации (ca), чтобы проверить сервер"
+
+msgid "The profile keeps its certificate in a PKCS#12 bundle. Export the certificate and the key as PEM files"
+msgstr "Сертификат профиля лежит в контейнере PKCS#12. Экспортируйте сертификат и ключ в файлы PEM"
+
+msgid "The profile names no content for %s"
+msgstr "В профиле нет содержимого для %s"
+
+msgid "The profile names no server: it has no remote directive"
+msgstr "В профиле не указан сервер: нет директивы remote"
+
+msgid "The profile refers to the file %s. Select it together with the profile"
+msgstr "Профиль ссылается на файл %s. Выберите его вместе с профилем"
+
+msgid "The profile uses a TAP (layer 2) device. Only TUN profiles are supported"
+msgstr "Профиль использует устройство TAP (уровень 2). Поддерживаются только профили TUN"
+
 msgid "The router itself becomes a proxy server for your devices"
 msgstr "Роутер сам становится прокси-сервером для ваших устройств"
 
 msgid "The section conditions only match these devices"
 msgstr "Условия секции сработают лишь для этих устройств"
+
+msgid "The server asks for a username and a password (auth-user-pass)"
+msgstr "Сервер запрашивает имя пользователя и пароль (auth-user-pass)"
 
 msgid "The servers that are imported"
 msgstr "Серверы, которые импортируются"
@@ -2018,6 +2318,9 @@ msgstr "Серверы, которые не войдут в группу"
 msgid "The servers that end up in the group"
 msgstr "Серверы, которые войдут в группу"
 
+msgid "The shared key of the tunnel (secret)"
+msgstr "Общий ключ туннеля (secret)"
+
 msgid "The subnets that go through this peer"
 msgstr "Подсети, которые пойдут через этого пира"
 
@@ -2026,6 +2329,15 @@ msgstr "Тег узлов подписки, отображаемый в дашб
 
 msgid "This field is required"
 msgstr "Заполните это поле"
+
+msgid "This is a server configuration, not a client profile"
+msgstr "Это конфигурация сервера, а не профиль клиента"
+
+msgid "This is neither a WireGuard nor an OpenVPN configuration"
+msgstr "Это не конфигурация WireGuard или OpenVPN"
+
+msgid "This is not an OpenVPN profile"
+msgstr "Это не профиль OpenVPN"
 
 msgid "This method needs a base64 key of %d bytes"
 msgstr "Этому методу нужен ключ в base64 длиной %d байт"
@@ -2047,6 +2359,15 @@ msgstr "Время"
 
 msgid "Time synchronisation goes directly, past the tunnel"
 msgstr "Синхронизация времени пойдёт напрямую, минуя туннель"
+
+msgid "TLS (certificates)"
+msgstr "TLS (сертификаты)"
+
+msgid "TLS ciphers"
+msgstr "Шифры TLS"
+
+msgid "tls-crypt-v2 client key"
+msgstr "клиентский ключ tls-crypt-v2"
 
 msgid "Tolerance"
 msgstr "Допуск"
@@ -2072,11 +2393,17 @@ msgstr "Хост транспорта"
 msgid "Transport path"
 msgstr "Путь транспорта"
 
+msgid "Try the servers in random order (remote-random)"
+msgstr "Перебирать серверы в случайном порядке (remote-random)"
+
 msgid "TTL must be a positive number"
 msgstr "TTL должно быть положительным числом"
 
 msgid "TTL value cannot be empty"
 msgstr "Значение TTL не может быть пустым"
+
+msgid "tun-mtu"
+msgstr "tun-mtu"
 
 msgid "Tunnel"
 msgstr "Туннель"
@@ -2228,11 +2555,20 @@ msgstr "Имя пользователя"
 msgid "Username"
 msgstr "Имя пользователя"
 
+msgid "username and password"
+msgstr "имя пользователя и пароль"
+
+msgid "Username and password"
+msgstr "Имя пользователя и пароль"
+
 msgid "UUID"
 msgstr "UUID"
 
 msgid "Valid"
 msgstr "Валидно"
+
+msgid "valid until %s"
+msgstr "действителен до %s"
 
 msgid "Validation errors:"
 msgstr "Ошибки валидации:"
@@ -2242,6 +2578,12 @@ msgstr "Значение не может быть пустым"
 
 msgid "Value must not contain control characters"
 msgstr "Значение не должно содержать управляющие символы"
+
+msgid "verify-x509-name has an unsupported type %s"
+msgstr "verify-x509-name: неподдерживаемый тип %s"
+
+msgid "verify-x509-name names no certificate name"
+msgstr "verify-x509-name: не указано имя сертификата"
 
 msgid "Version is compatible"
 msgstr "Версия совместима"
@@ -2261,6 +2603,9 @@ msgstr "Адрес сервера WARP"
 msgid "WARP server port"
 msgstr "Порт сервера WARP"
 
+msgid "What proves the certificate was issued to a server and not to another client"
+msgstr "Как убедиться, что сертификат выдан серверу, а не другому клиенту"
+
 msgid "What to do when this section's conditions match"
 msgstr "Что делать при совпадении условий этой секции"
 
@@ -2273,8 +2618,14 @@ msgstr "Какие серверы попадут в группу"
 msgid "Which servers to import"
 msgstr "Какие серверы импортировать"
 
+msgid "Which signature algorithms and key sizes are accepted (tls-cert-profile)"
+msgstr "Какие алгоритмы подписи и размеры ключей принимаются (tls-cert-profile)"
+
 msgid "Who resolves domains no rule matched"
 msgstr "Кто резолвит домены, не попавшие ни под одно правило"
+
+msgid "Whole subject (subject)"
+msgstr "Весь subject (subject)"
 
 msgid "WireGuard address and private key are required"
 msgstr "Адрес WireGuard и приватный ключ обязательны"

@@ -779,8 +779,19 @@ function validate_tunnel_values(section) {
                 fail_validation(owner + " has an incomplete OpenVPN endpoint");
             if (endpoint.server_port != null && (type(endpoint.server_port) != "int" || endpoint.server_port < 1 || endpoint.server_port > 65535))
                 fail_validation(owner + " has an invalid OpenVPN server port");
+            for (let remote in array_or_empty(endpoint.servers))
+                if (trim(as_string(remote?.server || "")) == "" || type(remote?.server_port) != "int" ||
+                    remote.server_port < 1 || remote.server_port > 65535)
+                    fail_validation(owner + " has an OpenVPN server without an address or a valid port");
             if (endpoint.mode == "static_key" && ((!endpoint.static_key && !endpoint.static_key_path) || length(array_or_empty(endpoint.address)) == 0))
                 fail_validation(owner + ": static OpenVPN requires a key and tunnel addresses");
+            if (endpoint.mode != "static_key") {
+                let tls = object_or_empty(endpoint.tls);
+                if (!tls.certificate && !tls.certificate_path && length(array_or_empty(tls.peer_fingerprint)) == 0)
+                    fail_validation(owner + " has no CA certificate to check the OpenVPN server by");
+                if (!(tls.client_certificate || tls.client_certificate_path) != !(tls.client_key || tls.client_key_path))
+                    fail_validation(owner + " needs both the OpenVPN client certificate and its key, or neither");
+            }
             continue;
         }
 

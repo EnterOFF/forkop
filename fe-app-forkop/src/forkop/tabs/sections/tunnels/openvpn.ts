@@ -1,213 +1,575 @@
-import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
-import { parseOutboundJsonObject } from '../outboundJson';
+// What the OpenVPN tunnel dialog holds and the endpoint it stands for. The
+// tunnel is stored as the native openvpn-client endpoint; the dialog edits the
+// part of it a profile carries, and anything else a stored endpoint holds is
+// carried through.
 
-// The native endpoint is the stored configuration. These fields edit its common
-// options; everything else survives in the additional-options object.
-type OpenVPNField = {
-  path: string;
-  label: () => string;
-  choices?: string[];
-  number?: boolean;
-  list?: boolean;
-  secret?: boolean;
-  pem?: boolean;
-};
+import { OPENVPN_DEFAULT_PORT } from '../../../../helpers/parseOpenVPNConfig';
+import type { OpenVPNImportResult } from '../../../../helpers/parseOpenVPNConfig';
+import {
+  isValidHost,
+  isValidPort,
+  parseHostPort,
+  unbracketHost,
+} from '../../../../validators/hostPort';
+import { validateSubnet } from '../../../../validators/validateSubnet';
+import { isIPv4, isIPv6 } from '../../../../validators/validateIp';
+import { isRouterPath } from '../../../../helpers/openvpnMaterial';
+import { normalizeOptionValues } from '../../../cbi/listValues';
 
-const OPENVPN_FIELDS: OpenVPNField[] = [
-  { path: 'server', label: () => _('Server address') },
-  { path: 'server_port', label: () => _('Server port'), number: true },
-  {
-    path: 'network',
-    label: () => _('Transport'),
-    choices: ['udp', 'udp4', 'udp6', 'tcp', 'tcp4', 'tcp6'],
-  },
-  {
-    path: 'mode',
-    label: () => _('OpenVPN mode'),
-    choices: ['tls', 'static_key'],
-  },
-  { path: 'username', label: () => _('Username') },
-  { path: 'password', label: () => _('Password'), secret: true },
-  { path: 'tls.server_name', label: () => _('Server certificate name') },
-  { path: 'tls.certificate', label: () => _('CA certificate'), pem: true },
-  {
-    path: 'tls.client_certificate',
-    label: () => _('Client certificate'),
-    pem: true,
-  },
-  { path: 'tls.client_key', label: () => _('Client private key'), pem: true },
-  {
-    path: 'tls.peer_fingerprint',
-    label: () => _('Server certificate fingerprints'),
-    list: true,
-  },
-  {
-    path: 'tls.control_wrap.type',
-    label: () => _('Control channel protection'),
-    choices: ['tls_auth', 'tls_crypt', 'tls_crypt_v2'],
-  },
-  {
-    path: 'tls.control_wrap.key',
-    label: () => _('Control channel key'),
-    pem: true,
-  },
-  {
-    path: 'tls.control_wrap.direction',
-    label: () => _('Control channel key direction'),
-    choices: ['client', 'server'],
-  },
-  { path: 'data_ciphers', label: () => _('Data ciphers'), list: true },
-  { path: 'data_ciphers_fallback', label: () => _('Fallback data cipher') },
-  { path: 'cipher', label: () => _('Cipher') },
-  { path: 'auth', label: () => _('Packet authentication algorithm') },
-  { path: 'mtu', label: () => _('MTU'), number: true },
-  { path: 'address', label: () => _('Tunnel addresses'), list: true },
-  { path: 'peer_address', label: () => _('Peer tunnel address') },
-  { path: 'static_key', label: () => _('Static key'), pem: true },
-  {
-    path: 'key_direction',
-    label: () => _('Static key direction'),
-    choices: ['client', 'server'],
-  },
+type Endpoint = Record<string, unknown>;
+type Tls = Record<string, unknown>;
+
+export const DATA_CIPHERS = [
+  'AES-256-GCM',
+  'AES-128-GCM',
+  'CHACHA20-POLY1305',
+  'AES-192-GCM',
+  'AES-256-CBC',
+  'AES-192-CBC',
+  'AES-128-CBC',
+  'CAMELLIA-256-CBC',
+  'CAMELLIA-128-CBC',
+  'BF-CBC',
+  'NONE',
 ];
 
-function openVPNFieldKey(path: string) {
-  return `openvpn_${path.replaceAll('.', '_')}`;
+export const STATIC_CIPHERS = DATA_CIPHERS.filter(
+  (cipher) => !/-(GCM|POLY1305)$/.test(cipher),
+);
+
+export const DIGESTS = ['SHA1', 'SHA256', 'SHA384', 'SHA512', 'SHA224', 'MD5'];
+
+// compress and comp-lzo as a profile spells them, and the fields they set.
+const COMPRESSIONS: Record<string, Endpoint> = {
+  stub: { compression: 'stub' },
+  'stub-v2': { compression: 'stub-v2' },
+  lz4: { compression: 'lz4', allow_compression: 'asym' },
+  'lz4-v2': { compression: 'lz4-v2', allow_compression: 'asym' },
+  'lzo-no': { compression_lzo: 'no' },
+  'lzo-yes': { compression_lzo: 'yes', allow_compression: 'asym' },
+  'lzo-adaptive': { compression_lzo: 'adaptive', allow_compression: 'asym' },
+};
+
+export const COMPRESSION_LABELS: Record<string, string> = {
+  stub: 'compress stub',
+  'stub-v2': 'compress stub-v2',
+  lz4: 'compress lz4',
+  'lz4-v2': 'compress lz4-v2',
+  'lzo-no': 'comp-lzo no',
+  'lzo-yes': 'comp-lzo yes',
+  'lzo-adaptive': 'comp-lzo adaptive',
+};
+
+// Every top-level field and every TLS field the dialog writes. What a stored
+// endpoint holds beyond these - a migrated configuration may carry dial fields
+// or pull filters - is kept as it was.
+const MANAGED = [
+  'type',
+  'tag',
+  'mode',
+  'network',
+  'server',
+  'server_port',
+  'servers',
+  'remote_random',
+  'username',
+  'password',
+  'tls',
+  'static_key',
+  'static_key_path',
+  'key_direction',
+  'cipher',
+  'address',
+  'peer_address',
+  'peer_address_ipv6',
+  'data_ciphers',
+  'data_ciphers_fallback',
+  'auth',
+  'compression',
+  'compression_lzo',
+  'allow_compression',
+  'mtu',
+  'fragment',
+  'mss_fix',
+  'mss_fix_disabled',
+  'ping_interval',
+  'ping_restart',
+  'ping_restart_disabled',
+  'renegotiate_interval',
+  'renegotiate_disabled',
+];
+
+const MANAGED_TLS = [
+  'certificate',
+  'certificate_path',
+  'client_certificate',
+  'client_certificate_path',
+  'client_key',
+  'client_key_path',
+  'control_wrap',
+  'server_name',
+  'server_name_type',
+  'remote_certificate_tls',
+  'ns_certificate_type',
+  'peer_fingerprint',
+  'certificate_profile',
+  'version_min',
+  'cipher',
+];
+
+// The advanced fields and what each holds while it is left alone.
+const ADVANCED_DEFAULTS: Record<string, unknown> = {
+  openvpn_remote_random: '0',
+  openvpn_server_name: '',
+  openvpn_server_name_type: 'name',
+  openvpn_verify_purpose: 'server',
+  openvpn_peer_fingerprint: [],
+  openvpn_certificate_profile: '',
+  openvpn_tls_version_min: '',
+  openvpn_tls_cipher: '',
+  openvpn_data_ciphers: [],
+  openvpn_data_ciphers_fallback: '',
+  openvpn_auth: '',
+  openvpn_compression: '',
+  openvpn_mtu: '',
+  openvpn_fragment: '',
+  openvpn_mss_fix: '',
+  openvpn_ping_interval: '',
+  openvpn_ping_restart: '',
+  openvpn_renegotiate: '',
+};
+
+function text(value: unknown) {
+  return `${value ?? ''}`;
 }
 
-function openVPNParent(
+export function trimmed(value: unknown) {
+  return text(value).trim();
+}
+
+function list(value: unknown): string[] {
+  return value == null
+    ? []
+    : Array.isArray(value)
+      ? value.map(text)
+      : [text(value)];
+}
+
+// A PEM field of the endpoint, as the dialog shows it: the content, or the path
+// the core reads it from on the router.
+function material(object: Record<string, unknown>, key: string) {
+  const content = list(object[key]).join('\n').trim();
+  return content || trimmed(object[`${key}_path`]);
+}
+
+function setMaterial(
   object: Record<string, unknown>,
-  path: string,
-  create = false,
+  key: string,
+  value: unknown,
 ) {
-  const parts = path.split('.');
-  const key = parts.pop()!;
-  let parent = object;
-  for (const part of parts) {
-    if (parent[part] == null && create) parent[part] = {};
-    const next = parent[part];
-    if (!next || typeof next !== 'object' || Array.isArray(next)) return null;
-    parent = next as Record<string, unknown>;
-  }
-  return { parent, key };
-}
-
-function pruneOpenVPNObjects(endpoint: Record<string, unknown>) {
-  const tls = endpoint.tls as Record<string, unknown> | undefined;
-  if (tls && typeof tls === 'object') {
-    if (tls.control_wrap && !Object.keys(tls.control_wrap).length)
-      delete tls.control_wrap;
-    if (!Object.keys(tls).length) delete endpoint.tls;
+  const content = trimmed(value);
+  if (!content) return;
+  if (isRouterPath(content)) {
+    object[`${key}_path`] = content;
+  } else {
+    object[key] = content.split(/\r?\n/).map((line) => line.trimEnd());
   }
 }
 
-export function openVPNInitialSettings(
-  endpoint: Record<string, unknown>,
-): ChildSettings {
-  const extra = JSON.parse(JSON.stringify(endpoint));
-  delete extra.type;
-  delete extra.tag;
-  const settings: ChildSettings = {};
-  for (const field of OPENVPN_FIELDS) {
-    const slot = openVPNParent(extra, field.path);
-    const value = slot?.parent[slot.key];
-    settings[openVPNFieldKey(field.path)] = field.list
-      ? value == null
-        ? []
-        : Array.isArray(value)
-          ? value
-          : [value]
-      : Array.isArray(value)
-        ? value.join('\n')
-        : value == null
-          ? ''
-          : `${value}`;
-    if (slot) delete slot.parent[slot.key];
+// A duration of the endpoint in the seconds the dialog asks for.
+function secondsValue(value: unknown) {
+  const match = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(trimmed(value));
+  if (!match || !trimmed(value)) return trimmed(value);
+  const [, hours = '0', minutes = '0', seconds = '0'] = match;
+  return `${Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds)}`;
+}
+
+function formatServer(server: unknown, port: unknown, network: string) {
+  const host = trimmed(server);
+  const address = isIPv6(host) ? `[${host}]` : host;
+  const scheme = network ? `${network}://` : '';
+  return `${scheme}${address}:${port ?? OPENVPN_DEFAULT_PORT}`;
+}
+
+// One entry of the server list: host and port, and tcp:// or udp:// before a
+// server that does not use the protocol the tunnel is set to.
+export function parseOpenVPNServer(value: unknown) {
+  let rest = trimmed(value);
+  let network = '';
+  const scheme = /^(udp|tcp):\/\//i.exec(rest);
+  if (scheme) {
+    network = scheme[1].toLowerCase();
+    rest = rest.slice(scheme[0].length);
   }
-  pruneOpenVPNObjects(extra);
-  settings.openvpn_extra = Object.keys(extra).length
-    ? JSON.stringify(extra, null, 2)
-    : '';
+  const hostPort = parseHostPort(rest);
+  if (hostPort) {
+    return isValidPort(hostPort.port)
+      ? {
+          server: unbracketHost(hostPort.host),
+          port: Number(hostPort.port),
+          network,
+        }
+      : null;
+  }
+  return rest && !rest.includes('/') && isValidHost(rest)
+    ? { server: unbracketHost(rest), port: OPENVPN_DEFAULT_PORT, network }
+    : null;
+}
+
+function compressionValue(endpoint: Endpoint) {
+  const lzo = trimmed(endpoint.compression_lzo);
+  if (['no', 'yes', 'adaptive'].includes(lzo)) return `lzo-${lzo}`;
+  const compression = trimmed(endpoint.compression);
+  return COMPRESSIONS[compression] ? compression : '';
+}
+
+function verifyPurpose(tls: Tls) {
+  if (trimmed(tls.remote_certificate_tls) !== 'none') return 'server';
+  return trimmed(tls.ns_certificate_type) === 'server' ? 'ns' : 'none';
+}
+
+function keyDirectionValue(value: unknown) {
+  return value === 'client' ? '1' : value === 'server' ? '0' : '';
+}
+
+function keyDirectionName(value: unknown) {
+  return value === '1' ? 'client' : value === '0' ? 'server' : '';
+}
+
+function advancedInUse(settings: ChildSettings) {
+  return Object.entries(ADVANCED_DEFAULTS).some(([key, empty]) =>
+    Array.isArray(empty)
+      ? normalizeOptionValues(settings[key]).length > 0
+      : trimmed(settings[key]) !== trimmed(empty),
+  );
+}
+
+function preservedFields(endpoint: Endpoint) {
+  const preserved: Endpoint = {};
+  Object.entries(endpoint).forEach(([key, value]) => {
+    if (!MANAGED.includes(key)) preserved[key] = value;
+  });
+  const tls = (endpoint.tls || {}) as Tls;
+  const preservedTls: Tls = {};
+  Object.entries(tls).forEach(([key, value]) => {
+    if (!MANAGED_TLS.includes(key)) preservedTls[key] = value;
+  });
+  if (Object.keys(preservedTls).length) preserved.tls = preservedTls;
+  return preserved;
+}
+
+export function openVPNInitialSettings(endpoint: Endpoint): ChildSettings {
+  const tls = (endpoint.tls || {}) as Tls;
+  const wrap = (tls.control_wrap || {}) as Record<string, unknown>;
+  const network = trimmed(endpoint.network).replace(/[46]$/, '') || 'udp';
+  const staticMode = endpoint.mode === 'static_key';
+  const servers =
+    Array.isArray(endpoint.servers) && endpoint.servers.length
+      ? (endpoint.servers as Endpoint[]).map((entry) => {
+          const own = trimmed(entry.network).replace(/[46]$/, '');
+          return formatServer(
+            entry.server,
+            entry.server_port,
+            own && own !== network ? own : '',
+          );
+        })
+      : trimmed(endpoint.server)
+        ? [formatServer(endpoint.server, endpoint.server_port, '')]
+        : [];
+  const lzo = compressionValue(endpoint);
+  const settings: ChildSettings = {
+    openvpn_servers: servers,
+    openvpn_network: network,
+    openvpn_mode: staticMode ? 'static_key' : 'tls',
+    openvpn_login:
+      endpoint.username != null || endpoint.password != null ? '1' : '0',
+    openvpn_username: text(endpoint.username),
+    openvpn_password: text(endpoint.password),
+    openvpn_ca: material(tls, 'certificate'),
+    openvpn_cert: material(tls, 'client_certificate'),
+    openvpn_key: material(tls, 'client_key'),
+    openvpn_control_wrap: trimmed(wrap.type),
+    openvpn_control_wrap_key: material(wrap, 'key'),
+    openvpn_key_direction: keyDirectionValue(
+      staticMode ? endpoint.key_direction : wrap.direction,
+    ),
+    openvpn_static_key: material(endpoint, 'static_key'),
+    openvpn_static_cipher: trimmed(endpoint.cipher),
+    openvpn_address: list(endpoint.address),
+    openvpn_peer_address: trimmed(endpoint.peer_address),
+    openvpn_peer_address_ipv6: trimmed(endpoint.peer_address_ipv6),
+    openvpn_remote_random: endpoint.remote_random ? '1' : '0',
+    openvpn_server_name: trimmed(tls.server_name),
+    openvpn_server_name_type: trimmed(tls.server_name_type) || 'name',
+    openvpn_verify_purpose: verifyPurpose(tls),
+    openvpn_peer_fingerprint: list(tls.peer_fingerprint),
+    openvpn_certificate_profile: trimmed(tls.certificate_profile),
+    openvpn_tls_version_min: trimmed(tls.version_min),
+    openvpn_tls_cipher: trimmed(tls.cipher),
+    openvpn_data_ciphers: list(endpoint.data_ciphers),
+    openvpn_data_ciphers_fallback: trimmed(endpoint.data_ciphers_fallback),
+    openvpn_auth: trimmed(endpoint.auth),
+    openvpn_compression: lzo,
+    openvpn_mtu: trimmed(endpoint.mtu),
+    openvpn_fragment: trimmed(endpoint.fragment),
+    openvpn_mss_fix: endpoint.mss_fix_disabled
+      ? '0'
+      : trimmed(endpoint.mss_fix),
+    openvpn_ping_interval: secondsValue(endpoint.ping_interval),
+    openvpn_ping_restart: endpoint.ping_restart_disabled
+      ? '0'
+      : secondsValue(endpoint.ping_restart),
+    openvpn_renegotiate: endpoint.renegotiate_disabled
+      ? '0'
+      : secondsValue(endpoint.renegotiate_interval),
+    openvpn_preserved: JSON.stringify(preservedFields(endpoint)),
+  };
+  settings.openvpn_advanced = advancedInUse(settings) ? '1' : '0';
   return settings;
 }
 
-export function openVPNEndpoint(settings: ChildSettings) {
-  const extra = `${settings.openvpn_extra || ''}`.trim();
-  const endpoint = extra ? parseOutboundJsonObject(extra) : {};
-  if (!endpoint || 'type' in endpoint || 'tag' in endpoint) return null;
-  for (const field of OPENVPN_FIELDS) {
-    const existing = openVPNParent(endpoint, field.path);
-    if (existing && existing.key in existing.parent) return null;
-    const input = settings[openVPNFieldKey(field.path)];
-    const text =
-      field.secret || field.path === 'username'
-        ? `${input ?? ''}`
-        : `${input ?? ''}`.trim();
-    if (!text) continue;
-    const slot = openVPNParent(endpoint, field.path, true);
-    if (!slot) return null;
-    if (field.choices && !field.choices.includes(text)) return null;
-    if (
-      field.number &&
-      (!/^\d+$/u.test(text) || Number(text) < 1 || Number(text) > 65535)
-    )
-      return null;
-    slot.parent[slot.key] = field.list
-      ? (Array.isArray(input) ? input : [input])
-          .map((value) => `${value}`.trim())
-          .filter(Boolean)
-      : field.number
-        ? Number(text)
-        : field.pem
-          ? text.split(/\r?\n/u)
-          : text;
+function mergePreserved(endpoint: Endpoint, settings: ChildSettings) {
+  let preserved: Endpoint = {};
+  try {
+    preserved = JSON.parse(text(settings.openvpn_preserved) || '{}');
+  } catch (_error) {
+    preserved = {};
   }
-  pruneOpenVPNObjects(endpoint);
-  return { ...endpoint, type: 'openvpn-client' };
+  const tls = {
+    ...((preserved.tls || {}) as Tls),
+    ...((endpoint.tls || {}) as Tls),
+  };
+  const result = { ...preserved, ...endpoint };
+  if (Object.keys(tls).length) result.tls = tls;
+  return result;
 }
 
-export function addOpenVPNOptions(section: CBISection) {
-  for (const field of OPENVPN_FIELDS) {
-    const o = section.option(
-      field.choices
-        ? form.ListValue
-        : field.pem
-          ? form.TextValue
-          : field.list
-            ? form.DynamicList
-            : form.Value,
-      openVPNFieldKey(field.path),
-      field.label(),
-    );
-    o.depends('tunnel_type', 'openvpn-client');
-    o.rmempty = true;
-    if (field.choices) {
-      o.value('', _('Default'));
-      field.choices.forEach((value) => o.value(value, value));
-    }
-    if (field.number) o.datatype = 'range(1,65535)';
-    if (field.secret) o.password = true;
-    if (field.pem) {
-      o.rows = 5;
-      o.textarea = true;
-      configureTextareaOption(o);
-    }
-  }
-  const extra = section.option(
-    form.TextValue,
-    'openvpn_extra',
-    _('Additional OpenVPN options'),
-    _(
-      'Native JSON options for routes, reconnect timers and other advanced settings. Fields shown above must be edited in the form.',
-    ),
+function servers(settings: ChildSettings, network: string) {
+  return normalizeOptionValues(settings.openvpn_servers)
+    .map(parseOpenVPNServer)
+    .filter(Boolean)
+    .map((entry) => {
+      const result: Endpoint = {
+        server: entry!.server,
+        server_port: entry!.port,
+      };
+      if (entry!.network && entry!.network !== network) {
+        result.network = entry!.network;
+      }
+      return result;
+    });
+}
+
+function number(value: unknown) {
+  return /^\d+$/.test(trimmed(value)) ? Number(trimmed(value)) : null;
+}
+
+function applyAdvanced(endpoint: Endpoint, tls: Tls, settings: ChildSettings) {
+  if (settings.openvpn_advanced !== '1') return;
+  const tlsMode = settings.openvpn_mode !== 'static_key';
+  if (settings.openvpn_remote_random === '1') endpoint.remote_random = true;
+
+  const mtu = number(settings.openvpn_mtu);
+  if (mtu) endpoint.mtu = mtu;
+  const fragment = number(settings.openvpn_fragment);
+  if (fragment && settings.openvpn_network !== 'tcp')
+    endpoint.fragment = fragment;
+  const mssFix = number(settings.openvpn_mss_fix);
+  if (mssFix === 0) endpoint.mss_fix_disabled = true;
+  else if (mssFix) endpoint.mss_fix = mssFix;
+  const ping = number(settings.openvpn_ping_interval);
+  if (ping) endpoint.ping_interval = `${ping}s`;
+  const restart = number(settings.openvpn_ping_restart);
+  if (restart === 0) endpoint.ping_restart_disabled = true;
+  else if (restart) endpoint.ping_restart = `${restart}s`;
+  Object.assign(
+    endpoint,
+    COMPRESSIONS[text(settings.openvpn_compression)] || {},
   );
-  extra.depends('tunnel_type', 'openvpn-client');
-  extra.rows = 5;
-  extra.textarea = true;
-  extra.rmempty = true;
-  extra.validate = (_id: string, value: unknown) =>
-    !`${value || ''}`.trim() || parseOutboundJsonObject(value)
-      ? true
-      : _('Enter a valid JSON object');
-  configureTextareaOption(extra);
+  if (!tlsMode) return;
+
+  const serverName = trimmed(settings.openvpn_server_name);
+  if (serverName) {
+    tls.server_name = serverName;
+    tls.server_name_type = trimmed(settings.openvpn_server_name_type) || 'name';
+  }
+  if (settings.openvpn_verify_purpose === 'none')
+    tls.remote_certificate_tls = 'none';
+  if (settings.openvpn_verify_purpose === 'ns') {
+    tls.remote_certificate_tls = 'none';
+    tls.ns_certificate_type = 'server';
+  }
+  const fingerprints = normalizeOptionValues(
+    settings.openvpn_peer_fingerprint,
+  ).map((value) => value.replace(/:/g, '').toLowerCase());
+  if (fingerprints.length) tls.peer_fingerprint = fingerprints;
+  for (const [key, field] of [
+    ['certificate_profile', 'openvpn_certificate_profile'],
+    ['version_min', 'openvpn_tls_version_min'],
+    ['cipher', 'openvpn_tls_cipher'],
+  ]) {
+    if (trimmed(settings[field])) tls[key] = trimmed(settings[field]);
+  }
+  const ciphers = normalizeOptionValues(settings.openvpn_data_ciphers);
+  if (ciphers.length) endpoint.data_ciphers = ciphers;
+  if (trimmed(settings.openvpn_data_ciphers_fallback)) {
+    endpoint.data_ciphers_fallback = trimmed(
+      settings.openvpn_data_ciphers_fallback,
+    );
+  }
+  if (trimmed(settings.openvpn_auth))
+    endpoint.auth = trimmed(settings.openvpn_auth);
+  const renegotiate = number(settings.openvpn_renegotiate);
+  if (renegotiate === 0) endpoint.renegotiate_disabled = true;
+  else if (renegotiate) endpoint.renegotiate_interval = `${renegotiate}s`;
+}
+
+export function openVPNEndpoint(settings: ChildSettings): Endpoint {
+  const network = settings.openvpn_network === 'tcp' ? 'tcp' : 'udp';
+  const endpoint: Endpoint = { type: 'openvpn-client', network };
+  const tls: Tls = {};
+  const remotes = servers(settings, network);
+  if (remotes.length === 1 && !remotes[0].network)
+    Object.assign(endpoint, remotes[0]);
+  else if (remotes.length) endpoint.servers = remotes;
+
+  if (settings.openvpn_mode === 'static_key') {
+    endpoint.mode = 'static_key';
+    setMaterial(endpoint, 'static_key', settings.openvpn_static_key);
+    const direction = keyDirectionName(settings.openvpn_key_direction);
+    if (direction) endpoint.key_direction = direction;
+    if (trimmed(settings.openvpn_static_cipher)) {
+      endpoint.cipher = trimmed(settings.openvpn_static_cipher);
+    }
+    const addresses = normalizeOptionValues(settings.openvpn_address);
+    if (addresses.length) endpoint.address = addresses;
+    for (const key of ['peer_address', 'peer_address_ipv6']) {
+      if (trimmed(settings[`openvpn_${key}`])) {
+        endpoint[key] = trimmed(settings[`openvpn_${key}`]);
+      }
+    }
+    applyAdvanced(endpoint, tls, settings);
+    return mergePreserved(endpoint, settings);
+  }
+
+  // The dialog drops both fields while the switch is off.
+  if (
+    settings.openvpn_login === '1' ||
+    text(settings.openvpn_username) ||
+    text(settings.openvpn_password)
+  ) {
+    endpoint.username = text(settings.openvpn_username);
+    endpoint.password = text(settings.openvpn_password);
+  }
+  setMaterial(tls, 'certificate', settings.openvpn_ca);
+  setMaterial(tls, 'client_certificate', settings.openvpn_cert);
+  setMaterial(tls, 'client_key', settings.openvpn_key);
+  const wrapType = trimmed(settings.openvpn_control_wrap);
+  if (wrapType) {
+    const wrap: Record<string, unknown> = { type: wrapType };
+    setMaterial(wrap, 'key', settings.openvpn_control_wrap_key);
+    const direction = keyDirectionName(settings.openvpn_key_direction);
+    if (wrapType === 'tls_auth' && direction) wrap.direction = direction;
+    tls.control_wrap = wrap;
+  }
+  applyAdvanced(endpoint, tls, settings);
+  endpoint.tls = tls;
+  return mergePreserved(endpoint, settings);
+}
+
+export function validateServerEntry(value: unknown) {
+  return parseOpenVPNServer(value)
+    ? true
+    : _('Enter a host and a port, such as vpn.example.com:1194');
+}
+
+export function validateAddress(value: unknown) {
+  const address = trimmed(value);
+  if (!address.includes('/')) return _('Use an IP address with a CIDR prefix');
+  const validation = validateSubnet(address);
+  return validation.valid ? true : validation.message;
+}
+
+export function validateOpenVPNSettings(settings: ChildSettings) {
+  const servers = normalizeOptionValues(settings.openvpn_servers);
+  if (!servers.length) return _('Add at least one OpenVPN server');
+  for (const server of servers) {
+    const result = validateServerEntry(server);
+    if (result !== true) return `${server}: ${result}`;
+  }
+  if (settings.openvpn_mode === 'static_key') {
+    if (!trimmed(settings.openvpn_static_key)) return _('Add the static key');
+    const addresses = normalizeOptionValues(settings.openvpn_address);
+    if (!addresses.length) {
+      return _('A static key tunnel needs its tunnel addresses');
+    }
+    if (
+      addresses.some((address) => isIPv4(address.split('/')[0])) &&
+      !trimmed(settings.openvpn_peer_address)
+    ) {
+      return _(
+        'A static key tunnel with an IPv4 address needs the IPv4 address of the peer',
+      );
+    }
+    if (
+      addresses.some((address) => isIPv6(address.split('/')[0])) &&
+      !trimmed(settings.openvpn_peer_address_ipv6)
+    ) {
+      return _(
+        'A static key tunnel with an IPv6 address needs the IPv6 address of the peer',
+      );
+    }
+    return true;
+  }
+  if (
+    !trimmed(settings.openvpn_ca) &&
+    !(
+      settings.openvpn_advanced === '1' &&
+      normalizeOptionValues(settings.openvpn_peer_fingerprint).length
+    )
+  ) {
+    return _(
+      'Add the CA certificate the server certificate is checked against',
+    );
+  }
+  if (!trimmed(settings.openvpn_cert) !== !trimmed(settings.openvpn_key)) {
+    return _(
+      'The client certificate and its key go together: add both or neither',
+    );
+  }
+  if (settings.openvpn_login === '1' && !trimmed(settings.openvpn_username)) {
+    return _('Enter the username');
+  }
+  if (
+    trimmed(settings.openvpn_control_wrap) &&
+    !trimmed(settings.openvpn_control_wrap_key)
+  ) {
+    return _('Add the key of the control channel protection');
+  }
+  return true;
+}
+
+export function openVPNImportSummary(result: OpenVPNImportResult) {
+  if (!result.valid) return '';
+  const endpoint = result.endpoint;
+  const tls = (endpoint.tls || {}) as Tls;
+  const wrap = (tls.control_wrap || {}) as Record<string, unknown>;
+  const count = Array.isArray(endpoint.servers) ? endpoint.servers.length : 1;
+  const parts = [
+    count > 1
+      ? _('%d servers').format(count)
+      : `${formatServer(endpoint.server, endpoint.server_port, '')}`,
+    text(endpoint.network).toUpperCase(),
+  ];
+  if (endpoint.mode === 'static_key') parts.push(_('static key'));
+  else {
+    if (tls.client_certificate) parts.push(_('client certificate'));
+    if (result.login) parts.push(_('username and password'));
+    if (wrap.type) parts.push(text(wrap.type).replace(/_/g, '-'));
+  }
+  const lines = [parts.join(' · ')];
+  if (result.skipped.length) {
+    lines.push(_('Not carried over: %s').format(result.skipped.join(', ')));
+  }
+  return lines.join('\n');
 }

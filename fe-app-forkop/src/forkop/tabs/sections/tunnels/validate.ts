@@ -5,6 +5,7 @@ import { validateSubnet } from '../../../../validators/validateSubnet';
 import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrl } from '../../../../validators/validateUrl';
 import { isExistingChildItem } from '../../../cbi/childItems';
+import { validateOpenVPNSettings } from './openvpn';
 import { normalizeDynamicListItems } from '../../../cbi/listValues';
 import { normalizeOptionValues } from '../../../cbi/listValues';
 import {
@@ -210,22 +211,10 @@ export function validateTunnelSettings(
   if (kind !== 'json' && !name) {
     return _('Enter a tunnel name');
   }
-  const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (kind === 'openvpn-client') {
-    if (!endpoint)
-      return _(
-        'Invalid OpenVPN options or duplicate fields in additional JSON',
-      );
-    if (!endpoint.server && !endpoint.servers?.length)
-      return _('Enter a server address');
-    if (
-      endpoint.mode === 'static_key' &&
-      ((!endpoint.static_key && !endpoint.static_key_path) ||
-        !endpoint.address?.length)
-    )
-      return _('Static OpenVPN requires a key and tunnel addresses');
-    return true;
+    return validateOpenVPNSettings(settings);
   }
+  const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (!endpoint) {
     return kind === 'json'
       ? _('Enter a valid JSON endpoint object')
