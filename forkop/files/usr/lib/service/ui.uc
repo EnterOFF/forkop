@@ -228,7 +228,6 @@ function run_pending_reload(action, success) {
         return;
     if (lock.held(paths.reload_lock) || !lock.consume_request(paths.pending_reload))
         return;
-    exec.log("info", "Applying pending Forkop reload");
     if (!start_worker("reload", "initd", "pending").success)
         lock.mark_request(paths.pending_reload, "pending");
 }

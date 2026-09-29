@@ -202,7 +202,7 @@ t.test("the script is the same for the same configuration and moves with anythin
 
 t.test("a value nft cannot take is left out and reported when the table is applied", () => {
     let result = built({ settings: { routing_excluded_ips: "192.168.1.50 phone" } });
-    t.eq(result.skipped, [ "'phone' is not IP or CIDR" ]);
+    t.eq(result.skipped, [ "Exclude devices from routing: 'phone' is not an IP address or subnet and is ignored" ]);
     t.contains(split(result.script, "\n"), "add element inet ForkopTable forkop_excluded { 192.168.1.50 }");
 });
 
@@ -211,7 +211,7 @@ function routing(ip_state) {
     nft.paths.rt_tables = dir + "/rt_tables";
     let logs = [];
     let handlers = [
-        [ "logger", (argv) => { push(logs, argv[3]); return {}; } ],
+        stub.logger(logs),
         [ "/usr/libexec/ip-full route list table forkop", { stdout: ip_state?.route4 ?? "" } ],
         [ "/usr/libexec/ip-full -6 route list table forkop", { stdout: ip_state?.route6 ?? "" } ],
         [ "/usr/libexec/ip-full -4 rule list table forkop", { stdout: ip_state?.rule4 ?? "" } ],
@@ -237,7 +237,7 @@ t.test("applying the table sets up its routing once and hands nft the whole scri
     let transactions = filter(calls, (c) => c.argv[0] == "nft");
     t.eq(length(transactions), 1, "one transaction");
     t.eq(split(transactions[0].stdin, "\n")[0], "table inet ForkopTable");
-    t.contains(r.logs, "[debug] Added IPv4 tproxy route");
+    t.eq(r.logs, [], "setting the routing up is a routine step and is not reported");
 
     let present = routing({ route4: "local default dev lo scope host", route6: "local default dev lo metric 1024 pref medium",
         rule4: "105: from all fwmark 0x4000000/0x4000000 lookup forkop", rule6: "105: from all fwmark 0x4000000/0x4000000 lookup podkop" });
@@ -248,6 +248,15 @@ t.test("applying the table sets up its routing once and hands nft the whole scri
     stub.restore();
     t.eq(filter(commands, (line) => index(line, " add ") >= 0), [], "routing that is in place is left alone");
     t.eq(present.logs, [], "and nothing is reported about it");
+});
+
+t.test("a value left out is a warning each time the table is applied", () => {
+    let result = built({ settings: { routing_excluded_ips: "192.168.1.50 phone" } });
+    let r = routing();
+    stub.commands(r.handlers);
+    nft.apply(result);
+    stub.restore();
+    t.eq(r.logs, [ "[warn] Exclude devices from routing: 'phone' is not an IP address or subnet and is ignored" ]);
 });
 
 t.test("a refused transaction fails with the first line nft gave", () => {
@@ -265,8 +274,9 @@ t.test("a refused transaction fails with the first line nft gave", () => {
 });
 
 t.test("bridge netfilter is switched off only where it is on", () => {
+    let logs = [];
     let calls = (lsmod) => {
-        stub.commands([ [ "lsmod", { stdout: lsmod } ], [ "sysctl -n", { stdout: "1\n" } ], [ "sysctl -w", {} ], [ "logger", {} ] ]);
+        stub.commands([ [ "lsmod", { stdout: lsmod } ], [ "sysctl -n", { stdout: "1\n" } ], [ "sysctl -w", {} ], stub.logger(logs) ]);
         nft.ensure_bridge_netfilter_disabled();
         let lines = stub.command_lines();
         stub.restore();
@@ -274,7 +284,9 @@ t.test("bridge netfilter is switched off only where it is on", () => {
     };
     t.eq(calls("br_netfilter 32768 0\n"), [ "sysctl -n net.bridge.bridge-nf-call-iptables", "sysctl -w net.bridge.bridge-nf-call-iptables=0",
         "sysctl -w net.bridge.bridge-nf-call-ip6tables=0" ]);
+    t.eq(logs, [ "[info] Disabled bridge netfilter (net.bridge.bridge-nf-call-iptables) for transparent proxying" ], "a change to the system is reported");
     t.eq(calls(""), []);
+    t.eq(length(logs), 1);
 });
 
 t.done();

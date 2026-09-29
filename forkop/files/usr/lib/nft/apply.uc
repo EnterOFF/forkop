@@ -80,13 +80,14 @@ function add_elements(set_name, elements) {
         nft([ "add", "element", "inet", TABLE, set_name, "{ " + join(",", slice(elements, i, i + ELEMENTS_PER_COMMAND)) + " }" ]);
 }
 
-// One walk over the addresses fills both families.
-function add_addresses(values, set4, set6) {
+// One walk over the addresses fills both families. The owner names the list in
+// the report of a value left out.
+function add_addresses(values, set4, set6, owner) {
     let family = { "4": [], "6": [] };
     for (let value in values) {
         let version = core_ip.ip_family(value);
         if (version == 0)
-            push(skipped, "'" + value + "' is not IP or CIDR");
+            push(skipped, owner + ": '" + value + "' is not an IP address or subnet and is ignored");
         else
             push(family[version], value);
     }
@@ -135,7 +136,7 @@ function add_base(settings, excluded_router, excluded) {
     if (length(excluded) > 0) {
         add_set(EXCLUDED4, IPV4_SET);
         add_set(EXCLUDED6, IPV6_SET);
-        add_addresses(excluded, EXCLUDED4, EXCLUDED6);
+        add_addresses(excluded, EXCLUDED4, EXCLUDED6, "Exclude devices from routing");
     }
 
     add_chain("mangle", "{ type filter hook prerouting priority -149; policy accept; }");
@@ -316,14 +317,15 @@ function add_router_dns(excluded_router) {
 
 // What the configuration puts in a section's sets; what a rule-set provider puts
 // there is the sync worker's.
-function fill_section_sets(m) {
+function fill_section_sets(section, m) {
     let s = m.sets;
+    let owner = "Section '" + connections.section_display_name(section) + "'";
     if (m.needs_source_sets)
-        add_addresses(m.sources.ips, s.sources, s.sources6);
+        add_addresses(m.sources.ips, s.sources, s.sources6, owner);
     if (m.needs_fully_source_sets)
-        add_addresses(m.fully.ips, s.fully_sources, s.fully_sources6);
+        add_addresses(m.fully.ips, s.fully_sources, s.fully_sources6, owner);
     if (m.subnets != "")
-        add_addresses(csv_values(m.subnets), s.subnets, s.subnets6);
+        add_addresses(csv_values(m.subnets), s.subnets, s.subnets6, owner);
     if (m.needs_port_set)
         nft([ "add", "element", "inet", TABLE, s.ports, "{ " + m.ports + " }" ]);
 }
@@ -348,7 +350,7 @@ function build() {
     add_fakeip_output();
     add_router_dns(excluded.router);
     for (let entry in planned.sections)
-        fill_section_sets(entry.matchers);
+        fill_section_sets(entry.section, entry.matchers);
 
     let result = { script: join("\n", lines) + "\n", skipped };
     lines = null;
@@ -374,11 +376,8 @@ function remove_rt_table_entry() {
     return common.write_file(paths.rt_tables, join("\n", kept));
 }
 
-function ensure_route(present, argv, created, failed) {
-    if (present())
-        return;
-    exec.log("debug", created);
-    if (!exec.ok(argv) && !present())
+function ensure_route(present, argv, failed) {
+    if (!present() && !exec.ok(argv) && !present())
         die(failed);
 }
 
@@ -388,15 +387,15 @@ function ensure_tproxy_routing() {
     let ip = nft_state.IP_BIN;
     let mark = FAKEIP_MARK + "/" + FAKEIP_MARK;
     if (!ensure_rt_table_entry())
-        die("Failed to update route table registry. Aborted.");
+        die("Failed to add the " + RT_TABLE + " routing table to " + paths.rt_tables);
     ensure_route(() => nft_state.tproxy_route4_present(RT_TABLE), [ ip, "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", RT_TABLE ],
-        "Added IPv4 tproxy route", "Failed to add IPv4 route for tproxy. Aborted.");
+        "Failed to add the IPv4 TProxy route");
     ensure_route(() => nft_state.tproxy_route6_present(RT_TABLE), [ ip, "-6", "route", "add", "local", "::/0", "dev", "lo", "table", RT_TABLE ],
-        "Added IPv6 tproxy route", "Failed to add IPv6 route for tproxy. Aborted.");
+        "Failed to add the IPv6 TProxy route");
     ensure_route(() => nft_state.tproxy_marking_rule4_present(RT_TABLE, FAKEIP_MARK), [ ip, "-4", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
-        "Creating IPv4 tproxy marking rule", "Failed to create IPv4 marking rule. Aborted.");
+        "Failed to add the IPv4 TProxy routing rule");
     ensure_route(() => nft_state.tproxy_marking_rule6_present(RT_TABLE, FAKEIP_MARK), [ ip, "-6", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
-        "Creating IPv6 tproxy marking rule", "Failed to create IPv6 marking rule. Aborted.");
+        "Failed to add the IPv6 TProxy routing rule");
 }
 
 // nft names the command it refused and then repeats it, which for a set element
@@ -415,7 +414,7 @@ function refusal(result) {
 
 function apply(built) {
     for (let message in built.skipped)
-        exec.log("debug", message);
+        exec.log("warn", message);
     ensure_tproxy_routing();
     let result = exec.feed([ "nft", "-f", "-" ], built.script);
     if (result.status != 0)
@@ -426,9 +425,11 @@ function ensure_bridge_netfilter_disabled() {
     if (index(exec.output([ "lsmod" ]) ?? "", "br_netfilter") < 0 ||
         trim(exec.output([ "sysctl", "-n", "net.bridge.bridge-nf-call-iptables" ]) ?? "") != "1")
         return true;
-    exec.log("debug", "br_netfilter is enabled; disabling it for transparent proxy routing");
-    return exec.ok([ "sysctl", "-w", "net.bridge.bridge-nf-call-iptables=0" ]) &&
-        exec.ok([ "sysctl", "-w", "net.bridge.bridge-nf-call-ip6tables=0" ]);
+    if (!exec.ok([ "sysctl", "-w", "net.bridge.bridge-nf-call-iptables=0" ]) ||
+        !exec.ok([ "sysctl", "-w", "net.bridge.bridge-nf-call-ip6tables=0" ]))
+        return false;
+    exec.log("info", "Disabled bridge netfilter (net.bridge.bridge-nf-call-iptables) for transparent proxying");
+    return true;
 }
 
 return { paths, build, apply, refusal, ensure_bridge_netfilter_disabled, remove_rt_table_entry };

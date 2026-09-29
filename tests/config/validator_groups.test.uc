@@ -240,7 +240,7 @@ t.test("missing URLTest reference", () => {
                 ]
             }
         ]
-    }, "includes missing URLTest");
+    }, "which does not exist");
 });
 
 t.test("nested fallback reference", () => {
@@ -293,7 +293,7 @@ t.test("nested fallback reference", () => {
                 "server_filter_mode": "all"
             }
         ]
-    }, "includes missing URLTest");
+    }, "which does not exist");
 });
 
 t.test("unknown server type", () => {
@@ -364,7 +364,7 @@ t.test("endpoint type in a subscription", () => {
                 ]
             }
         ]
-    }, "is not available in subscription");
+    }, "is not available in a subscription");
 });
 
 t.test("protocol sing-box removed", () => {
@@ -400,7 +400,7 @@ t.test("protocol sing-box removed", () => {
                 ]
             }
         ]
-    }, "is not available in subscription");
+    }, "is not available in a subscription");
 });
 
 function fallback(group, levels) {
@@ -437,15 +437,15 @@ t.test("a Fallback group with tuned health checks and every level kind passes", 
 });
 
 t.test("a Fallback group refuses bad timings, statuses and server groups", () => {
-    v.refuses(fallback({ attempt_timeout: "later" }), "attempt_timeout");
+    v.refuses(fallback({ attempt_timeout: "later" }), "'Connection timeout' of fallback group 'Fallback' in section 'Proxy'");
     for (let status in [ "200-bad", "99", "600", "299-200" ])
-        v.refuses(fallback({ expected_status: status }), "expected_status");
+        v.refuses(fallback({ expected_status: status }), "Invalid 'Expected status' of fallback group 'Fallback'");
     v.refuses(fallback({ health_check_interval: "1m", idle_timeout: "10s" }), "longer than its idle timeout");
     v.refuses(fallback({}, []), "has no server groups");
     v.refuses(fallback({}, [
         { ".name": "primary", group: "pg", name: "Servers", server_filter_mode: "direct" },
         { ".name": "backup", group: "pg", name: "Servers", server_filter_mode: "all" }
-    ]), "duplicate server group name 'Servers'");
+    ]), "has more than one server group named 'Servers'");
 });
 
 t.done();

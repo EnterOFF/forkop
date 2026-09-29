@@ -60,7 +60,7 @@ function showLogNotification(notification: ForkopLogNotification) {
 
   return ui.addNotification(
     _('Forkop Error'),
-    E('div', {}, notification.line),
+    E('div', {}, notification.message),
     'error',
     'fkp-log-error-notification',
   );

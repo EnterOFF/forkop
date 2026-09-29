@@ -29,32 +29,32 @@
 // page costs one parked request instead of a refresh every ten seconds.
 
 let fs = require("fs");
+let common = require("core.common");
+let exec = require("core.exec");
+let constants = require("core.constants");
 let ui = require("service.ui");
 let uci = require("core.uci");
 let health = require("service.health");
 let features = require("singbox.features");
 
-const PID_FILE = getenv("FORKOP_STATE_SERVICE_PID_FILE") || "/var/run/forkop/state-service.pid";
 const OBJECT_NAME = getenv("FORKOP_STATE_SERVICE_OBJECT") || "forkop";
-const SERVICE_NAME = getenv("FORKOP_SERVICE_NAME") || "forkop";
 
 // Cheap enough to run several times a second: a handful of stat calls.
-const WATCH_INTERVAL_MS = int(getenv("FORKOP_STATE_WATCH_INTERVAL_MS") || "500");
+const WATCH_INTERVAL_MS = 500;
 // While an action runs the runtime itself is what changes, and nothing stats it.
-const BUSY_REFRESH_MS = int(getenv("FORKOP_STATE_BUSY_REFRESH_MS") || "1000");
+const BUSY_REFRESH_MS = 1000;
 // The runtime keeps settling after the action that changed it has finished:
 // sing-box has to reach its minimum age, the nft table and the routing rules
 // have to come back. Nothing stats any of that, so without looking closely for
 // a while after every change the reported state stayed at whatever it happened
 // to be at the moment the action ended - a service reported stopped, with a
 // Start button, until the next sweep noticed otherwise.
-const SETTLE_MS = int(getenv("FORKOP_STATE_SETTLE_MS") || "10000");
-const PACKAGE_DB_QUIET_MS = int(getenv("FORKOP_STATE_PACKAGE_DB_QUIET_MS") || "5000");
+const SETTLE_MS = 10000;
 // The backstop for a change nothing announced.
-const SWEEP_INTERVAL_MS = int(getenv("FORKOP_STATE_SWEEP_INTERVAL_MS") || "20000");
+const SWEEP_INTERVAL_MS = 20000;
 // Long enough that an idle page reparks rarely, short enough to sit inside
 // uhttpd's network timeout and LuCI's own request ceiling.
-const MAX_WAIT_MS = int(getenv("FORKOP_STATE_MAX_WAIT_MS") || "15000");
+const MAX_WAIT_MS = 15000;
 // A port rebind is not an outage. sing-box closes and reopens every inbound
 // when it reloads and when procd respawns it - six seconds after a reload
 // signal and about twelve around a crash respawn, measured on the reference
@@ -64,46 +64,29 @@ const MAX_WAIT_MS = int(getenv("FORKOP_STATE_MAX_WAIT_MS") || "15000");
 // exists, the flip to "stopped" has to persist for this long to be believed.
 // A stop and a crash procd gave up on kill the process, and are reported the
 // moment they are seen.
-const DOWN_GRACE_MS = int(getenv("FORKOP_STATE_DOWN_GRACE_MS") || "15000");
+const DOWN_GRACE_MS = 15000;
 
-const AUTOSTART_LINK = "/etc/rc.d/S99" + SERVICE_NAME;
-const BIN_PATH = getenv("FORKOP_BIN") || "/usr/bin/forkop";
-
-// Installed versions change when a package is installed or removed and at no
-// other time, and both package managers record that in one file. Watching it is
-// a stat; working the versions out is roughly 1.7 s of opkg and version
-// commands, so this is what decides when to pay that.
-//
-// The database also moves while an install is still running, and asking opkg
-// anything then contends for its lock - which is how this process came to print
-// "Could not lock /var/lock/opkg.lock" into the middle of a package upgrade and
-// fail its verification. So the signature has to hold still first: a settled
-// database means whoever was writing it has finished.
 // The page watched the log by asking for the whole filtered buffer every five
 // seconds - 48 KB and 310 ms per tab - and working out for itself which lines
 // were new. Reading only the tail is ten times cheaper, doing it once serves
 // every tab, and only the new lines then cross the wire.
-const LOG_PATTERN = getenv("FORKOP_LOG_PATTERN") || "forkop\\|sing-box";
+const LOG_PATTERN = constants.FORKOP_LOG_PATTERN;
 // Deep enough that a poll cannot miss lines between two reads on a busy router.
-const LOG_TAIL_LINES = int(getenv("FORKOP_LOG_TAIL_LINES") || "200");
-const LOG_BUFFER_LINES = int(getenv("FORKOP_LOG_BUFFER_LINES") || "400");
-const LOG_POLL_MS = int(getenv("FORKOP_LOG_POLL_MS") || "1500");
+const LOG_TAIL_LINES = 200;
+const LOG_BUFFER_LINES = 400;
+const LOG_POLL_MS = 1500;
 // Polling stops when nobody has asked for a while, so a router with no tab open
 // pays nothing for a feature nobody is watching.
-const LOG_INTEREST_MS = int(getenv("FORKOP_LOG_INTEREST_MS") || "60000");
+const LOG_INTEREST_MS = 60000;
 
-const PACKAGE_DB_FILES = [
-    getenv("FORKOP_OPKG_STATUS_FILE") || "/usr/lib/opkg/status",
-    getenv("FORKOP_APK_DB_FILE") || "/lib/apk/db/installed"
-];
-
-function as_string(value) {
-    return value == null ? "" : "" + value;
-}
-
-function shell_quote(value) {
-    return "'" + replace(as_string(value), /'/g, "'\\''") + "'";
-}
+let paths = {
+    config: "/etc/config/forkop",
+    // Installed versions change when a package is installed or removed and at
+    // no other time, and both package managers record that in one file.
+    // Watching it is a stat; working the versions out is a CLI run, so this is
+    // what decides when to pay that.
+    package_databases: [ "/usr/lib/opkg/status", "/lib/apk/db/installed" ]
+};
 
 function monotonic_ms() {
     let c = clock(true);
@@ -111,28 +94,25 @@ function monotonic_ms() {
 }
 
 function path_signature(path) {
-    let stat = fs.stat(as_string(path));
+    let stat = fs.stat(path);
     if (stat == null)
         return "-";
-    return as_string(stat.mtime) + ":" + as_string(stat.size);
+    return stat.mtime + ":" + stat.size;
 }
-
-const CONFIG_PATH = "/etc/config/forkop";
 
 // One string standing for everything that can change the state without this
 // process being told. Comparing it is a few stat calls; recomputing the state is
 // three child processes, so the comparison is what runs often.
 function watch_signature() {
-    return path_signature(CONFIG_PATH) + "|" +
+    return path_signature(paths.config) + "|" +
         path_signature(ui.paths.service_actions) + "|" +
         path_signature(ui.paths.component_actions) + "|" +
         path_signature(ui.paths.reload_lock) + "|" +
-        path_signature(AUTOSTART_LINK);
+        path_signature(ui.paths.rc_dir + "/S" + constants.FORKOP_START_PRIORITY + "forkop");
 }
 
 let state = { revision: 0, payload: null, text: "" };
 let system_info = { value: null, signature: "" };
-let package_db_seen = { signature: "", at_ms: 0 };
 let update_checks = { entries: {}, signature: "" };
 let log_lines = [];
 let log_cursor = 0;
@@ -148,21 +128,8 @@ let settle_until_ms = 0;
 let down_since_ms = 0;
 
 function read_log_tail() {
-    let pipe = fs.popen("logread -l " + LOG_TAIL_LINES + " -e " +
-        shell_quote(LOG_PATTERN) + " 2>/dev/null", "r");
-    if (!pipe)
-        return [];
-
-    let data = pipe.read("all");
-    pipe.close();
-    if (data == null)
-        return [];
-
-    let result = [];
-    for (let line in split(as_string(data), "\n"))
-        if (line != "")
-            push(result, line);
-    return result;
+    let data = exec.output([ "logread", "-l", LOG_TAIL_LINES, "-e", LOG_PATTERN ]);
+    return filter(split(data ?? "", "\n"), (line) => line != "");
 }
 
 // Where the lines we already have end inside a freshly read tail. Matching the
@@ -198,10 +165,8 @@ function log_reply(cursor) {
     cursor = int(cursor || 0);
     let lines = [];
 
-    // A reader with no cursor is starting up and gets the tail as it stands, so
-    // the page has something to show without a second round trip.
     for (let entry in log_lines)
-        if (cursor <= 0 || entry.cursor > cursor)
+        if (entry.cursor > cursor)
             push(lines, entry.line);
 
     return { cursor: log_cursor, lines };
@@ -219,6 +184,8 @@ function wake_log_waiters() {
     }
 }
 
+// The interval is the log's clock and reads on every tick; a request reads only
+// when the last read is older than an interval.
 function poll_log(force) {
     let now = monotonic_ms();
     if (!force && now - last_log_poll_ms < LOG_POLL_MS)
@@ -243,14 +210,11 @@ function log_is_watched() {
 
 function package_db_signature() {
     let signature = "";
-    for (let path in PACKAGE_DB_FILES)
+    for (let path in paths.package_databases)
         signature += path_signature(path) + "|";
     return signature;
 }
 
-// Read from the CLI rather than by requiring diagnostics/runtime.uc: that module
-// is fifteen hundred lines with a wide require chain, and this process would
-// carry all of it in memory to answer a question asked once per package change.
 // What the last update check found upstream. A scheduled job has to leave its
 // answer somewhere for the page to read hours later; it used to be a file per
 // component under /var/run, which is a copy of an answer that can go out of date
@@ -262,7 +226,7 @@ function package_db_signature() {
 // which is the case the files got wrong: an `opkg upgrade` behind Forkop's back
 // left them claiming an update was available for a version already installed.
 function store_update_check(component, result) {
-    component = as_string(component);
+    component = common.as_string(component);
     if (component == "" || type(result) != "object")
         return false;
 
@@ -285,43 +249,19 @@ function update_check_results() {
     return results;
 }
 
+// Read from the CLI rather than by requiring diagnostics/runtime.uc: that module
+// is fifteen hundred lines with a wide require chain, and this process would
+// carry all of it in memory to answer a question asked once per package change.
 function read_system_info() {
-    let pipe = fs.popen(shell_quote(BIN_PATH) + " get_system_info 2>/dev/null", "r");
-    if (!pipe)
-        return null;
-
-    let data = pipe.read("all");
-    pipe.close();
-    if (data == null)
-        return null;
-
-    try {
-        return json(data);
-    }
-    catch (e) {
-        return null;
-    }
+    let value = common.parse_json(exec.output([ constants.FORKOP_BIN, "get_system_info" ]));
+    return type(value) == "object" ? value : null;
 }
 
-// True once the package database has looked the same for long enough that
-// nobody is still writing it.
-function package_db_settled(signature, now) {
-    if (signature != package_db_seen.signature)
-        package_db_seen = { signature, at_ms: now };
-
-    return now - package_db_seen.at_ms >= PACKAGE_DB_QUIET_MS;
-}
-
-function refresh_system_info(force) {
+// An answer read while an install is still writing the database is stamped
+// with the database as it was, so the next change reads it again.
+function refresh_system_info() {
     let signature = package_db_signature();
-    let known = system_info.value != null;
-    if (!force && known && signature == system_info.signature)
-        return false;
-
-    // Asking opkg during an install fights it for its own lock. The first answer
-    // is worth having straight away - nothing is installing at boot - but any
-    // later one waits for the database to stop moving.
-    if (known && !package_db_settled(signature, monotonic_ms()))
+    if (system_info.value != null && signature == system_info.signature)
         return false;
 
     let value = read_system_info();
@@ -330,15 +270,6 @@ function refresh_system_info(force) {
 
     system_info = { value, signature };
     return true;
-}
-
-// How long to keep looking after something moved. Every change restarts the
-// window, so a runtime that is still coming up is watched until it stops
-// changing rather than for a fixed time after the action.
-function settle_deadline(now, changed, current_deadline) {
-    now = int(now);
-    current_deadline = int(current_deadline || 0);
-    return changed ? now + SETTLE_MS : current_deadline;
 }
 
 // True while the state deserves the close cadence rather than the slow sweep:
@@ -428,6 +359,15 @@ function apply_settled_running(payload) {
 // same payload must not wake a parked request, or an idle page would be handed
 // an identical state every sweep and the parking would buy nothing.
 function recompute() {
+    // A configuration the cursor has already read stays in it, so a changed one
+    // is read again rather than answered from memory - by every recompute, the
+    // one a page asks for right after saving included.
+    let config = path_signature(paths.config);
+    if (config != last_config) {
+        last_config = config;
+        uci.reset();
+    }
+
     let payload = ui.current_ui_state();
     // What the core can do rides along, so the page learns it from the first
     // answer; it is read from the binary once, and again only once that changes.
@@ -438,7 +378,9 @@ function recompute() {
         return false;
 
     state = { revision: state.revision + 1, payload, text };
-    settle_until_ms = settle_deadline(monotonic_ms(), true, settle_until_ms);
+    // Every change restarts the settle window, so a runtime that is still coming
+    // up is watched until it stops changing rather than for a fixed time.
+    settle_until_ms = monotonic_ms() + SETTLE_MS;
     wake_waiters();
     return true;
 }
@@ -456,13 +398,6 @@ function tick() {
         return;
 
     last_watch = signature;
-    // A configuration the cursor has already read stays in it, so a changed one
-    // is read again rather than answered from memory.
-    let config = path_signature(CONFIG_PATH);
-    if (config != last_config) {
-        last_config = config;
-        uci.reset();
-    }
     if (due_sweep)
         last_sweep_ms = now;
     if (due_close)
@@ -473,30 +408,12 @@ function tick() {
     // Cheap unless a package actually changed, and the sweep is a fine moment to
     // notice one installed from outside Forkop.
     if (due_sweep)
-        refresh_system_info(false);
+        refresh_system_info();
 }
 
 function log_tick() {
     if (log_is_watched())
-        poll_log(false);
-}
-
-function log_message(message, level) {
-    system("logger -t " + shell_quote(SERVICE_NAME) + " " +
-        shell_quote("[" + as_string(level || "info") + "] " + as_string(message)) +
-        " >/dev/null 2>&1");
-}
-
-function current_pid() {
-    let stat = as_string(fs.readfile("/proc/self/stat"));
-    let separator = index(stat, " ");
-    return separator > 0 ? substr(stat, 0, separator) : "0";
-}
-
-function ensure_pid_dir() {
-    let slash = rindex(PID_FILE, "/");
-    if (slash > 0)
-        system("mkdir -p " + shell_quote(substr(PID_FILE, 0, slash)) + " >/dev/null 2>&1");
+        poll_log(true);
 }
 
 function object_methods() {
@@ -524,15 +441,15 @@ function object_methods() {
             },
             args: { revision: 0, ubus_rpc_session: "" }
         },
-        // The Forkop and sing-box log lines this service has seen, from the
-        // cursor the caller last held. A caller with no cursor gets the tail.
+        // Where the log of Forkop and sing-box lines stands now, for a page to
+        // wait from. What it held before is history the page does not show.
         logs: {
             call: function(request) {
                 log_interest();
                 poll_log(false);
-                return log_reply(request.args.cursor);
+                return { cursor: log_cursor };
             },
-            args: { cursor: 0, ubus_rpc_session: "" }
+            args: { ubus_rpc_session: "" }
         },
         // Held until there is a line the caller has not seen. A caller ahead of
         // the buffer holds a cursor from before this process started, and is
@@ -540,7 +457,6 @@ function object_methods() {
         logs_wait: {
             call: function(request) {
                 log_interest();
-                poll_log(false);
 
                 let want = int(request.args.cursor || 0);
                 if (want > log_cursor)
@@ -565,17 +481,7 @@ function object_methods() {
         // Written by the check itself, scheduled or started by hand.
         report_update_check: {
             call: function(request) {
-                let result = null;
-                try {
-                    result = json(as_string(request.args.result));
-                }
-                catch (e) {
-                    result = null;
-                }
-
-                if (result == null)
-                    return { stored: false };
-
+                let result = common.parse_json(request.args.result);
                 return { stored: store_update_check(request.args.component, result) };
             },
             args: { component: "", result: "", ubus_rpc_session: "" }
@@ -592,7 +498,7 @@ function object_methods() {
         // to keep in a file with a TTL it then had to prove.
         system_info: {
             call: function(request) {
-                refresh_system_info(false);
+                refresh_system_info();
                 return system_info.value == null
                     ? { available: false }
                     : { available: true, system_info: system_info.value };
@@ -604,9 +510,7 @@ function object_methods() {
         refresh: {
             call: function(request) {
                 recompute();
-                // Deliberately not forced: a caller announcing a change may be
-                // announcing one that is still in progress.
-                refresh_system_info(false);
+                refresh_system_info();
                 return reply_payload();
             },
             args: { ubus_rpc_session: "" }
@@ -619,29 +523,36 @@ function run() {
     let uloop = require("uloop");
 
     uloop.init();
+    // libubox's own SIGTERM handler only raises a flag that uloop.run() clears
+    // when it starts: a stop arriving while the first state is read would be
+    // lost, and procd would kill the service five seconds later. A handler of
+    // our own is queued until the loop runs.
+    uloop.signal("SIGTERM", () => uloop.end());
 
     let connection = ubus.connect();
     if (connection == null) {
-        log_message("State service could not reach ubus", "error");
+        exec.log("error", "The state service could not connect to ubus");
         return 1;
     }
 
     if (connection.publish(OBJECT_NAME, object_methods()) == null) {
-        log_message("State service could not publish the " + OBJECT_NAME + " object", "error");
+        exec.log("error", "The state service could not publish the ubus object " + OBJECT_NAME);
         return 1;
     }
 
-    // procd reports a service starting or stopping, which is the one change that
-    // matters most and the one no directory mtime reflects.
+    // procd reports sing-box starting or stopping, which is the one change that
+    // matters most and the one no directory mtime reflects. It reports on every
+    // other service of the router as well, and none of them is in the state.
     let subscriber = connection.subscriber(function(notification) {
-        recompute();
+        if (notification.data?.service == "sing-box")
+            recompute();
     }, function(id) {});
     if (subscriber != null)
         subscriber.subscribe("service");
 
     recompute();
     last_sweep_ms = monotonic_ms();
-    refresh_system_info(true);
+    refresh_system_info();
 
     uloop.interval(WATCH_INTERVAL_MS, function() {
         tick();
@@ -659,9 +570,6 @@ function run() {
         wake_log_waiters();
     });
 
-    ensure_pid_dir();
-    fs.writefile(PID_FILE, current_pid() + "\n");
-
     uloop.run();
     return 0;
 }
@@ -669,20 +577,18 @@ function run() {
 if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
     return {
         MAX_WAIT_MS,
-        watch_signature,
-        reply_payload,
-        package_db_signature,
-        settle_deadline,
+        LOG_POLL_MS,
+        paths,
         needs_close_refresh,
         settled_running,
         new_log_lines,
-        log_reply,
         // Seeding the buffer is what lets the delta logic be exercised without a
         // router and without a log to read.
         remember_log_line: function(line) { append_log_lines([ line ]); },
         store_update_check,
         update_check_results,
-        object_methods
+        object_methods,
+        run
     };
 
 let mode = ARGV[0] || "";

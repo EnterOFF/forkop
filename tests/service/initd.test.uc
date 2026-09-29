@@ -150,6 +150,18 @@ t.test("a failed start leaves a retry for the next WAN-up, and a good one clears
     stub.restore();
 });
 
+t.test("a failed start says whether the WAN coming up tries it again", () => {
+    fresh();
+    let logs = [];
+    stub.commands([ stub.logger(logs), [ "ubus call service list", { stdout: "{\"forkop\":{}}" } ] ]);
+    lifecycle_status = 1;
+    stub.capture(() => initd.start(""));
+    fs.writefile(initd.paths.autostart, "");
+    stub.capture(() => initd.start(""));
+    stub.restore();
+    t.eq(logs, [ "[warn] Forkop did not start", "[warn] Forkop did not start; it tries again when the WAN comes up" ]);
+});
+
 t.test("a WAN coming up restarts only a failed start of an enabled service", () => {
     fresh();
     let restarts = 0;
@@ -180,12 +192,12 @@ t.test("a monitored WAN coming back reapplies a running configuration", () => {
     hooks(true, [ [ "/etc/init.d/forkop reload", (argv) => { push(reloads, argv[2]); return {}; } ] ]);
     running = true;
     initd.wan_up();
-    t.eq(reloads, [ "badwan_interface_up" ]);
+    t.eq(reloads, [ "interface_up:wan" ]);
 
     fresh({ badwan_monitored_interfaces: "wan" });
     running = true;
     initd.wan_up();
-    t.eq(reloads, [ "badwan_interface_up" ], "an unmonitored WAN");
+    t.eq(reloads, [ "interface_up:wan" ], "an unmonitored WAN");
     stub.restore();
 });
 
@@ -195,8 +207,8 @@ t.test("the triggers reload on a config change and on the monitored interfaces",
         "delay\t5000",
         "config\tconfig.change\tforkop\t/etc/init.d/forkop\treload\ton_config_change",
         "interface\tinterface.*.up\twan\t/etc/init.d/forkop\thandle_wan_up\t",
-        "interface\tinterface.*.up\twwan\t/etc/init.d/forkop\treload\t",
-        "interface\tinterface.*.up\tlte\t/etc/init.d/forkop\treload\t",
+        "interface\tinterface.*.up\twwan\t/etc/init.d/forkop\treload\tinterface_up:wwan",
+        "interface\tinterface.*.up\tlte\t/etc/init.d/forkop\treload\tinterface_up:lte",
         ""
     ]);
     fresh({});

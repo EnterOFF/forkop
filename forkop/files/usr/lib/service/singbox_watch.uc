@@ -68,6 +68,8 @@ function monitor() {
     let uloop = require("uloop");
     let me = spec();
     uloop.init();
+    // libubox's own handler loses a SIGTERM that arrives before uloop.run().
+    uloop.signal("SIGTERM", () => uloop.end());
     let connection = require("ubus").connect();
     if (connection == null)
         return 1;

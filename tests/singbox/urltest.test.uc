@@ -27,6 +27,11 @@ t.test("what has no translation is refused, not matched another way", () => {
         t.throws(() => urltest.compile(pattern), pattern);
 });
 
+t.test("a refusal says what is wrong with the pattern", () => {
+    for (let pair in [ [ "[DE", "missing ]" ], [ "\\pL", "unsupported escape \\p" ], [ "(?=DE)", "unsupported group (?=D" ], [ "(", "Unmatched ( or \\(" ] ])
+        t.eq(t.throws(() => urltest.compile(pair[0])).message, pair[1], pair[0]);
+});
+
 t.test("manual servers join a group by the same pattern provider nodes do", () => {
     let tags = [ "Main/DE1", "Main/DEd", "Main/de 2", "Main/NL1" ];
     let names = { "Main/DE1": "DE1", "Main/DEd": "DEd", "Main/de 2": "de 2", "Main/NL1": "NL1" };

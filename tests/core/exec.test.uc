@@ -42,10 +42,16 @@ t.test("a background child is detached from the procd lock descriptor", () => {
     stub.restore();
 });
 
-t.test("log tags the message with its level", () => {
+t.test("log tags the message with its level and gives syslog the matching priority", () => {
     stub.commands([ [ () => true, { status: 0 } ] ]);
     exec.log("warn", "sing-box is slow");
-    t.eq(stub.calls()[0].argv, [ "logger", "-t", "forkop", "[warn] sing-box is slow" ]);
+    exec.log("error", "sing-box is gone");
+    exec.log("info", "sing-box is back");
+    t.eq(stub.command_lines(), [
+        "logger -t forkop -p user.warning [warn] sing-box is slow",
+        "logger -t forkop -p user.err [error] sing-box is gone",
+        "logger -t forkop -p user.info [info] sing-box is back"
+    ]);
     stub.restore();
 });
 

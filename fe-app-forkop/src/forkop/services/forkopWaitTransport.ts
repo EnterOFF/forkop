@@ -11,10 +11,10 @@ export const FORKOP_SERVICE_OBJECT = 'forkop';
 // An ordinary call, answered from what the service already holds.
 export const FORKOP_CALL_TIMEOUT_MS = 5000;
 
-// A parked call. The daemon releases every waiter at FORKOP_STATE_MAX_WAIT_MS,
-// 15 seconds by default (service/state_service.uc), so the client has to be
-// willing to wait longer than that - a reply arriving exactly at the ceiling
-// must not be raced by the browser giving up on it.
+// A parked call. The daemon releases every waiter at MAX_WAIT_MS, 15 seconds
+// (service/state_service.uc), so the client has to be willing to wait longer
+// than that - a reply arriving exactly at the ceiling must not be raced by the
+// browser giving up on it.
 export const FORKOP_WAIT_TIMEOUT_MS = 20000;
 
 // After a failure that is not "no such object": something is wrong rather than

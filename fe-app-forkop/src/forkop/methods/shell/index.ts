@@ -273,9 +273,9 @@ export const ForkopShellMethods = {
       masked ? 'masked' : 'raw',
     ]),
   checkLogs,
-  // Working the versions out means asking opkg and sing-box, about 1.7 s.
-  // The state service holds the answer for as long as the installed packages
-  // have not changed; the CLI is what answers when it is not running.
+  // Working the versions out is a CLI run that asks the package manager and
+  // sing-box. The state service holds the answer for as long as the installed
+  // packages have not changed; the CLI is what answers when it is not running.
   getSystemInfo: async () => {
     const served = await callUbus<{
       available?: boolean;

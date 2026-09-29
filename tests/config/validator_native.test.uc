@@ -22,7 +22,7 @@ t.test("a 1.14 OpenVPN endpoint and optimistic DNS pass", () => {
 
 t.test("the native API needs its secret", () => {
     v.accepts(openvpn({ enable_native_api: "1", native_api_secret: "test-secret" }));
-    v.refuses(openvpn({ enable_native_api: "1" }), "native_api_secret");
+    v.refuses(openvpn({ enable_native_api: "1" }), "'API secret' in Settings is empty");
 });
 
 t.done();

@@ -71,8 +71,13 @@ function background(argv) {
     return system(command_line(argv) + " >/dev/null 2>&1 1000>&- &") == 0;
 }
 
+// The level is written twice: as the tag the page reads its alerts from, and as
+// the syslog priority, so logread and a remote syslog see an error as one.
+const PRIORITIES = { info: "info", warn: "warning", error: "err" };
+
 function log(level, message) {
-    status([ "logger", "-t", "forkop", "[" + common.as_string(level) + "] " + common.as_string(message) ]);
+    level = common.as_string(level);
+    status([ "logger", "-t", "forkop", "-p", "user." + (PRIORITIES[level] ?? "notice"), "[" + level + "] " + common.as_string(message) ]);
 }
 
 return { command_line, run, status, ok, capture, combined, output, feed, background, log };

@@ -61,7 +61,7 @@ t.test("a pending reload runs the init script's reload in the background, once",
     stub.commands([ [ "logger", {} ], [ /'\/etc\/init.d\/forkop' 'reload' 'pending'.*&$/, {} ] ]);
     lock.run_pending_reload_if_requested(path, "/etc/init.d/forkop");
     lock.run_pending_reload_if_requested(path, "/etc/init.d/forkop");
-    t.eq(stub.command_lines(), [ "logger -t forkop [info] Applying pending Forkop reload", "/etc/init.d/forkop reload pending" ]);
+    t.eq(stub.command_lines(), [ "/etc/init.d/forkop reload pending" ], "the reload it starts says what it applies");
     stub.restore();
 });
 

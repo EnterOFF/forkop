@@ -38,6 +38,8 @@ const RELOAD_READY_WINDOW = 2;
 const READY_HOLD = 2;
 const MAX_READY_WAIT = 300;
 const STOP_TIMEOUT = 15;
+const NOT_CAPTURING = "Forkop was not fully running after the nftables rules were applied";
+const CRON_FAILED = "Failed to write the component update check to the crontab";
 
 let paths = {
     config: "/etc/config/forkop",
@@ -67,11 +69,11 @@ function config_fingerprint() {
 function queue_reload_if_changed(fingerprint, context) {
     if (fingerprint == "" || config_fingerprint() == "" || config_fingerprint() == fingerprint)
         return;
+    let during = context == "reload" ? "while it was being applied" : "while Forkop was starting";
     if (lock.mark_request(paths.pending_reload, context == "reload" ? "config_changed_during_reload" : "config_changed_during_start"))
-        log("info", "Configuration changed during " + (context == "reload" ? "current reload" : "startup") +
-            "; queued reload after " + (context == "reload" ? "current reload" : "startup") + " completes");
+        log("info", "The configuration changed " + during + "; applying it next");
     else
-        log("warn", "Configuration changed during " + (context == "reload" ? "current reload" : "startup") + ", but pending reload could not be queued");
+        log("warn", "The configuration changed " + during + ", and applying it could not be queued; apply it again");
 }
 
 // The installed system, the defaults a server needs, and the configuration
@@ -79,18 +81,7 @@ function queue_reload_if_changed(fingerprint, context) {
 function validate() {
     try {
         validator.check_requirements();
-    }
-    catch (e) {
-        return false;
-    }
-    try {
         server.prepare();
-    }
-    catch (e) {
-        log("error", e.message);
-        return false;
-    }
-    try {
         validator.validate();
     }
     catch (e) {
@@ -143,6 +134,14 @@ function wait_ready(window, hold, with_network) {
     }
 }
 
+// Why a wait for readiness failed, told apart by whether the process is still
+// there: a core that exits on the way up has written its reason to the log.
+function not_ready(after) {
+    return health.sing_box_service_running()
+        ? "sing-box did not become ready after it was " + after
+        : "sing-box exited after it was " + after + "; its own log lines above say why";
+}
+
 function wait_stopped() {
     for (let i = 0; i < STOP_TIMEOUT; i++) {
         if (!runtime.process_running() && !health.sing_box_service_running())
@@ -167,7 +166,7 @@ function clash_controller_free() {
     let controller = common.as_string(config?.experimental?.clash_api?.external_controller);
     if (controller == "" || !netstat.tcp_endpoint_in_use(exec.output([ "netstat", "-lnt" ]) ?? "", controller))
         return true;
-    log("fatal", "Clash API address " + controller + " is already in use by another process. Aborted.");
+    log("error", "Clash API address " + controller + " is already in use by another process");
     return false;
 }
 
@@ -188,14 +187,26 @@ function refresh_cron() {
     return exec.run(cron_program([ "refresh-cron-from-uci", constants.FORKOP_BIN, CRON_MARKER ])) == 0;
 }
 
+// Only when there is one: a stop after a stop has nothing to remove.
 function remove_cron_jobs() {
-    exec.run(cron_program([ "remove-cron-jobs", CRON_MARKER ]));
+    if (index(exec.output([ "crontab", "-l" ]) ?? "", CRON_MARKER) >= 0)
+        exec.run(cron_program([ "remove-cron-jobs", CRON_MARKER ]));
+}
+
+function build_nft() {
+    try {
+        return nft.build();
+    }
+    catch (e) {
+        log("error", "Failed to build the nftables rules: " + e.message);
+        return null;
+    }
 }
 
 function apply_nft(built) {
     nft.apply(built);
     if (!common.write_file_atomic(paths.applied_nft, built.script))
-        log("warn", "Failed to record the applied nftables rules; the next reload rebuilds them");
+        log("warn", "Failed to record the applied nftables rules; the next apply rebuilds them");
 }
 
 // The table goes, and with it every capture; the routing it relied on lives
@@ -224,7 +235,6 @@ function cleanup_network() {
 
 function stop_runtime(keep_watcher) {
     let ok = true;
-    log("info", "Stopping Forkop");
     if (!keep_watcher)
         watch.stop_worker();
     rulesets.stop_worker();
@@ -243,30 +253,27 @@ function stop_runtime(keep_watcher) {
 }
 
 // Whatever a failed start or reload left running goes, including the server
-// ports it opened.
+// ports it opened. What the failure left is the caller's to say.
 function cleanup_failed_runtime(keep_watcher) {
     server.sync_firewall(true);
-    log("info", "Cleaning up Forkop runtime after failed start/reload");
-    let ok = stop_runtime(keep_watcher);
-    if (!ok)
-        log("warn", "Failed to fully clean up Forkop runtime after start/reload failure");
-    return ok;
+    return stop_runtime(keep_watcher);
 }
 
 let start_fingerprint = "";
 
+// Every step that gives up says why in one error line, the one the page raises
+// as an alert; the action around it says what the failure left.
 function start_runtime() {
     if (runtime.process_running()) {
-        log("error", "sing-box is still running; refusing to start a second process");
+        log("error", "Another sing-box process is running outside Forkop; stop it before starting Forkop");
         return false;
     }
 
-    log("info", "Starting Forkop");
     if (!validate())
         return false;
     start_fingerprint = config_fingerprint();
     if (!nft.ensure_bridge_netfilter_disabled()) {
-        log("error", "Failed to disable br_netfilter for transparent proxy routing. Aborted.");
+        log("error", "Failed to disable bridge netfilter for transparent proxying");
         return false;
     }
     sync_time_if_needed();
@@ -276,49 +283,52 @@ function start_runtime() {
         runtime.write_config(true);
     }
     catch (e) {
-        log("fatal", e.message);
+        log("error", e.message);
         return false;
     }
+    let built = build_nft();
+    if (built == null)
+        return false;
     if (!clash_controller_free())
         return false;
     if (!refresh_cron()) {
-        log("error", "Failed to refresh the Forkop cron jobs. Aborted.");
+        log("error", CRON_FAILED);
         return false;
     }
 
     if (!exec.ok([ paths.sing_box_init, "start" ])) {
-        log("fatal", "Failed to start sing-box. Aborted.");
+        log("error", "Failed to start sing-box");
         return false;
     }
     if (!wait_ready(START_READY_WINDOW, READY_HOLD, false)) {
-        log("fatal", "sing-box did not reach a stable running state after start. Aborted.");
+        log("error", not_ready("started"));
         return false;
     }
 
     // Only once sing-box answers does the table start sending it traffic.
     try {
-        apply_nft(nft.build());
+        apply_nft(built);
     }
     catch (e) {
-        log("fatal", e.message);
+        log("error", e.message);
         return false;
     }
     if (!wait_ready(0, 0, true)) {
-        log("fatal", "Forkop runtime was not ready after nftables activation. Aborted.");
+        log("error", NOT_CAPTURING);
         return false;
     }
     if (!watch.start_worker()) {
-        log("error", "Failed to start the sing-box crash watcher. Aborted.");
+        log("error", "Failed to start the sing-box crash watcher");
         return false;
     }
     if (!rulesets.start_worker()) {
-        log("error", "Failed to start the rule set sync worker. Aborted.");
+        log("error", "Failed to start the rule-set sync worker");
         return false;
     }
 
     fs.unlink(paths.planned_stop);
     if (fs.stat(paths.planned_stop) != null) {
-        log("error", "Failed to arm the sing-box crash watcher after start");
+        log("error", "Failed to arm the sing-box crash watcher");
         return false;
     }
     return true;
@@ -327,7 +337,7 @@ function start_runtime() {
 function locked(action) {
     let owner = common.own_pid();
     if (!lock.acquire_wait(paths.lock, owner, LOCK_TIMEOUT)) {
-        log("error", "Timed out waiting for another Forkop lifecycle action");
+        log("error", "Timed out waiting for another Forkop action to finish");
         return 1;
     }
     let status = action();
@@ -341,36 +351,47 @@ function forkop_running() {
 
 function start() {
     if (forkop_running()) {
-        log("info", "Forkop is already running; duplicate start skipped");
+        log("info", "Forkop is already running");
         return 0;
     }
     return locked(function() {
         if (forkop_running()) {
-            log("info", "Forkop became ready while another start was running; duplicate start skipped");
+            log("info", "Forkop is already running");
             return 0;
         }
+        log("info", "Starting Forkop");
         if (health.sing_box_service_running() && (!cleanup_failed_runtime() || health.sing_box_service_running())) {
-            log("error", "A previous sing-box process could not be stopped safely; refusing a second start");
+            log("error", "A sing-box left from an earlier run could not be stopped; not starting a second one");
             return 1;
         }
         if (!start_runtime()) {
             cleanup_failed_runtime();
             return 1;
         }
+        log("info", "Forkop started");
         queue_reload_if_changed(start_fingerprint, "start");
         return 0;
     });
 }
 
+// A stop of a Forkop that is not running still clears whatever it left, but
+// has nothing to report.
 function stop() {
     return locked(function() {
+        let active = health.sing_box_service_running() || nft_state.table_present(NFT_TABLE);
+        if (active)
+            log("info", "Stopping Forkop");
         // The server ports close with the runtime. A reload keeps them: closing
         // them in between would cost a second firewall reload.
         server.sync_firewall(true);
         if (!common.write_file_atomic(paths.planned_stop, common.own_pid() + "\n"))
-            log("warn", "Failed to mark the planned sing-box stop");
+            log("warn", "Failed to mark the stop as planned");
         watch.stop_worker();
-        return stop_runtime(true) ? 0 : 1;
+        if (!stop_runtime(true))
+            return 1;
+        if (active)
+            log("info", "Forkop stopped");
+        return 0;
     });
 }
 
@@ -380,31 +401,32 @@ function crash_cleanup(exit_code) {
         if (fs.stat(paths.planned_stop) != null || forkop_running())
             return 0;
         let suffix = match(common.as_string(exit_code), /^[0-9]+$/) ? " (exit code " + exit_code + ")" : "";
-        log("fatal", "sing-box stopped after repeated crashes" + suffix);
+        log("error", "sing-box stopped after repeated crashes" + suffix + "; Forkop is stopped");
         return cleanup_failed_runtime(true) && watch.stop_worker() ? 0 : 1;
     });
 }
 
-// Every way out of a reload says which step gave up, once, because the page
-// reports a failed apply out of the log and raises every error line in it.
-function abort_reload(reason, runtime_touched) {
-    log("error", reason + ". Aborted.");
-    if (runtime_touched)
-        cleanup_failed_runtime();
+// What a failed reload left: the runtime it never touched, or none at all.
+function reload_failed(runtime_touched) {
+    log("warn", runtime_touched ? "Configuration not applied; Forkop is stopped" : "Configuration not applied; Forkop keeps running the previous one");
     return 1;
 }
 
-function restart_runtime() {
-    log("info", "Reload requires a full Forkop runtime restart");
-    if (!stop_runtime()) {
-        log("error", "Failed to stop the Forkop runtime before restarting it. Aborted.");
-        return 1;
-    }
-    if (!start_runtime()) {
+function abort_reload(reason, runtime_touched) {
+    log("error", reason);
+    if (runtime_touched)
         cleanup_failed_runtime();
-        return 1;
-    }
-    return 0;
+    return reload_failed(runtime_touched);
+}
+
+function restart_runtime() {
+    log("info", "Forkop is not fully running; restarting it");
+    if (!stop_runtime())
+        return false;
+    if (start_runtime())
+        return true;
+    cleanup_failed_runtime();
+    return false;
 }
 
 function capture(active) {
@@ -421,9 +443,9 @@ function crash_pause() {
         return 0;
     if (fs.stat(paths.planned_stop) == null && nft_state.table_present(NFT_TABLE) && !health.sing_box_service_running()) {
         if (capture(false))
-            log("warn", "sing-box exited; traffic goes direct until procd restarts it");
+            log("warn", "sing-box exited unexpectedly; traffic goes direct until procd restarts it");
         else
-            log("error", "Failed to pause the nftables traffic capture after sing-box exited");
+            log("error", "Failed to pause the traffic capture after sing-box exited");
     }
     lock.release(paths.lock, owner);
     return 0;
@@ -437,43 +459,53 @@ function crash_resume() {
         return 0;
     if (fs.stat(paths.planned_stop) == null && nft_state.table_present(NFT_TABLE) && !forkop_running()) {
         if (capture(true))
-            log("info", "sing-box is back; traffic capture resumed");
+            log("info", "sing-box restarted; traffic capture resumed");
         else
-            log("error", "Failed to resume the nftables traffic capture after sing-box came back");
+            log("error", "Failed to resume the traffic capture after sing-box restarted");
     }
     lock.release(paths.lock, owner);
     return 0;
 }
 
+// The first line of a reload: what set it off. A forced one reapplies the
+// configuration whether or not it changed.
+function reload_announcement(reason, forced) {
+    if (!forced)
+        return "Applying configuration";
+    let interface_up = match(reason, /^interface_up:(.+)$/);
+    return "Reapplying configuration" + (interface_up ? ": interface '" + interface_up[1] + "' came up" : "");
+}
+
 // A config change and a queued reload apply what changed; any other reason - a
-// reload asked for by hand, a WAN coming back - also reloads sing-box. Both the
-// table and the sing-box configuration are built before either is applied, so a
-// configuration refused on the way leaves the running one as it was.
+// reload asked for by hand, a monitored interface coming up - also reloads
+// sing-box. Everything that can be refused is built before anything is
+// applied, so a configuration refused on the way leaves the running one as it
+// was.
 function reload_runtime(reason) {
     let forced = reason != "on_config_change" && reason != "pending";
-    log("info", "Applying configuration");
+    log("info", reload_announcement(reason, forced));
     if (!validate())
-        return 1;
+        return reload_failed(false);
     // After validation, which writes the defaults a new server needs: a
     // fingerprint taken before it would read this reload's own writing as
     // somebody else's change.
     let fingerprint = config_fingerprint();
 
     if (!forkop_running()) {
-        log("info", "Runtime state is incomplete; restarting Forkop runtime");
-        let status = restart_runtime();
-        if (status == 0)
-            queue_reload_if_changed(fingerprint, "reload");
-        return status;
+        if (!restart_runtime())
+            return reload_failed(true);
+        log("info", "Configuration applied");
+        queue_reload_if_changed(fingerprint, "reload");
+        return 0;
     }
 
-    let built;
-    try {
-        built = nft.build();
-    }
-    catch (e) {
-        return abort_reload("Failed to build the nftables rules: " + e.message, false);
-    }
+    let cron_changed = !cron_current();
+    if (cron_changed && !refresh_cron())
+        return abort_reload(CRON_FAILED, false);
+
+    let built = build_nft();
+    if (built == null)
+        return reload_failed(false);
 
     // The running core reads the file only when it is reloaded below.
     let config_changed;
@@ -482,21 +514,17 @@ function reload_runtime(reason) {
         config_changed = runtime.write_config(false);
     }
     catch (e) {
-        log("error", e.message);
-        return 1;
+        return abort_reload(e.message, false);
     }
 
     let nft_changed = fs.readfile(paths.applied_nft) != built.script;
     if (nft_changed) {
         rulesets.stop_worker();
-        log("info", "Rebuilding nftables rules");
         try {
             apply_nft(built);
         }
         catch (e) {
-            log("fatal", e.message);
-            cleanup_failed_runtime();
-            return 1;
+            return abort_reload(e.message, true);
         }
     }
 
@@ -504,19 +532,16 @@ function reload_runtime(reason) {
     // of at ports that are closed.
     if (config_changed || forced) {
         if (!capture(false))
-            return abort_reload("Failed to pause the nftables traffic capture before reloading sing-box", true);
-        log("info", "Reloading sing-box runtime");
+            return abort_reload("Failed to pause the traffic capture before reloading sing-box", true);
+        log("info", "Reloading sing-box");
         if (!exec.ok([ paths.sing_box_init, "reload" ]))
             return abort_reload("Failed to reload sing-box", true);
-        if (!wait_ready(RELOAD_READY_WINDOW, READY_HOLD, false)) {
-            log("fatal", "Reload verification failed after sing-box was reloaded; stopping Forkop runtime");
-            cleanup_failed_runtime();
-            return 1;
-        }
+        if (!wait_ready(RELOAD_READY_WINDOW, READY_HOLD, false))
+            return abort_reload(not_ready("reloaded"), true);
         if (!capture(true))
-            return abort_reload("Failed to resume the nftables traffic capture after reloading sing-box", true);
+            return abort_reload("Failed to resume the traffic capture after reloading sing-box", true);
         if (!wait_ready(0, 0, true))
-            return abort_reload("Forkop runtime was not ready after nftables activation", true);
+            return abort_reload(NOT_CAPTURING, true);
     }
 
     // A rebuilt table starts with empty sets, so the worker starts again and
@@ -525,16 +550,12 @@ function reload_runtime(reason) {
     // section reads starts it again.
     let worker_changed = nft_changed || !rulesets.worker_current();
     if (worker_changed && !rulesets.start_worker())
-        return abort_reload("Failed to start the rule set sync worker", true);
-
-    let cron_changed = !cron_current();
-    if (cron_changed && !refresh_cron())
-        return abort_reload("Failed to refresh the Forkop cron jobs", false);
+        return abort_reload("Failed to start the rule-set sync worker", true);
 
     if (nft_changed || config_changed || forced || worker_changed || cron_changed)
         log("info", "Configuration applied");
     else
-        log("info", "Configuration already applied; nothing to change");
+        log("info", "Configuration already applied; nothing changed");
     queue_reload_if_changed(fingerprint, "reload");
     return 0;
 }

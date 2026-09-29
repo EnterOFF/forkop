@@ -122,7 +122,7 @@ const COMMANDS = {
     check_inbounds_config: { help: "Check whether enabled server inbounds are configured", run: json(() => diagnostics().inbounds_config()) },
     check_inbounds: { help: "Check server inbounds from the VPN server tab", run: json(() => diagnostics().inbounds()) },
     check_logs: { help: "Show Forkop logs from system journal", run: () => {
-        print(diagnostics().logs("forkop"));
+        print(diagnostics().logs());
         return 0;
     } },
     check_fakeip: { help: "Test sing-box FakeIP DNS", run: json(() => diagnostics().fakeip()) },

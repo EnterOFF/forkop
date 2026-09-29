@@ -80,7 +80,6 @@ function consume_request(path) {
 function run_pending_reload_if_requested(path, init_script) {
     if (!consume_request(path))
         return;
-    exec.log("info", "Applying pending Forkop reload");
     exec.background([ init_script, "reload", "pending" ]);
 }
 

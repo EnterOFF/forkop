@@ -103,7 +103,7 @@ function reset(options) {
     };
 
     stub.commands([
-        [ "logger", (argv) => { push(world.logs, argv[3]); return {}; } ],
+        stub.logger(world.logs),
         [ "pgrep", () => ({ status: world.stray_sing_box ? 0 : 1 }) ],
         [ "netstat -lnt", () => ({ stdout: world.netstat ?? "" }) ],
         [ dir + "/sing-box start", () => {
@@ -151,7 +151,7 @@ function reset(options) {
         [ /cron-refresh-plan/, () => ({ stdout: world.cron_wanted == "" ? "" : "component\t" + world.cron_wanted + "\n" }) ],
         [ "crontab -l", () => ({ stdout: world.cron_installed == "" ? "" : world.cron_installed + "\n" }) ],
         [ /refresh-cron-from-uci/, () => { event("cron refreshed"); world.cron_installed = world.cron_wanted; return { status: world.cron_fails ? 1 : 0 }; } ],
-        [ /remove-cron-jobs/, () => { event("cron removed"); return {}; } ]
+        [ /remove-cron-jobs/, () => { event("cron removed"); world.cron_installed = ""; return {}; } ]
     ]);
 }
 
@@ -182,6 +182,10 @@ function running(options) {
     fs.writefile(lifecycle.paths.applied_nft, "table inet ForkopTable\n");
 }
 
+function failures_logged() {
+    return filter(world.logs, (line) => match(line, /^\[(error|fatal)\]/) != null);
+}
+
 function reloaded(options, reason) {
     running(options);
     let result = run(() => lifecycle.reload(reason ?? "on_config_change"));
@@ -194,7 +198,7 @@ t.test("a start answers only once sing-box is ready, then turns the table on, th
     t.eq(result.result, 0);
     t.eq(world.events, [ "firewall opened", "config checked", "cron refreshed", "sing-box started", "nft applied", "watcher started", "rule-set worker started" ]);
     t.eq(fs.readfile(lifecycle.paths.applied_nft), world.script, "the applied table is recorded");
-    t.contains(world.logs, "[info] Starting Forkop");
+    t.eq(world.logs, [ "[info] Starting Forkop", "[info] Forkop started" ]);
     t.eq(result.stdout, "", "a start prints nothing");
 });
 
@@ -202,7 +206,7 @@ t.test("a start of a running Forkop does nothing", () => {
     running();
     let result = run(() => lifecycle.start());
     t.eq([ result.result, world.events ], [ 0, [] ]);
-    t.contains(world.logs, "[info] Forkop is already running; duplicate start skipped");
+    t.contains(world.logs, "[info] Forkop is already running");
 });
 
 t.test("a configuration the validator refuses stops a start before anything runs, and says why on stderr", () => {
@@ -219,7 +223,8 @@ t.test("a start that fails after sing-box came up takes everything down again", 
     reset({ nft_fails: true });
     let result = run(() => lifecycle.start());
     t.eq(result.result, 1);
-    t.contains(world.logs, "[fatal] nft refused the ruleset: Error: broken");
+    t.eq(world.logs, [ "[info] Starting Forkop", "[error] nft refused the ruleset: Error: broken" ],
+        "the reason, once, and nothing about the cleanup behind it");
     t.contains(world.events, "sing-box stopped");
     t.contains(world.events, "firewall closed");
     t.eq(world.pid, 0);
@@ -232,7 +237,7 @@ t.test("a start whose Clash API address is taken stops before sing-box, and kill
     require("fixture").seed({ settings: { config_path: config } });
     let result = run(() => lifecycle.start());
     t.eq(result.result, 1);
-    t.contains(world.logs, "[fatal] Clash API address 192.168.1.1:9090 is already in use by another process. Aborted.");
+    t.contains(world.logs, "[error] Clash API address 192.168.1.1:9090 is already in use by another process");
     t.eq(filter(world.events, (e) => e == "sing-box started"), []);
 });
 
@@ -241,20 +246,22 @@ t.test("a start refuses to run a second sing-box", () => {
     let result = run(() => lifecycle.start());
     t.eq(result.result, 1);
     t.eq(filter(world.events, (e) => e == "sing-box started"), []);
-    t.contains(result.stderr, "sing-box is still running; refusing to start a second process");
+    t.contains(result.stderr, "Another sing-box process is running outside Forkop; stop it before starting Forkop");
 });
 
 t.test("each failed step of a start names itself in the log as an error", () => {
     for (let failure in [
-        [ { bridge_fails: true }, "Failed to disable br_netfilter for transparent proxy routing. Aborted." ],
-        [ { cron_fails: true }, "Failed to refresh the Forkop cron jobs. Aborted." ],
-        [ { watcher_fails: true }, "Failed to start the sing-box crash watcher. Aborted." ],
-        [ { ruleset_fails: true }, "Failed to start the rule set sync worker. Aborted." ]
+        [ { bridge_fails: true }, "Failed to disable bridge netfilter for transparent proxying" ],
+        [ { cron_fails: true }, "Failed to write the component update check to the crontab" ],
+        [ { watcher_fails: true }, "Failed to start the sing-box crash watcher" ],
+        [ { ruleset_fails: true }, "Failed to start the rule-set sync worker" ],
+        [ { requirements_fail: true }, "requirements" ],
+        [ { invalid: true }, "Section 'x' is broken. Aborted." ]
     ]) {
         reset(failure[0]);
         let result = run(() => lifecycle.start());
         t.eq(result.result, 1, failure[1]);
-        t.contains(world.logs, "[error] " + failure[1]);
+        t.eq(failures_logged(), [ "[error] " + failure[1] ], failure[1]);
     }
 });
 
@@ -262,7 +269,7 @@ t.test("a reload with nothing changed touches nothing", () => {
     let result = reloaded();
     t.eq(result.result, 0);
     t.eq(world.events, [ "firewall opened", "config written" ]);
-    t.contains(world.logs, "[info] Configuration already applied; nothing to change");
+    t.contains(world.logs, "[info] Configuration already applied; nothing changed");
 });
 
 t.test("a changed sing-box configuration is reloaded with the capture paused until the core is ready again, and the worker kept", () => {
@@ -285,12 +292,8 @@ t.test("a changed table is rebuilt with the rule-set worker stopped around it, a
     let result = reloaded({ script: CHANGED_TABLE });
     t.eq(result.result, 0);
     t.eq(world.events, [ "firewall opened", "config written", "rule-set worker stopped", "nft applied", "rule-set worker started" ]);
-    t.contains(world.logs, "[info] Rebuilding nftables rules");
+    t.eq(world.logs, [ "[info] Applying configuration", "[info] Configuration applied" ]);
 });
-
-function failures_logged() {
-    return filter(world.logs, (line) => match(line, /^\[(error|fatal)\]/) != null);
-}
 
 t.test("a configuration refused while it is generated leaves the running runtime and its table alone, and is said once", () => {
     let result = reloaded({ config_fails: true, config_changed: true, script: CHANGED_TABLE });
@@ -299,13 +302,14 @@ t.test("a configuration refused while it is generated leaves the running runtime
     t.eq(fs.readfile(lifecycle.paths.applied_nft), "table inet ForkopTable\n", "the table applied last is still the live one");
     t.eq(failures_logged(), [ "[error] Failed to generate sing-box configuration: broken" ]);
     t.eq(result.stderr, "Failed to generate sing-box configuration: broken\n");
+    t.eq(world.logs[length(world.logs) - 1], "[warn] Configuration not applied; Forkop keeps running the previous one");
 });
 
 t.test("a table that cannot be built is said in one line and touches nothing", () => {
     let result = reloaded({ build_fails: true, config_changed: true });
     t.eq(result.result, 1);
     t.eq(world.events, [ "firewall opened" ]);
-    t.eq(failures_logged(), [ "[error] Failed to build the nftables rules: duplicate nft section: x. Aborted." ]);
+    t.eq(failures_logged(), [ "[error] Failed to build the nftables rules: duplicate nft section: x" ]);
 });
 
 t.test("a reload asked for by hand reloads sing-box even when nothing changed, and keeps the worker", () => {
@@ -321,17 +325,17 @@ t.test("a queued reload applies what changed without forcing sing-box", () => {
 
 t.test("each failed step of a reload after the runtime was touched names itself once and takes the runtime down", () => {
     for (let failure in [
-        [ { pause_fails: true, config_changed: true }, "[error] Failed to pause the nftables traffic capture before reloading sing-box. Aborted.", false ],
-        [ { reload_fails: true, config_changed: true }, "[error] Failed to reload sing-box. Aborted.", true ],
-        [ { resume_fails: true, config_changed: true }, "[error] Failed to resume the nftables traffic capture after reloading sing-box. Aborted.", true ],
-        [ { nft_fails: true, script: CHANGED_TABLE }, "[fatal] nft refused the ruleset: Error: broken", false ],
-        [ { ruleset_fails: true, worker_stale: true, config_changed: true }, "[error] Failed to start the rule set sync worker. Aborted.", true ]
+        [ { pause_fails: true, config_changed: true }, "[error] Failed to pause the traffic capture before reloading sing-box", false ],
+        [ { reload_fails: true, config_changed: true }, "[error] Failed to reload sing-box", true ],
+        [ { resume_fails: true, config_changed: true }, "[error] Failed to resume the traffic capture after reloading sing-box", true ],
+        [ { nft_fails: true, script: CHANGED_TABLE }, "[error] nft refused the ruleset: Error: broken", false ],
+        [ { ruleset_fails: true, worker_stale: true, config_changed: true }, "[error] Failed to start the rule-set sync worker", true ]
     ]) {
         let result = reloaded(failure[0]);
         t.eq(result.result, 1, failure[1]);
         t.eq(failures_logged(), [ failure[1] ], failure[1]);
-        if (substr(failure[1], 0, 8) == "[error] ")
-            t.contains(result.stderr, substr(failure[1], 8));
+        t.contains(result.stderr, substr(failure[1], 8));
+        t.eq(world.logs[length(world.logs) - 1], "[warn] Configuration not applied; Forkop is stopped", failure[1]);
         t.contains(world.events, "sing-box stopped", failure[1]);
         t.eq(index(world.events, "sing-box reloaded") >= 0, failure[2], failure[1] + ": whether sing-box was signalled");
     }
@@ -340,7 +344,7 @@ t.test("each failed step of a reload after the runtime was touched names itself 
 t.test("a core that does not come back after its reload stops the runtime", () => {
     let result = reloaded({ config_changed: true, reload_never_ready: true });
     t.eq(result.result, 1);
-    t.contains(world.logs, "[fatal] Reload verification failed after sing-box was reloaded; stopping Forkop runtime");
+    t.contains(world.logs, "[error] sing-box did not become ready after it was reloaded");
     t.eq(filter(world.events, (e) => substr(e, 0, 15) == "capture resumed"), [], "the capture never resumes on a dead core");
 });
 
@@ -349,7 +353,7 @@ t.test("a reload of a runtime that is not complete restarts it", () => {
     world.network = false;
     let result = run(() => lifecycle.reload("on_config_change"));
     t.eq(result.result, 0);
-    t.contains(world.logs, "[info] Runtime state is incomplete; restarting Forkop runtime");
+    t.eq(world.logs, [ "[info] Applying configuration", "[info] Forkop is not fully running; restarting it", "[info] Configuration applied" ]);
     t.ok(index(world.events, "sing-box stopped") < index(world.events, "sing-box started"));
     t.contains(world.events, "nft applied");
 });
@@ -373,8 +377,10 @@ t.test("a configuration changed while a reload ran queues another one", () => {
     t.matches(fs.readfile(lifecycle.paths.pending_reload), /^reason=config_changed_during_reload\n/);
 });
 
+const CRON_LINE = "0 0 * * * /usr/bin/forkop component_updates_if_due # forkop-component-update-check";
+
 t.test("a stop marks itself planned, closes the ports and takes everything down", () => {
-    running();
+    running({ cron_installed: CRON_LINE });
     let result = run(() => lifecycle.stop());
     t.eq(result.result, 0);
     t.eq(world.events, [ "firewall closed", "watcher stopped", "rule-set worker stopped", "cron removed", "nft table deleted", "sing-box stopped" ]);
@@ -432,7 +438,7 @@ t.test("a crash cleanup leaves a planned stop and a running runtime alone, and t
     world.pid = 0;
     world.ports = false;
     t.eq(run(() => lifecycle.crash_cleanup("137")).result, 0);
-    t.contains(world.logs, "[fatal] sing-box stopped after repeated crashes (exit code 137)");
+    t.contains(world.logs, "[error] sing-box stopped after repeated crashes (exit code 137); Forkop is stopped");
     t.contains(world.events, "nft table deleted");
     t.contains(world.events, "firewall closed");
     t.eq(length(filter(world.events, (e) => e == "watcher stopped")), 1, "the watcher runs the cleanup and is stopped once it finished");
@@ -448,12 +454,12 @@ t.test("a core procd is about to respawn pauses the capture until the new one li
     crashed();
     t.eq(run(() => lifecycle.crash_pause()).result, 0);
     t.eq(world.events, [ "capture paused" ]);
-    t.contains(world.logs, "[warn] sing-box exited; traffic goes direct until procd restarts it");
+    t.contains(world.logs, "[warn] sing-box exited unexpectedly; traffic goes direct until procd restarts it");
 
     running({ capture: false });
     t.eq(run(() => lifecycle.crash_resume()).result, 0);
     t.eq(world.events, [ "capture resumed" ], "resumed only once the respawned core listens");
-    t.contains(world.logs, "[info] sing-box is back; traffic capture resumed");
+    t.contains(world.logs, "[info] sing-box restarted; traffic capture resumed");
 });
 
 t.test("the crash pause leaves alone what a lifecycle action or a live core owns", () => {
@@ -518,6 +524,32 @@ t.test("the readiness wait sits out its window and needs the hold at the end of 
     t.eq(waited({ pid: 4242, ports: true, on_sleep: () => { if (++replaced == 1) world.ticks = 999; } }, 8, 2), { status: false, slept: 1 },
         "a process replaced mid-wait is not the runtime that was built");
     t.eq(waited({ pid: 4242, ports: false }, 2, 2), { status: false, slept: 300 }, "a process that never answers is given up on");
+});
+
+t.test("a start whose sing-box exits on the way up points at the core's own reason", () => {
+    reset({ on_sleep: () => { world.pid = 0; world.ports = false; } });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 1);
+    t.eq(failures_logged(), [ "[error] sing-box exited after it was started; its own log lines above say why" ]);
+});
+
+t.test("a stop is reported from its start to its end, and a stop with nothing running says nothing", () => {
+    running();
+    run(() => lifecycle.stop());
+    t.eq(world.logs, [ "[info] Stopping Forkop", "[info] Forkop stopped" ]);
+
+    reset();
+    t.eq(run(() => lifecycle.stop()).result, 0);
+    t.eq(world.logs, [], "the stop of an upgrade after the one of the installer");
+    t.eq(filter(world.events, (e) => e == "cron removed"), [], "and no cron job to remove");
+});
+
+t.test("a forced reload says what set it off", () => {
+    reloaded({}, "");
+    t.eq(world.logs[0], "[info] Reapplying configuration");
+    reloaded({}, "interface_up:wan");
+    t.eq(world.logs[0], "[info] Reapplying configuration: interface 'wan' came up");
+    t.eq(world.logs[length(world.logs) - 1], "[info] Configuration applied");
 });
 
 t.test("autostart is the rc.d link and nothing else", () => {

@@ -25,7 +25,7 @@ let logs = [];
 function tools(extra) {
     logs = [];
     stub.commands([
-        [ "logger", (argv) => { push(logs, argv[3]); return {}; } ],
+        stub.logger(logs),
         ...(extra ?? [])
     ]);
 }
@@ -62,13 +62,12 @@ t.test("the configuration is written where the service reads it, and only when i
     let written = fs.readfile(dir + "/etc/sing-box/config.json");
     t.eq(json(written).outbounds != null, true);
     t.ok(fs.stat(dir + "/tmp/sing-box")?.type == "directory", "the cache directory exists for the core to open");
-    t.contains(logs, "[info] sing-box configuration changed; updating " + dir + "/etc/sing-box/config.json");
 
     let inode = fs.stat(dir + "/etc/sing-box/config.json").inode;
     t.eq(runtime.write_config(false), false);
     t.eq(fs.stat(dir + "/etc/sing-box/config.json").inode, inode, "an unchanged configuration is not rewritten");
-    t.contains(logs, "[info] sing-box configuration is unchanged");
     t.eq(checks_run(), 1, "the core checked the changed configuration, and only that one");
+    t.eq(logs, [], "writing the file is a step of the apply, which reports its outcome");
     stub.restore();
 });
 
@@ -78,7 +77,7 @@ t.test("a configuration the core refuses is reported by its first line and never
     tools([ [ CHECK, { status: 42, stdout: "\nFATAL[0000] route: missing outbound tag\nmore\n" } ] ]);
     let e = t.throws(() => runtime.write_config(true));
     stub.restore();
-    t.eq(e.message, "Generated sing-box configuration is invalid: FATAL[0000] route: missing outbound tag. Aborted.");
+    t.eq(e.message, "sing-box refused the generated configuration: FATAL[0000] route: missing outbound tag");
     t.ok(fs.stat(dir + "/etc/sing-box/config.json") == null);
     t.eq(filter(fs.lsdir("/tmp"), (name) => substr(name, 0, 22) == "forkop-sing-box-check." && index(name, ".json") > 0), [],
         "the file checked is removed");
@@ -94,8 +93,19 @@ t.test("a changed configuration the core refuses leaves the file the running cor
     tools([ [ CHECK, { status: 1, stdout: "FATAL[0000] initialize dns router: validate dns rule[9]\n" } ] ]);
     let e = t.throws(() => runtime.write_config(false));
     stub.restore();
-    t.eq(e.message, "Generated sing-box configuration is invalid: FATAL[0000] initialize dns router: validate dns rule[9]. Aborted.");
+    t.eq(e.message, "sing-box refused the generated configuration: FATAL[0000] initialize dns router: validate dns rule[9]");
     t.eq(fs.readfile(dir + "/etc/sing-box/config.json"), running);
+});
+
+t.test("a LAN without an IPv4 address is a warning of the configuration, not of whoever asks for the address", () => {
+    let dir = stub.tmpdir();
+    fixture.seed(configuration(dir, { service_listen_address: "" }));
+    tools([ [ CHECK, {} ], [ /network\.interface/, { stdout: "{}" } ], [ "ip -4 addr show", { stdout: "" } ] ]);
+    t.eq(runtime.listen_address(), "");
+    t.eq(logs, [], "a diagnostics check asking for it");
+    runtime.write_config(false);
+    stub.restore();
+    t.eq(logs, [ "[warn] No IPv4 address found on the LAN, so the Clash API listens on 127.0.0.1 only; set forkop.settings.service_listen_address to choose one" ]);
 });
 
 t.test("a checked configuration is checked even when it did not change", () => {
@@ -118,9 +128,11 @@ t.test("the service runs the generated file as root, committed only when somethi
     core_uci.reset();
     t.eq([ core_uci.get("sing-box.main.enabled"), core_uci.get("sing-box.main.user"), core_uci.get("sing-box.main.conffile") ],
         [ "1", "root", dir + "/etc/sing-box/config.json" ]);
+    t.eq(logs, [ "[info] Set up the sing-box service for Forkop: enabled=1, user=root, conffile=" + dir + "/etc/sing-box/config.json" ]);
     let commits = length(uci.__commits());
     runtime.configure_service();
     t.eq(length(uci.__commits()), commits, "a configured service is not committed again");
+    t.eq(length(logs), 1, "nor reported again");
     stub.restore();
 });
 

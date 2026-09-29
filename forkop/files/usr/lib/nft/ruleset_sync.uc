@@ -15,6 +15,7 @@ let worker_process = require("service.worker");
 let clash_http = require("singbox.clash_http");
 let nft_apply = require("nft.apply");
 let nft_sections = require("nft.sections");
+let connections = require("config.connections");
 
 const TABLE = constants.NFT_TABLE_NAME;
 const MAX_ELEMENTS_PER_LINE = 256;
@@ -415,12 +416,12 @@ function sync(snapshot, sections) {
         catch (e) {
             delete applied[name];
             refused[name] = key;
-            exec.log("warn", "Rule-set subnets of section " + name + " not loaded: " + e.message);
+            exec.log("error", "Failed to load the rule-set subnets of section '" + connections.section_display_name(entry.section) + "' into nftables: " + e.message);
         }
     }
 
     if (written > 0)
-        exec.log("info", "Loaded " + loaded + " subnets into nft" +
+        exec.log("info", "Loaded " + loaded + " rule-set subnets into nftables" +
             (written == length(native) ? "" : " for " + written + " of " + length(native) + " sections"));
     return { loaded, written };
 }

@@ -561,8 +561,8 @@ function global_check(first, second) {
     return 0;
 }
 
-function logs(kind) {
-    return exec.output([ "logread", "-e", kind == "sing-box" ? "sing-box" : "forkop\\|sing-box" ]) ?? "";
+function logs() {
+    return exec.output([ "logread", "-e", constants.FORKOP_LOG_PATTERN ]) ?? "";
 }
 
 return {

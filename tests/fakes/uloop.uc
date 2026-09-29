@@ -4,6 +4,8 @@
 let timers = [];
 let running = false;
 let on_run = null;
+let signals = {};
+let pending_signals = [];
 
 function schedule(kind, ms, callback) {
     let entry = { kind, ms, callback, cancelled: false };
@@ -28,10 +30,27 @@ function __fire(kind) {
     return fired;
 }
 
+// The process receiving a signal. A handler registered with signal() runs in
+// the loop: at once while it runs, and as soon as it starts otherwise. Without
+// one, libubox's own handler ends a loop that is running, and a loop started
+// afterwards never hears of it.
+function __raise(name) {
+    if (signals[name] == null) {
+        running = false;
+        return;
+    }
+    if (running)
+        signals[name]();
+    else
+        push(pending_signals, name);
+}
+
 function __reset() {
     timers = [];
     running = false;
     on_run = null;
+    signals = {};
+    pending_signals = [];
 }
 
 // What happens while the loop runs; run() returns once it is done.
@@ -43,7 +62,11 @@ return {
     init: function() { return true; },
     run: function() {
         running = true;
-        if (on_run != null)
+        let queued = pending_signals;
+        pending_signals = [];
+        for (let name in queued)
+            signals[name]();
+        if (running && on_run != null)
             on_run();
         running = false;
         return 0;
@@ -52,7 +75,9 @@ return {
     running: function() { return running; },
     timer: function(ms, callback) { return schedule("timer", ms, callback); },
     interval: function(ms, callback) { return schedule("interval", ms, callback); },
+    signal: function(name, callback) { signals[name] = callback; return true; },
     __fire,
+    __raise,
     __reset,
     __on_run,
     __timers: function() { return timers; }

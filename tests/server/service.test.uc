@@ -208,7 +208,7 @@ t.test("a broken server refuses the whole prepare and commits nothing, unless it
     stub.commands(TOOLS);
     let e = t.throws(() => server.prepare());
     stub.restore();
-    t.eq(e.message, "Server 'b' has unsupported protocol 'gopher'. Aborted.");
+    t.eq(e.message, "Server 'b' uses unsupported protocol 'gopher'");
     t.eq(uci.__commits(), []);
 
     fixture.seed({ server: [ { ".name": "a", protocol: "vless" }, { ".name": "b", protocol: "gopher", enabled: "0" },

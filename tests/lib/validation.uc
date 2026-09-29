@@ -22,7 +22,7 @@ function with_dns(data) {
 function run(data, overrides) {
     fixture.seed(with_dns(data));
     let logs = [];
-    stub.commands([ [ "logger", (argv) => { push(logs, argv[3]); return { status: 0 }; } ] ]);
+    stub.commands([ stub.logger(logs) ]);
     let error = null;
     try {
         validator.validate(overrides);

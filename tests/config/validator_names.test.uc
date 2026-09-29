@@ -32,7 +32,18 @@ t.test("untagged-subscription", () => {
                 "tag": "sub2"
             }
         ]
-    }, "Subscription in rule 'proxy' has no tag");
+    }, "A subscription in section 'Main' has no tag");
+});
+
+t.test("a refusal names sections and servers by the labels the page shows, not by their ids", () => {
+    v.refuses({
+        section: [ { ".name": "section_70536a", label: "Streaming", enabled: "1", action: "connection",
+            selector_proxy_links: [ "socks5://127.0.0.1:1080" ], ports: [ "99999" ] } ]
+    }, "Invalid port condition '99999' in section 'Streaming'");
+    v.refuses({
+        section: [ { ".name": "section_70536a", label: "Streaming", enabled: "1", action: "connection", selector_proxy_links: [ "socks5://127.0.0.1:1080" ] } ],
+        server: [ { ".name": "server_75e023", label: "Server #1", enabled: "1", protocol: "mixed", listen_port: "18080", routing_mode: "section", routing_section: "section_1f2e3d" } ]
+    }, "Server 'Server #1' points to section 'section_1f2e3d', which does not exist");
 });
 
 t.test("duplicate-json-tags", () => {

@@ -39,7 +39,9 @@ describe('LogNotificationDeduper', () => {
   it('accepts only Forkop errors and component update log lines', () => {
     expect(isErrorLogLine('forkop: [info] ok')).toBe(false);
     expect(isErrorLogLine('forkop: [error] failed')).toBe(true);
-    expect(isErrorLogLine('forkop: [fatal] failed')).toBe(true);
+    expect(isErrorLogLine('forkop: [warn] retrying what [error] said')).toBe(
+      false,
+    );
     expect(isErrorLogLine('sing-box[123]: [error] dial failed')).toBe(false);
     expect(
       isErrorLogLine(
@@ -57,6 +59,15 @@ describe('LogNotificationDeduper', () => {
       version: 'v1.2.3',
     });
     expect(getForkopLogNotification('forkop: [info] ok')).toBeNull();
+    expect(
+      getForkopLogNotification(
+        'Tue Sep 29 02:38:25 2026 user.err forkop: [error] Failed to reload sing-box',
+      ),
+    ).toEqual({
+      kind: 'error',
+      line: 'Tue Sep 29 02:38:25 2026 user.err forkop: [error] Failed to reload sing-box',
+      message: 'Failed to reload sing-box',
+    });
     expect(
       getForkopLogNotification('sing-box[123]: [error] dial failed'),
     ).toBeNull();
@@ -79,7 +90,7 @@ describe('LogNotificationDeduper', () => {
     const afterReload = new LogNotificationDeduper(storage);
 
     expect(afterReload.shouldNotify('forkop: [error] failed')).toBe(false);
-    expect(afterReload.shouldNotify('forkop: [fatal] fatal failure')).toBe(
+    expect(afterReload.shouldNotify('forkop: [error] a later failure')).toBe(
       true,
     );
   });

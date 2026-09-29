@@ -13,6 +13,8 @@ let ui = require("service.ui");
 
 const CONFIG_NAME = "forkop";
 const CONFIG_CHANGE = "on_config_change";
+// The reason of a reload a monitored interface set off, followed by its name.
+const INTERFACE_UP = "interface_up:";
 const SERVICE_INIT = constants.FORKOP_SERVICE_INIT;
 
 let paths = {
@@ -71,6 +73,8 @@ function registered() {
     return type(services) != "object" || services.forkop != null;
 }
 
+// A failed start says what comes next: with autostart on, the next WAN coming
+// up tries again.
 function start(reason) {
     print("Start Forkop\n");
     let job = begin("start");
@@ -79,7 +83,7 @@ function start(reason) {
         lock.consume_request(paths.start_retry);
     else {
         lock.mark_request(paths.start_retry, reason == "triggered" ? "wan_retry_failed" : "start_failed");
-        exec.log("warn", "Forkop start failed; waiting for the next WAN-up event or manual start");
+        exec.log("warn", "Forkop did not start" + (fs.stat(paths.autostart) != null ? "; it tries again when the WAN comes up" : ""));
     }
     finish("start", job, status);
     return status;
@@ -112,8 +116,8 @@ function reload(reason) {
     if (internal_change(reason))
         return skipped;
     if (!registered()) {
-        exec.log("info", "Forkop is not started; reload skipped");
-        warn("Forkop is not started; reload skipped\n");
+        exec.log("info", "Forkop is not running; reload skipped");
+        warn("Forkop is not running; reload skipped\n");
         return skipped;
     }
 
@@ -161,7 +165,7 @@ function retry_start() {
     }
     if (fs.stat(paths.start_retry) == null)
         return 0;
-    exec.log("info", "Retrying failed Forkop start after WAN came up");
+    exec.log("info", "The WAN came up; retrying the failed start");
     return exec.run([ SERVICE_INIT, "restart", "triggered" ]);
 }
 
@@ -177,8 +181,7 @@ function wan_up() {
     lock.consume_request(paths.start_retry);
     if (!monitored("wan"))
         return 0;
-    exec.log("info", "Reapplying configuration after the monitored WAN came up");
-    return exec.run([ SERVICE_INIT, "reload", "badwan_interface_up" ]);
+    return exec.run([ SERVICE_INIT, "reload", INTERFACE_UP + "wan" ]);
 }
 
 // The procd triggers as the tab separated lines the init script turns into
@@ -193,7 +196,7 @@ function triggers() {
     if (common.option(values, "enable_badwan_interface_monitoring", "") == "1")
         for (let name in common.words(common.option(values, "badwan_monitored_interfaces", "")))
             if (name != "wan")
-                push(lines, "interface\tinterface.*.up\t" + name + "\t" + SERVICE_INIT + "\treload\t");
+                push(lines, "interface\tinterface.*.up\t" + name + "\t" + SERVICE_INIT + "\treload\t" + INTERFACE_UP + name);
     return join("\n", lines) + "\n";
 }
 

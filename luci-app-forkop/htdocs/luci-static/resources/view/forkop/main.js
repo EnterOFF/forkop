@@ -2003,9 +2003,9 @@ var ForkopShellMethods = {
     masked ? "masked" : "raw"
   ]),
   checkLogs,
-  // Working the versions out means asking opkg and sing-box, about 1.7 s.
-  // The state service holds the answer for as long as the installed packages
-  // have not changed; the CLI is what answers when it is not running.
+  // Working the versions out is a CLI run that asks the package manager and
+  // sing-box. The state service holds the answer for as long as the installed
+  // packages have not changed; the CLI is what answers when it is not running.
   getSystemInfo: async () => {
     const served = await callUbus({
       object: "forkop",
@@ -3826,7 +3826,7 @@ function getSessionStorage() {
 // src/forkop/services/logNotificationDeduper.service.ts
 var LOG_NOTIFICATION_STORAGE_KEY = "forkop:shown-log-error-notifications:v1";
 var MAX_STORED_LOG_NOTIFICATIONS = 500;
-var FORKOP_LOG_SOURCE_PATTERN = /\bforkop(?:\[\d+\])?:/i;
+var FORKOP_ERROR_LINE_PATTERN = /\bforkop(?:\[\d+\])?:\s+\[error\]\s+(.*)$/i;
 function readStoredKeys(storage) {
   if (!storage) {
     return [];
@@ -3849,13 +3849,10 @@ function writeStoredKeys(storage, keys) {
   } catch {
   }
 }
-function isErrorLogLine(line) {
-  const lower = line.toLowerCase();
-  return FORKOP_LOG_SOURCE_PATTERN.test(line) && (lower.includes("[error]") || lower.includes("[fatal]"));
-}
 function getForkopLogNotification(line) {
-  if (isErrorLogLine(line)) {
-    return { kind: "error", line };
+  const error = line.match(FORKOP_ERROR_LINE_PATTERN);
+  if (error) {
+    return { kind: "error", line, message: error[1].trim() };
   }
   const update = line.match(
     /\[component-update\]\s+(forkop|sing_box)\s+(\S+)/i
@@ -4566,7 +4563,7 @@ function showLogNotification(notification) {
   }
   return ui.addNotification(
     _("Forkop Error"),
-    textE("div", {}, notification.line),
+    textE("div", {}, notification.message),
     "error",
     "fkp-log-error-notification"
   );
@@ -24048,7 +24045,12 @@ function addServiceOptions(section) {
   o.validate = function(_section_id, value) {
     return validateSingBoxPath(value, "cache.db");
   };
-  o = section.option(form.ListValue, "log_level", _("Log Level"));
+  o = section.option(
+    form.ListValue,
+    "log_level",
+    _("Log Level"),
+    _("sing-box log level")
+  );
   o.value("trace", "Trace");
   o.value("debug", "Debug");
   o.value("info", "Info");

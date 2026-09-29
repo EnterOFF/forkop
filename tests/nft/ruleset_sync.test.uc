@@ -40,7 +40,7 @@ function run(fn, nft_status) {
     logs = [];
     stub.commands([
         [ "nft -f", (argv) => { push(transactions, fs.readfile(argv[2])); return { status: nft_status ?? 0 }; } ],
-        [ "logger -t forkop", (argv) => { push(logs, argv[3]); return {}; } ]
+        stub.logger(logs)
     ]);
     let result = fn();
     stub.restore();
@@ -87,7 +87,7 @@ t.test("a section's providers and its own addresses replace its sets in one tran
     t.eq(elements(transactions[0], s + "subnets6"), [ "2001:db8:1::/48", "fd00::/8" ]);
     t.eq(elements(transactions[0], s + "ip_ports"), [ "203.0.113.1 . 1000-1050", "203.0.113.1 . 80" ], "a provider's own ports are narrowed by the section's");
     t.eq(elements(transactions[0], s + "ip6_ports"), [ "2001:db8:2::1 . 443" ]);
-    t.eq(logs, [ "[info] Loaded 7 subnets into nft" ], "one line for what the sets hold, nothing about what the core skipped");
+    t.eq(logs, [ "[info] Loaded 7 rule-set subnets into nftables" ], "one line for what the sets hold, nothing about what the core skipped");
 });
 
 t.test("overlapping provider elements under a port become disjoint ones the kernel accepts", () => {
@@ -144,7 +144,7 @@ t.test("a section the snapshot or nft refuses is reported once and does not keep
         t.eq(result.written, 1, sprintf("%J", broken));
         t.eq(length(transactions), 1);
         t.excludes(transactions[0], "forkop_rule_bad_");
-        t.eq(length(filter(logs, (line) => index(line, "[warn] Rule-set subnets of section bad not loaded: provider ") == 0)), 1);
+        t.eq(length(filter(logs, (line) => index(line, "[error] Failed to load the rule-set subnets of section 'bad' into nftables: provider ") == 0)), 1);
 
         run(() => sync.sync(value, [ bad, good ]));
         t.eq([ transactions, logs ], [ [], [] ], "the same inputs are neither retried nor reported again");
@@ -152,10 +152,10 @@ t.test("a section the snapshot or nft refuses is reported once and does not keep
 });
 
 t.test("a provider the core does not have is reported, one still loading is waited for", () => {
-    let section = { ".name": "waiting", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let section = { ".name": "waiting", label: "Streaming", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
     seed([ section ]);
     run(() => sync.sync(snapshot({}), [ section ]));
-    t.eq(logs, [ "[warn] Rule-set subnets of section waiting not loaded: missing rule-set provider: " + tag(ALPHA) ]);
+    t.eq(logs, [ "[error] Failed to load the rule-set subnets of section 'Streaming' into nftables: missing rule-set provider: " + tag(ALPHA) ]);
 
     let loading = { revision: 0, ip_cidr: null };
     run(() => sync.sync(snapshot({ [ALPHA]: loading }), [ section ]));
@@ -176,7 +176,7 @@ t.test("a section is rewritten only when the content of a provider it reads chan
     run(() => sync.sync(value([ "192.0.2.0/24", "203.0.113.0/24" ]), [ section, other ]));
     t.eq(length(transactions), 1);
     t.contains(transactions[0], "forkop_rule_other_subnets");
-    t.eq(logs, [ "[info] Loaded 2 subnets into nft for 1 of 2 sections" ]);
+    t.eq(logs, [ "[info] Loaded 2 rule-set subnets into nftables for 1 of 2 sections" ]);
 });
 
 t.test("a reloaded core counts its providers from one again, and content already written is not written again", () => {
@@ -196,7 +196,7 @@ t.test("a provider whose snapshot names no digest is reported rather than truste
     seed([ section ]);
     run(() => sync.sync({ revision: 1, providers: { [tag(ALPHA)]: { revision: 1, ip_cidr: { ipv4: [ "192.0.2.0/24" ], ipv6: [], scoped_ipv4: [], scoped_ipv6: [] } } } }, [ section ]));
     t.eq(transactions, []);
-    t.eq(logs, [ "[warn] Rule-set subnets of section undigested not loaded: provider " + tag(ALPHA) + ": ip_cidr snapshot carries no digest" ]);
+    t.eq(logs, [ "[error] Failed to load the rule-set subnets of section 'undigested' into nftables: provider " + tag(ALPHA) + ": ip_cidr snapshot carries no digest" ]);
 });
 
 t.test("a transaction nft is killed over says the router ran out of memory, naming the section", () => {
@@ -204,7 +204,7 @@ t.test("a transaction nft is killed over says the router ran out of memory, nami
     seed([ section ]);
     run(() => sync.sync(snapshot({ [ALPHA]: provider(1, { ipv4: [ "192.0.2.0/24" ] }) }), [ section ]), 137);
     t.eq(length(logs), 1);
-    t.contains(logs[0], "section huge not loaded: nft ran out of memory");
+    t.contains(logs[0], "section 'huge' into nftables: nft ran out of memory");
 });
 
 t.test("a user's unusable address is dropped and the rest of the section loads", () => {

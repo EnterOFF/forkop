@@ -103,6 +103,23 @@ t.test("a core procd respawns pauses the capture on its exit and resumes it on i
     t.eq(steps, [ "sing_box_crash_pause", "sing_box_crash_resume" ]);
 });
 
+t.test("a stop that arrives while the watcher starts up ends it as soon as its loop runs", () => {
+    ubus.__reset();
+    let uloop = require("uloop");
+    uloop.__reset();
+    ubus.__on("service.list", () => {
+        uloop.__raise("SIGTERM");
+        return {};
+    });
+    fs.unlink(watch.paths.pending_cleanup);
+    let looped = false;
+    uloop.__on_run(() => { looped = true; });
+    t.eq(watch.monitor(), 0);
+    uloop.__on_run(null);
+    t.ok(!looped, "the loop ran on after the stop");
+    t.ok(fs.stat(watch.paths.pid) == null, "a watcher that ends removes its record");
+});
+
 t.test("the watcher is a respawning procd service found again by its command line", () => {
     let spec = watch.spec();
     let payload = worker.payload(spec);

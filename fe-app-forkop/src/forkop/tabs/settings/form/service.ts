@@ -24,7 +24,12 @@ export function addServiceOptions(section: CBISection) {
     return validateSingBoxPath(value, 'cache.db');
   };
 
-  o = section.option(form.ListValue, 'log_level', _('Log Level'));
+  o = section.option(
+    form.ListValue,
+    'log_level',
+    _('Log Level'),
+    _('sing-box log level'),
+  );
   o.value('trace', 'Trace');
   o.value('debug', 'Debug');
   o.value('info', 'Info');

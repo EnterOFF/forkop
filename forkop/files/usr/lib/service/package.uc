@@ -54,7 +54,7 @@ function load_firewall_input_include() {
     if (chain == null || trim(chain) == "" || index(chain, FIREWALL_INPUT_MARKER) >= 0)
         return;
     if (!exec.ok([ paths.firewall_init, "reload" ]))
-        exec.log("warning", "Failed to reload the firewall. Reload it manually so Forkop traffic is accepted in the input chain");
+        exec.log("warn", "Failed to reload the firewall; reload it by hand so that its input chain accepts Forkop's traffic");
 }
 
 // The state service holds the library in memory, so an install hands it the
@@ -90,8 +90,10 @@ function prerm(action) {
 }
 
 // The firewall include is what lets an isolated zone reach the TPROXY inbound,
-// so it is loaded before a service that was running comes back.
+// so it is loaded before a service that was running comes back. The version
+// goes to the log, which then says which release wrote the lines after it.
 function postinst() {
+    exec.log("info", "Installed Forkop " + constants.FORKOP_VERSION);
     bytecode.invalidate_validation_stamp();
     for (let path in paths.obsolete)
         remove(path);
@@ -113,7 +115,6 @@ function luci_postinst() {
     restart_state_service();
     if (exists(paths.rpcd_init))
         exec.ok([ paths.rpcd_init, "reload" ]);
-    exec.log("info", "Package defaults applied");
     return 0;
 }
 

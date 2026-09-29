@@ -30,7 +30,7 @@ function requirements(version_text, handlers) {
     fixture.seed({ settings: {}, section: [ { ".name": "p", action: "connection", enabled: "1", selector_proxy_links: [ "socks5://127.0.0.1:1080" ] } ] });
     let logs = [];
     stub.commands([
-        [ "logger", (argv) => { push(logs, argv[3]); return { status: 0 }; } ],
+        stub.logger(logs),
         ...(handlers ?? [])
     ]);
     let error = null;
@@ -70,7 +70,7 @@ function built_with(tags_line) {
 t.test("a core without the Clash API is refused with the tag it lacks", () => {
     let result = built_with("Tags: with_quic,with_utls");
     t.contains(result.error, "sing-box was built without with_clash_api");
-    t.contains(result.logs, "[error] " + result.error);
+    t.eq(result.logs, [], "the start that asked logs the refusal, once");
 });
 
 t.test("a core whose tags cannot be read is refused", () => {

@@ -151,10 +151,12 @@ function translate(pattern) {
     return { source: result, flags };
 }
 
-// The compiled filter, or dies with the reason it cannot be one.
+// The compiled filter, or dies with the reason it cannot be one. The
+// translation is inside the try: ucode hands a try the exception of a `let`
+// initializer right before it, with a function in place of the error.
 function compile(pattern) {
-    let translated = translate(pattern);
     try {
+        let translated = translate(pattern);
         return regexp(translated.source, translated.flags);
     }
     catch (e) {

@@ -328,7 +328,7 @@ t.test("Tailscale tunnel self detour", () => {
                 "tailscale_detour_section": "proxy"
             }
         ]
-    }, "cannot use itself for the Tailscale control plane");
+    }, "cannot carry its own Tailscale control plane");
 });
 
 t.test("bad DNS fallback strategy", () => {
@@ -344,7 +344,7 @@ t.test("bad DNS fallback strategy", () => {
             "dns_main_fallback_strategy": "random"
         },
         "section": []
-    }, "Unsupported DNS fallback strategy 'random'");
+    }, "Unsupported value 'random' of 'Main DNS Query Mode' in Settings");
 });
 
 t.test("bad DNS server", () => {
@@ -422,7 +422,7 @@ t.test("DNS detour bypass", () => {
                 "action": "bypass"
             }
         ]
-    }, "unsupported action 'bypass'");
+    }, "whose action is 'bypass'");
 });
 
 t.test("bad direct action", () => {
@@ -438,7 +438,7 @@ t.test("bad direct action", () => {
     }, "unsupported action 'direct'");
 });
 
-t.test("an empty Connection rule is accepted and logged as an error", () => {
+t.test("a Connection section without servers is accepted and skipped with a warning", () => {
     let result = v.accepts({
         "settings": {},
         "section": [
@@ -449,7 +449,7 @@ t.test("an empty Connection rule is accepted and logged as an error", () => {
             }
         ]
     });
-    t.contains(result.logs, "[error] Connection rule 'empty' has no configured outbounds.");
+    t.contains(result.logs, "[warn] Section 'empty' has no servers and is skipped");
 });
 
 t.test("bad DNS rule server", () => {
@@ -506,7 +506,7 @@ t.test("bad DNS rule fallback strategy", () => {
                 ]
             }
         ]
-    }, "unsupported fallback strategy 'random'");
+    }, "unsupported DNS query mode 'random'");
 });
 
 t.test("DNS rule without domain matchers", () => {
@@ -564,7 +564,7 @@ t.test("DNS rule unsupported detour", () => {
                 ]
             }
         ]
-    }, "unsupported action 'bypass'");
+    }, "whose action is 'bypass'");
 });
 
 t.test("bad interface resolver server", () => {
@@ -614,7 +614,7 @@ t.test("bad interface resolver query mode", () => {
                 "domain_resolver_dns_fallback_strategy": "random"
             }
         ]
-    }, "unsupported fallback strategy 'random'");
+    }, "unsupported DNS query mode 'random'");
 });
 
 t.test("interface resolver detour without a section", () => {
@@ -665,7 +665,7 @@ t.test("interface resolver detour through its own section", () => {
                 "domain_resolver_dns_detour_section": "vpn"
             }
         ]
-    }, "cannot use its own section as a DNS detour");
+    }, "cannot send DNS through its own section");
 });
 
 t.test("interface resolver detour with an unsupported action", () => {
@@ -699,7 +699,7 @@ t.test("interface resolver detour with an unsupported action", () => {
                 "domain_resolver_dns_detour_section": "bypass"
             }
         ]
-    }, "unsupported action 'bypass'");
+    }, "whose action is 'bypass'");
 });
 
 t.test("bad port", () => {
@@ -736,7 +736,7 @@ t.test("bad subscription", () => {
                 "tag": "sub1"
             }
         ]
-    }, "Configure User-Agent in the subscription headers");
+    }, "set the User-Agent in the subscription headers instead");
 });
 
 t.test("bad local subscription", () => {
@@ -790,7 +790,7 @@ t.test("bad latency URL", () => {
             "latency_test_url": "ftp://example.com/ping"
         },
         "section": []
-    }, "settings.latency_test_url");
+    }, "'Latency test URL' in Settings");
 });
 
 t.test("bad URLTest tolerance", () => {
@@ -832,7 +832,7 @@ t.test("bad URLTest expected status", () => {
                 "expected_status": "600"
             }
         ]
-    }, "invalid expected_status");
+    }, "Invalid 'Expected status'");
 });
 
 t.test("URLTest interval longer than idle timeout", () => {
@@ -853,7 +853,7 @@ t.test("URLTest interval longer than idle timeout", () => {
                 "check_interval": "31m"
             }
         ]
-    }, "check interval longer than its idle timeout");
+    }, "is longer than its idle timeout");
 });
 
 t.test("a URLTest interval that is not a duration names its option", () => {
@@ -874,7 +874,7 @@ t.test("a URLTest interval that is not a duration names its option", () => {
                 "check_interval": "soon"
             }
         ]
-    }, "rule.proxy.urltest.fast.check_interval");
+    }, "'Check interval' of URLTest 'Fast' in section 'proxy'");
 });
 
 t.test("reality server without an SNI", () => {
@@ -1088,7 +1088,7 @@ t.test("bad server routing bypass", () => {
                 "uuid": "11111111-1111-4111-8111-111111111111"
             }
         ]
-    }, "unsupported action 'bypass'");
+    }, "whose action is 'bypass'");
 });
 
 t.test("bad server routing block", () => {
@@ -1122,7 +1122,7 @@ t.test("bad server routing block", () => {
                 "uuid": "11111111-1111-4111-8111-111111111111"
             }
         ]
-    }, "unsupported action 'block'");
+    }, "whose action is 'block'");
 });
 
 t.test("server without clients", () => {
@@ -1410,7 +1410,7 @@ t.test("bad detour", () => {
                 "outbound_detour_section": "first"
             }
         ]
-    }, "creates a cycle");
+    }, "loops back through section");
 });
 
 t.test("bad list reference", () => {
@@ -1448,7 +1448,7 @@ t.test("bad filter regex", () => {
                 "include_regex": "["
             }
         ]
-    }, "Invalid URLTest regular expression");
+    }, "Invalid regular expression");
 });
 
 t.test("bad filter mode", () => {

@@ -11,6 +11,11 @@ return {
     FORKOP_RELEASE_REPO: "ushan0v/forkop",
     FORKOP_LUCI_VIEW_DIR: "/www/luci-static/resources/view/forkop",
     FORKOP_LUCI_I18N_DOMAIN: "forkop",
+    // The log lines the Logs tab shows, as a logread pattern: what Forkop and
+    // sing-box write, and what procd says about their processes. A tag is
+    // matched at the start of the message, so a LuCI login on a Forkop page or
+    // a cron run of a Forkop command stays out.
+    FORKOP_LOG_PATTERN: "^\\(forkop\\|sing-box\\)\\|^procd: .*\\(forkop\\|sing-box\\)",
 
     RT_TABLE_NAME: "forkop",
 

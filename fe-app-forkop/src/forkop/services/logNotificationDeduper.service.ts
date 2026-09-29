@@ -1,10 +1,12 @@
 import { getSessionStorage } from './sessionStorage.service';
 const LOG_NOTIFICATION_STORAGE_KEY = 'forkop:shown-log-error-notifications:v1';
 const MAX_STORED_LOG_NOTIFICATIONS = 500;
-const FORKOP_LOG_SOURCE_PATTERN = /\bforkop(?:\[\d+\])?:/i;
+// A Forkop error as logread prints it: the date, the facility, the tag and the
+// level before the message the alert shows.
+const FORKOP_ERROR_LINE_PATTERN = /\bforkop(?:\[\d+\])?:\s+\[error\]\s+(.*)$/i;
 
 export type ForkopLogNotification =
-  | { kind: 'error'; line: string }
+  | { kind: 'error'; line: string; message: string }
   | {
       kind: 'component-update';
       line: string;
@@ -43,18 +45,15 @@ function writeStoredKeys(storage: Storage | null, keys: string[]) {
 }
 
 export function isErrorLogLine(line: string) {
-  const lower = line.toLowerCase();
-  return (
-    FORKOP_LOG_SOURCE_PATTERN.test(line) &&
-    (lower.includes('[error]') || lower.includes('[fatal]'))
-  );
+  return FORKOP_ERROR_LINE_PATTERN.test(line);
 }
 
 export function getForkopLogNotification(
   line: string,
 ): ForkopLogNotification | null {
-  if (isErrorLogLine(line)) {
-    return { kind: 'error', line };
+  const error = line.match(FORKOP_ERROR_LINE_PATTERN);
+  if (error) {
+    return { kind: 'error', line, message: error[1].trim() };
   }
 
   const update = line.match(

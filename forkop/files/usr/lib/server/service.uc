@@ -33,6 +33,11 @@ function get(name, key, fallback) {
     return value == "" ? (fallback ?? "") : value;
 }
 
+// How the page names a server.
+function label(name) {
+    return get(name, "label", name);
+}
+
 function set_if_empty(name, key, value) {
     if (value != "" && get(name, key) == "" && uci.set(CONFIG_NAME + "." + name + "." + key, value))
         changed = true;
@@ -161,18 +166,18 @@ function prepare_certificate(name, security) {
         return;
 
     if (!valid_file_path(certificate_path))
-        die("Server '" + name + "' has invalid TLS certificate path. Specify a file path. Aborted.");
+        die("Server '" + label(name) + "' has an invalid TLS certificate path. Enter the path of a file");
     if (!valid_file_path(key_path))
-        die("Server '" + name + "' has invalid TLS key path. Specify a file path. Aborted.");
+        die("Server '" + label(name) + "' has an invalid TLS key path. Enter the path of a file");
     if (certificate_path == key_path)
-        die("Server '" + name + "' has the same TLS certificate and key path. Specify different files. Aborted.");
+        die("Server '" + label(name) + "' uses the same path for its TLS certificate and key. Enter different files");
 
     if (!certificate_is_managed(certificate_path, key_path) || !certificate_needs_replacement(certificate_path, key_path))
         return;
 
-    exec.log("info", "Generating self-signed TLS certificate for server '" + name + "'");
     if (!issue_certificate_files(certificate_subject(name), certificate_path, key_path))
-        die("Failed to generate TLS certificate for server '" + name + "'. Aborted.");
+        die("Failed to issue a TLS certificate for server '" + label(name) + "'");
+    exec.log("info", "Issued a self-signed TLS certificate for server '" + label(name) + "'");
 }
 
 // sing-box invents a host key when it is given none, a new one on every start,
@@ -200,11 +205,12 @@ function write_ssh_host_key(key_path) {
 function prepare_ssh_host_keys(name) {
     for (let key_path in common.words(get(name, "ssh_host_key_path"))) {
         if (!valid_file_path(key_path))
-            die("Server '" + name + "' has invalid SSH host key path. Specify a file path. Aborted.");
+            die("Server '" + label(name) + "' has an invalid SSH host key path. Enter the path of a file");
         if (nonempty_file(key_path))
             continue;
         if (!write_ssh_host_key(key_path))
-            die("Failed to generate persistent SSH host key for server '" + name + "'. Aborted.");
+            die("Failed to generate an SSH host key for server '" + label(name) + "'");
+        exec.log("info", "Generated an SSH host key for server '" + label(name) + "'");
     }
 }
 
@@ -240,9 +246,9 @@ function prepare_clients(name, protocol) {
     for (let client in clients_of(name)) {
         let client_name = trim(get(client, "name"));
         if (servers.LOGIN_NAME_PROTOCOLS[protocol])
-            client_name = login_safe_name(client_name, login_safe_name(get(name, "label", name), file_name(name)));
+            client_name = login_safe_name(client_name, login_safe_name(label(name), file_name(name)));
         else if (client_name == "")
-            client_name = get(name, "label", name);
+            client_name = label(name);
         set_value(client, "name", client_name);
 
         if (protocol == "mtproto") {
@@ -262,7 +268,7 @@ function prepare_server(name) {
         return;
     let protocol = get(name, "protocol", "vless");
     if (servers.CLIENT_FIELDS[protocol] == null)
-        die("Server '" + name + "' has unsupported protocol '" + protocol + "'. Aborted.");
+        die("Server '" + label(name) + "' uses unsupported protocol '" + protocol + "'");
 
     set_if_empty(name, "protocol", protocol);
     set_if_empty(name, "label", name);
@@ -293,9 +299,11 @@ function remove_orphaned_clients(names) {
         let owner = get(client, "server");
         if (owner != "" && index(names, owner) >= 0)
             continue;
-        exec.log("info", "Removing client '" + client + "' of a server that no longer exists");
-        if (uci.delete(CONFIG_NAME + "." + client))
-            changed = true;
+        let client_name = get(client, "name", client);
+        if (!uci.delete(CONFIG_NAME + "." + client))
+            continue;
+        changed = true;
+        exec.log("info", "Removed client '" + client_name + "' of a server that no longer exists");
     }
 }
 
@@ -328,8 +336,8 @@ function remove_orphaned_files(names) {
             let stat = fs.stat(path);
             if (owned[path] || stat?.type != "file" || time() - stat.mtime < ORPHAN_MIN_AGE)
                 continue;
-            exec.log("info", "Removing '" + path + "' of a server that no longer exists");
-            fs.unlink(path);
+            if (fs.unlink(path))
+                exec.log("info", "Removed " + path + " of a server that no longer exists");
         }
 }
 
@@ -404,7 +412,7 @@ function reload_firewall() {
     if (!executable(paths.firewall_init) || !exec.ok([ "nft", "list", "chain", "inet", "fw4", "input" ]))
         return;
     if (!exec.ok([ paths.firewall_init, "reload" ]))
-        exec.log("warn", "Failed to reload the firewall; server ports stay closed until it is reloaded");
+        exec.log("warn", "Failed to reload the firewall; the server ports stay as they were until it is reloaded");
 }
 
 // The firewall is reloaded whenever the loaded chain disagrees with the file, not
@@ -419,7 +427,7 @@ function sync_firewall(clear) {
         if (wanted == "")
             fs.unlink(paths.firewall_include);
         else if (!common.write_file_atomic(paths.firewall_include, wanted)) {
-            exec.log("warn", "Failed to write " + paths.firewall_include);
+            exec.log("warn", "Failed to write the firewall rules of the server ports to " + paths.firewall_include);
             return;
         }
     }

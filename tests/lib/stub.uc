@@ -128,6 +128,11 @@ function calls() {
     return state == null ? [] : state.calls;
 }
 
+// A handler that keeps the "[level] message" of every line Forkop logs.
+function logger(lines) {
+    return [ "logger", (argv) => { push(lines, argv[length(argv) - 1]); return { status: 0 }; } ];
+}
+
 // Every recorded argv joined with spaces, which is what most assertions read.
 function command_lines() {
     let result = [];
@@ -208,4 +213,4 @@ function tmpdir() {
     return path;
 }
 
-return { split_shell, commands, calls, command_lines, env, clock, capture, fresh, restore, tmpdir, real };
+return { split_shell, commands, calls, logger, command_lines, env, clock, capture, fresh, restore, tmpdir, real };

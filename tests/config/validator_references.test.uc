@@ -15,17 +15,17 @@ function cascade(from, to) {
 t.test("a cascade points at another enabled Connection section with servers, without a cycle", () => {
     v.accepts({ section: [ section("source", "connection", cascade("source", "target")), section("target", "connection", SERVED) ] });
     v.refuses({ section: [ section("source", "zapret", cascade("source", "target")), section("target", "connection", SERVED) ] },
-        "supported only for Connection rules");
-    v.refuses({ section: [ section("source", "connection", cascade("source", "missing")) ] }, "references missing rule 'missing'");
+        "An outbound cascade needs a Connection section");
+    v.refuses({ section: [ section("source", "connection", cascade("source", "missing")) ] }, "points to section 'missing', which does not exist");
     v.refuses({ section: [ section("source", "connection", cascade("source", "target")), section("target", "connection", { ...SERVED, enabled: "0" }) ] },
-        "references disabled rule 'target'");
+        "points to section 'target', which is disabled");
     v.refuses({ section: [ section("source", "connection", cascade("source", "target")), section("target", "zapret") ] },
-        "references rule 'target' with unsupported action 'zapret'");
+        "points to section 'target', whose action is 'zapret'");
     v.refuses({ section: [ section("source", "connection", cascade("source", "target")), section("target", "connection") ] },
-        "references rule 'target', which has no servers");
-    v.refuses({ section: [ section("source", "connection", cascade("source", "source")) ] }, "cannot point to itself");
+        "points to section 'target', which has no servers");
+    v.refuses({ section: [ section("source", "connection", cascade("source", "source")) ] }, "cannot point to its own section");
     v.refuses({ section: [ section("first", "connection", cascade("first", "second")), section("second", "connection", cascade("second", "first")) ] },
-        "creates a cycle through 'second'");
+        "loops back through section 'second'");
 });
 
 // The runtime leaves out a Connection section without servers, so everything
@@ -43,10 +43,10 @@ t.test("no reference may lead to a section without servers", () => {
         { section: [ empty ], server: [ { ".name": "srv", enabled: "1", protocol: "mixed", listen_port: "18080", routing_mode: "direct" } ],
             server_client: [ { ".name": "srv_one", server: "srv", name: "one", password: "secret", routing_override: "1", routing_mode: "section", routing_section: "empty" } ] }
     ])
-        v.refuses(data, "references rule 'empty', which has no servers");
+        v.refuses(data, "points to section 'empty', which has no servers");
     v.refuses({ section: [ empty ], server: [ { ".name": "srv", enabled: "1", protocol: "mixed", listen_port: "18080", routing_mode: "direct" } ],
         server_client: [ { ".name": "srv_one", server: "srv", name: "one", password: "secret", routing_override: "1", routing_mode: "section", routing_section: "gone" } ] },
-        "Server 'srv' client 'one' references missing rule 'gone'");
+        "Server 'srv' client 'one' points to section 'gone', which does not exist");
 });
 
 function download_through(target, sections) {
@@ -62,9 +62,9 @@ t.test("downloads go through an enabled section with servers", () => {
         v.accepts(download_through(action, [ section(action, action, sources) ]));
     v.accepts({ ...download_through("vpn", [ section("vpn", "vpn") ]), section_interface: [ { ".name": "vpn_wg0", section: "vpn", name: "wg0" } ] });
     v.refuses(download_through("", [ section("proxy", "proxy") ]), "no download section is selected");
-    v.refuses(download_through("missing", [ section("proxy", "proxy") ]), "references missing rule 'missing'");
-    v.refuses(download_through("proxy", [ section("proxy", "proxy", { ...served.proxy, enabled: "0" }) ]), "references disabled rule 'proxy'");
-    v.refuses(download_through("bypass", [ section("bypass", "bypass") ]), "with unsupported action 'bypass'");
+    v.refuses(download_through("missing", [ section("proxy", "proxy") ]), "points to section 'missing', which does not exist");
+    v.refuses(download_through("proxy", [ section("proxy", "proxy", { ...served.proxy, enabled: "0" }) ]), "points to section 'proxy', which is disabled");
+    v.refuses(download_through("bypass", [ section("bypass", "bypass") ]), "whose action is 'bypass'");
 });
 
 function with_rule_sets(key, values) {
