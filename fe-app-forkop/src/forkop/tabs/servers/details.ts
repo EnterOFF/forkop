@@ -5,7 +5,18 @@ import {
   loadLinkContext,
 } from './links';
 import { getListenPort, getPublicHost } from './network';
-import { getServerName, isAuthenticationEnabled } from './protocols';
+import {
+  buildOpenVPNProfile,
+  downloadProfile,
+  loadOpenVPNMaterial,
+} from './profile';
+import type { OpenVPNMaterial } from './profile';
+import {
+  getProtocol,
+  getServerName,
+  isAuthenticationEnabled,
+  usesProfile,
+} from './protocols';
 import { qrSvgDataUri } from './qr';
 import { E } from '../../../helpers/element';
 
@@ -48,6 +59,11 @@ const ICON_PATHS: Record<string, IconPath[]> = {
     ['circle', { cx: '12', cy: '12', r: '10' }],
     ['path', { d: 'M12 16v-4' }],
     ['path', { d: 'M12 8h.01' }],
+  ],
+  download: [
+    ['path', { d: 'M12 15V3' }],
+    ['path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }],
+    ['path', { d: 'm7 10 5 5 5-5' }],
   ],
 };
 
@@ -145,8 +161,7 @@ function injectDetailsStyles() {
 
 // A copy control stays a copy control: the toast says what happened, and swapping
 // the icon for a tick is not something the rest of the app does.
-function renderCopyButton(value: string) {
-  const label = _('Copy');
+function renderCopyButton(value: string, label = _('Copy')) {
   const button = E(
     'button',
     {
@@ -266,6 +281,60 @@ function renderLinkRow(value: string, qrCaption?: LinkCaption) {
   ]);
 }
 
+// The profile of an OpenVPN client: its file name in the field, saved by one
+// button and copied as text by the other. A profile does not fit a QR code a
+// phone can read, and no OpenVPN client imports one from a code anyway.
+function renderProfileRow(profile: string, name: string) {
+  const input = E('input', {
+    type: 'text',
+    class: 'cbi-input-text fkp-details__value',
+    readonly: 'readonly',
+    spellcheck: 'false',
+    value: name,
+  });
+  const label = _('Download the profile');
+  return E('div', { class: 'fkp-details__link' }, [
+    input,
+    E(
+      'button',
+      {
+        class: 'btn cbi-button cbi-button-neutral fkp-details__action',
+        type: 'button',
+        title: label,
+        'aria-label': label,
+        click: (ev: Event) => {
+          ev.preventDefault();
+          downloadProfile(profile, name);
+        },
+      },
+      iconSvg('download'),
+    ),
+    renderCopyButton(profile, _('Copy the profile')),
+  ]);
+}
+
+function renderProfileDetails(
+  sectionId: string,
+  client: ServerClient,
+  material: OpenVPNMaterial,
+) {
+  const result = buildOpenVPNProfile(sectionId, client, material);
+  return E('div', { class: 'fkp-details__client' }, [
+    E('div', { class: 'fkp-details__name' }, client.name),
+    'profile' in result
+      ? renderProfileRow(result.profile, result.fileName)
+      : E(
+          'div',
+          { class: 'fkp-details__empty' },
+          result.missing === 'address'
+            ? _('Set the public host and the port to get a profile.')
+            : _(
+                'The router issues the certificate of this client when the settings are applied. Apply them to get a profile.',
+              ),
+        ),
+  ]);
+}
+
 // Why a client has no link: a credential the link needs, or the address it points
 // at, is still missing.
 function missingLinkReason(sectionId: string, client: ServerClient) {
@@ -361,6 +430,7 @@ export function renderDetailsContent(
   context: ShareLinkContext,
 ) {
   const children = [];
+  const profiles = usesProfile(getProtocol(sectionId));
 
   const entries = detailsEntries(sectionId, clients);
 
@@ -380,7 +450,9 @@ export function renderDetailsContent(
         'div',
         { class: 'fkp-details__clients' },
         entries.map((client: ServerClient) =>
-          renderClientDetails(sectionId, client, context),
+          profiles
+            ? renderProfileDetails(sectionId, client, context.openvpn || {})
+            : renderClientDetails(sectionId, client, context),
         ),
       ),
     );
@@ -394,6 +466,17 @@ export function showServerDetailsModal(
   clients: ServerClient[],
 ) {
   injectDetailsStyles();
+
+  // A profile holds what the router issued, so the dialog waits for it rather
+  // than open on a list that says every certificate is missing.
+  if (usesProfile(getProtocol(sectionId))) {
+    return loadOpenVPNMaterial().then((openvpn) => {
+      ui.showModal(_('Server details: %s').format(getServerName(sectionId)), [
+        renderDetailsContent(sectionId, clients, { openvpn }),
+        renderCloseRow(),
+      ]);
+    });
+  }
 
   // Everything but the certificate fingerprint is already known, so the dialog
   // opens filled in and the Hysteria2 links gain their pin a moment later.

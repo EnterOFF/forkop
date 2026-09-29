@@ -213,7 +213,7 @@ function inbounds() {
         let public_host = common.option(section, "public_host", "");
         let required_proto = protocol == "json_inbound" ? "" : join(" ", runtime_servers.listen_transports(section));
         let expected_type = inbounds_check.runtime_type(protocol);
-        let runtime = config_status.summary(config, protocol == "tailscale" ? "endpoints" : "inbounds", label);
+        let runtime = config_status.summary(config, inbounds_check.runtime_kind(protocol), label);
 
         let listening = -1, firewall_required = 0, firewall_is_open = -1, conflict_owners = "";
         if (protocol != "tailscale" && protocol != "json_inbound") {

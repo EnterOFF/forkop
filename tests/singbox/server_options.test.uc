@@ -119,6 +119,17 @@ const SERVERS = {
             protocol: "tailscale", tailscale_auth_key: "tskey-auth-contract", tailscale_hostname: "forkop",
             tailscale_control_url: "https://controlplane.tailscale.com", tailscale_accept_routes: "1",
             tailscale_ephemeral: "1", tailscale_advertise_routes: [ "192.168.1.0/24" ], routing_mode: "direct"
+        },
+        {
+            ".name": "openvpn_srv", ".type": "server", enabled: "1", label: "openvpn", protocol: "openvpn",
+            listen: "::", listen_port: "20013", openvpn_network: "udp", openvpn_address: [ "10.8.0.1/24", "fd00:8::1/64" ],
+            openvpn_certificate: "CERT", openvpn_key: "KEY", openvpn_tls_crypt_key: "TLSCRYPT", routing_mode: "direct"
+        },
+        {
+            ".name": "openvpn_split", ".type": "server", enabled: "1", label: "openvpn split", protocol: "openvpn",
+            listen: "::", listen_port: "20017", openvpn_network: "tcp", openvpn_address: [ "10.9.0.1/24" ],
+            openvpn_redirect_gateway: "0", openvpn_routes: [ "192.168.1.0/24" ],
+            openvpn_certificate: "CERT", openvpn_key: "KEY", openvpn_tls_crypt_key: "TLSCRYPT", routing_mode: "direct"
         }
     ],
     server_client: [
@@ -175,6 +186,14 @@ const SERVERS = {
         {
             ".name": "c_mtproto", ".type": "server_client", server: "mtproto_srv", name: "phone",
             secret: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+            ".name": "c_openvpn", ".type": "server_client", server: "openvpn_srv", name: "phone",
+            openvpn_certificate: "C", openvpn_key: "K", openvpn_certificate_sha256: "ab"
+        },
+        {
+            ".name": "c_openvpn_split", ".type": "server_client", server: "openvpn_split", name: "phone",
+            openvpn_certificate: "C", openvpn_key: "K", openvpn_certificate_sha256: "cd"
         }
     ]
 };
@@ -223,7 +242,7 @@ function unknown_keys(node, allowed, trail) {
 t.test("every protocol the tab serves produces a listener", () => {
     let types = uniq(map(listeners, (item) => item.type));
     for (let expected in [ "mixed", "vless", "vmess", "trojan", "shadowsocks", "hysteria2",
-        "tuic", "anytls", "naive", "ssh", "mieru", "mtproxy", "tailscale" ])
+        "tuic", "anytls", "naive", "ssh", "mieru", "mtproxy", "tailscale", "openvpn-server" ])
         t.contains(types, expected);
 });
 

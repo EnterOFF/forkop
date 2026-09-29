@@ -276,7 +276,9 @@ function firewall_servers() {
         { ".name": "fw_closed", protocol: "vless", listen_port: "31004", open_firewall: "0" },
         { ".name": "fw_off", protocol: "vless", listen_port: "31005", enabled: "0" },
         { ".name": "fw_tailscale", protocol: "tailscale", listen_port: "31006" },
-        { ".name": "fw_ss", protocol: "shadowsocks", listen_port: "31007" }
+        { ".name": "fw_ss", protocol: "shadowsocks", listen_port: "31007" },
+        { ".name": "fw_openvpn", protocol: "openvpn", listen_port: "31008" },
+        { ".name": "fw_openvpn_tcp", protocol: "openvpn", openvpn_network: "tcp", listen_port: "31009" }
     ];
 }
 
@@ -286,8 +288,8 @@ t.test("the firewall include opens the ports of enabled servers for the protocol
     stub.commands(TOOLS);
     server.sync_firewall(false);
     let include = fs.readfile(server.paths.firewall_include);
-    t.contains(include, "meta l4proto tcp th dport { 31001, 31003, 31007 } counter accept comment \"forkop: server ports\"");
-    t.contains(include, "meta l4proto udp th dport { 31002, 31003, 31007 } counter accept comment \"forkop: server ports\"");
+    t.contains(include, "meta l4proto tcp th dport { 31001, 31003, 31007, 31009 } counter accept comment \"forkop: server ports\"");
+    t.contains(include, "meta l4proto udp th dport { 31002, 31003, 31007, 31008 } counter accept comment \"forkop: server ports\"");
     t.excludes(include, "31004");
     t.excludes(include, "31005");
     t.excludes(include, "31006");
@@ -352,6 +354,57 @@ t.test("files of removed servers go, files a server points at or is named for st
     for (let path in [ certs + "/handmade.crt", certs + "/handmade.key", keys + "/handmade.key",
         dir + "/elsewhere/private.crt", certs + "/fw_certs.crt", keys + "/fw_ssh.key", certs + "/unsaved.crt" ])
         t.ok(fs.stat(path) != null, "kept: " + path);
+});
+
+const HELLO_SHA256 = "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+function openvpn_configuration() {
+    return {
+        settings: {},
+        server: [ { ".name": "office", label: "Office", protocol: "openvpn", openvpn_address: [ "10.8.0.1/24" ] } ],
+        server_client: [
+            { ".name": "laptop", server: "office", name: "Ноутбук" },
+            { ".name": "phone", server: "office", name: "Phone", openvpn_certificate: "-----BEGIN CERTIFICATE-----\naGVsbG8=\n-----END CERTIFICATE-----",
+                openvpn_key: "-----BEGIN PRIVATE KEY-----\nown\n-----END PRIVATE KEY-----" }
+        ]
+    };
+}
+
+t.test("an OpenVPN server gets its certificate, its tls-crypt key and one certificate per client, each named after its section", () => {
+    fresh_paths();
+    prepared(openvpn_configuration());
+    t.eq(issued, [ "generate tls-keypair office --months 1200", "generate tls-keypair laptop --months 1200" ]);
+    t.eq(value("office", "openvpn_certificate"), "-----BEGIN CERTIFICATE-----\naGVsbG8=\n-----END CERTIFICATE-----");
+    t.eq(value("office", "openvpn_key"), "-----BEGIN PRIVATE KEY-----\nkey-body\n-----END PRIVATE KEY-----");
+    t.eq(value("office", "openvpn_network"), "udp");
+    let key = split(value("office", "openvpn_tls_crypt_key"), "\n");
+    t.eq([ key[0], key[17], length(key) ], [ "-----BEGIN OpenVPN Static key V1-----", "-----END OpenVPN Static key V1-----", 18 ]);
+    t.eq(filter(slice(key, 1, 17), (line) => match(line, /^[0-9a-f]{32}$/) == null), [], "16 lines of 32 hex digits");
+
+    t.eq(value("laptop", "name"), "Ноутбук", "a client is shown under any name");
+    t.eq([ value("laptop", "openvpn_key"), value("laptop", "openvpn_certificate_sha256") ],
+        [ "-----BEGIN PRIVATE KEY-----\nkey-body\n-----END PRIVATE KEY-----", HELLO_SHA256 ]);
+    t.eq([ value("phone", "openvpn_key"), value("phone", "openvpn_certificate_sha256") ],
+        [ "-----BEGIN PRIVATE KEY-----\nown\n-----END PRIVATE KEY-----", HELLO_SHA256 ],
+        "a client that has a certificate keeps it and gets its fingerprint");
+});
+
+t.test("an OpenVPN server prepared once keeps every certificate and key it was given", () => {
+    fresh_paths();
+    prepared(openvpn_configuration());
+    let before = map([ "office.openvpn_certificate", "office.openvpn_tls_crypt_key", "laptop.openvpn_certificate" ],
+        (path) => core_uci.get("forkop." + path));
+    uci.__seed("forkop", uci.__sections("forkop"));
+    core_uci.reset();
+    let commits = length(uci.__commits());
+    issued = [];
+    stub.commands(TOOLS);
+    server.prepare();
+    stub.restore();
+    t.eq(issued, []);
+    t.eq(length(uci.__commits()), commits, "nothing is committed");
+    t.eq(map([ "office.openvpn_certificate", "office.openvpn_tls_crypt_key", "laptop.openvpn_certificate" ],
+        (path) => core_uci.get("forkop." + path)), before);
 });
 
 t.test("a configuration without servers loses no file and no account", () => {

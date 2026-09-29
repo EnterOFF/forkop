@@ -23,6 +23,10 @@ let paths = {
 // again a month before it would.
 const CERTIFICATE_MONTHS = 120;
 const CERTIFICATE_RENEW_SECONDS = 30 * 24 * 3600;
+// Every profile of an OpenVPN server carries its certificate, and a client
+// checks the expiry of what it was given: a certificate issued again would
+// leave every profile handed out before it unable to connect.
+const OPENVPN_CERTIFICATE_MONTHS = 1200;
 const ORPHAN_MIN_AGE = 3600;
 const FIREWALL_COMMENT = singbox_constants.SERVER_FIREWALL_COMMENT;
 
@@ -130,10 +134,8 @@ function certificate_needs_replacement(certificate_path, key_path) {
     return match(stamp, /^[0-9]+$/) == null || int(stamp) - time() < CERTIFICATE_RENEW_SECONDS;
 }
 
-function certificate_sha256_of(path) {
-    if (!valid_file_path(path))
-        return "";
-    let pem = pem_block(fs.readfile(path), "CERTIFICATE");
+function pem_sha256(text) {
+    let pem = pem_block(text, "CERTIFICATE");
     let der = pem == "" ? null : b64dec(replace(replace(pem, /-----[A-Z ]+-----/g, ""), /[\r\n\t ]/g, ""));
     if (der == null || der == "")
         return "";
@@ -146,6 +148,10 @@ function certificate_sha256_of(path) {
     fs.unlink(temporary);
     let fingerprint = split(trim(output ?? ""), " ")[0];
     return match(fingerprint, /^[0-9a-f]{64}$/) ? fingerprint : "";
+}
+
+function certificate_sha256_of(path) {
+    return valid_file_path(path) ? pem_sha256(fs.readfile(path)) : "";
 }
 
 // What a client checks the certificate against: the SNI, else the address the
@@ -218,6 +224,68 @@ function clients_of(name) {
     return filter(section_names("server_client"), (client) => get(client, "server") == name);
 }
 
+function openvpn_keypair(subject) {
+    let output = exec.output([ "sing-box", "generate", "tls-keypair", subject, "--months", "" + OPENVPN_CERTIFICATE_MONTHS ]);
+    let key = pem_block(output, "PRIVATE KEY");
+    let certificate = pem_block(output, "CERTIFICATE");
+    return key == "" || certificate == "" ? null : { key, certificate };
+}
+
+// The key of tls-crypt: 2048 random bits in the text form OpenVPN writes them.
+function openvpn_static_key() {
+    let random = fs.open("/dev/urandom", "r");
+    let bytes = random?.read(256);
+    random?.close();
+    if (length(bytes ?? "") != 256)
+        return "";
+    let lines = [ "-----BEGIN OpenVPN Static key V1-----" ];
+    for (let offset = 0; offset < 256; offset += 16) {
+        let line = "";
+        for (let i = offset; i < offset + 16; i++)
+            line += sprintf("%02x", ord(bytes, i));
+        push(lines, line);
+    }
+    push(lines, "-----END OpenVPN Static key V1-----");
+    return join("\n", lines);
+}
+
+// The server certificate, its tls-crypt key and a certificate for every client
+// that has none yet. A client is its certificate: the server trusts only the
+// fingerprints of those it issued, and each is named after the section it
+// belongs to, which the name a client is shown under is not bound by.
+function prepare_openvpn(name) {
+    if (get(name, "openvpn_certificate") == "" || get(name, "openvpn_key") == "") {
+        let pair = openvpn_keypair(file_name(name));
+        if (pair == null)
+            die("Failed to issue the OpenVPN certificate of server '" + label(name) + "'");
+        set_value(name, "openvpn_certificate", pair.certificate);
+        set_value(name, "openvpn_key", pair.key);
+        exec.log("info", "Issued the OpenVPN certificate of server '" + label(name) + "'");
+    }
+    if (get(name, "openvpn_tls_crypt_key") == "") {
+        let key = openvpn_static_key();
+        if (key == "")
+            die("Failed to generate the tls-crypt key of server '" + label(name) + "'");
+        set_value(name, "openvpn_tls_crypt_key", key);
+    }
+
+    for (let client in clients_of(name)) {
+        let client_name = get(client, "name", client);
+        if (get(client, "openvpn_certificate") == "" || get(client, "openvpn_key") == "") {
+            let pair = openvpn_keypair(file_name(client));
+            if (pair == null)
+                die("Failed to issue the OpenVPN certificate of client '" + client_name + "' of server '" + label(name) + "'");
+            set_value(client, "openvpn_certificate", pair.certificate);
+            set_value(client, "openvpn_key", pair.key);
+            exec.log("info", "Issued an OpenVPN certificate for client '" + client_name + "' of server '" + label(name) + "'");
+        }
+        let fingerprint = pem_sha256(get(client, "openvpn_certificate"));
+        if (fingerprint == "")
+            die("The OpenVPN certificate of client '" + client_name + "' of server '" + label(name) + "' cannot be read");
+        set_value(client, "openvpn_certificate_sha256", fingerprint);
+    }
+}
+
 // An account name goes on the wire, so it is kept to the characters the login
 // protocols carry; a name that already fits is compared byte for byte by them
 // and stays exactly as it was typed.
@@ -283,6 +351,12 @@ function prepare_server(name) {
     }
 
     set_if_empty(name, "listen", "::");
+    if (protocol == "openvpn") {
+        set_if_empty(name, "openvpn_network", "udp");
+        prepare_clients(name, protocol);
+        prepare_openvpn(name);
+        return;
+    }
     if (protocol == "shadowsocks")
         set_if_empty(name, "shadowsocks_method", "2022-blake3-aes-256-gcm");
     if (protocol == "ssh")
@@ -376,9 +450,7 @@ function firewall_ports() {
         if (!match(port, /^[0-9]+$/) || int(port) < 1 || int(port) > 65535)
             continue;
 
-        let network = protocol == "naive" ? get(name, "naive_network", "tcp")
-            : protocol == "mieru" ? get(name, "mieru_transport", "TCP") : "";
-        for (let proto in servers.transports(protocol, network))
+        for (let proto in servers.listen_transports(uci.get_all(CONFIG_NAME, name) ?? {}))
             if (ports[proto] != null && index(ports[proto], port) < 0)
                 push(ports[proto], port);
     }

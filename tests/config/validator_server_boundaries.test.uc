@@ -44,6 +44,28 @@ const reality = {
     reality_short_id: "4aee2254"
 };
 const uuid = "11111111-1111-4111-8111-111111111111";
+function without(object, name) {
+    let result = { ...object };
+    delete result[name];
+    return result;
+}
+
+function static_key() {
+    let lines = [ "-----BEGIN OpenVPN Static key V1-----" ];
+    for (let i = 0; i < 16; i++)
+        push(lines, "0123456789abcdef0123456789abcdef");
+    push(lines, "-----END OpenVPN Static key V1-----");
+    return join("\n", lines);
+}
+
+// What prepare leaves on an OpenVPN server and its clients: the certificate and
+// key sing-box issued, a tls-crypt key and the fingerprint of the client.
+const openvpn = {
+    protocol: "openvpn", listen: "::", openvpn_network: "udp", openvpn_address: [ "10.8.0.1/24" ],
+    openvpn_certificate: fs.readfile(cert), openvpn_key: fs.readfile(key),
+    openvpn_tls_crypt_key: static_key()
+};
+const openvpn_client = { openvpn_certificate: fs.readfile(cert), openvpn_key: fs.readfile(key), openvpn_certificate_sha256: "abababababababababababababababababababababababababababababababab" };
 const key32 = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
 // [ name, refusal fragment or null when the core accepts, server, clients ]
@@ -100,7 +122,34 @@ const cases = [
 
     [ "mtproto without faketls", "needs a FakeTLS host", server({ protocol: "mtproto" }), [ client("m", { secret: "0123456789abcdef0123456789abcdef" }) ] ],
     [ "mtproto secret", "needs a 32 hex character secret",
-        server({ protocol: "mtproto", mtproto_faketls: "google.com" }), [ client("m", { secret: "not-a-secret" }) ] ]
+        server({ protocol: "mtproto", mtproto_faketls: "google.com" }), [ client("m", { secret: "not-a-secret" }) ] ],
+
+    [ "openvpn", null, server(openvpn), [ client("o", openvpn_client) ] ],
+    [ "openvpn over tcp with an ipv6 subnet", null,
+        server({ ...openvpn, openvpn_network: "tcp", openvpn_address: [ "10.8.0.1/24", "fd00:8::1/64" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn routes", null,
+        server({ ...openvpn, openvpn_redirect_gateway: "0", openvpn_routes: [ "192.168.1.0/24", "fd00::/8" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn network", "unsupported openvpn_network", server({ ...openvpn, openvpn_network: "sctp" }), [ client("o", openvpn_client) ] ],
+    [ "openvpn without a subnet", "needs an IPv4 tunnel subnet", server(without(openvpn, "openvpn_address")), [ client("o", openvpn_client) ] ],
+    [ "openvpn ipv6 only", "needs an IPv4 tunnel subnet", server({ ...openvpn, openvpn_address: [ "fd00:8::1/64" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn subnet address", "has to name the address of the server",
+        server({ ...openvpn, openvpn_address: [ "10.8.0.0/24" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn subnet broadcast", "has to name the address of the server",
+        server({ ...openvpn, openvpn_address: [ "10.8.0.255/24" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn ipv6 subnet address", "has to name the address of the server",
+        server({ ...openvpn, openvpn_address: [ "10.8.0.1/24", "fd00:8::/64" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn subnet prefix", "needs a prefix length from 8 to 30",
+        server({ ...openvpn, openvpn_address: [ "10.8.0.1/31" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn two ipv4 subnets", "more than one IPv4 tunnel subnet",
+        server({ ...openvpn, openvpn_address: [ "10.8.0.1/24", "10.9.0.1/24" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn subnet text", "not an address with a prefix length",
+        server({ ...openvpn, openvpn_address: [ "10.8.0.1" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn route", "which is not a subnet",
+        server({ ...openvpn, openvpn_redirect_gateway: "0", openvpn_routes: [ "lan" ] }), [ client("o", openvpn_client) ] ],
+    [ "openvpn client without a certificate", "has no openvpn_certificate",
+        server(openvpn), [ client("o", without(openvpn_client, "openvpn_certificate")) ] ],
+    [ "openvpn server without a key", "has no openvpn_tls_crypt_key",
+        server(without(openvpn, "openvpn_tls_crypt_key")), [ client("o", openvpn_client) ] ]
 ];
 
 function configuration(srv, clients) {

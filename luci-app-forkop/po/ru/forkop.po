@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 08:32+0300\n"
-"PO-Revision-Date: 2026-09-29 08:32+0300\n"
+"POT-Creation-Date: 2026-09-29 08:34+0300\n"
+"PO-Revision-Date: 2026-09-29 08:34+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -167,6 +167,9 @@ msgstr "Добавьте секцию чтобы настроить маршру
 msgid "Add a server inbound"
 msgstr "Добавить серверный inbound"
 
+msgid "Add an IPv4 subnet"
+msgstr "Добавьте подсеть IPv4"
+
 msgid "Add at least one client"
 msgstr "Добавьте хотя бы одного клиента"
 
@@ -184,6 +187,12 @@ msgstr "Добавьте хотя бы одну группу серверов"
 
 msgid "Add at least one WireGuard peer"
 msgstr "Добавьте хотя бы одного пира WireGuard"
+
+msgid "Add at most one IPv4 subnet"
+msgstr "Добавьте не больше одной подсети IPv4"
+
+msgid "Add at most one IPv6 subnet"
+msgstr "Добавьте не больше одной подсети IPv6"
 
 msgid "Add header"
 msgstr "Добавить заголовок"
@@ -242,6 +251,9 @@ msgstr "Все серверы"
 msgid "All traffic from these devices is forced through the section"
 msgstr "Весь трафик этих устройств принудительно пойдёт через секцию"
 
+msgid "All traffic through the server"
+msgstr "Весь трафик через сервер"
+
 msgid "Allowed domain prefixes are full:, keyword:, and regex:"
 msgstr "Разрешённые префиксы доменов: full:, keyword: и regex:"
 
@@ -262,6 +274,12 @@ msgstr "Диапазоны AmneziaWG должны быть от 0 до 429496729
 
 msgid "An extra key shared with this peer"
 msgstr "Дополнительный ключ, общий с этим пиром"
+
+msgid "An IPv4 subnet needs a prefix length from 8 to 30"
+msgstr "Длина префикса подсети IPv4 — от 8 до 30"
+
+msgid "An IPv6 subnet needs a prefix length from 64 to 126"
+msgstr "Длина префикса подсети IPv6 — от 64 до 126"
 
 msgid "Any"
 msgstr "Любой"
@@ -362,6 +380,9 @@ msgstr "Не удалось получить результаты проверк
 msgid "Cascade connection"
 msgstr "Каскадное подключение"
 
+msgid "Certificate"
+msgstr "Сертификат"
+
 msgid "Certificate generated"
 msgstr "Сертификат создан"
 
@@ -439,6 +460,9 @@ msgstr "Клиент: %s"
 
 msgid "Clients"
 msgstr "Клиенты"
+
+msgid "Clients send everything through the router, where the routing mode decides where it goes. Off, they send only the subnets below"
+msgstr "Клиенты отправляют через роутер весь трафик, а куда он пойдёт дальше, решает режим маршрутизации. Если выключено — только подсети ниже"
 
 msgid "Close"
 msgstr "Закрыть"
@@ -547,6 +571,9 @@ msgstr "Копировать найденное"
 
 msgid "Copy proxy link"
 msgstr "Скопировать ссылку прокси"
+
+msgid "Copy the profile"
+msgstr "Скопировать профиль"
 
 msgid "Could not compare FakeIP and control public IPs"
 msgstr "Не удалось сравнить публичные IP FakeIP и контрольной проверки"
@@ -712,6 +739,9 @@ msgstr "Скачивать списки через секцию"
 
 msgid "Download matching"
 msgstr "Скачать найденное"
+
+msgid "Download the profile"
+msgstr "Скачать профиль"
 
 msgid "Download, Mbps"
 msgstr "Приём, Мбит/с"
@@ -1199,6 +1229,9 @@ msgstr "Только IPv4"
 msgid "IPv6 only"
 msgstr "Только IPv6"
 
+msgid "Issued. SHA-256 %s"
+msgstr "Выпущен. SHA-256 %s"
+
 msgid "Issues detected"
 msgstr "Обнаружены проблемы"
 
@@ -1408,6 +1441,9 @@ msgstr "Префикс имени"
 
 msgid "Name suffix"
 msgstr "Суффикс имени"
+
+msgid "Name the address of the server in the subnet, such as %s rather than the subnet itself"
+msgstr "Укажите адрес сервера в подсети, например %s, а не саму подсеть"
 
 msgid "Network"
 msgstr "Сеть"
@@ -1826,6 +1862,9 @@ msgstr "Роутер"
 msgid "router SSH"
 msgstr "SSH роутера"
 
+msgid "Routes"
+msgstr "Маршруты"
+
 msgid "Routing mode"
 msgstr "Режим маршрутизации"
 
@@ -2027,6 +2066,9 @@ msgstr "Информация о сервисах"
 msgid "Set the public host and the port to get a link."
 msgstr "Укажите публичный адрес и порт, чтобы получить ссылку."
 
+msgid "Set the public host and the port to get a profile."
+msgstr "Укажите публичный адрес и порт, чтобы получить профиль."
+
 msgid "Settings"
 msgstr "Настройки"
 
@@ -2123,6 +2165,9 @@ msgstr "Остановить"
 msgid "Stopping..."
 msgstr "Остановка..."
 
+msgid "Subnets the clients reach through the server, such as the local network of the router"
+msgstr "Подсети, в которые клиенты ходят через сервер, например локальная сеть роутера"
+
 msgid "Subscription"
 msgstr "Подписка"
 
@@ -2186,8 +2231,11 @@ msgstr "Тестирование задержки"
 msgid "The <%s> block is not closed"
 msgstr "Блок <%s> не закрыт"
 
-msgid "The address the connection links point at"
-msgstr "Адрес, на который указывают ссылки подключения"
+msgid "The address of the server in the network of its clients, who get the other addresses. An IPv6 subnet can go beside the IPv4 one"
+msgstr "Адрес сервера в сети его клиентов, остальные адреса получат клиенты. Рядом с подсетью IPv4 можно добавить подсеть IPv6"
+
+msgid "The address the connection links and profiles point at"
+msgstr "Адрес, на который указывают ссылки и профили подключения"
 
 msgid "The addresses of this end of the tunnel in CIDR format (ifconfig)"
 msgstr "Адреса этой стороны туннеля в формате CIDR (ifconfig)"
@@ -2296,6 +2344,12 @@ msgstr "Профиль ссылается на файл %s. Выберите е�
 
 msgid "The profile uses a TAP (layer 2) device. Only TUN profiles are supported"
 msgstr "Профиль использует устройство TAP (уровень 2). Поддерживаются только профили TUN"
+
+msgid "The router issues it when the settings are applied"
+msgstr "Роутер выпустит его при применении настроек"
+
+msgid "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
+msgstr "Роутер выпускает сертификат клиента при применении настроек. Примените их, чтобы получить профиль."
 
 msgid "The router itself becomes a proxy server for your devices"
 msgstr "Роутер сам становится прокси-сервером для ваших устройств"
@@ -2417,11 +2471,17 @@ msgstr "Имя туннеля"
 msgid "Tunnel settings"
 msgstr "Настройки туннеля"
 
+msgid "Tunnel subnet"
+msgstr "Подсеть туннеля"
+
 msgid "Tunnel type"
 msgstr "Тип туннеля"
 
 msgid "Type"
 msgstr "Тип"
+
+msgid "UDP is faster; TCP gets through networks that let only TCP out"
+msgstr "UDP быстрее; TCP проходит через сети, которые выпускают только TCP"
 
 msgid "unknown"
 msgstr "неизвестно"
@@ -2498,6 +2558,9 @@ msgstr "Укажите ненулевой секрет"
 msgid "Use a positive integer"
 msgstr "Используйте целое положительное число"
 
+msgid "Use a subnet like 192.168.1.0/24"
+msgstr "Укажите подсеть, например 192.168.1.0/24"
+
 msgid "Use a subnet like 192.168.1.0/24 or an address like 192.168.1.10"
 msgstr "Укажите подсеть вида 192.168.1.0/24 или адрес вида 192.168.1.10"
 
@@ -2506,6 +2569,9 @@ msgstr "Укажите корректный UUID"
 
 msgid "Use a whole number of milliseconds"
 msgstr "Укажите целое число миллисекунд"
+
+msgid "Use an address with a prefix length, such as %s"
+msgstr "Укажите адрес с длиной префикса, например %s"
 
 msgid "Use an even number of hex digits, for example 0a1b2c3d"
 msgstr "Используйте чётное число hex-символов, например 0a1b2c3d"

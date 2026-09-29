@@ -2012,6 +2012,8 @@ function server_route_rule(sections, routing_mode, routing_section_name, label) 
 // An account that follows the shared rules needs no rule of its own when its server
 // already clones them; when it does not, the set is cloned for that account alone.
 function add_server_client_routes(config, server, sections, inbound, server_mode) {
+    if (!runtime_servers.routes_by_client(option(server, "protocol", "vless")))
+        return;
     for (let client in connections.server_clients(server)) {
         if (!bool_option(client, "routing_override", false))
             continue;

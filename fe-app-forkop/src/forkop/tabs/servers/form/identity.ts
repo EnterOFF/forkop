@@ -304,7 +304,7 @@ export function addListenerOptions(section: CBISection) {
     form.Value,
     'public_host',
     _('Public address'),
-    _('The address the connection links point at'),
+    _('The address the connection links and profiles point at'),
   );
   o.modalonly = true;
   o.rmempty = false;

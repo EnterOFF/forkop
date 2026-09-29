@@ -22,7 +22,8 @@ import {
 } from './constants';
 import { addGenerateButton } from './controls';
 import { generateCredential } from './credentials';
-import { getProtocol, hasListener } from './protocols';
+import { FORKOP_UCI_PACKAGE } from '../../../constants';
+import { getProtocol, routesByClient, usesProfile } from './protocols';
 import { routingSectionChoices } from './routing';
 
 export function addClientCredentialOptions(
@@ -71,11 +72,30 @@ export function addClientCredentialOptions(
   });
 }
 
+// What an OpenVPN client is: the certificate the router issued it, which the
+// dialog names by its fingerprint once there is one.
+function addClientCertificateNote(itemSection: CBISection, clientId: string) {
+  const note = itemSection.option(
+    form.DummyValue,
+    '_certificate',
+    _('Certificate'),
+  );
+  note.cfgvalue = () => {
+    const fingerprint = `${uci.get(FORKOP_UCI_PACKAGE, clientId, 'openvpn_certificate_sha256') || ''}`;
+    return fingerprint
+      ? _('Issued. SHA-256 %s').format(
+          `${fingerprint.slice(0, 16)}…${fingerprint.slice(-16)}`,
+        )
+      : _('The router issues it when the settings are applied');
+  };
+}
+
 export function addClientOptions(
   sectionId: string,
   itemSection: CBISection,
   helpers: ChildItemDialogContext,
   listOption: CBIOption,
+  clientId = '',
 ) {
   const protocol = getProtocol(sectionId);
 
@@ -96,6 +116,9 @@ export function addClientOptions(
   };
   addGenerateButton(name, () => generateClientName(sectionId, listOption));
 
+  if (usesProfile(protocol)) {
+    addClientCertificateNote(itemSection, clientId);
+  }
   addClientCredentialOptions(sectionId, itemSection);
   addClientRoutingOptions(sectionId, itemSection);
 }
@@ -106,7 +129,7 @@ export function addClientRoutingOptions(
   sectionId: string,
   itemSection: CBISection,
 ) {
-  if (!hasListener(getProtocol(sectionId))) {
+  if (!routesByClient(getProtocol(sectionId))) {
     return;
   }
 
@@ -166,7 +189,13 @@ export function showClientSettingsModal(
     defaults: (inputValue: string, existing: boolean) =>
       clientSettingsDefaults(sectionId, inputValue, existing, listOption),
     addOptions: (itemSection: CBISection, helpers: ChildItemDialogContext) =>
-      addClientOptions(sectionId, itemSection, helpers, listOption),
+      addClientOptions(
+        sectionId,
+        itemSection,
+        helpers,
+        listOption,
+        `${itemValue || ''}`,
+      ),
     validateName: validateUniqueDynamicListItemName.bind(
       null,
       widget,

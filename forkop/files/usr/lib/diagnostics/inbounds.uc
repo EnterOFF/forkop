@@ -28,15 +28,23 @@ function contains(values, needle) {
 // option says otherwise. Shadowsocks is the one that carries both without being
 // asked: its listener takes the default network, which is TCP and UDP, and the
 // UDP half is how a client relays datagrams.
-// The `type` the generator writes into the sing-box inbound. Only MTProto is
-// named differently there.
+// The `type` the generator writes into the sing-box inbound or endpoint. Only
+// MTProto and OpenVPN are named differently there.
 function runtime_type(protocol) {
     protocol = as_string(protocol);
     if (protocol == "json_inbound")
         return "";
     if (protocol == "mtproto")
         return "mtproxy";
+    if (protocol == "openvpn")
+        return "openvpn-server";
     return protocol;
+}
+
+// Where the generated configuration keeps it: Tailscale and OpenVPN are
+// endpoints, an OpenVPN server one with a listener of its own.
+function runtime_kind(protocol) {
+    return protocol == "tailscale" || protocol == "openvpn" ? "endpoints" : "inbounds";
 }
 
 // A firewall rule is only meaningful when the listener can be reached from
@@ -111,6 +119,7 @@ function public_host_flags(public_host, public_host_ips, wan_ip, wan_public) {
 
 return {
     runtime_type,
+    runtime_kind,
     listen_requires_firewall,
     runtime_ok,
     public_host_flags

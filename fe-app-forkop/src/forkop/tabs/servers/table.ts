@@ -10,6 +10,7 @@ import {
   getProtocol,
   linkScheme,
   usesClients,
+  usesProfile,
 } from './protocols';
 import { E } from '../../../helpers/element';
 
@@ -23,11 +24,12 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
   );
   const actionsEl = tdEl.lastElementChild as HTMLElement;
 
-  // Only a server whose accounts can be handed a link has anything to show: SSH has
-  // no share link format, and Tailscale and a JSON inbound have no accounts at all.
+  // Only a server whose accounts can be handed a link or a profile has anything to
+  // show: SSH has no share link format, and Tailscale and a JSON inbound have no
+  // accounts at all.
   if (
     usesClients(getProtocol(sectionId)) &&
-    linkScheme(getProtocol(sectionId))
+    (linkScheme(getProtocol(sectionId)) || usesProfile(getProtocol(sectionId)))
   ) {
     dom.append(
       actionsEl,

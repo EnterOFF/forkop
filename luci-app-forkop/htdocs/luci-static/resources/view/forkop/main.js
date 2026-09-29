@@ -1526,9 +1526,9 @@ function showToast(message, type, duration = 3e3) {
 }
 
 // src/helpers/copyToClipboard.ts
-function copyToClipboard(text4) {
+function copyToClipboard(text5) {
   const textarea = document.createElement("textarea");
-  textarea.value = text4;
+  textarea.value = text5;
   document.body.appendChild(textarea);
   textarea.select();
   let copied = false;
@@ -4038,8 +4038,8 @@ function linkQuery(link) {
   if (start < 0) {
     return query;
   }
-  const text4 = link.slice(start + 1).split("#")[0];
-  for (const pair of text4.split("&")) {
+  const text5 = link.slice(start + 1).split("#")[0];
+  for (const pair of text5.split("&")) {
     const equals = pair.indexOf("=");
     const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
     if (key && !query.has(key)) {
@@ -5557,8 +5557,8 @@ function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
     return value ? _("Yes") : _("No");
   }
-  const text4 = `${value ?? ""}`.trim();
-  return text4 || _("No");
+  const text5 = `${value ?? ""}`.trim();
+  return text5 || _("No");
 }
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : _("N/A");
@@ -7802,7 +7802,7 @@ function renderButton({
   disabled,
   loading: loading3,
   onClick,
-  text: text4,
+  text: text5,
   icon: icon2
 }) {
   const hasIcon = !!loading3 || !!icon2;
@@ -7844,13 +7844,13 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text4)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text5)]
   );
 }
 
 // src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text4, filename) {
-  const blob = new Blob([text4], { type: "text/plain;charset=utf-8" });
+function downloadAsTxt(text5, filename) {
+  const blob = new Blob([text5], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
@@ -7862,7 +7862,7 @@ function downloadAsTxt(text4, filename) {
 }
 
 // src/partials/modal/renderModal.ts
-function renderModal(text4, name, options) {
+function renderModal(text5, name, options) {
   let currentText = "";
   let refreshInFlight = false;
   let pendingRefresh = false;
@@ -8098,7 +8098,7 @@ ${currentText}
     startRefreshTimer();
     requestRefresh();
   }
-  updateText(text4 ?? "");
+  updateText(text5 ?? "");
   return body;
 }
 
@@ -8853,10 +8853,10 @@ async function showDiagnosticModal(action, title, name, load) {
   setDiagnosticActionLoading(action, true);
   try {
     const getText = diagnosticText(load);
-    const text4 = await getText({ maskValues: true });
+    const text5 = await getText({ maskValues: true });
     ui.showModal(
       title,
-      renderModal(text4, name, {
+      renderModal(text5, name, {
         getText,
         initialAutoRefresh: false,
         showMaskValuesToggle: true
@@ -9858,14 +9858,14 @@ function renderList(rows, closable) {
 function cellClass(column) {
   return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
 }
-function renderHeading(column, text4) {
-  return textE("div", { class: cellClass(column), role: "columnheader" }, text4);
+function renderHeading(column, text5) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text5);
 }
 function renderCell(column, children2) {
   return textE("div", { class: cellClass(column), role: "cell" }, children2);
 }
-function renderValue(text4, className = "") {
-  const value = text4 || "-";
+function renderValue(text5, className = "") {
+  const value = text5 || "-";
   return textE(
     "span",
     {
@@ -9878,7 +9878,7 @@ function renderValue(text4, className = "") {
 }
 function renderSource(name, detail) {
   const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
-  const muted = (text4) => textE("span", { class: "fkp_monitoring-page__muted" }, text4);
+  const muted = (text5) => textE("span", { class: "fkp_monitoring-page__muted" }, text5);
   return textE(
     "span",
     {
@@ -9935,7 +9935,7 @@ function renderConnectionList(items, options) {
     options.closable
   );
 }
-function renderConnectionListState(text4, options) {
+function renderConnectionListState(text5, options) {
   return renderList(
     [
       textE(
@@ -9951,7 +9951,7 @@ function renderConnectionListState(text4, options) {
               class: ["fkp_monitoring-page__state", options.className].filter(Boolean).join(" "),
               role: "cell"
             },
-            text4
+            text5
           )
         ]
       )
@@ -11464,9 +11464,9 @@ function render4() {
 }
 
 // src/forkop/tabs/logs/filterLogs.ts
-function filterLogText(text4, query) {
+function filterLogText(text5, query) {
   const normalizedQuery = query.trim().toLowerCase();
-  return text4.split(/\r?\n/).filter((line) => {
+  return text5.split(/\r?\n/).filter((line) => {
     if (!line) {
       return false;
     }
@@ -12927,7 +12927,7 @@ function updateDynamicListItemLabel(item, label) {
     labelNode.textContent = `${label || ""}`;
   }
 }
-function addDynamicListItem(widget, value, text4) {
+function addDynamicListItem(widget, value, text5) {
   if (!widget || !widget.node) {
     return null;
   }
@@ -12940,7 +12940,7 @@ function addDynamicListItem(widget, value, text4) {
     widget.dispatchCbiDynlistChange(widget.node, normalized);
     return null;
   }
-  widget.addItem(widget.node, normalized, text4 || null, false);
+  widget.addItem(widget.node, normalized, text5 || null, false);
   widget.dispatchCbiDynlistChange(widget.node, normalized);
   updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
   return findDynamicListItemByValue(widget.node, normalized);
@@ -13777,12 +13777,12 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
       }
     });
   },
-  addItem(dl, value, text4, flash) {
+  addItem(dl, value, text5, flash) {
     if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
-    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text4) : text4;
+    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text5) : text5;
     ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
     const item = findDynamicListItemByValue(dl, value);
     const hasSettings = typeof this.options.hasSettings === "function" ? this.options.hasSettings(value) : true;
@@ -13986,15 +13986,15 @@ var SettingsDynamicList = form.DynamicList.extend({
           );
         }
       },
-      itemLabel: (itemValue, text4) => {
+      itemLabel: (itemValue, text5) => {
         if (typeof this.renderListItemLabel === "function") {
           return this.renderListItemLabel(
             this.childOwner(section_id),
             `${itemValue}`,
-            text4
+            text5
           );
         }
-        return text4;
+        return text5;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       hasEquivalentValue: (itemValue, dl) => {
@@ -14403,13 +14403,13 @@ function syncAnnotatedTextareaOverlay(textarea, wrapper, overlay) {
   overlay.scrollLeft = textarea.scrollLeft;
 }
 function renderAnnotatedTextareaOverlay(value, annotations) {
-  const text4 = value ? `${value}` : "";
+  const text5 = value ? `${value}` : "";
   const normalizedAnnotations = Array.isArray(annotations) ? annotations : [];
-  if (!text4.length) {
+  if (!text5.length) {
     return "&#8203;";
   }
   if (!normalizedAnnotations.length) {
-    return `${escapeHtml(text4)}${text4.endsWith("\n") ? "\n " : ""}`;
+    return `${escapeHtml(text5)}${text5.endsWith("\n") ? "\n " : ""}`;
   }
   let cursor2 = 0;
   let html = "";
@@ -14417,14 +14417,14 @@ function renderAnnotatedTextareaOverlay(value, annotations) {
     if (annotation.start < cursor2 || annotation.start >= annotation.end || annotation.start < 0) {
       return;
     }
-    html += escapeHtml(text4.slice(cursor2, annotation.start));
+    html += escapeHtml(text5.slice(cursor2, annotation.start));
     html += `<span class="fkp-annotated-textarea__invalid">${escapeHtml(
-      text4.slice(annotation.start, annotation.end)
+      text5.slice(annotation.start, annotation.end)
     )}</span>`;
     cursor2 = annotation.end;
   });
-  html += escapeHtml(text4.slice(cursor2));
-  if (text4.endsWith("\n")) {
+  html += escapeHtml(text5.slice(cursor2));
+  if (text5.endsWith("\n")) {
     html += "\n ";
   }
   return html;
@@ -14478,10 +14478,10 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 function parseCommentAwareListTokens(value) {
-  const text4 = value ? `${value}` : "";
+  const text5 = value ? `${value}` : "";
   const tokens = [];
-  const lines2 = text4.split(/\r\n|\r|\n/);
-  const newlines = text4.match(/\r\n|\r|\n/g) || [];
+  const lines2 = text5.split(/\r\n|\r|\n/);
+  const newlines = text5.match(/\r\n|\r|\n/g) || [];
   let offset = 0;
   lines2.forEach((line, index) => {
     const hashIndex = line.indexOf("#");
@@ -14509,11 +14509,11 @@ function parseCommentAwareListTokens(value) {
   return tokens;
 }
 function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
-  const text4 = value ? `${value}` : "";
-  if (!text4.length) {
+  const text5 = value ? `${value}` : "";
+  if (!text5.length) {
     return { valid: true, message: "", annotations: [] };
   }
-  const tokens = parseCommentAwareListTokens(text4);
+  const tokens = parseCommentAwareListTokens(text5);
   if (!tokens.length) {
     return { valid: false, message: emptyMessage, annotations: [] };
   }
@@ -15691,10 +15691,10 @@ function validateSubscriptionUrlEntry(_section_id, value) {
 
 // src/helpers/pem.ts
 var BEGIN = /^-----BEGIN ([A-Za-z0-9 #-]+)-----$/;
-function pemBlocks(text4) {
+function pemBlocks(text5) {
   const blocks = [];
   let current = null;
-  for (const raw of `${text4 || ""}`.split(/\r?\n/)) {
+  for (const raw of `${text5 || ""}`.split(/\r?\n/)) {
     const line = raw.trim();
     if (!current) {
       const begin = BEGIN.exec(line);
@@ -15713,12 +15713,12 @@ function pemBlocks(text4) {
   return blocks;
 }
 function decodeBase64(body) {
-  const text4 = `${body || ""}`.replace(/\s+/g, "");
-  if (!text4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text4) || text4.length % 4 !== 0) {
+  const text5 = `${body || ""}`.replace(/\s+/g, "");
+  if (!text5 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text5) || text5.length % 4 !== 0) {
     return null;
   }
   try {
-    const binary = atob(text4);
+    const binary = atob(text5);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   } catch (_error) {
     return null;
@@ -15848,8 +15848,8 @@ function isoDate(date) {
 function invalid2(message) {
   return { valid: false, message, summary: "" };
 }
-function certificatesCheck(text4, kind) {
-  const blocks = pemBlocks(text4).filter(
+function certificatesCheck(text5, kind) {
+  const blocks = pemBlocks(text5).filter(
     (block) => block.label === "CERTIFICATE"
   );
   if (!blocks.length) {
@@ -15878,8 +15878,8 @@ function certificatesCheck(text4, kind) {
     expired
   };
 }
-function keyCheck(text4) {
-  const blocks = pemBlocks(text4);
+function keyCheck(text5) {
+  const blocks = pemBlocks(text5);
   if (blocks.some(
     (block) => block.label === "ENCRYPTED PRIVATE KEY" || block.headers.some((header) => /ENCRYPTED/.test(header))
   )) {
@@ -15900,8 +15900,8 @@ function keyCheck(text4) {
     summary: type ? _("%s private key").format(type) : _("Private key")
   };
 }
-function staticKeyCheck(text4) {
-  const block = pemBlocks(text4).find(
+function staticKeyCheck(text5) {
+  const block = pemBlocks(text5).find(
     (item) => item.label === "OpenVPN Static key V1"
   );
   if (!block || !/^[0-9a-fA-F]{512}$/.test(block.body)) {
@@ -15913,8 +15913,8 @@ function staticKeyCheck(text4) {
     summary: _("OpenVPN static key, 2048 bits")
   };
 }
-function cryptV2Check(text4) {
-  const block = pemBlocks(text4).find(
+function cryptV2Check(text5) {
+  const block = pemBlocks(text5).find(
     (item) => item.label === "OpenVPN tls-crypt-v2 client key"
   );
   if (!block || !decodeBase64(block.body)) {
@@ -15925,25 +15925,25 @@ function cryptV2Check(text4) {
   return { valid: true, message: "", summary: _("tls-crypt-v2 client key") };
 }
 function checkOpenVPNMaterial(kind, value) {
-  const text4 = `${value ?? ""}`.trim();
-  if (!text4) return { valid: true, message: "", summary: "" };
-  if (isRouterPath(text4)) {
+  const text5 = `${value ?? ""}`.trim();
+  if (!text5) return { valid: true, message: "", summary: "" };
+  if (isRouterPath(text5)) {
     return {
       valid: true,
       message: "",
-      summary: _("File on the router: %s").format(text4)
+      summary: _("File on the router: %s").format(text5)
     };
   }
   switch (kind) {
     case "ca":
     case "certificate":
-      return certificatesCheck(text4, kind);
+      return certificatesCheck(text5, kind);
     case "key":
-      return keyCheck(text4);
+      return keyCheck(text5);
     case "static":
-      return staticKeyCheck(text4);
+      return staticKeyCheck(text5);
     default:
-      return cryptV2Check(text4);
+      return cryptV2Check(text5);
   }
 }
 
@@ -18728,7 +18728,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
       }, this)
     );
   },
-  renderListItemLabel(section_id, value, text4) {
+  renderListItemLabel(section_id, value, text5) {
     const name = childItemInputValue(
       section_id,
       value,
@@ -18737,7 +18737,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
     );
     return renderNetworkInterfaceListItem(
       this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
-      name || `${text4 ?? ""}`
+      name || `${text5 ?? ""}`
     );
   }
 });
@@ -19753,10 +19753,10 @@ async function parseWireGuardInput(input) {
     if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
-    const text4 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
-    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text4))
-      return parseWireGuardConfig(text4);
-    return importAmneziaProfile(JSON.parse(text4));
+    const text5 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text5))
+      return parseWireGuardConfig(text5);
+    return importAmneziaProfile(JSON.parse(text5));
   } catch {
     return {
       valid: false,
@@ -19846,8 +19846,8 @@ function button(label, name, disabled) {
   );
 }
 function readMaterialFile(bytes) {
-  const text4 = new TextDecoder().decode(bytes);
-  if (text4.includes("-----BEGIN") || !certificateInfo(bytes)) return text4;
+  const text5 = new TextDecoder().decode(bytes);
+  if (text5.includes("-----BEGIN") || !certificateInfo(bytes)) return text5;
   let binary = "";
   bytes.forEach((byte) => binary += String.fromCharCode(byte));
   const body = btoa(binary).replace(/.{64}/g, "$&\n").trim();
@@ -22365,6 +22365,17 @@ var PROTOCOLS = [
     credentials: []
   },
   {
+    id: "openvpn",
+    label: "OpenVPN",
+    kind: "endpoint",
+    coreType: "openvpn-server",
+    listener: true,
+    securities: ["none"],
+    credentials: [],
+    clients: true,
+    profile: true
+  },
+  {
     id: "vless",
     label: "VLESS",
     kind: "inbound",
@@ -22499,10 +22510,13 @@ function protocolsWith(flag) {
   return protocolsWhere((entry) => !!entry[flag]);
 }
 function listenerProtocols() {
-  return protocolsWhere((entry) => entry.kind === "inbound");
+  return protocolsWhere(
+    (entry) => entry.kind === "inbound" || !!entry.listener
+  );
 }
 function listenTransports(protocol, network2) {
   const value = `${network2 || ""}`.toLowerCase();
+  if (protocol === "openvpn") return [value === "tcp" ? "tcp" : "udp"];
   if (protocol === "hysteria2" || protocol === "tuic") return ["udp"];
   if (protocol === "shadowsocks" || protocol === "naive" && value === "tcp_udp")
     return ["tcp", "udp"];
@@ -22511,9 +22525,13 @@ function listenTransports(protocol, network2) {
   return ["tcp"];
 }
 function transportOption(protocol) {
-  return protocol === "naive" ? "naive_network" : protocol === "mieru" ? "mieru_transport" : "";
+  return protocol === "naive" ? "naive_network" : protocol === "mieru" ? "mieru_transport" : protocol === "openvpn" ? "openvpn_network" : "";
 }
 function hasListener(protocol) {
+  const spec = protocolSpec(protocol);
+  return !!spec && (spec.kind === "inbound" || !!spec.listener);
+}
+function routesByClient(protocol) {
   const spec = protocolSpec(protocol);
   return !!spec && spec.kind === "inbound";
 }
@@ -22522,7 +22540,10 @@ function credentialFields(protocol) {
   return spec ? (spec.credentials || []).slice() : [];
 }
 function usesClients(protocol) {
-  return credentialFields(protocol).length > 0;
+  return credentialFields(protocol).length > 0 || !!protocolSpec(protocol)?.clients;
+}
+function usesProfile(protocol) {
+  return !!protocolSpec(protocol)?.profile;
 }
 function usesLoginName(protocol) {
   const spec = protocolSpec(protocol);
@@ -22821,12 +22842,12 @@ var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
   const claim = (port2, transports, owner) => {
-    const text4 = `${port2 || ""}`.trim();
-    if (!/^[0-9]+$/.test(text4)) {
+    const text5 = `${port2 || ""}`.trim();
+    if (!/^[0-9]+$/.test(text5)) {
       return;
     }
     transports.forEach((transport3) => {
-      const key = `${transport3}/${Number(text4)}`;
+      const key = `${transport3}/${Number(text5)}`;
       if (!owners.has(key)) owners.set(key, owner);
     });
   };
@@ -23272,6 +23293,89 @@ function loadLinkContext(sectionId) {
   }).then((tlsCertificateSha256) => ({ tlsCertificateSha256 }));
 }
 
+// src/forkop/tabs/servers/profile.ts
+var callUciValues = null;
+function loadOpenVPNMaterial() {
+  callUciValues ?? (callUciValues = rpc.declare({
+    object: "uci",
+    method: "get",
+    params: ["config"],
+    expect: { values: {} }
+  }));
+  return callUciValues("forkop").then((values) => values || {}).catch((error) => {
+    console.warn("Failed to read the OpenVPN certificates", error);
+    return {};
+  });
+}
+function text4(value) {
+  return `${value ?? ""}`.trim();
+}
+function fileName(value) {
+  return value.replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "");
+}
+function buildOpenVPNProfile(sectionId, client, material3) {
+  const host = normalizeHost(getPublicHost(sectionId));
+  const port2 = getListenPort(sectionId);
+  if (!host || !port2) return { missing: "address" };
+  const server = material3[sectionId] || {};
+  const own = material3[client.id] || {};
+  const ca = text4(server.openvpn_certificate);
+  const tlsCrypt = text4(server.openvpn_tls_crypt_key);
+  const certificate = text4(own.openvpn_certificate);
+  const key = text4(own.openvpn_key);
+  if (!ca || !tlsCrypt || !certificate || !key) {
+    return { missing: "certificate" };
+  }
+  const network2 = option(sectionId, "openvpn_network") === "tcp" ? "tcp" : "udp";
+  const allTraffic = option(sectionId, "openvpn_redirect_gateway") !== "0";
+  const serverName = getServerName(sectionId);
+  const lines2 = [
+    `# ${serverName} \xB7 ${client.name}`,
+    "client",
+    "dev tun",
+    `proto ${network2}`,
+    `remote ${host} ${port2}`,
+    "nobind",
+    "persist-tun",
+    "remote-cert-tls server",
+    // Tells the server at once that the client has gone, so a new session of the
+    // same client does not wait for the old one to time out.
+    ...network2 === "udp" ? ["explicit-exit-notify"] : [],
+    // The server pushes it for Windows, where it keeps DNS inside the tunnel;
+    // other clients log it as an unknown option unless told it may be.
+    ...allTraffic ? ["ignore-unknown-option block-outside-dns"] : [],
+    "verb 3",
+    "<ca>",
+    ca,
+    "</ca>",
+    "<cert>",
+    certificate,
+    "</cert>",
+    "<key>",
+    key,
+    "</key>",
+    "<tls-crypt>",
+    tlsCrypt,
+    "</tls-crypt>",
+    ""
+  ];
+  return {
+    profile: lines2.join("\n"),
+    fileName: `${fileName(`${serverName}-${client.name}`) || "openvpn"}.ovpn`
+  };
+}
+function downloadProfile(profile, name) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(
+    new Blob([profile], { type: "application/x-openvpn-profile" })
+  );
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
+}
+
 // src/forkop/tabs/servers/qr.ts
 var QR_EC_CODEWORDS_PER_BLOCK_LOW = [
   -1,
@@ -23384,8 +23488,8 @@ function qrRawCodewords(version) {
 function qrDataCodewords(version) {
   return qrRawCodewords(version) - QR_EC_CODEWORDS_PER_BLOCK_LOW[version] * QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
 }
-function qrEncodeText(text4) {
-  return Array.from(new TextEncoder().encode(text4));
+function qrEncodeText(text5) {
+  return Array.from(new TextEncoder().encode(text5));
 }
 function qrBuildDataCodewords(bytes, version) {
   const capacity = qrDataCodewords(version);
@@ -23610,8 +23714,8 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrSvgDataUri(text4) {
-  const bytes = qrEncodeText(text4);
+function qrSvgDataUri(text5) {
+  const bytes = qrEncodeText(text5);
   let version = 1;
   for (; version <= 40; version += 1) {
     const countBits = version <= 9 ? 8 : 16;
@@ -23668,6 +23772,11 @@ var ICON_PATHS = {
     ["circle", { cx: "12", cy: "12", r: "10" }],
     ["path", { d: "M12 16v-4" }],
     ["path", { d: "M12 8h.01" }]
+  ],
+  download: [
+    ["path", { d: "M12 15V3" }],
+    ["path", { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }],
+    ["path", { d: "m7 10 5 5 5-5" }]
   ]
 };
 function iconSvg(name) {
@@ -23688,9 +23797,9 @@ function iconSvg(name) {
     ICON_PATHS[name].map(([tag, attrs]) => svgEl2(tag, attrs))
   );
 }
-function copyText(text4) {
+function copyText(text5) {
   const textarea = document.createElement("textarea");
-  textarea.value = text4;
+  textarea.value = text5;
   textarea.style.position = "fixed";
   textarea.style.top = "0";
   textarea.style.left = "0";
@@ -23755,8 +23864,7 @@ function injectDetailsStyles() {
     )
   );
 }
-function renderCopyButton(value) {
-  const label = _("Copy");
+function renderCopyButton(value, label = _("Copy")) {
   const button2 = textE(
     "button",
     {
@@ -23847,6 +23955,47 @@ function renderLinkRow(value, qrCaption) {
     renderCopyButton(value)
   ]);
 }
+function renderProfileRow(profile, name) {
+  const input = textE("input", {
+    type: "text",
+    class: "cbi-input-text fkp-details__value",
+    readonly: "readonly",
+    spellcheck: "false",
+    value: name
+  });
+  const label = _("Download the profile");
+  return textE("div", { class: "fkp-details__link" }, [
+    input,
+    textE(
+      "button",
+      {
+        class: "btn cbi-button cbi-button-neutral fkp-details__action",
+        type: "button",
+        title: label,
+        "aria-label": label,
+        click: (ev) => {
+          ev.preventDefault();
+          downloadProfile(profile, name);
+        }
+      },
+      iconSvg("download")
+    ),
+    renderCopyButton(profile, _("Copy the profile"))
+  ]);
+}
+function renderProfileDetails(sectionId, client, material3) {
+  const result = buildOpenVPNProfile(sectionId, client, material3);
+  return textE("div", { class: "fkp-details__client" }, [
+    textE("div", { class: "fkp-details__name" }, client.name),
+    "profile" in result ? renderProfileRow(result.profile, result.fileName) : textE(
+      "div",
+      { class: "fkp-details__empty" },
+      result.missing === "address" ? _("Set the public host and the port to get a profile.") : _(
+        "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
+      )
+    )
+  ]);
+}
 function missingLinkReason(sectionId, client) {
   if (!hasRequiredCredentials(sectionId, client)) {
     return _("Fill in the credentials of this client to get a link.");
@@ -23910,6 +24059,7 @@ function onlyLink(sectionId, clients, context) {
 }
 function renderDetailsContent(sectionId, clients, context) {
   const children2 = [];
+  const profiles = usesProfile(getProtocol(sectionId));
   const entries = detailsEntries(sectionId, clients);
   if (!entries.length) {
     children2.push(
@@ -23925,7 +24075,7 @@ function renderDetailsContent(sectionId, clients, context) {
         "div",
         { class: "fkp-details__clients" },
         entries.map(
-          (client) => renderClientDetails(sectionId, client, context)
+          (client) => profiles ? renderProfileDetails(sectionId, client, context.openvpn || {}) : renderClientDetails(sectionId, client, context)
         )
       )
     );
@@ -23934,6 +24084,14 @@ function renderDetailsContent(sectionId, clients, context) {
 }
 function showServerDetailsModal(sectionId, clients) {
   injectDetailsStyles();
+  if (usesProfile(getProtocol(sectionId))) {
+    return loadOpenVPNMaterial().then((openvpn) => {
+      ui.showModal(_("Server details: %s").format(getServerName(sectionId)), [
+        renderDetailsContent(sectionId, clients, { openvpn }),
+        renderCloseRow()
+      ]);
+    });
+  }
   const initialContext = { tlsCertificateSha256: "" };
   const only = onlyLink(sectionId, clients, initialContext);
   if (only) {
@@ -24753,7 +24911,20 @@ function addClientCredentialOptions(sectionId, itemSection) {
     );
   });
 }
-function addClientOptions(sectionId, itemSection, helpers, listOption) {
+function addClientCertificateNote(itemSection, clientId) {
+  const note = itemSection.option(
+    form.DummyValue,
+    "_certificate",
+    _("Certificate")
+  );
+  note.cfgvalue = () => {
+    const fingerprint = `${uci.get(FORKOP_UCI_PACKAGE, clientId, "openvpn_certificate_sha256") || ""}`;
+    return fingerprint ? _("Issued. SHA-256 %s").format(
+      `${fingerprint.slice(0, 16)}\u2026${fingerprint.slice(-16)}`
+    ) : _("The router issues it when the settings are applied");
+  };
+}
+function addClientOptions(sectionId, itemSection, helpers, listOption, clientId = "") {
   const protocol = getProtocol(sectionId);
   const name = itemSection.option(
     form.Value,
@@ -24769,11 +24940,14 @@ function addClientOptions(sectionId, itemSection, helpers, listOption) {
     return typeof helpers.validateName === "function" ? helpers.validateName(value) : true;
   };
   addGenerateButton(name, () => generateClientName(sectionId, listOption));
+  if (usesProfile(protocol)) {
+    addClientCertificateNote(itemSection, clientId);
+  }
   addClientCredentialOptions(sectionId, itemSection);
   addClientRoutingOptions(sectionId, itemSection);
 }
 function addClientRoutingOptions(sectionId, itemSection) {
-  if (!hasListener(getProtocol(sectionId))) {
+  if (!routesByClient(getProtocol(sectionId))) {
     return;
   }
   const override = itemSection.option(
@@ -24819,7 +24993,13 @@ function showClientSettingsModal(sectionId, itemValue, listOption, widget, itemN
     keys: CLIENT_KEYS,
     itemNode,
     defaults: (inputValue, existing) => clientSettingsDefaults(sectionId, inputValue, existing, listOption),
-    addOptions: (itemSection, helpers) => addClientOptions(sectionId, itemSection, helpers, listOption),
+    addOptions: (itemSection, helpers) => addClientOptions(
+      sectionId,
+      itemSection,
+      helpers,
+      listOption,
+      `${itemValue || ""}`
+    ),
     validateName: validateUniqueDynamicListItemName.bind(
       null,
       widget,
@@ -25094,7 +25274,7 @@ function addListenerOptions(section) {
     form.Value,
     "public_host",
     _("Public address"),
-    _("The address the connection links point at")
+    _("The address the connection links and profiles point at")
   );
   o.modalonly = true;
   o.rmempty = false;
@@ -25558,6 +25738,130 @@ function addMultiplexOptions(section) {
   onMultiplex(o, { multiplex_enabled: "1" });
 }
 
+// src/forkop/tabs/servers/form/openvpn.ts
+var DEFAULT_SUBNET = "10.8.0.1/24";
+function ipv6Bytes(address) {
+  const [head, tail = ""] = address.split("::");
+  const groups = (part) => part ? part.split(":") : [];
+  const missing = 8 - groups(head).length - groups(tail).length;
+  const hextets = address.includes("::") ? [...groups(head), ...Array(missing).fill("0"), ...groups(tail)] : groups(head);
+  return hextets.flatMap((hextet) => {
+    const value = parseInt(hextet, 16);
+    return [value >> 8, value & 255];
+  });
+}
+function namesHostAddress(address, bits) {
+  const bytes = isIpv4(address) ? address.split(".").map(Number) : ipv6Bytes(address);
+  let any = false;
+  let all = true;
+  for (let bit = bits; bit < bytes.length * 8; bit += 1) {
+    const set = bytes[bit >> 3] >> 7 - (bit & 7) & 1;
+    any = any || set === 1;
+    all = all && set === 1;
+  }
+  return any && (bytes.length === 16 || !all);
+}
+function validateOpenVPNSubnet(value) {
+  const subnet = `${value || ""}`.trim();
+  if (!isValidCidr(subnet)) {
+    return _("Use an address with a prefix length, such as %s").format(
+      DEFAULT_SUBNET
+    );
+  }
+  const [address, prefix] = subnet.split("/");
+  const bits = Number(prefix);
+  if (isIpv4(address) ? bits < 8 || bits > 30 : bits < 64 || bits > 126) {
+    return isIpv4(address) ? _("An IPv4 subnet needs a prefix length from 8 to 30") : _("An IPv6 subnet needs a prefix length from 64 to 126");
+  }
+  return namesHostAddress(address, bits) ? true : _(
+    "Name the address of the server in the subnet, such as %s rather than the subnet itself"
+  ).format(isIpv4(address) ? DEFAULT_SUBNET : "fd00:8::1/64");
+}
+function validateOpenVPNSubnets(values) {
+  const subnets = valueList(values).map((value) => `${value}`.trim());
+  const families = subnets.map(
+    (subnet) => isIpv6(subnet.split("/")[0]) ? 6 : 4
+  );
+  if (!families.includes(4)) return _("Add an IPv4 subnet");
+  if (families.filter((family) => family === 4).length > 1) {
+    return _("Add at most one IPv4 subnet");
+  }
+  if (families.filter((family) => family === 6).length > 1) {
+    return _("Add at most one IPv6 subnet");
+  }
+  return true;
+}
+function addOpenVPNServerOptions(section) {
+  const onOpenVPN = (o2, extra = {}) => o2.depends({ protocol: "openvpn", ...extra });
+  let o = section.option(
+    form.ListValue,
+    "openvpn_network",
+    _("Transport"),
+    _("UDP is faster; TCP gets through networks that let only TCP out")
+  );
+  o.value("udp", "UDP");
+  o.value("tcp", "TCP");
+  o.default = "udp";
+  o.rmempty = false;
+  o.modalonly = true;
+  onOpenVPN(o);
+  o.onchange = function(_ev, sectionId) {
+    const port2 = widgetNode(sectionId, "listen_port");
+    window.setTimeout(() => {
+      const element3 = port2 ? dom.findClassInstance(port2) : null;
+      element3?.triggerValidation?.();
+    }, 0);
+  };
+  o = section.option(
+    form.DynamicList,
+    "openvpn_address",
+    _("Tunnel subnet"),
+    _(
+      "The address of the server in the network of its clients, who get the other addresses. An IPv6 subnet can go beside the IPv4 one"
+    )
+  );
+  o.placeholder = "fd00:8::1/64";
+  o.modalonly = true;
+  o.rmempty = false;
+  autofill(o, (sectionId) => {
+    const stored = optionList(sectionId, "openvpn_address");
+    return stored.length ? stored : [DEFAULT_SUBNET];
+  });
+  o.validate = function(sectionId, value) {
+    if (!isEmptyValue(value)) {
+      return validateOpenVPNSubnet(value);
+    }
+    const current = typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
+    return validateOpenVPNSubnets(current);
+  };
+  onOpenVPN(o);
+  o = section.option(
+    form.Flag,
+    "openvpn_redirect_gateway",
+    _("All traffic through the server"),
+    _(
+      "Clients send everything through the router, where the routing mode decides where it goes. Off, they send only the subnets below"
+    )
+  );
+  o.default = "1";
+  o.rmempty = false;
+  o.modalonly = true;
+  onOpenVPN(o);
+  o = section.option(
+    form.DynamicList,
+    "openvpn_routes",
+    _("Routes"),
+    _(
+      "Subnets the clients reach through the server, such as the local network of the router"
+    )
+  );
+  o.placeholder = "192.168.1.0/24";
+  o.modalonly = true;
+  o.rmempty = true;
+  o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : _("Use a subnet like 192.168.1.0/24");
+  onOpenVPN(o, { openvpn_redirect_gateway: "0" });
+}
+
 // src/forkop/tabs/servers/form.ts
 function createServerContent(section) {
   injectServerStyles();
@@ -25565,6 +25869,7 @@ function createServerContent(section) {
   addTailscaleOptions(section);
   addJsonInboundOptions(section);
   addListenerOptions(section);
+  addOpenVPNServerOptions(section);
   addShadowsocksOptions(section);
   addMixedOptions(section);
   addClientListOption(section);
@@ -25589,7 +25894,7 @@ function renderServerRowActions(sectionRef, sectionId) {
     textE("div")
   );
   const actionsEl = tdEl.lastElementChild;
-  if (usesClients(getProtocol(sectionId)) && linkScheme(getProtocol(sectionId))) {
+  if (usesClients(getProtocol(sectionId)) && (linkScheme(getProtocol(sectionId)) || usesProfile(getProtocol(sectionId)))) {
     dom.append(
       actionsEl,
       textE(
@@ -25749,8 +26054,8 @@ function lineFields(line, offset) {
   }
   return fields;
 }
-function analyzeStaticHosts(text4) {
-  const value = `${text4 || ""}`;
+function analyzeStaticHosts(text5) {
+  const value = `${text5 || ""}`;
   const annotations = [];
   const errors = [];
   let offset = 0;
@@ -26150,15 +26455,15 @@ function addNetworkOptions(section) {
 }
 
 // src/validators/validateSingBoxFilePath.ts
-function validateSingBoxFilePath(value, fileName) {
+function validateSingBoxFilePath(value, fileName2) {
   const path = validatePath(value);
   if (!path.valid) {
     return path;
   }
-  if (!value.endsWith(fileName)) {
+  if (!value.endsWith(fileName2)) {
     return {
       valid: false,
-      message: _("Path must end with %s").replace("%s", fileName)
+      message: _("Path must end with %s").replace("%s", fileName2)
     };
   }
   if (value.split("/").filter(Boolean).length < 2) {
@@ -26166,15 +26471,15 @@ function validateSingBoxFilePath(value, fileName) {
       valid: false,
       message: _(
         "Path must contain at least one directory (like /tmp/%s)"
-      ).replace("%s", fileName)
+      ).replace("%s", fileName2)
     };
   }
   return { valid: true, message: _("Valid") };
 }
 
 // src/forkop/tabs/settings/validators.ts
-function validateSingBoxPath(value, fileName) {
-  const validation = validateSingBoxFilePath(`${value || ""}`, fileName);
+function validateSingBoxPath(value, fileName2) {
+  const validation = validateSingBoxFilePath(`${value || ""}`, fileName2);
   return validation.valid ? true : validation.message;
 }
 

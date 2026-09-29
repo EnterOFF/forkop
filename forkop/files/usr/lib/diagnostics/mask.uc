@@ -49,8 +49,10 @@ function delete_token_space(line, token) {
     return space_pos < length(line) && is_space_char(substr(line, space_pos, 1));
 }
 
-// The options whose value is JSON, which can span several lines.
-const JSON_OPTIONS = [ "option outbound_json", "list outbound_jsons", "option endpoint_json", "option inbound_json" ];
+// The options whose value can span several lines: JSON, and the certificates
+// and keys of an OpenVPN server and its clients.
+const MULTILINE_OPTIONS = [ "option outbound_json", "list outbound_jsons", "option endpoint_json", "option inbound_json",
+    "option openvpn_certificate", "option openvpn_key", "option openvpn_tls_crypt_key" ];
 
 function forkop_config_line(line) {
     line = mask_after_token(line, "option proxy_string");
@@ -60,7 +62,7 @@ function forkop_config_line(line) {
     line = mask_after_token(line, "list subscription_urls");
     line = mask_after_token(line, "list urltest_proxy_links");
     line = mask_after_token(line, "list selector_proxy_links");
-    for (let token in JSON_OPTIONS)
+    for (let token in MULTILINE_OPTIONS)
         line = mask_after_token_space(line, token);
     line = mask_after_token_space(line, "list domain");
     line = mask_after_token_space(line, "list domain_suffix");
@@ -143,7 +145,7 @@ function forkop_config(data) {
     for (let line in config_lines(data)) {
         line = as_string(line);
 
-        // A masked JSON option can span several lines; the continuation lines
+        // A masked option can span several lines; the continuation lines
         // are dropped up to the closing quote instead of being printed raw.
         if (in_masked_multiline) {
             if (index(line, "'") >= 0)
@@ -157,7 +159,7 @@ function forkop_config(data) {
             continue;
 
         push(result, forkop_config_line(line));
-        if (length(filter(JSON_OPTIONS, (token) => delete_token_space(line, token))) > 0) {
+        if (length(filter(MULTILINE_OPTIONS, (token) => delete_token_space(line, token))) > 0) {
             let first_quote = index(line, "'");
             if (first_quote >= 0 && index(substr(line, first_quote + 1), "'") < 0)
                 in_masked_multiline = true;

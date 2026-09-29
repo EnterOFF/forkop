@@ -20,6 +20,8 @@ declare global {
   // fingerprint of a self-signed certificate, so the client can pin it.
   interface ShareLinkContext {
     tlsCertificateSha256?: string;
+    // The committed configuration an OpenVPN profile takes its certificates from.
+    openvpn?: Record<string, Record<string, unknown>>;
   }
 
   // What `forkop generate_*` answers: whether it worked and the files or keys
@@ -56,6 +58,11 @@ declare global {
     // without it.
     optionalAuth?: string;
     login?: boolean;
+    // An endpoint that listens on a port of its own, whose clients are issued a
+    // certificate rather than asked for a credential, and who get a profile file.
+    listener?: boolean;
+    clients?: boolean;
+    profile?: boolean;
     transport?: boolean;
     multiplex?: boolean;
     tcp?: boolean;

@@ -11,8 +11,12 @@ import { liveOption, option } from './formValues';
 
 // One entry per protocol the tab can serve.
 //   kind      - inbound: a sing-box inbound built from the form
-//               endpoint: a sing-box endpoint (Tailscale)
+//               endpoint: a sing-box endpoint (Tailscale, OpenVPN)
 //               json: a raw inbound object written by hand
+//   listener  - an endpoint that listens on a port of its own
+//   clients   - the server has accounts even though it asks for no credential:
+//               the router issues each one a certificate
+//   profile   - a client is handed a profile file instead of a link
 //   securities- the security modes the protocol accepts, best first
 //   credentials- the per client fields the protocol needs
 //   login     - the client name is the account name sent on the wire, so it has to
@@ -37,6 +41,17 @@ export const PROTOCOLS = [
     kind: 'endpoint',
     securities: ['none'],
     credentials: [],
+  },
+  {
+    id: 'openvpn',
+    label: 'OpenVPN',
+    kind: 'endpoint',
+    coreType: 'openvpn-server',
+    listener: true,
+    securities: ['none'],
+    credentials: [],
+    clients: true,
+    profile: true,
   },
   {
     id: 'vless',
@@ -182,13 +197,16 @@ export function protocolsWith(flag: string) {
 }
 
 export function listenerProtocols() {
-  return protocolsWhere((entry: ServerProtocol) => entry.kind === 'inbound');
+  return protocolsWhere(
+    (entry: ServerProtocol) => entry.kind === 'inbound' || !!entry.listener,
+  );
 }
 
 // The transports a listener of this protocol takes, as singbox/servers.uc reads
 // them: a port can be shared by two servers when one takes TCP and the other UDP.
 export function listenTransports(protocol: string, network: string) {
   const value = `${network || ''}`.toLowerCase();
+  if (protocol === 'openvpn') return [value === 'tcp' ? 'tcp' : 'udp'];
   if (protocol === 'hysteria2' || protocol === 'tuic') return ['udp'];
   if (
     protocol === 'shadowsocks' ||
@@ -205,10 +223,19 @@ export function transportOption(protocol: string) {
     ? 'naive_network'
     : protocol === 'mieru'
       ? 'mieru_transport'
-      : '';
+      : protocol === 'openvpn'
+        ? 'openvpn_network'
+        : '';
 }
 
 export function hasListener(protocol: string) {
+  const spec = protocolSpec(protocol);
+  return !!spec && (spec.kind === 'inbound' || !!spec.listener);
+}
+
+// Whether a route rule can single a client out. The core reports the account of
+// an inbound; an OpenVPN client is known to it only by its certificate.
+export function routesByClient(protocol: string) {
   const spec = protocolSpec(protocol);
   return !!spec && spec.kind === 'inbound';
 }
@@ -219,7 +246,13 @@ export function credentialFields(protocol: string) {
 }
 
 export function usesClients(protocol: string) {
-  return credentialFields(protocol).length > 0;
+  return (
+    credentialFields(protocol).length > 0 || !!protocolSpec(protocol)?.clients
+  );
+}
+
+export function usesProfile(protocol: string) {
+  return !!protocolSpec(protocol)?.profile;
 }
 
 export function usesLoginName(protocol: string) {

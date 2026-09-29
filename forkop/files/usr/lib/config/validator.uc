@@ -1367,7 +1367,8 @@ const SERVER_ENUMS = [
     [ "naive", "naive_network", [ "", "tcp", "udp", "tcp_udp" ] ],
     [ "tuic", "tuic_congestion_control", [ "", "cubic", "new_reno", "bbr" ] ],
     [ "hysteria2", "hysteria2_obfs_type", [ "", "salamander", "gecko" ] ],
-    [ "hysteria2", "hysteria2_bbr_profile", [ "", "standard", "conservative", "aggressive" ] ]
+    [ "hysteria2", "hysteria2_bbr_profile", [ "", "standard", "conservative", "aggressive" ] ],
+    [ "openvpn", "openvpn_network", [ "", "udp", "tcp" ] ]
 ];
 
 function server_enum_applies(scope, protocol, server) {
@@ -1401,6 +1402,54 @@ function validate_server_files(server, protocol, security, name) {
     }
 }
 
+// The host bits of a prefix: none set is the address of the subnet itself, and
+// in IPv4 all of them set is its broadcast address; the server takes neither.
+function prefix_host_address(prefix) {
+    let parts = split(prefix, "/");
+    let bytes = iptoarr(parts[0]);
+    let bits = int(parts[1]);
+    let any = false, all = true;
+    for (let bit = bits; bit < length(bytes) * 8; bit++) {
+        let set = (bytes[bit >> 3] >> (7 - (bit & 7))) & 1;
+        any = any || set;
+        all = all && set;
+    }
+    return any && (length(bytes) == 16 || !all);
+}
+
+// What the clients of an OpenVPN server are given: the address of the server in
+// one IPv4 and at most one IPv6 subnet, whose other addresses are theirs, and
+// the routes they send through it when not all of their traffic goes there.
+function validate_openvpn_server(server, name) {
+    let pools = list_option(server, "openvpn_address");
+    let families = {};
+    for (let pool in pools) {
+        pool = as_string(pool);
+        let family = core_ip.ip_family(pool);
+        if (!core_ip.valid_ip_cidr(pool))
+            fail_validation("OpenVPN server '" + server_label(name) + "' has the tunnel subnet '" + pool +
+                "', which is not an address with a prefix length");
+        if (families[family])
+            fail_validation("OpenVPN server '" + server_label(name) + "' has more than one IPv" + family + " tunnel subnet");
+        families[family] = true;
+        let bits = int(split(pool, "/")[1]);
+        if (family == 4 ? (bits < 8 || bits > 30) : (bits < 64 || bits > 126))
+            fail_validation("OpenVPN server '" + server_label(name) + "' tunnel subnet '" + pool + "' needs a prefix length from " +
+                (family == 4 ? "8 to 30" : "64 to 126"));
+        if (!prefix_host_address(pool))
+            fail_validation("OpenVPN server '" + server_label(name) + "' tunnel subnet '" + pool +
+                "' has to name the address of the server, such as " + (family == 4 ? "10.8.0.1/24" : "fd00:8::1/64"));
+    }
+    if (!families[4])
+        fail_validation("OpenVPN server '" + server_label(name) + "' needs an IPv4 tunnel subnet");
+    for (let route in list_option(server, "openvpn_routes"))
+        if (!core_ip.valid_ip_cidr(route))
+            fail_validation("OpenVPN server '" + server_label(name) + "' routes '" + route + "', which is not a subnet");
+    for (let field in [ "openvpn_certificate", "openvpn_key", "openvpn_tls_crypt_key" ])
+        if (option(server, field, "") == "")
+            fail_validation("OpenVPN server '" + server_label(name) + "' has no " + field);
+}
+
 // Everything else the core parses out of a server option and refuses on its own: a
 // listen address that is not an address, a duration it cannot read and a masquerade
 // URL whose scheme it does not know.
@@ -1426,6 +1475,9 @@ function validate_server_values(server, protocol, security, name) {
         for (let route in list_option(server, "tailscale_advertise_routes"))
             if (!core_ip.valid_ip_or_cidr(route))
                 fail_validation("Tailscale server '" + server_label(name) + "' advertises '" + route + "', which is not an address or a subnet");
+
+    if (protocol == "openvpn")
+        validate_openvpn_server(server, name);
 
     if (protocol == "tuic") {
         let heartbeat = option(server, "tuic_heartbeat", "");
@@ -1541,7 +1593,7 @@ function refuse_without(feature, core_tags, what) {
 }
 
 function server_core_type(protocol) {
-    return protocol == "mtproto" ? "mtproxy" : protocol;
+    return protocol == "mtproto" ? "mtproxy" : protocol == "openvpn" ? "openvpn-server" : protocol;
 }
 
 // What the configuration asks of the core that only some builds have. The core
@@ -1555,8 +1607,8 @@ function validate_core_features(settings, sections, servers, core_tags) {
             continue;
         let name = section_name(server);
         let protocol = option(server, "protocol", "vless");
-        let feature = protocol == "tailscale" ? features.type_feature("endpoint", "tailscale")
-            : features.type_feature("inbound", server_core_type(protocol));
+        let feature = features.type_feature(protocol == "tailscale" || protocol == "openvpn" ? "endpoint" : "inbound",
+            server_core_type(protocol));
         if (feature != "")
             refuse_without(feature, core_tags, "Server '" + server_label(name) + "' uses " + protocol);
         if (runtime_servers.effective_security(server, protocol) == "reality")

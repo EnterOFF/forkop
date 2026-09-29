@@ -11,11 +11,12 @@ let bool_option = common.bool_option;
 let int_option = common.int_option;
 let array_or_empty = common.array_or_empty;
 
-// What every layer of the server side has to agree on: which credential fields a
-// protocol asks a client for, which protocols use the client name as the account
-// name on the wire, and which Shadowsocks methods take a base64 key of an exact
-// length instead of a password. The generator, the runtime validator and the
-// service preparation all read these from here.
+// What every layer of the server side has to agree on: which fields every client
+// of a protocol holds, which protocols use the client name as the account name
+// on the wire, and which Shadowsocks methods take a base64 key of an exact length
+// instead of a password. The generator, the runtime validator and the service
+// preparation all read these from here. An OpenVPN client is its certificate,
+// which the router issues rather than asks for.
 const CLIENT_FIELDS = {
     vless: [ "uuid" ],
     vmess: [ "uuid" ],
@@ -29,10 +30,17 @@ const CLIENT_FIELDS = {
     ssh: [ "password" ],
     mieru: [ "password" ],
     mtproto: [ "secret" ],
+    openvpn: [ "openvpn_certificate", "openvpn_key", "openvpn_certificate_sha256" ],
     tailscale: [],
     json_inbound: []
 };
 const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, ssh: true, mieru: true };
+// What OpenVPN's own "keepalive 10 120" sets up: the client reconnects after two
+// minutes without a packet, and the server waits twice that before it drops the
+// session, so a client that comes back finds its address still there.
+const OPENVPN_PING_INTERVAL = "10s";
+const OPENVPN_CLIENT_PING_RESTART = "120s";
+const OPENVPN_SERVER_PING_RESTART = "240s";
 const SHADOWSOCKS_2022_KEY_BYTES = {
     "2022-blake3-aes-128-gcm": 16,
     "2022-blake3-aes-256-gcm": 32,
@@ -135,7 +143,7 @@ function effective_security(section, protocol) {
     }
 
     if (protocol == "shadowsocks" || protocol == "mixed" || protocol == "ssh" || protocol == "mieru" || protocol == "mtproto" ||
-        protocol == "tailscale" || protocol == "json_inbound")
+        protocol == "openvpn" || protocol == "tailscale" || protocol == "json_inbound")
         return "none";
     if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic")
         return "tls";
@@ -364,6 +372,8 @@ function add_json_inbound(config, section, tag_name) {
 // servers when one takes TCP and the other UDP.
 function transports(protocol, network) {
     network = lc(as_string(network));
+    if (protocol == "openvpn")
+        return [ network == "tcp" ? "tcp" : "udp" ];
     if (protocol == "hysteria2" || protocol == "tuic")
         return [ "udp" ];
     if (protocol == "shadowsocks" || (protocol == "naive" && network == "tcp_udp"))
@@ -376,7 +386,8 @@ function transports(protocol, network) {
 function listen_transports(section) {
     let protocol = option(section, "protocol", "vless");
     return transports(protocol, protocol == "naive" ? option(section, "naive_network", "tcp")
-        : protocol == "mieru" ? option(section, "mieru_transport", "TCP") : "");
+        : protocol == "mieru" ? option(section, "mieru_transport", "TCP")
+        : protocol == "openvpn" ? option(section, "openvpn_network", "udp") : "");
 }
 
 function add_tailscale_endpoint(config, section, tag_name) {
@@ -410,6 +421,63 @@ function add_tailscale_endpoint(config, section, tag_name) {
     push(config.endpoints, endpoint);
 }
 
+function pem_lines(value) {
+    return filter(map(split(as_string(value), "\n"), (line) => rtrim(line, "\r")), (line) => line != "");
+}
+
+// Clients are told apart by the certificate each was issued: the server trusts
+// nothing but their fingerprints, so removing a client revokes it. sing-box
+// issues every certificate for a TLS server, a client's included, so the check
+// of what a client certificate was issued for stays off. The server's own
+// certificate is what the profiles carry as their CA. Every client gets the DNS
+// of the router on the server's tunnel address and, unless the server is told
+// to leave the rest of their traffic alone, the default route.
+function add_openvpn_endpoint(config, section, tag_name) {
+    let pools = list_option(section, "openvpn_address");
+    let fingerprints = [];
+    for (let client in connections.server_clients(section)) {
+        let fingerprint = option(client, "openvpn_certificate_sha256", "");
+        if (fingerprint != "")
+            push(fingerprints, fingerprint);
+    }
+
+    let push_options = {
+        dns: map(pools, (pool) => split(pool, "/")[0]),
+        ping_interval: OPENVPN_PING_INTERVAL,
+        ping_restart: OPENVPN_CLIENT_PING_RESTART
+    };
+    if (bool_option(section, "openvpn_redirect_gateway", true)) {
+        push_options.redirect_gateway = true;
+        push_options.redirect_gateway_flags = length(filter(pools, (pool) => index(pool, ":") >= 0)) > 0
+            ? [ "def1", "ipv6" ] : [ "def1" ];
+        push_options.block_outside_dns = true;
+    }
+    else {
+        let routes = list_option(section, "openvpn_routes");
+        if (length(routes) > 0)
+            push_options.routes = routes;
+    }
+
+    push(config.endpoints, {
+        type: "openvpn-server",
+        tag: tag_name,
+        listen: option(section, "listen", "::"),
+        listen_port: int_option(section, "listen_port", "1194"),
+        network: option(section, "openvpn_network", "udp"),
+        address: pools,
+        tls: {
+            certificate: pem_lines(option(section, "openvpn_certificate", "")),
+            key: pem_lines(option(section, "openvpn_key", "")),
+            peer_fingerprint: fingerprints,
+            remote_certificate_tls: "none",
+            control_wrap: { type: "tls_crypt", key: pem_lines(option(section, "openvpn_tls_crypt_key", "")) }
+        },
+        push: push_options,
+        ping_interval: OPENVPN_PING_INTERVAL,
+        ping_restart: OPENVPN_SERVER_PING_RESTART
+    });
+}
+
 function add_dns_bypass(config, section) {
     if (option(section, "protocol", "vless") != "tailscale")
         return;
@@ -439,11 +507,19 @@ function add_server(config, section) {
 
     if (protocol == "tailscale")
         add_tailscale_endpoint(config, section, tag_name);
+    else if (protocol == "openvpn")
+        add_openvpn_endpoint(config, section, tag_name);
     else if (protocol == "json_inbound")
         add_json_inbound(config, section, tag_name);
     else
         add_standard_inbound(config, section, protocol, tag_name);
     add_dns_bypass(config, section);
+}
+
+// Whether a route rule can tell the clients of a server apart. An OpenVPN client
+// is known to the core by its certificate, which it does not report as a user.
+function routes_by_client(protocol) {
+    return protocol != "openvpn";
 }
 
 function add_sniff_rule(config, section) {
@@ -533,5 +609,6 @@ return {
     clone_rules_for_inbound,
     transports,
     listen_transports,
+    routes_by_client,
     effective_security
 };

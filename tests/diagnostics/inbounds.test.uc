@@ -9,6 +9,15 @@ t.test("a listener needs the firewall when WAN traffic can reach it", () => {
     t.ok(!inbounds.listen_requires_firewall("203.0.113.2", ""), "a documentation address");
 });
 
+t.test("an OpenVPN server is an endpoint of its own type, found where Tailscale is", () => {
+    t.eq([ inbounds.runtime_type("openvpn"), inbounds.runtime_kind("openvpn") ], [ "openvpn-server", "endpoints" ]);
+    t.eq([ inbounds.runtime_type("mtproto"), inbounds.runtime_kind("mtproto") ], [ "mtproxy", "inbounds" ]);
+    t.eq(inbounds.runtime_kind("tailscale"), "endpoints");
+    t.eq(inbounds.runtime_ok("openvpn", "1", "openvpn-server", "::", "1194", "openvpn-server", "::", "1194"), 1,
+        "its listener is compared like any other");
+    t.eq(inbounds.runtime_ok("openvpn", "1", "openvpn-server", "::", "1195", "openvpn-server", "::", "1194"), 0);
+});
+
 t.test("the public host of a server is judged against the WAN", () => {
     let flags = (host, ips, wan, wan_public) => {
         let f = inbounds.public_host_flags(host, ips, wan, wan_public);

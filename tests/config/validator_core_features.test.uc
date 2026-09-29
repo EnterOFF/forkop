@@ -32,6 +32,8 @@ t.test("a server of a type the build lacks is refused by name", () => {
     needs({ server: [ server("tuic") ] }, without(BASE, "with_quic"), "Server 'srv' uses tuic");
     needs({ server: [ server("mtproto") ] }, without(BASE, "with_mtproxy"), "lacks the MTProto proxy (built without with_mtproxy)");
     needs({ server: [ server("tailscale") ] }, BASE, "Server 'srv' uses tailscale, but this sing-box build lacks Tailscale (built without with_tailscale)");
+    needs({ server: [ server("openvpn") ] }, without(BASE, "with_openvpn"),
+        "Server 'srv' uses openvpn, but this sing-box build lacks OpenVPN (built without with_openvpn)");
     needs({ server: [ server("vless", { security: "reality" }) ] }, without(BASE, "with_utls"), "Server 'srv' uses Reality");
     needs({ server: [ server("naive", { naive_network: "udp" }) ] }, without(BASE, "with_quic"), "serves NaiveProxy over QUIC");
 });
