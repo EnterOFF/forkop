@@ -1454,7 +1454,7 @@ function getClashWsUrl() {
 function getClashSocketUrl(path, secret) {
   return `${getClashWsUrl()}${path}?token=${encodeURIComponent(secret)}`;
 }
-function getClashHttpUrl() {
+function getClashApiUrl() {
   const { hostname } = window.location;
   return `http://${hostname}:9090`;
 }
@@ -1548,58 +1548,6 @@ function copyToClipboard(text4) {
 async function getConfigSections() {
   await uci.load(FORKOP_UCI_PACKAGE);
   return uci.sections(FORKOP_UCI_PACKAGE);
-}
-
-// src/helpers/getProxyUrlName.ts
-function getProxyUrlName(url) {
-  const link = `${url ?? ""}`;
-  const scheme = link.includes("://") ? link.slice(0, link.indexOf("://")).toLowerCase() : "";
-  if (scheme === "vmess") {
-    const name = vmessName(link.slice("vmess://".length));
-    if (name) {
-      return name;
-    }
-  }
-  const marker = link.indexOf("#");
-  return marker >= 0 ? percentDecode(link.slice(marker + 1)) : "";
-}
-function vmessName(source) {
-  let payload = source;
-  if (!payload.startsWith("{")) {
-    const encoded = payload.split(/[@?#]/, 1)[0].replace(/-/g, "+").replace(/_/g, "/");
-    try {
-      payload = new TextDecoder().decode(
-        Uint8Array.from(
-          atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
-          (character) => character.charCodeAt(0)
-        )
-      );
-    } catch {
-      return "";
-    }
-  }
-  try {
-    const name = JSON.parse(payload)?.ps;
-    return name ? `${name}` : "";
-  } catch {
-    return "";
-  }
-}
-function percentDecode(value) {
-  const bytes = [];
-  const encoder = new TextEncoder();
-  for (let i = 0; i < value.length; ) {
-    const hex = value.slice(i + 1, i + 3);
-    if (value[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
-      bytes.push(parseInt(hex, 16));
-      i += 3;
-      continue;
-    }
-    const character = String.fromCodePoint(value.codePointAt(i));
-    bytes.push(...encoder.encode(character));
-    i += character.length;
-  }
-  return new TextDecoder().decode(new Uint8Array(bytes));
 }
 
 // src/helpers/alignLuciRpcTimeout.ts
@@ -1714,7 +1662,7 @@ var Forkop;
     AvailableMethods2["CHECK_INBOUNDS_CONFIG"] = "check_inbounds_config";
     AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
     AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
-    AvailableMethods2["CLASH_HTTP"] = "clash_http";
+    AvailableMethods2["CLASH_API"] = "clash_api";
     AvailableMethods2["CLASH_SUMMARY"] = "clash_summary";
     AvailableMethods2["ENABLE"] = "enable";
     AvailableMethods2["DISABLE"] = "disable";
@@ -1826,7 +1774,7 @@ var COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
 var COMPONENT_ACTION_STATE_DIR = "/var/run/forkop/component-actions";
 var GET_UI_STATE_RPC_TIMEOUT_MS = 3e3;
 var SYSTEM_INFO_UBUS_TIMEOUT_MS = 5e3;
-var CLASH_HTTP_TRANSPORT_TIMEOUT_MS = 65e3;
+var CLASH_API_TRANSPORT_TIMEOUT_MS = 65e3;
 var DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1e3;
 var checkLogsRequest = null;
 function sleep(ms) {
@@ -1977,17 +1925,19 @@ var ForkopShellMethods = {
   checkInbounds: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_INBOUNDS
   ),
-  clashHttp: async (method, path, body = "") => callBaseMethod(
-    Forkop.AvailableMethods.CLASH_HTTP,
+  clashApi: async (method, path, body = "") => callBaseMethod(
+    Forkop.AvailableMethods.CLASH_API,
     [method, path, body],
     "/usr/bin/forkop",
-    { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS }
+    {
+      timeout: method.toUpperCase() === "GET" && !path.includes("/delay?") ? 1e4 : CLASH_API_TRANSPORT_TIMEOUT_MS
+    }
   ),
   clashSummary: async () => callBaseMethod(
     Forkop.AvailableMethods.CLASH_SUMMARY,
     [],
     "/usr/bin/forkop",
-    { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS }
+    { timeout: 1e4 }
   ),
   // Through the CLI, not the init script: every init script command waits on
   // procd's per-service lock, and the CLI writes the rc.d symlink at once.
@@ -2181,7 +2131,7 @@ var ForkopShellMethods = {
   }
 };
 
-// src/forkop/methods/custom/getDashboardSections.ts
+// src/forkop/methods/custom/clashApi.ts
 var CLASH_API_FETCH_TIMEOUT_MS = 5e3;
 var CLASH_API_MUTATION_TIMEOUT_MS = 15e3;
 var GROUP_LATENCY_TIMEOUT_MS = "40000";
@@ -2191,21 +2141,11 @@ var DIRECT_CLASH_API_PROBE_TIMEOUT_MS = 2e3;
 var clashApiConfigSections = [];
 var clashApiConfigSectionsPromise;
 var directClashApiSuspended = false;
+var directClashApiReachable = false;
 var directClashApiProbeAt = 0;
 var directClashApiProbe;
-var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
-  "http",
-  "hysteria",
-  "hysteria2",
-  "shadowsocks",
-  "socks",
-  "trojan",
-  "tuic",
-  "vless",
-  "vmess"
-]);
-function getDisplayName(section) {
-  return section.label || section[".name"];
+function setClashApiConfigSections(sections) {
+  clashApiConfigSections = sections;
 }
 function getSettingsSection(configSections) {
   return configSections.find((section) => section[".type"] === "settings");
@@ -2221,6 +2161,7 @@ function canFetchClashApiDirectly() {
 }
 function suspendDirectClashApi() {
   directClashApiSuspended = true;
+  directClashApiReachable = false;
   directClashApiProbeAt = Date.now() + DIRECT_CLASH_API_PROBE_INTERVAL_MS;
 }
 function resetClashApiTransport() {
@@ -2277,7 +2218,7 @@ async function fetchClashApiDirectly(configSections, path, init, timeout) {
   };
   if (secret) headers.Authorization = `Bearer ${secret}`;
   try {
-    const response = await fetch(`${getClashHttpUrl()}${path}`, {
+    const response = await fetch(`${getClashApiUrl()}${path}`, {
       ...init,
       headers,
       signal: controller?.signal
@@ -2293,8 +2234,8 @@ async function fetchClashApiDirectly(configSections, path, init, timeout) {
     if (timeoutId) clearTimeout(timeoutId);
   }
 }
-async function fetchClashApiThroughCli(method, path, body) {
-  const response = await ForkopShellMethods.clashHttp(method, path, body);
+async function fetchClashApiThroughCli(method, path, body, summary = false) {
+  const response = summary ? await ForkopShellMethods.clashSummary() : await ForkopShellMethods.clashApi(method, path, body);
   if (!response.success) {
     return response;
   }
@@ -2304,8 +2245,11 @@ async function fetchClashApiThroughCli(method, path, body) {
   );
 }
 function probeDirectClashApi() {
-  if (directClashApiProbe || Date.now() < directClashApiProbeAt) {
-    return;
+  if (directClashApiProbe) {
+    return directClashApiProbe;
+  }
+  if (Date.now() < directClashApiProbeAt) {
+    return Promise.resolve();
   }
   directClashApiProbeAt = Date.now() + DIRECT_CLASH_API_PROBE_INTERVAL_MS;
   directClashApiProbe = ensureClashApiConfigSections().then(
@@ -2318,15 +2262,23 @@ function probeDirectClashApi() {
   ).then((outcome) => {
     if (outcome.kind === "response") {
       directClashApiSuspended = false;
+      directClashApiReachable = true;
       directClashApiProbeAt = 0;
+    } else {
+      suspendDirectClashApi();
     }
   }).catch(() => void 0).finally(() => {
     directClashApiProbe = void 0;
   });
+  return directClashApiProbe;
 }
 async function requestClashApi(path, init, timeout, options) {
   const method = (init?.method || "GET").toUpperCase();
   const body = typeof init?.body === "string" ? init.body : "";
+  const keepsRunning = options?.keepsRunningAfterTimeout || method !== "GET" && method !== "HEAD";
+  if (keepsRunning && canFetchClashApiDirectly() && !directClashApiReachable) {
+    await probeDirectClashApi();
+  }
   if (canFetchClashApiDirectly()) {
     const outcome = await fetchClashApiDirectly(
       await ensureClashApiConfigSections(),
@@ -2336,21 +2288,27 @@ async function requestClashApi(path, init, timeout, options) {
     );
     if (outcome.kind === "response") {
       directClashApiSuspended = false;
+      directClashApiReachable = true;
       directClashApiProbeAt = 0;
-      return parseClashApiPayload(outcome.status, outcome.body);
+      const response = parseClashApiPayload(outcome.status, outcome.body);
+      return options?.summary && response.success ? {
+        success: true,
+        data: summarizeConnections(
+          response.data
+        )
+      } : response;
     }
     suspendDirectClashApi();
-    const keepsRunning = options?.keepsRunningAfterTimeout || method !== "GET" && method !== "HEAD";
-    if (outcome.kind === "timeout" && keepsRunning) {
+    if (keepsRunning) {
       return {
         success: false,
-        error: _("Clash API request timed out after it was sent")
+        error: outcome.kind === "timeout" ? _("Clash API request timed out after it was sent") : _("Clash API response was lost after the request was sent")
       };
     }
   } else if (canReachClashApiFromBrowser()) {
-    probeDirectClashApi();
+    void probeDirectClashApi();
   }
-  return fetchClashApiThroughCli(method, path, body);
+  return fetchClashApiThroughCli(method, path, body, options?.summary);
 }
 function getLatencyTestUrl() {
   return getSettingsSection(clashApiConfigSections)?.latency_test_url || DEFAULT_LATENCY_TEST_URL;
@@ -2358,7 +2316,8 @@ function getLatencyTestUrl() {
 function latencyRequestTimeout(timeout, overshoot = 0) {
   return (Number.parseInt(timeout, 10) || CLASH_API_FETCH_TIMEOUT_MS) + overshoot + CLASH_API_FETCH_TIMEOUT_MS;
 }
-function getClashApiProxyLatency(tag, timeout = "5000") {
+async function getClashApiProxyLatency(tag, timeout = "5000") {
+  await ensureClashApiConfigSections();
   const params = new URLSearchParams({
     url: getLatencyTestUrl(),
     timeout
@@ -2370,7 +2329,8 @@ function getClashApiProxyLatency(tag, timeout = "5000") {
     { keepsRunningAfterTimeout: true }
   );
 }
-function getClashApiGroupLatency(tag, timeout = GROUP_LATENCY_TIMEOUT_MS) {
+async function getClashApiGroupLatency(tag, timeout = GROUP_LATENCY_TIMEOUT_MS) {
+  await ensureClashApiConfigSections();
   const params = new URLSearchParams({
     url: getLatencyTestUrl(),
     timeout
@@ -2464,21 +2424,11 @@ function summarizeConnections(snapshot) {
   };
 }
 async function getClashApiConnectionsSummary() {
-  if (canFetchClashApiDirectly()) {
-    const response2 = await requestClashApi(
-      "/connections",
-      void 0,
-      CLASH_API_FETCH_TIMEOUT_MS
-    );
-    return response2.success ? { success: true, data: summarizeConnections(response2.data) } : response2;
-  }
-  const response = await ForkopShellMethods.clashSummary();
-  if (!response.success) {
-    return response;
-  }
-  return parseClashApiPayload(
-    response.data?.status ?? 0,
-    response.data?.body || ""
+  return requestClashApi(
+    "/connections",
+    void 0,
+    CLASH_API_FETCH_TIMEOUT_MS,
+    { summary: true }
   );
 }
 function closeClashApiConnection(connectionId) {
@@ -2494,6 +2444,74 @@ function closeAllClashApiConnections() {
     { method: "DELETE" },
     CLASH_API_MUTATION_TIMEOUT_MS
   );
+}
+
+// src/helpers/getProxyUrlName.ts
+function getProxyUrlName(url) {
+  const link = `${url ?? ""}`;
+  const scheme = link.includes("://") ? link.slice(0, link.indexOf("://")).toLowerCase() : "";
+  if (scheme === "vmess") {
+    const name = vmessName(link.slice("vmess://".length));
+    if (name) {
+      return name;
+    }
+  }
+  const marker = link.indexOf("#");
+  return marker >= 0 ? percentDecode(link.slice(marker + 1)) : "";
+}
+function vmessName(source) {
+  let payload = source;
+  if (!payload.startsWith("{")) {
+    const encoded = payload.split(/[@?#]/, 1)[0].replace(/-/g, "+").replace(/_/g, "/");
+    try {
+      payload = new TextDecoder().decode(
+        Uint8Array.from(
+          atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
+          (character) => character.charCodeAt(0)
+        )
+      );
+    } catch {
+      return "";
+    }
+  }
+  try {
+    const name = JSON.parse(payload)?.ps;
+    return name ? `${name}` : "";
+  } catch {
+    return "";
+  }
+}
+function percentDecode(value) {
+  const bytes = [];
+  const encoder = new TextEncoder();
+  for (let i = 0; i < value.length; ) {
+    const hex = value.slice(i + 1, i + 3);
+    if (value[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16));
+      i += 3;
+      continue;
+    }
+    const character = String.fromCodePoint(value.codePointAt(i));
+    bytes.push(...encoder.encode(character));
+    i += character.length;
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
+// src/forkop/methods/custom/getDashboardSections.ts
+var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
+  "http",
+  "hysteria",
+  "hysteria2",
+  "shadowsocks",
+  "socks",
+  "trojan",
+  "tuic",
+  "vless",
+  "vmess"
+]);
+function getDisplayName(section) {
+  return section.label || section[".name"];
 }
 function getListValues(value) {
   if (!value) {
@@ -3230,7 +3248,7 @@ function getSubscriptionMetadata(section, sourceCount, subscriptionTags, provide
 }
 async function getDashboardSections() {
   const configSections = hydrateConfigSections(await getConfigSections());
-  clashApiConfigSections = configSections;
+  setClashApiConfigSections(configSections);
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
   const [clashProxies, clashProviders, sectionRuleSets] = await Promise.all([
     getClashApiProxies(),

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-29 20:54+0300\n"
-"PO-Revision-Date: 2026-09-29 20:54+0300\n"
+"POT-Creation-Date: 2026-10-01 04:32+0300\n"
+"PO-Revision-Date: 2026-10-01 04:32+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -415,6 +415,9 @@ msgstr "Наборы шифров до TLS 1.2 через двоеточие (tl
 
 msgid "Clash API request timed out after it was sent"
 msgstr "Запрос к Clash API был отправлен, но истекло время ожидания ответа"
+
+msgid "Clash API response was lost after the request was sent"
+msgstr "Запрос к Clash API был отправлен, но ответ потерян"
 
 msgid "Click a server to pin its priority. Click it again to unpin."
 msgstr "Нажмите на сервер, чтобы закрепить его приоритет. Повторное нажатие чтобы открепить."

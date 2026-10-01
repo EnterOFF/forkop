@@ -68,7 +68,7 @@ export namespace Forkop {
     CHECK_INBOUNDS_CONFIG = 'check_inbounds_config',
     CHECK_SING_BOX = 'check_sing_box',
     CHECK_INBOUNDS = 'check_inbounds',
-    CLASH_HTTP = 'clash_http',
+    CLASH_API = 'clash_api',
     CLASH_SUMMARY = 'clash_summary',
     ENABLE = 'enable',
     DISABLE = 'disable',
@@ -520,7 +520,7 @@ export namespace Forkop {
 
   export type GetClashApiGroupLatency = Record<string, number>;
 
-  export interface ClashHttpResponse {
+  export interface ClashApiResponse {
     status: number;
     body: string;
   }

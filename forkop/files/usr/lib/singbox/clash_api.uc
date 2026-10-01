@@ -11,7 +11,6 @@ let uci = require("core.uci");
 
 const CONFIG_NAME = "forkop";
 const DEFAULT_PORT = singbox_constants.CLASH_API_CONTROLLER_PORT;
-const MAX_TIME = "60";
 const STATUS_MARKER = "__FORKOP_CLASH_STATUS__";
 
 function endpoint(address) {
@@ -102,7 +101,15 @@ function curl(api, options, path, run) {
         file.write("Authorization: Bearer " + api.secret + "\n");
         file.close();
     }
-    let result = run([ "curl", ...(header == null ? [] : [ "--header", "@" + header ]), ...options, "http://" + api.endpoint + path ]);
+    let result;
+    try {
+        result = run([ "curl", "--noproxy", "*", ...(header == null ? [] : [ "--header", "@" + header ]), ...options, "http://" + api.endpoint + path ]);
+    }
+    catch (e) {
+        if (header != null)
+            fs.unlink(header);
+        die(e.message);
+    }
     if (header != null)
         fs.unlink(header);
     return result;
@@ -116,7 +123,9 @@ function request(method, path, body) {
     if (!allowed(method, path, body))
         die("Clash API request is not allowlisted: " + method + " " + path);
 
-    let options = [ "-sS", "--path-as-is", "--connect-timeout", "3", "--max-time", MAX_TIME, "-X", method ];
+    let delay = match(path, /\/delay\?url=[^&]+&timeout=([0-9]+)$/);
+    let max_time = method != "GET" ? 60 : delay ? min(60, int((int(delay[1]) + 999) / 1000) + 10) : 5;
+    let options = [ "-sS", "--path-as-is", "--connect-timeout", "3", "--max-time", "" + max_time, "-X", method ];
     if (body != "")
         push(options, "--header", "Content-Type: application/json", "--data-raw", body);
     push(options, "-w", STATUS_MARKER + "%{http_code}");

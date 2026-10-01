@@ -23,7 +23,7 @@ export function getClashSocketUrl(path: string, secret: string): string {
   return `${getClashWsUrl()}${path}?token=${encodeURIComponent(secret)}`;
 }
 
-export function getClashHttpUrl(): string {
+export function getClashApiUrl(): string {
   const { hostname } = window.location;
 
   return `http://${hostname}:9090`;

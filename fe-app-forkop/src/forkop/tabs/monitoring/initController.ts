@@ -3,7 +3,7 @@ import {
   getClashSocketUrl,
 } from '../../../helpers/getClashApiUrl';
 import { onMount } from '../../../helpers/onMount';
-import { resetClashApiTransport } from '../../methods/custom/getDashboardSections';
+import { resetClashApiTransport } from '../../methods/custom/clashApi';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { shouldCopyFullMonitoringValue } from './valueCopy';
 import { createPollChain } from '../../helpers/pollChain';

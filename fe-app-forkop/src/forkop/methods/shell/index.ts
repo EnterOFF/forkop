@@ -17,7 +17,7 @@ const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
 const SYSTEM_INFO_UBUS_TIMEOUT_MS = 5000;
 // The router-side Clash transport lets curl run for a minute, and LuCI aborts
 // every RPC after twenty seconds unless something raises that ceiling.
-const CLASH_HTTP_TRANSPORT_TIMEOUT_MS = 65000;
+const CLASH_API_TRANSPORT_TIMEOUT_MS = 65000;
 // Diagnostic checks inspect the whole runtime: nftables chains, sing-box, DNS
 // probes. On slow routers a single check takes far longer than an ordinary RPC,
 // and cutting it short reports a healthy runtime as unreachable.
@@ -242,19 +242,24 @@ export const ForkopShellMethods = {
     diagnosticCheck<Forkop.InboundsCheckResult>(
       Forkop.AvailableMethods.CHECK_INBOUNDS,
     ),
-  clashHttp: async (method: string, path: string, body = '') =>
-    callBaseMethod<Forkop.ClashHttpResponse>(
-      Forkop.AvailableMethods.CLASH_HTTP,
+  clashApi: async (method: string, path: string, body = '') =>
+    callBaseMethod<Forkop.ClashApiResponse>(
+      Forkop.AvailableMethods.CLASH_API,
       [method, path, body],
       '/usr/bin/forkop',
-      { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS },
+      {
+        timeout:
+          method.toUpperCase() === 'GET' && !path.includes('/delay?')
+            ? 10000
+            : CLASH_API_TRANSPORT_TIMEOUT_MS,
+      },
     ),
   clashSummary: async () =>
-    callBaseMethod<Forkop.ClashHttpResponse>(
+    callBaseMethod<Forkop.ClashApiResponse>(
       Forkop.AvailableMethods.CLASH_SUMMARY,
       [],
       '/usr/bin/forkop',
-      { timeout: CLASH_HTTP_TRANSPORT_TIMEOUT_MS },
+      { timeout: 10000 },
     ),
   // Through the CLI, not the init script: every init script command waits on
   // procd's per-service lock, and the CLI writes the rc.d symlink at once.

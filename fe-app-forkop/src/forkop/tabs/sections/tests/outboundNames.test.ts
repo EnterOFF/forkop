@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ providers: vi.fn() }));
-vi.mock('../../../methods/custom/getDashboardSections', () => ({
+vi.mock('../../../methods/custom/clashApi', () => ({
   getClashApiProxyProviders: mocks.providers,
 }));
 

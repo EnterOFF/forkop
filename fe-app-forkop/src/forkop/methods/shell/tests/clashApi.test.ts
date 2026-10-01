@@ -14,7 +14,7 @@ import { ForkopShellMethods } from '..';
 // after twenty seconds unless something raises that ceiling, and asking for no
 // timeout at all left the default in place: a rule-set refresh the router was
 // still running came back as a failure.
-describe('ForkopShellMethods.clashHttp', () => {
+describe('ForkopShellMethods.clashApi', () => {
   beforeEach(() => {
     mocks.executeShellCommand.mockReset();
   });
@@ -27,7 +27,7 @@ describe('ForkopShellMethods.clashHttp', () => {
     });
 
     await expect(
-      ForkopShellMethods.clashHttp(
+      ForkopShellMethods.clashApi(
         'PUT',
         '/proxies/main-out',
         '{"name":"main-subscription-1-provider/Example"}',
@@ -39,7 +39,7 @@ describe('ForkopShellMethods.clashHttp', () => {
     expect(mocks.executeShellCommand).toHaveBeenCalledWith({
       command: '/usr/bin/forkop',
       args: [
-        'clash_http',
+        'clash_api',
         'PUT',
         '/proxies/main-out',
         '{"name":"main-subscription-1-provider/Example"}',
@@ -57,7 +57,7 @@ describe('ForkopShellMethods.clashHttp', () => {
     });
 
     await expect(
-      ForkopShellMethods.clashHttp(
+      ForkopShellMethods.clashApi(
         'GET',
         '/proxies/main-subscription-1-provider%2FExample/link',
       ),
@@ -71,12 +71,12 @@ describe('ForkopShellMethods.clashHttp', () => {
     expect(mocks.executeShellCommand).toHaveBeenCalledWith({
       command: '/usr/bin/forkop',
       args: [
-        'clash_http',
+        'clash_api',
         'GET',
         '/proxies/main-subscription-1-provider%2FExample/link',
         '',
       ],
-      timeout: 65000,
+      timeout: 10000,
     });
   });
 
@@ -88,7 +88,7 @@ describe('ForkopShellMethods.clashHttp', () => {
     });
 
     await expect(
-      ForkopShellMethods.clashHttp('GET', '/proxies'),
+      ForkopShellMethods.clashApi('GET', '/proxies'),
     ).resolves.toEqual({
       success: false,
       error: 'curl: (7) Failed to connect',

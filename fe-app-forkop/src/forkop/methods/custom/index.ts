@@ -7,11 +7,11 @@ import {
   getClashApiGroupLatency,
   getClashApiProxyLink,
   getClashApiProxyLatency,
-  getDashboardSections,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
   updateClashApiRuleProviders,
-} from './getDashboardSections';
+} from './clashApi';
+import { getDashboardSections } from './getDashboardSections';
 
 export const CustomForkopMethods = {
   getConfigSections,

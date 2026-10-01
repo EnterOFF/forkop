@@ -18,7 +18,7 @@ vi.mock('../../../methods', () => ({
 vi.mock('../../../methods/custom/getClashApiSecret', () => ({
   getClashApiSecret: async () => 'secret',
 }));
-vi.mock('../../../methods/custom/getDashboardSections', () => ({
+vi.mock('../../../methods/custom/clashApi', () => ({
   resetClashApiTransport: vi.fn(),
 }));
 vi.mock('../../../cbi/localDevices', () => ({

@@ -12,7 +12,7 @@ let core_ip = require("core.ip");
 let library = require("core.library");
 let uci = require("core.uci");
 let worker_process = require("service.worker");
-let clash_http = require("singbox.clash_http");
+let clash_api = require("singbox.clash_api");
 let nft_apply = require("nft.apply");
 let nft_sections = require("nft.sections");
 let connections = require("config.connections");
@@ -429,7 +429,7 @@ function sync(snapshot, sections) {
 // The snapshot is parsed straight out of curl's pipe: read into a string first,
 // it would exist twice, and on a country-sized list that is megabytes.
 function snapshot(api) {
-    return clash_http.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "10" ], "/providers/rules", (argv) => {
+    return clash_api.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "10" ], "/providers/rules", (argv) => {
         let pipe = fs.popen(exec.command_line(argv) + " 2>/dev/null", "r");
         if (!pipe)
             return null;
@@ -461,7 +461,7 @@ function sync_once(api) {
 // the controller could not be asked. The controller answers at once when its
 // revision is no longer the one given, and otherwise when a provider updates.
 function next_change(api, revision, seconds) {
-    let result = clash_http.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "" + seconds ],
+    let result = clash_api.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "" + seconds ],
         "/providers/rules/events?since=" + revision, exec.capture);
     if (result.status == 28)
         return false;
@@ -486,7 +486,7 @@ function worker_spec(sources) {
 // wait, so the worker syncs from the new one and writes only what changed.
 function worker() {
     worker_process.announce(worker_spec());
-    let api = clash_http.controller();
+    let api = clash_api.controller();
     let delay = RETRY_MIN_SECONDS;
     let revision = sync_once(api);
     while (revision !== false) {
@@ -496,7 +496,7 @@ function worker() {
         if (change == null) {
             sleep(delay * 1000);
             delay = min(delay * 2, RETRY_MAX_SECONDS);
-            api = clash_http.controller();
+            api = clash_api.controller();
         }
         revision = sync_once(api);
         if (revision != null)

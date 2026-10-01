@@ -25,7 +25,7 @@ import {
   renderWidget,
 } from './partials';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
-import { resetClashApiTransport } from '../../methods/custom/getDashboardSections';
+import { resetClashApiTransport } from '../../methods/custom/clashApi';
 import { Forkop } from '../../types';
 import { refreshRuntimeUiState } from '../../services/runtimeUiState.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';

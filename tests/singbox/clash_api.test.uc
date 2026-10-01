@@ -4,7 +4,7 @@ let fs = require("fs");
 let fixture = require("fixture");
 let program = require("program");
 let cli = require("service.cli");
-let clash = require("singbox.clash_http");
+let clash = require("singbox.clash_api");
 
 let dir = stub.tmpdir();
 
@@ -42,7 +42,7 @@ function call(argv) {
 t.test("an allowlisted request reaches the controller as asked, authenticated without the secret on the command line", () => {
     config("192.168.1.1:9090");
     controller(204, { "/link": "{\"url\":\"vless://id@example.com:443\"}" });
-    let result = call([ "clash_http", "GET", "/proxies/provider%2Fnode/link" ]);
+    let result = call([ "clash_api", "GET", "/proxies/provider%2Fnode/link" ]);
     stub.restore();
     t.eq([ result.status, result.reply.status, json(result.reply.body).url ], [ 0, 204, "vless://id@example.com:443" ]);
     let argv = join(" ", requests[0].argv);
@@ -55,7 +55,7 @@ t.test("an allowlisted request reaches the controller as asked, authenticated wi
 
     config("192.168.1.1:9090", "");
     controller(204, {});
-    call([ "clash_http", "GET", "/proxies" ]);
+    call([ "clash_api", "GET", "/proxies" ]);
     stub.restore();
     t.eq(requests[0].header, null, "a controller without a secret gets no header");
 });
@@ -72,7 +72,7 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
         [ "PUT", "/providers/rules/geosite%2Fextra", "" ],
         [ "DELETE", "/connections/abc-123", "" ]
     ]) {
-        let result = call([ "clash_http", ...request ]);
+        let result = call([ "clash_api", ...request ]);
         t.eq(result.status, 0, join(" ", request));
     }
     stub.restore();
@@ -89,7 +89,7 @@ t.test("anything else is refused before it reaches the controller", () => {
         [ "GET", "/proxies/../configs", "" ], [ "PUT", "/proxies/main-out", "{\"name\":\"x\",\"extra\":1}" ], [ "PUT", "/proxies/main-out", "not-json" ],
         [ "GET", "/proxies/main-out/delay?url=x&timeout=abc", "" ], [ "DELETE", "/connections", "{\"all\":true}" ],
         [ "PUT", "/providers/rules", "{\"name\":\"geosite\"}" ], [ "PUT", "/providers/rules/a/b", "" ] ]) {
-        let result = call([ "clash_http", ...request ]);
+        let result = call([ "clash_api", ...request ]);
         t.eq([ result.status, result.reply ], [ 1, null ], join(" ", request));
         t.contains(result.stderr, "not allowlisted");
     }
@@ -112,6 +112,35 @@ t.test("the summary carries the totals and the count, never the connection list"
     stub.restore();
     t.eq(json(result.reply.body), { downloadTotal: 10, uploadTotal: 20, memory: 30, connections: 2 });
     t.contains(join(" ", requests[0].argv), "-X GET");
+
+});
+
+t.test("read deadlines are short while delay sweeps and updates retain their budget", () => {
+    config("127.0.0.1:9090");
+    controller(200, {});
+    for (let pair in [
+        [ "GET", "/proxies", "5" ],
+        [ "GET", "/connections", "5" ],
+        [ "GET", "/group/main/delay?url=https%3A%2F%2Fexample.com&timeout=40000", "50" ],
+        [ "PUT", "/providers/rules/main", "60" ]
+    ]) {
+        clash.request(pair[0], pair[1], "");
+        let argv = requests[length(requests) - 1].argv;
+        t.eq(argv[index(argv, "--max-time") + 1], pair[2]);
+    }
+    stub.restore();
+});
+
+t.test("the authentication file is removed even when the request runner throws", () => {
+    let failed = false;
+    try {
+        clash.curl({ endpoint: "127.0.0.1:9090", secret: "local-secret" }, [], "/proxies", () => die("runner failed"));
+    }
+    catch (e) {
+        failed = true;
+    }
+    t.eq(failed, true);
+    t.eq(fs.glob("/tmp/forkop-clash-header.*"), []);
 });
 
 // The page reaches the Clash API through this on every poll, so loading it has
@@ -119,13 +148,13 @@ t.test("the summary carries the totals and the count, never the connection list"
 // the require lines, so what they load in turn counts too.
 t.test("the transport loads nothing beyond core and the constants", () => {
     let probe = stub.tmpdir() + "/probe.uc";
-    fs.writefile(probe, "require(\"singbox.clash_http\");\nprint(join(\" \", keys(global.modules)), \"\\n\");\n");
+    fs.writefile(probe, "require(\"singbox.clash_api\");\nprint(join(\" \", keys(global.modules)), \"\\n\");\n");
     let pipe = fs.popen("ucode -L '" + program.LIBRARY + "' '" + probe + "'", "r");
     let loaded = split(trim(pipe.read("all")), " ");
     pipe.close();
-    t.contains(loaded, "singbox.clash_http");
+    t.contains(loaded, "singbox.clash_api");
     t.eq(filter(loaded, (name) => substr(name, 0, 5) != "core." &&
-        index([ "fs", "singbox.constants", "singbox.clash_http" ], name) < 0), []);
+        index([ "fs", "singbox.constants", "singbox.clash_api" ], name) < 0), []);
 });
 
 t.done();

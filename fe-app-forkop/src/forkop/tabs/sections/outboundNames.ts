@@ -19,7 +19,7 @@ import {
 import { safeRuntimeSectionName } from './references';
 import { optionMapValue } from './subscriptions/model';
 import { tunnelDisplayName } from './tunnels/model';
-import { getClashApiProxyProviders } from '../../methods/custom/getDashboardSections';
+import { getClashApiProxyProviders } from '../../methods/custom/clashApi';
 
 const outboundNameChoicesCache = new Map();
 

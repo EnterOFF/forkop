@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getConfigSections: vi.fn(),
-  clashHttp: vi.fn(),
+  clashApi: vi.fn(),
   clashSummary: vi.fn(),
   canUseDirectClashApi: vi.fn(),
   getSectionRuleSets: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock('../getConfigSections', () => ({
 
 vi.mock('../../shell', () => ({
   ForkopShellMethods: {
-    clashHttp: mocks.clashHttp,
+    clashApi: mocks.clashApi,
     clashSummary: mocks.clashSummary,
     getSectionRuleSets: mocks.getSectionRuleSets,
   },
@@ -22,7 +22,7 @@ vi.mock('../../shell', () => ({
 
 vi.mock('../../../../helpers/getClashApiUrl', () => ({
   canUseDirectClashApi: mocks.canUseDirectClashApi,
-  getClashHttpUrl: () => 'http://router.example:9090',
+  getClashApiUrl: () => 'http://router.example:9090',
 }));
 vi.mock('../../../../helpers/getProxyUrlName', () => ({
   getProxyUrlName: (link?: string) =>
@@ -36,7 +36,6 @@ import {
   closeAllClashApiConnections,
   getClashApiConnections,
   getClashApiConnectionsSummary,
-  getDashboardSections,
   getClashApiGroupLatency,
   getClashApiProxyLatency,
   getClashApiProxyLink,
@@ -44,7 +43,8 @@ import {
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
   updateClashApiRuleProviders,
-} from '../getDashboardSections';
+} from '../clashApi';
+import { getDashboardSections } from '../getDashboardSections';
 import { ClashAPI, Forkop } from '../../../types';
 
 function proxy(
@@ -103,7 +103,7 @@ function neverAnsweringFetch() {
   );
 }
 
-function clashHttpJson(status: number, payload: unknown) {
+function clashApiJson(status: number, payload: unknown) {
   return {
     success: true,
     data: {
@@ -116,22 +116,22 @@ function clashHttpJson(status: number, payload: unknown) {
 let clashProxies: Record<string, ClashAPI.ProxyBase> = {};
 let clashProviders: Record<string, unknown> = {};
 
-function useClashHttpRuntime() {
-  mocks.clashHttp.mockImplementation(async (_method: string, path: string) =>
+function useClashApiRuntime() {
+  mocks.clashApi.mockImplementation(async (_method: string, path: string) =>
     path === '/providers/proxies'
-      ? clashHttpJson(200, { providers: clashProviders })
-      : clashHttpJson(200, { proxies: clashProxies }),
+      ? clashApiJson(200, { providers: clashProviders })
+      : clashApiJson(200, { proxies: clashProxies }),
   );
 }
 
 function setClashProxies(proxies: Record<string, ClashAPI.ProxyBase>) {
   clashProxies = proxies;
-  useClashHttpRuntime();
+  useClashApiRuntime();
 }
 
 function setClashProviders(providers: Record<string, unknown>) {
   clashProviders = providers;
-  useClashHttpRuntime();
+  useClashApiRuntime();
 }
 
 async function primeClashApi() {
@@ -141,8 +141,8 @@ async function primeClashApi() {
     'Office/Node': proxy('VLESS'),
   });
   await getDashboardSections();
-  mocks.clashHttp.mockClear();
-  mocks.clashHttp.mockResolvedValue(clashHttpJson(200, { connections: [] }));
+  mocks.clashApi.mockClear();
+  mocks.clashApi.mockResolvedValue(clashApiJson(200, { connections: [] }));
 }
 
 // The transport keeps what it learned about the controller in module state, and
@@ -158,9 +158,9 @@ async function useReachableClashApi() {
   resetClashApiTransport();
 
   await vi.waitFor(async () => {
-    mocks.clashHttp.mockClear();
+    mocks.clashApi.mockClear();
     await getClashApiConnections();
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 }
 
@@ -168,21 +168,21 @@ describe('getDashboardSections', () => {
   beforeEach(async () => {
     mocks.getConfigSections.mockReset();
     mocks.getConfigSections.mockResolvedValue([]);
-    mocks.clashHttp.mockReset();
+    mocks.clashApi.mockReset();
     mocks.clashSummary.mockReset();
     mocks.getSectionRuleSets.mockReset();
     mocks.getSectionRuleSets.mockResolvedValue({ success: true, data: {} });
     clashProxies = {};
     clashProviders = {};
-    useClashHttpRuntime();
+    useClashApiRuntime();
     mocks.canUseDirectClashApi.mockReset();
 
     await useReachableClashApi();
 
     mocks.getConfigSections.mockReset();
     mocks.getConfigSections.mockResolvedValue([]);
-    mocks.clashHttp.mockReset();
-    useClashHttpRuntime();
+    mocks.clashApi.mockReset();
+    useClashApiRuntime();
     mocks.canUseDirectClashApi.mockReturnValue(false);
     vi.stubGlobal('window', undefined);
     vi.stubGlobal('fetch', undefined);
@@ -589,7 +589,7 @@ describe('getDashboardSections', () => {
       'http://router.example:9090/proxies',
       expect.objectContaining({ signal: expect.anything() }),
     );
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
   it('falls back to the CLI transport when the controller is unreachable', async () => {
@@ -609,7 +609,7 @@ describe('getDashboardSections', () => {
     const result = await getDashboardSections();
 
     expect(result.success).toBe(true);
-    expect(mocks.clashHttp).toHaveBeenCalledWith('GET', '/proxies', '');
+    expect(mocks.clashApi).toHaveBeenCalledWith('GET', '/proxies', '');
   });
 
   it('switches selectors through the direct Clash API', async () => {
@@ -619,7 +619,7 @@ describe('getDashboardSections', () => {
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
-    mocks.clashHttp.mockClear();
+    mocks.clashApi.mockClear();
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
     const fetchMock = vi.fn().mockResolvedValue({ status: 204 });
@@ -635,7 +635,7 @@ describe('getDashboardSections', () => {
         body: JSON.stringify({ name: 'Office/Node' }),
       }),
     );
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
   it('fetches provider links and refreshes providers through the direct Clash API', async () => {
@@ -645,7 +645,7 @@ describe('getDashboardSections', () => {
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
-    mocks.clashHttp.mockClear();
+    mocks.clashApi.mockClear();
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
     const fetchMock = vi
@@ -680,7 +680,7 @@ describe('getDashboardSections', () => {
       'http://router.example:9090/providers/proxies/Office%2Fbackup',
       expect.objectContaining({ method: 'PUT' }),
     );
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
   it('surfaces a real Clash API HTTP error instead of retrying through the CLI', async () => {
@@ -690,7 +690,7 @@ describe('getDashboardSections', () => {
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
-    mocks.clashHttp.mockClear();
+    mocks.clashApi.mockClear();
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
     vi.stubGlobal(
@@ -706,7 +706,7 @@ describe('getDashboardSections', () => {
       error: 'Forbidden',
       status: 403,
     });
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
   it('reports the Clash API failure message instead of its JSON envelope', async () => {
@@ -743,7 +743,7 @@ describe('getDashboardSections', () => {
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
-    mocks.clashHttp.mockClear();
+    mocks.clashApi.mockClear();
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
     vi.stubGlobal('fetch', neverAnsweringFetch());
@@ -755,7 +755,55 @@ describe('getDashboardSections', () => {
     vi.useRealTimers();
 
     expect(result.success).toBe(false);
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
+  });
+
+  it('does not repeat a mutation or a delay test after a lost response', async () => {
+    for (const action of [
+      () => updateClashApiProxyProviders(['Office/premium']),
+      () => getClashApiGroupLatency('Office'),
+    ]) {
+      await useReachableClashApi();
+      mocks.clashApi.mockClear();
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockRejectedValue(new TypeError('Failed to fetch')),
+      );
+
+      expect((await action()).success).toBe(false);
+      expect(mocks.clashApi).not.toHaveBeenCalled();
+    }
+  });
+
+  it('uses the compact summary on the first direct failure and probes recovery while polling it', async () => {
+    await primeClashApi();
+    mocks.canUseDirectClashApi.mockReturnValue(true);
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
+    mocks.clashSummary.mockResolvedValue(
+      clashApiJson(200, {
+        downloadTotal: 10,
+        uploadTotal: 20,
+        memory: 30,
+        connections: 2,
+      }),
+    );
+
+    expect(await getClashApiConnectionsSummary()).toEqual({
+      success: true,
+      data: { downloadTotal: 10, uploadTotal: 20, memory: 30, connections: 2 },
+    });
+    expect(mocks.clashApi).not.toHaveBeenCalled();
+    resetClashApiTransport();
+    await getClashApiConnectionsSummary();
+    await vi.waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        'http://router.example:9090/version',
+        expect.anything(),
+      ),
+    );
   });
 
   it('retries an aborted read through the CLI transport', async () => {
@@ -765,8 +813,8 @@ describe('getDashboardSections', () => {
       'Office/Node': proxy('VLESS'),
     });
     await getDashboardSections();
-    mocks.clashHttp.mockClear();
-    mocks.clashHttp.mockResolvedValue(clashHttpJson(200, { connections: [] }));
+    mocks.clashApi.mockClear();
+    mocks.clashApi.mockResolvedValue(clashApiJson(200, { connections: [] }));
 
     mocks.canUseDirectClashApi.mockReturnValue(true);
     vi.stubGlobal('fetch', neverAnsweringFetch());
@@ -781,7 +829,7 @@ describe('getDashboardSections', () => {
       success: true,
       data: { connections: [] },
     });
-    expect(mocks.clashHttp).toHaveBeenCalledWith('GET', '/connections', '');
+    expect(mocks.clashApi).toHaveBeenCalledWith('GET', '/connections', '');
   });
 
   // The sweep a latency test starts keeps running on the router after the
@@ -800,7 +848,7 @@ describe('getDashboardSections', () => {
     vi.useRealTimers();
 
     expect(result.success).toBe(false);
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
   // A node that fails its test is an answer: the controller ran the test and
@@ -809,8 +857,8 @@ describe('getDashboardSections', () => {
   it('tells a failed delay test from a controller that did not answer', async () => {
     await primeClashApi();
 
-    mocks.clashHttp.mockResolvedValueOnce(
-      clashHttpJson(504, { message: 'Timeout' }),
+    mocks.clashApi.mockResolvedValueOnce(
+      clashApiJson(504, { message: 'Timeout' }),
     );
     expect(await getClashApiProxyLatency('Office/Node')).toEqual({
       success: false,
@@ -818,7 +866,7 @@ describe('getDashboardSections', () => {
       status: 504,
     });
 
-    mocks.clashHttp.mockResolvedValueOnce({
+    mocks.clashApi.mockResolvedValueOnce({
       success: false,
       error: 'Clash API request failed: GET /proxies/Office%2FNode/delay',
     });
@@ -840,7 +888,7 @@ describe('getDashboardSections', () => {
     await getClashApiConnections();
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(mocks.clashHttp).toHaveBeenCalledTimes(2);
+    expect(mocks.clashApi).toHaveBeenCalledTimes(2);
   });
 
   // A dropped port answers nothing at all, so every request pays its whole
@@ -860,7 +908,7 @@ describe('getDashboardSections', () => {
     vi.useRealTimers();
 
     expect(fetchMock).toHaveBeenCalledOnce();
-    expect(mocks.clashHttp).toHaveBeenCalledTimes(2);
+    expect(mocks.clashApi).toHaveBeenCalledTimes(2);
   });
 
   // Discovering that the controller is still unreachable is the probe's cost to
@@ -887,7 +935,7 @@ describe('getDashboardSections', () => {
       'http://router.example:9090/version',
       expect.anything(),
     );
-    expect(mocks.clashHttp).toHaveBeenLastCalledWith('GET', '/connections', '');
+    expect(mocks.clashApi).toHaveBeenLastCalledWith('GET', '/connections', '');
   });
 
   it('returns to the direct path once a probe reaches the controller', async () => {
@@ -911,12 +959,12 @@ describe('getDashboardSections', () => {
     // The probe answers beside the request that started it, so the direct path
     // comes back on one of the requests after that one, not on it.
     await vi.waitFor(async () => {
-      mocks.clashHttp.mockClear();
+      mocks.clashApi.mockClear();
       await expect(getClashApiConnections()).resolves.toEqual({
         success: true,
         data: { connections: [] },
       });
-      expect(mocks.clashHttp).not.toHaveBeenCalled();
+      expect(mocks.clashApi).not.toHaveBeenCalled();
     });
 
     expect(fetchMock).toHaveBeenCalledWith(
@@ -946,9 +994,9 @@ describe('getDashboardSections', () => {
     await getClashApiConnections();
 
     await vi.waitFor(async () => {
-      mocks.clashHttp.mockClear();
+      mocks.clashApi.mockClear();
       await getClashApiConnections();
-      expect(mocks.clashHttp).not.toHaveBeenCalled();
+      expect(mocks.clashApi).not.toHaveBeenCalled();
     });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
@@ -997,7 +1045,7 @@ describe('getDashboardSections', () => {
 
     mocks.canUseDirectClashApi.mockReturnValue(false);
     mocks.clashSummary.mockResolvedValue(
-      clashHttpJson(200, {
+      clashApiJson(200, {
         downloadTotal: 10,
         uploadTotal: 20,
         memory: 30,
@@ -1014,7 +1062,7 @@ describe('getDashboardSections', () => {
         connections: 2,
       },
     });
-    expect(mocks.clashHttp).not.toHaveBeenCalled();
+    expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
   // A sweep budget must never reach a single node test: the router parses that

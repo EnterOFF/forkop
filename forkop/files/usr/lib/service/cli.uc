@@ -64,7 +64,7 @@ function action_reply(fn) {
 function clash(fn) {
     return function(args) {
         try {
-            print(sprintf("%J\n", fn(require("singbox.clash_http"), ...args)));
+            print(sprintf("%J\n", fn(require("singbox.clash_api"), ...args)));
             return 0;
         }
         catch (e) {
@@ -128,7 +128,7 @@ const COMMANDS = {
     check_fakeip: { help: "Test sing-box FakeIP DNS", run: json(() => diagnostics().fakeip()) },
     check_dns_available: { help: "Check DNS server availability", run: json(() => diagnostics().dns()) },
     global_check: { args: 2, help: "Run global system check", run: (args) => diagnostics().global_check(args[0], args[1]) },
-    clash_http: { args: 3, usage: "<method> <path> [body]", help: "Allowlisted Clash API transport fallback", run: clash((api, method, path, body) => api.request(method, path, body)) },
+    clash_api: { args: 3, usage: "<method> <path> [body]", help: "Allowlisted Clash API transport fallback", run: clash((api, method, path, body) => api.request(method, path, body)) },
     clash_summary: { help: "Summarize the Clash API state in JSON format", run: clash((api) => api.summary()) },
     show_config: { args: 1, help: "Display current Forkop configuration", run: text((visibility) => diagnostics().show_config(visibility || "masked")) },
     show_version: { help: "Show Forkop version", run: () => { print(constants.FORKOP_VERSION, "\n"); return 0; } },
