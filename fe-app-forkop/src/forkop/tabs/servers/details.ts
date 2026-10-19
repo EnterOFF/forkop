@@ -57,6 +57,20 @@ const ICON_PATHS: Record<string, IconPath[]> = {
     ['path', { d: 'M12 16v-4' }],
     ['path', { d: 'M12 8h.01' }],
   ],
+  user: [
+    ['path', { d: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2' }],
+    ['circle', { cx: '12', cy: '7', r: '4' }],
+  ],
+  file: [
+    [
+      'path',
+      { d: 'M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' },
+    ],
+    ['path', { d: 'M14 2v4a2 2 0 0 0 2 2h4' }],
+    ['path', { d: 'M16 13H8' }],
+    ['path', { d: 'M16 17H8' }],
+    ['path', { d: 'M10 9H8' }],
+  ],
   download: [
     ['path', { d: 'M12 15V3' }],
     ['path', { d: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4' }],
@@ -123,22 +137,28 @@ function injectDetailsStyles() {
         // The width comes from the same place too: all three are opened without
         // cbi-modal, which is what the theme widens to a settings form.
         '.fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}',
-        // A table of the clients: the names in one column as wide as the longest
-        // of them, their links beside, and a rule between two clients. A client is
-        // no box of its own but its two cells, so every name lines up with the next
-        // and the rule runs through both cells of a row.
-        '.fkp-details__clients{display:grid;grid-template-columns:fit-content(14em) minmax(0,1fr);min-inline-size:0}',
-        '.fkp-details__client{display:contents}',
-        '.fkp-details__client > *{padding-block:10px;border-top:1px solid var(--border-color-low,rgba(128,128,128,.25))}',
-        '.fkp-details__client:first-child > *{border-top:0;padding-top:0}',
-        '.fkp-details__client:last-child > *{padding-bottom:0}',
-        '.fkp-details__name{display:flex;align-items:center;min-inline-size:0;padding-inline-end:16px;font-weight:600}',
-        '.fkp-details__name:empty{padding-inline-end:0}',
-        '.fkp-details__name > span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-        '.fkp-details__links{display:grid;gap:6px;align-content:center;min-inline-size:0}',
-        // A phone has no room for two columns: the name goes over its links.
-        '@media (max-width:560px){.fkp-details__clients{grid-template-columns:minmax(0,1fr)}.fkp-details__client > .fkp-details__links{border-top:0;padding-top:6px}.fkp-details__client > .fkp-details__name:not(:empty){padding-bottom:0}}',
-        '.fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:8px;align-items:stretch;min-inline-size:0}',
+        // A profile is a short file name and three buttons, so its dialog is
+        // narrower than the 760px a link needs, though not as narrow as they are.
+        '#modal_overlay > .modal.fkp-details-modal--profiles{width:fit-content}',
+        '.fkp-details--profiles{width:min(480px,calc(100vw - 56px))}',
+        // The clients one under another, each its name over what it is given; the
+        // name and its icon set one client off from the next. A column of names
+        // beside the links put the Close button under the last name, where it
+        // read as one more of them.
+        '.fkp-details__client{display:grid;gap:6px;min-inline-size:0;padding-block:8px}',
+        '.fkp-details__client:first-child{padding-top:0}',
+        '.fkp-details__client:last-child{padding-bottom:0}',
+        '.fkp-details__name{display:flex;align-items:center;gap:6px;min-inline-size:0;font-weight:600}',
+        '.fkp-details__name > svg{flex:none;inline-size:14px;block-size:14px;color:var(--text-color-medium,#888)}',
+        '.fkp-details__name > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+        '.fkp-details__links{display:grid;gap:6px;min-inline-size:0}',
+        '.fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:4px;align-items:stretch;min-inline-size:0}',
+        // A profile is a file, not a value to read or select: its name behind a file
+        // icon, in a tile the size and outline of the field a link has, filled so
+        // it does not read as one to type in.
+        '.fkp-details__file{display:flex;align-items:center;gap:6px;box-sizing:border-box;min-inline-size:0;min-block-size:30px;padding:0 8px;border:1px solid var(--border-color-high,rgba(128,128,128,.4));border-radius:3px;background:var(--background-color-low,rgba(128,128,128,.08))}',
+        '.fkp-details__file > svg{flex:none;color:var(--text-color-medium,#888)}',
+        '.fkp-details__file > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}',
         '.fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}',
         '.fkp-details__empty{color:var(--text-color-medium,#666)}',
@@ -152,11 +172,11 @@ function injectDetailsStyles() {
         '.modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}',
         // The dialog is as wide as the code, and everything under the code fits that
         // width: 16rem, or three pixels a module for a code as large as a profile's.
-        // The code keeps a white quiet zone in any theme: the four modules drawn
-        // into it and a few pixels more.
+        // The white edge is the code's own quiet zone, the four modules the standard
+        // asks for and nothing more, with the 4px corners of every block on the page.
         '#modal_overlay > .modal.fkp-qr-modal{width:fit-content}',
         '.fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(max(16rem,var(--fkp-qr-size,0px)),calc(100vw - 64px));padding-top:8px}',
-        '.fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;padding:4px;background:#fff;border-radius:8px}',
+        '.fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;background:#fff;border-radius:4px}',
         '.fkp-qr__caption{display:grid;justify-items:center;gap:2px;max-inline-size:100%;text-align:center}',
         '.fkp-qr__name{font-weight:600;overflow-wrap:anywhere}',
         '.fkp-qr__details{color:var(--text-color-medium,#666);font-size:12px;overflow-wrap:anywhere}',
@@ -294,8 +314,8 @@ function renderLinkRow(value: string, qrCaption?: LinkCaption) {
   ]);
 }
 
-// The profile of a client: its file name in the field, saved by one button and
-// copied as text by the other. The WireGuard and AmneziaWG apps also scan one
+// The profile of a client: its file, saved by one button and copied as text by
+// the other. The WireGuard and AmneziaWG apps also scan one
 // from a code; an OpenVPN profile fits none a phone can read, and no OpenVPN
 // client imports one from a code anyway.
 function renderProfileRow(
@@ -304,16 +324,12 @@ function renderProfileRow(
   type: string,
   qrCaption?: LinkCaption,
 ): Node {
-  const input = E('input', {
-    type: 'text',
-    class: 'cbi-input-text fkp-details__value',
-    readonly: 'readonly',
-    spellcheck: 'false',
-    value: name,
-  });
   const label = _('Download the profile');
   return E('div', { class: 'fkp-details__link' }, [
-    input,
+    E('div', { class: 'fkp-details__file' }, [
+      iconSvg('file'),
+      E('span', { title: name }, name),
+    ]),
     ...(qrCaption
       ? [
           renderQrButton(qrCaption, profile, () =>
@@ -339,16 +355,19 @@ function renderProfileRow(
   ]);
 }
 
-// One row of the client table: the name, and what the client is handed. A
-// listener that asks for nothing has no account to name, and repeating the name
-// of the server there would say nothing, so its cell stays empty.
+// One client: its name, and what it is handed. A listener that asks for nothing
+// has no account to name, and repeating the name of the server there would say
+// nothing, so it has none.
 function renderClientRow(name: string, body: Node[]) {
   return E('div', { class: 'fkp-details__client' }, [
-    E(
-      'div',
-      { class: 'fkp-details__name' },
-      name ? [E('span', { title: name }, name)] : [],
-    ),
+    ...(name
+      ? [
+          E('div', { class: 'fkp-details__name', title: name }, [
+            iconSvg('user'),
+            E('span', {}, name),
+          ]),
+        ]
+      : []),
     E('div', { class: 'fkp-details__links' }, body),
   ]);
 }
@@ -498,7 +517,11 @@ export function renderDetailsContent(
     );
   }
 
-  return E('div', { class: 'fkp-details' }, children);
+  return E(
+    'div',
+    { class: profiles ? 'fkp-details fkp-details--profiles' : 'fkp-details' },
+    children,
+  );
 }
 
 export function showServerDetailsModal(
@@ -511,10 +534,14 @@ export function showServerDetailsModal(
   // than open on a list that says every certificate is missing.
   if (usesProfile(getProtocol(sectionId))) {
     return loadIssuedMaterial().then((issued) => {
-      ui.showModal(_('Server details: %s').format(getServerName(sectionId)), [
-        renderDetailsContent(sectionId, clients, { issued }),
-        renderCloseRow(),
-      ]);
+      ui.showModal(
+        _('Server details: %s').format(getServerName(sectionId)),
+        [
+          renderDetailsContent(sectionId, clients, { issued }),
+          renderCloseRow(),
+        ],
+        'fkp-details-modal--profiles',
+      );
     });
   }
 
