@@ -9381,7 +9381,15 @@ function render3() {
                 id: "monitoring-device-filter",
                 class: "cbi-input-select"
               },
-              [textE("option", { value: "all" }, _("All devices"))]
+              [textE("option", { value: "" }, _("All devices"))]
+            ),
+            textE(
+              "select",
+              {
+                id: "monitoring-route-filter",
+                class: "cbi-input-select"
+              },
+              [textE("option", { value: "" }, _("All routes"))]
             ),
             textE("label", { class: "fkp_monitoring-page__search" }, [
               textE("span", { class: "fkp_monitoring-page__search-icon" }, []),
@@ -10110,7 +10118,7 @@ var CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS = 3e4;
 var CONNECTIONS_POLL_DUTY_MAX_MS = 15e3;
 var CONNECTIONS_SOCKET_GRACE_MS = 2e3;
 var CLOSED_CONNECTION_LIMIT = 300;
-var ALL_FILTER_VALUE = "all";
+var ALL_FILTER_VALUE = "";
 var monitoringMounted = false;
 var monitoringMountId = 0;
 var monitoringLifecycleRegistered = false;
@@ -10123,13 +10131,15 @@ var lastConnectionsPollDurationMs = 0;
 var pendingConnectionsPayload = null;
 var activeTab = "active";
 var selectedDeviceFilter = ALL_FILTER_VALUE;
+var selectedRouteFilter = ALL_FILTER_VALUE;
 var searchQuery = "";
 var localDeviceNames = {};
 var routeDisplayNames = {};
 var routeSections = [];
+var routeOrder = [];
 var serverInboundTags = /* @__PURE__ */ new Set();
 var serverClientNames = {};
-var lastDeviceFilterSignature = "";
+var filterSignatures = {};
 var loading = true;
 var failed = false;
 var closingAll = false;
@@ -10203,6 +10213,7 @@ function buildRouteDisplayNames(sections) {
   routeDisplayNames = map;
   serverInboundTags = serverTags;
   serverClientNames = clientNames;
+  routeOrder = routeSectionItems.map(({ displayName }) => displayName);
   routeSections = routeSectionItems.sort(
     (a, b) => b.sectionName.length - a.sectionName.length
   );
@@ -10306,6 +10317,9 @@ function matchesConnectionFilters(connection, normalizedSearch) {
   if (selectedDeviceFilter !== ALL_FILTER_VALUE && getSource(connection).key !== selectedDeviceFilter) {
     return false;
   }
+  if (selectedRouteFilter !== ALL_FILTER_VALUE && getRoute(connection) !== selectedRouteFilter) {
+    return false;
+  }
   if (!normalizedSearch) {
     return true;
   }
@@ -10326,7 +10340,7 @@ function filterConnections(connections) {
   );
 }
 function hasConnectionFilters() {
-  return selectedDeviceFilter !== ALL_FILTER_VALUE || normalizeSearchValue(searchQuery) !== "";
+  return selectedDeviceFilter !== ALL_FILTER_VALUE || selectedRouteFilter !== ALL_FILTER_VALUE || normalizeSearchValue(searchQuery) !== "";
 }
 function moveConnectionToClosed(connection, now) {
   closedConnections.set(connection.id, {
@@ -10402,38 +10416,56 @@ function getKnownSources() {
   );
   return Array.from(sources.values()).sort(compareSources);
 }
-function renderDeviceFilterOptions() {
-  const select = document.getElementById(
-    "monitoring-device-filter"
+function compareRoutes(a, b) {
+  const rank = (route) => {
+    const index = routeOrder.indexOf(route);
+    return index < 0 ? routeOrder.length : index;
+  };
+  return rank(a) - rank(b) || a.localeCompare(b, void 0, { numeric: true });
+}
+function getKnownRoutes() {
+  const routes = /* @__PURE__ */ new Set();
+  [activeConnections, closedConnections].forEach(
+    (connections) => connections.forEach((connection) => routes.add(getRoute(connection)))
   );
+  routes.delete("-");
+  return Array.from(routes).sort(compareRoutes);
+}
+function renderFilterOptions(id, allLabel, options, selected) {
+  const value = options.some((option2) => option2.value === selected) ? selected : ALL_FILTER_VALUE;
+  const select = document.getElementById(id);
   if (!select) {
-    return;
+    return value;
   }
-  const sources = getKnownSources();
-  if (selectedDeviceFilter !== ALL_FILTER_VALUE && !sources.some(({ key }) => key === selectedDeviceFilter)) {
-    selectedDeviceFilter = ALL_FILTER_VALUE;
-  }
-  const signature = JSON.stringify([
-    selectedDeviceFilter,
-    ...sources.map(({ key, name, detail }) => [key, name, detail])
-  ]);
-  if (signature === lastDeviceFilterSignature) {
-    select.value = selectedDeviceFilter;
-    return;
-  }
-  lastDeviceFilterSignature = signature;
-  const options = [
-    textE("option", { value: ALL_FILTER_VALUE }, _("All devices")),
-    ...sources.map(
-      (source) => textE(
-        "option",
-        { value: source.key },
-        sourceLabel(source.name, source.detail)
+  const signature = JSON.stringify(options);
+  if (signature !== filterSignatures[id]) {
+    filterSignatures[id] = signature;
+    select.replaceChildren(
+      textE("option", { value: ALL_FILTER_VALUE }, allLabel),
+      ...options.map(
+        (option2) => textE("option", { value: option2.value }, option2.label)
       )
-    )
-  ];
-  select.replaceChildren(...options);
-  select.value = selectedDeviceFilter;
+    );
+  }
+  select.value = value;
+  return value;
+}
+function renderFilters() {
+  selectedDeviceFilter = renderFilterOptions(
+    "monitoring-device-filter",
+    _("All devices"),
+    getKnownSources().map((source) => ({
+      value: source.key,
+      label: sourceLabel(source.name, source.detail)
+    })),
+    selectedDeviceFilter
+  );
+  selectedRouteFilter = renderFilterOptions(
+    "monitoring-route-filter",
+    _("All routes"),
+    getKnownRoutes().map((route) => ({ value: route, label: route })),
+    selectedRouteFilter
+  );
 }
 function renderTab(tab, label, count, active) {
   if (!tab) {
@@ -10455,6 +10487,7 @@ function renderControls() {
   const autoRefreshInput = document.getElementById(
     "monitoring-auto-refresh"
   );
+  renderFilters();
   const filteredActive = filterConnections(activeConnections);
   renderTab(
     document.getElementById("monitoring-tab-active"),
@@ -10487,7 +10520,6 @@ function renderControls() {
   if (searchIcon && searchIcon.childNodes.length === 0) {
     searchIcon.replaceChildren(renderSearchIcon24());
   }
-  renderDeviceFilterOptions();
 }
 function toListItem(connection) {
   const source = getSource(connection);
@@ -10729,8 +10761,11 @@ async function closeMatchingConnections() {
 function bindControls() {
   const activeTabItem = document.getElementById("monitoring-tab-active");
   const closedTabItem = document.getElementById("monitoring-tab-closed");
-  const select = document.getElementById(
+  const deviceFilter = document.getElementById(
     "monitoring-device-filter"
+  );
+  const routeFilter = document.getElementById(
+    "monitoring-route-filter"
   );
   const searchInput = document.getElementById(
     "monitoring-search"
@@ -10764,9 +10799,15 @@ function bindControls() {
       updatePause({ user: !autoRefreshInput.checked });
     };
   }
-  if (select) {
-    select.onchange = () => {
-      selectedDeviceFilter = select.value || ALL_FILTER_VALUE;
+  if (deviceFilter) {
+    deviceFilter.onchange = () => {
+      selectedDeviceFilter = deviceFilter.value;
+      redrawForAction();
+    };
+  }
+  if (routeFilter) {
+    routeFilter.onchange = () => {
+      selectedRouteFilter = routeFilter.value;
       redrawForAction();
     };
   }
@@ -10921,8 +10962,9 @@ function stopConnectionsUpdates() {
 function resetMonitoringState() {
   activeTab = "active";
   selectedDeviceFilter = ALL_FILTER_VALUE;
+  selectedRouteFilter = ALL_FILTER_VALUE;
   searchQuery = "";
-  lastDeviceFilterSignature = "";
+  filterSignatures = {};
   loading = true;
   failed = false;
   closingAll = false;
@@ -11090,7 +11132,7 @@ var styles5 = `
 .fkp_monitoring-page__filters {
     grid-area: filters;
     display: grid;
-    grid-template-columns: minmax(0, 220px) minmax(0, 320px);
+    grid-template-columns: minmax(0, 220px) minmax(0, 220px) minmax(0, 320px);
     align-items: center;
     gap: 8px;
     min-width: 0;
@@ -11329,16 +11371,8 @@ var styles5 = `
     color: var(--error-color-medium, #d32f2f);
 }
 
+/* Three filters beside the actions leave each too narrow to read. */
 @container (max-width: 899px) {
-    .fkp_monitoring-page__filters {
-        grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    }
-}
-
-/* Below this width every connection becomes a three-line card built from the
-   same cells: the host with the close action, the source with route and
-   protocol, the duration with the traffic counters. */
-@container (max-width: 639px) {
     .fkp_monitoring-page__controls {
         grid-template-columns: minmax(0, 1fr);
         grid-template-areas:
@@ -11346,10 +11380,19 @@ var styles5 = `
             'actions';
     }
 
+    .fkp_monitoring-page__filters {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 3fr);
+    }
+
     .fkp_monitoring-page__actions {
         justify-self: end;
     }
+}
 
+/* Below this width every connection becomes a three-line card built from the
+   same cells: the host with the close action, the source with route and
+   protocol, the duration with the traffic counters. */
+@container (max-width: 639px) {
     .fkp_monitoring-page__list {
         display: block;
     }
@@ -11449,6 +11492,9 @@ var styles5 = `
         justify-self: stretch;
     }
 
+    .fkp_monitoring-page__search {
+        grid-column: 1 / -1;
+    }
 }
 `;
 

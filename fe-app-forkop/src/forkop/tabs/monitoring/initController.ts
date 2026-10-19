@@ -88,7 +88,7 @@ const CONNECTIONS_POLL_DUTY_MAX_MS = 15000;
 // poll should cover the wait, whatever the socket ends up doing.
 const CONNECTIONS_SOCKET_GRACE_MS = 2000;
 const CLOSED_CONNECTION_LIMIT = 300;
-const ALL_FILTER_VALUE = 'all';
+const ALL_FILTER_VALUE = '';
 
 let monitoringMounted = false;
 let monitoringMountId = 0;
@@ -103,13 +103,15 @@ let pendingConnectionsPayload: ClashConnectionsPayload | null = null;
 
 let activeTab: MonitoringTabId = 'active';
 let selectedDeviceFilter = ALL_FILTER_VALUE;
+let selectedRouteFilter = ALL_FILTER_VALUE;
 let searchQuery = '';
 let localDeviceNames: Record<string, string> = {};
 let routeDisplayNames: Record<string, string> = {};
 let routeSections: Array<{ sectionName: string; displayName: string }> = [];
+let routeOrder: string[] = [];
 let serverInboundTags = new Set<string>();
 let serverClientNames: Record<string, Record<string, string>> = {};
-let lastDeviceFilterSignature = '';
+let filterSignatures: Record<string, string> = {};
 let loading = true;
 let failed = false;
 let closingAll = false;
@@ -217,6 +219,7 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
   routeDisplayNames = map;
   serverInboundTags = serverTags;
   serverClientNames = clientNames;
+  routeOrder = routeSectionItems.map(({ displayName }) => displayName);
   routeSections = routeSectionItems.sort(
     (a, b) => b.sectionName.length - a.sectionName.length,
   );
@@ -368,6 +371,13 @@ function matchesConnectionFilters(
     return false;
   }
 
+  if (
+    selectedRouteFilter !== ALL_FILTER_VALUE &&
+    getRoute(connection) !== selectedRouteFilter
+  ) {
+    return false;
+  }
+
   if (!normalizedSearch) {
     return true;
   }
@@ -398,6 +408,7 @@ function filterConnections(
 function hasConnectionFilters(): boolean {
   return (
     selectedDeviceFilter !== ALL_FILTER_VALUE ||
+    selectedRouteFilter !== ALL_FILTER_VALUE ||
     normalizeSearchValue(searchQuery) !== ''
   );
 }
@@ -494,47 +505,74 @@ function getKnownSources(): ConnectionSource[] {
   return Array.from(sources.values()).sort(compareSources);
 }
 
-function renderDeviceFilterOptions() {
-  const select = document.getElementById(
-    'monitoring-device-filter',
-  ) as HTMLSelectElement | null;
+// The sections in the order the Sections tab lists them, then the rest.
+function compareRoutes(a: string, b: string) {
+  const rank = (route: string) => {
+    const index = routeOrder.indexOf(route);
+    return index < 0 ? routeOrder.length : index;
+  };
+
+  return rank(a) - rank(b) || a.localeCompare(b, undefined, { numeric: true });
+}
+
+function getKnownRoutes(): string[] {
+  const routes = new Set<string>();
+
+  [activeConnections, closedConnections].forEach((connections) =>
+    connections.forEach((connection) => routes.add(getRoute(connection))),
+  );
+  routes.delete('-');
+
+  return Array.from(routes).sort(compareRoutes);
+}
+
+// A filter left on a value no connection has any more goes back to all.
+function renderFilterOptions(
+  id: string,
+  allLabel: string,
+  options: Array<{ value: string; label: string }>,
+  selected: string,
+): string {
+  const value = options.some((option) => option.value === selected)
+    ? selected
+    : ALL_FILTER_VALUE;
+  const select = document.getElementById(id) as HTMLSelectElement | null;
 
   if (!select) {
-    return;
+    return value;
   }
 
-  const sources = getKnownSources();
-  if (
-    selectedDeviceFilter !== ALL_FILTER_VALUE &&
-    !sources.some(({ key }) => key === selectedDeviceFilter)
-  ) {
-    selectedDeviceFilter = ALL_FILTER_VALUE;
-  }
-
-  const signature = JSON.stringify([
-    selectedDeviceFilter,
-    ...sources.map(({ key, name, detail }) => [key, name, detail]),
-  ]);
-  if (signature === lastDeviceFilterSignature) {
-    select.value = selectedDeviceFilter;
-    return;
-  }
-
-  lastDeviceFilterSignature = signature;
-
-  const options = [
-    E('option', { value: ALL_FILTER_VALUE }, _('All devices')),
-    ...sources.map((source) =>
-      E(
-        'option',
-        { value: source.key },
-        sourceLabel(source.name, source.detail),
+  const signature = JSON.stringify(options);
+  if (signature !== filterSignatures[id]) {
+    filterSignatures[id] = signature;
+    select.replaceChildren(
+      E('option', { value: ALL_FILTER_VALUE }, allLabel),
+      ...options.map((option) =>
+        E('option', { value: option.value }, option.label),
       ),
-    ),
-  ];
+    );
+  }
 
-  select.replaceChildren(...options);
-  select.value = selectedDeviceFilter;
+  select.value = value;
+  return value;
+}
+
+function renderFilters() {
+  selectedDeviceFilter = renderFilterOptions(
+    'monitoring-device-filter',
+    _('All devices'),
+    getKnownSources().map((source) => ({
+      value: source.key,
+      label: sourceLabel(source.name, source.detail),
+    })),
+    selectedDeviceFilter,
+  );
+  selectedRouteFilter = renderFilterOptions(
+    'monitoring-route-filter',
+    _('All routes'),
+    getKnownRoutes().map((route) => ({ value: route, label: route })),
+    selectedRouteFilter,
+  );
 }
 
 function renderTab(
@@ -564,6 +602,8 @@ function renderControls() {
   const autoRefreshInput = document.getElementById(
     'monitoring-auto-refresh',
   ) as HTMLInputElement | null;
+
+  renderFilters();
 
   const filteredActive = filterConnections(activeConnections);
 
@@ -608,8 +648,6 @@ function renderControls() {
   if (searchIcon && searchIcon.childNodes.length === 0) {
     searchIcon.replaceChildren(renderSearchIcon24());
   }
-
-  renderDeviceFilterOptions();
 }
 
 function toListItem(connection: MonitoredConnection): ConnectionListItem {
@@ -909,8 +947,11 @@ async function closeMatchingConnections() {
 function bindControls() {
   const activeTabItem = document.getElementById('monitoring-tab-active');
   const closedTabItem = document.getElementById('monitoring-tab-closed');
-  const select = document.getElementById(
+  const deviceFilter = document.getElementById(
     'monitoring-device-filter',
+  ) as HTMLSelectElement | null;
+  const routeFilter = document.getElementById(
+    'monitoring-route-filter',
   ) as HTMLSelectElement | null;
   const searchInput = document.getElementById(
     'monitoring-search',
@@ -950,9 +991,16 @@ function bindControls() {
     };
   }
 
-  if (select) {
-    select.onchange = () => {
-      selectedDeviceFilter = select.value || ALL_FILTER_VALUE;
+  if (deviceFilter) {
+    deviceFilter.onchange = () => {
+      selectedDeviceFilter = deviceFilter.value;
+      redrawForAction();
+    };
+  }
+
+  if (routeFilter) {
+    routeFilter.onchange = () => {
+      selectedRouteFilter = routeFilter.value;
       redrawForAction();
     };
   }
@@ -1166,8 +1214,9 @@ function stopConnectionsUpdates() {
 function resetMonitoringState() {
   activeTab = 'active';
   selectedDeviceFilter = ALL_FILTER_VALUE;
+  selectedRouteFilter = ALL_FILTER_VALUE;
   searchQuery = '';
-  lastDeviceFilterSignature = '';
+  filterSignatures = {};
   loading = true;
   failed = false;
   closingAll = false;

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   getClashApiConnections: vi.fn(),
+  getConfigSections: vi.fn(),
 }));
 
 vi.mock('../../../services/socket.service', () => ({
@@ -12,7 +13,7 @@ vi.mock('../../../../helpers/showToast', () => ({ showToast: vi.fn() }));
 vi.mock('../../../methods', () => ({
   CustomForkopMethods: {
     getClashApiConnections: mocks.getClashApiConnections,
-    getConfigSections: async () => [],
+    getConfigSections: mocks.getConfigSections,
   },
 }));
 vi.mock('../../../methods/custom/getClashApiSecret', () => ({
@@ -103,26 +104,50 @@ function byId(id: string) {
   return page.descendants().find((element) => element.id === id) as FakeElement;
 }
 
-function connection(id: string) {
+function connection(
+  id: string,
+  { sourceIP = '192.168.1.101', chains = ['direct-out'], rule = '' } = {},
+) {
   return {
     id,
+    rule,
     metadata: {
       host: `${id}.example.com`,
       destinationPort: '443',
       network: 'tcp',
-      sourceIP: '192.168.1.101',
+      sourceIP,
       type: 'tproxy/tproxy-in',
     },
-    chains: ['direct-out'],
+    chains,
     start: new Date().toISOString(),
   };
 }
 
-function answer(...ids: string[]) {
+function answerWith(...connections: ReturnType<typeof connection>[]) {
   mocks.getClashApiConnections.mockResolvedValue({
     success: true,
-    data: { connections: ids.map(connection) },
+    data: { connections },
   });
+}
+
+function answer(...ids: string[]) {
+  answerWith(...ids.map((id) => connection(id)));
+}
+
+function choose(id: string, value: string) {
+  const filter = byId(id);
+  filter.value = value;
+  (filter.onchange as () => void)();
+}
+
+function optionTexts(id: string) {
+  return byId(id).children.map((option) =>
+    typeof option === 'string' ? option : option.textContent,
+  );
+}
+
+function hosts() {
+  return rows().map((row) => row.descendants()[1].textContent);
 }
 
 function rows() {
@@ -148,6 +173,7 @@ beforeEach(async () => {
   vi.resetModules();
   vi.useFakeTimers();
   mocks.getClashApiConnections.mockReset();
+  mocks.getConfigSections.mockReset().mockResolvedValue([]);
   documentListeners.clear();
   selection = { isCollapsed: true, anchorNode: null, focusNode: null };
 
@@ -266,5 +292,85 @@ describe('the Monitoring pause', () => {
     answer('a', 'b');
     await vi.advanceTimersByTimeAsync(5000);
     expect(rows()).toHaveLength(1);
+  });
+});
+
+describe('the Monitoring filters', () => {
+  it('shows only the connections of the chosen device', async () => {
+    answerWith(connection('a'), connection('b', { sourceIP: '192.168.1.102' }));
+    await openMonitoring();
+    expect(optionTexts('monitoring-device-filter')).toEqual([
+      'All devices',
+      '192.168.1.101',
+      '192.168.1.102',
+    ]);
+
+    choose('monitoring-device-filter', '192.168.1.102');
+    expect([hosts(), activeCount()]).toEqual([['b.example.com'], '1']);
+    expect(byId('monitoring-close-all').textContent).toBe('Close matching');
+
+    choose('monitoring-device-filter', '');
+    expect([rows().length, activeCount()]).toEqual([2, '2']);
+    expect(byId('monitoring-close-all').textContent).toBe('Close all');
+  });
+
+  // The sections in the order the Sections tab lists them, then whatever else
+  // the column shows.
+  it('shows only the connections of the chosen route', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      { '.name': 'section_b', '.type': 'section', label: 'proxy' },
+      { '.name': 'section_a', '.type': 'section', label: 'google' },
+      { '.name': 'section_c', '.type': 'section', label: 'off', enabled: '0' },
+    ]);
+    answerWith(
+      connection('a'),
+      connection('b', { chains: ['google/node', 'google'] }),
+      connection('c', { chains: ['proxy/node', 'proxy'] }),
+      connection('d', { chains: [], rule: 'final => route(other-out)' }),
+    );
+    await openMonitoring();
+    expect(optionTexts('monitoring-route-filter')).toEqual([
+      'All routes',
+      'proxy',
+      'google',
+      'Direct',
+      'other-out',
+    ]);
+
+    choose('monitoring-route-filter', 'google');
+    expect([hosts(), activeCount()]).toEqual([['b.example.com'], '1']);
+    expect(byId('monitoring-close-all').textContent).toBe('Close matching');
+
+    choose('monitoring-route-filter', '');
+    expect([rows().length, activeCount()]).toEqual([4, '4']);
+    expect(byId('monitoring-close-all').textContent).toBe('Close all');
+  });
+
+  it('tells a route named all from all routes', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      { '.name': 'section_a', '.type': 'section', label: 'all' },
+    ]);
+    answerWith(connection('a'), connection('b', { chains: ['all'] }));
+    await openMonitoring();
+
+    choose('monitoring-route-filter', 'all');
+    expect([hosts(), activeCount()]).toEqual([['b.example.com'], '1']);
+  });
+
+  it('combines the device and the route', async () => {
+    answerWith(
+      connection('a'),
+      connection('b', { chains: [], rule: 'final => route(other-out)' }),
+      connection('c', {
+        sourceIP: '192.168.1.102',
+        chains: [],
+        rule: 'final => route(other-out)',
+      }),
+    );
+    await openMonitoring();
+
+    choose('monitoring-route-filter', 'other-out');
+    choose('monitoring-device-filter', '192.168.1.101');
+    expect([hosts(), activeCount()]).toEqual([['b.example.com'], '1']);
   });
 });

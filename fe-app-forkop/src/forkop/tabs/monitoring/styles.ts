@@ -83,7 +83,7 @@ export const styles = `
 .fkp_monitoring-page__filters {
     grid-area: filters;
     display: grid;
-    grid-template-columns: minmax(0, 220px) minmax(0, 320px);
+    grid-template-columns: minmax(0, 220px) minmax(0, 220px) minmax(0, 320px);
     align-items: center;
     gap: 8px;
     min-width: 0;
@@ -322,16 +322,8 @@ export const styles = `
     color: var(--error-color-medium, #d32f2f);
 }
 
+/* Three filters beside the actions leave each too narrow to read. */
 @container (max-width: 899px) {
-    .fkp_monitoring-page__filters {
-        grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-    }
-}
-
-/* Below this width every connection becomes a three-line card built from the
-   same cells: the host with the close action, the source with route and
-   protocol, the duration with the traffic counters. */
-@container (max-width: 639px) {
     .fkp_monitoring-page__controls {
         grid-template-columns: minmax(0, 1fr);
         grid-template-areas:
@@ -339,10 +331,19 @@ export const styles = `
             'actions';
     }
 
+    .fkp_monitoring-page__filters {
+        grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 3fr);
+    }
+
     .fkp_monitoring-page__actions {
         justify-self: end;
     }
+}
 
+/* Below this width every connection becomes a three-line card built from the
+   same cells: the host with the close action, the source with route and
+   protocol, the duration with the traffic counters. */
+@container (max-width: 639px) {
     .fkp_monitoring-page__list {
         display: block;
     }
@@ -442,5 +443,8 @@ export const styles = `
         justify-self: stretch;
     }
 
+    .fkp_monitoring-page__search {
+        grid-column: 1 / -1;
+    }
 }
 `;

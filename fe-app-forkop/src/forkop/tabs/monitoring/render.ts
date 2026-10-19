@@ -17,7 +17,15 @@ export function render() {
                 id: 'monitoring-device-filter',
                 class: 'cbi-input-select',
               },
-              [E('option', { value: 'all' }, _('All devices'))],
+              [E('option', { value: '' }, _('All devices'))],
+            ),
+            E(
+              'select',
+              {
+                id: 'monitoring-route-filter',
+                class: 'cbi-input-select',
+              },
+              [E('option', { value: '' }, _('All routes'))],
             ),
             E('label', { class: 'fkp_monitoring-page__search' }, [
               E('span', { class: 'fkp_monitoring-page__search-icon' }, []),
