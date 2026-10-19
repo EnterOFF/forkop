@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 12:58+0300\n"
-"PO-Revision-Date: 2026-10-19 12:58+0300\n"
+"POT-Creation-Date: 2026-10-19 13:00+0300\n"
+"PO-Revision-Date: 2026-10-19 13:00+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -133,6 +133,9 @@ msgstr "URL или абсолютный путь к файлу на роутер
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
+
+msgid "Accept server DNS"
+msgstr "Принимать DNS сервера"
 
 msgid "Access to YACD from the internet. The port has to be opened in the firewall"
 msgstr "Доступ к YACD из интернета. Порт нужно открыть в файрволе"
@@ -1495,6 +1498,9 @@ msgstr "Суффикс имени"
 
 msgid "Name the address of the server in the subnet, such as %s rather than the subnet itself"
 msgstr "Укажите адрес сервера в подсети, например %s, а не саму подсеть"
+
+msgid "Names in the domains the server declares are resolved by its DNS for connections through this tunnel. Add those domains to the section so that devices reach them through the tunnel"
+msgstr "Имена в доменах, которые объявляет сервер, разрешает его DNS — для соединений через этот туннель. Добавьте эти домены в раздел, чтобы устройства ходили к ним через туннель"
 
 msgid "Network"
 msgstr "Сеть"

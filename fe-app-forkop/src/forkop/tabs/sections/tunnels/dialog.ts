@@ -61,6 +61,7 @@ import {
 import { refreshOutboundDetourSectionOptionValues } from '../references';
 import {
   CASCADE_TUNNEL_KINDS,
+  SERVER_DNS_TUNNEL_KINDS,
   applyImportedTunnelEndpoint,
   createTunnelItem,
   defaultWireGuardPeerSettings,
@@ -851,6 +852,20 @@ export function showTunnelSettingsModal(
         ),
       );
   };
+
+  const serverDnsOption = itemSection.option(
+    form.Flag,
+    'accept_server_dns',
+    _('Accept server DNS'),
+    _(
+      'Names in the domains the server declares are resolved by its DNS for connections through this tunnel. Add those domains to the section so that devices reach them through the tunnel',
+    ),
+  );
+  serverDnsOption.default = '1';
+  serverDnsOption.rmempty = false;
+  SERVER_DNS_TUNNEL_KINDS.forEach((kind) =>
+    serverDnsOption.depends('tunnel_type', kind),
+  );
 
   addCascadeOptions(
     itemSection,

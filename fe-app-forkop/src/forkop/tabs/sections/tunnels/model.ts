@@ -140,6 +140,13 @@ export const CASCADE_TUNNEL_KINDS = [
   'openconnect',
 ];
 
+// The kinds whose server declares names of its own and a DNS that answers them.
+export const SERVER_DNS_TUNNEL_KINDS = [
+  'openconnect',
+  'openvpn-client',
+  'tailscale',
+];
+
 // The kinds stored as the native endpoint the dialog builds.
 const NATIVE_ENDPOINT_KINDS = ['openvpn-client', 'openconnect'];
 
@@ -196,6 +203,7 @@ export function tunnelInitialSettings(
     tailscale_control_url: `${tunnel.tailscale_control_url || TAILSCALE_CONTROL_URL}`,
     tailscale_accept_routes: tunnel.tailscale_accept_routes === '0' ? '0' : '1',
     tailscale_exit_node: `${tunnel.tailscale_exit_node || ''}`,
+    accept_server_dns: tunnel.accept_server_dns === '0' ? '0' : '1',
     tailscale_detour_enabled: tailscaleDetour ? '1' : '0',
     tailscale_detour_section: tailscaleDetourSectionValue(
       tailscaleDetour,
@@ -233,6 +241,7 @@ function tunnelSettingsKeys() {
     'tailscale_accept_routes',
     'tailscale_exit_node',
     'tailscale_detour_section',
+    'accept_server_dns',
     'detour_section',
     'endpoint_json',
     ...AMNEZIA_KEYS.map((key: string) => `amnezia_${key}`),
@@ -322,10 +331,13 @@ export function tunnelStorageSettings(settings: ChildSettings) {
     tailscale_hostname: `${settings.tailscale_hostname || ''}`.trim(),
     tailscale_control_url: `${settings.tailscale_control_url || ''}`.trim(),
     // Every other field of a kind the tunnel is not collapses to nothing here;
-    // this one has a default, so it needs the same gate or a WireGuard tunnel
-    // ends up storing a Tailscale option it never showed.
+    // these two have a default, so they need the same gate or a WireGuard
+    // tunnel ends up storing an option it never showed.
     tailscale_accept_routes:
       kind === 'tailscale' ? `${settings.tailscale_accept_routes || '1'}` : '',
+    accept_server_dns: SERVER_DNS_TUNNEL_KINDS.includes(kind)
+      ? `${settings.accept_server_dns || '1'}`
+      : '',
     tailscale_exit_node: `${settings.tailscale_exit_node || ''}`.trim(),
     tailscale_detour_section:
       `${settings.tailscale_detour_enabled || ''}` === '1'

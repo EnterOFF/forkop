@@ -100,6 +100,30 @@ describe('a tunnel as it is stored', () => {
   });
 });
 
+describe("the switch for the server's DNS", () => {
+  it.each(['openconnect', 'openvpn-client', 'tailscale'])(
+    'is stored for a %s tunnel, on unless turned off',
+    (kind) => {
+      expect(
+        model.tunnelStorageSettings({ tunnel_type: kind }).accept_server_dns,
+      ).toBe('1');
+      expect(
+        model.tunnelStorageSettings({
+          tunnel_type: kind,
+          accept_server_dns: '0',
+        }).accept_server_dns,
+      ).toBe('0');
+    },
+  );
+
+  it('is not stored for a tunnel whose server declares no names', () => {
+    expect(
+      model.tunnelStorageSettings({ ...WIREGUARD, accept_server_dns: '1' })
+        .accept_server_dns,
+    ).toBe('');
+  });
+});
+
 describe('turning obfuscation on', () => {
   function dialog(values: Record<string, string>) {
     const data: Record<string, unknown> = {};

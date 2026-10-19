@@ -17345,6 +17345,11 @@ var CASCADE_TUNNEL_KINDS = [
   "openvpn-client",
   "openconnect"
 ];
+var SERVER_DNS_TUNNEL_KINDS = [
+  "openconnect",
+  "openvpn-client",
+  "tailscale"
+];
 var NATIVE_ENDPOINT_KINDS = ["openvpn-client", "openconnect"];
 var STORED_KINDS = [
   "openvpn-client",
@@ -17385,6 +17390,7 @@ function tunnelInitialSettings(value, sectionId) {
     tailscale_control_url: `${tunnel.tailscale_control_url || TAILSCALE_CONTROL_URL}`,
     tailscale_accept_routes: tunnel.tailscale_accept_routes === "0" ? "0" : "1",
     tailscale_exit_node: `${tunnel.tailscale_exit_node || ""}`,
+    accept_server_dns: tunnel.accept_server_dns === "0" ? "0" : "1",
     tailscale_detour_enabled: tailscaleDetour ? "1" : "0",
     tailscale_detour_section: tailscaleDetourSectionValue(
       tailscaleDetour,
@@ -17419,6 +17425,7 @@ function tunnelSettingsKeys() {
     "tailscale_accept_routes",
     "tailscale_exit_node",
     "tailscale_detour_section",
+    "accept_server_dns",
     "detour_section",
     "endpoint_json",
     ...AMNEZIA_KEYS.map((key) => `amnezia_${key}`)
@@ -17471,9 +17478,10 @@ function tunnelStorageSettings(settings) {
     tailscale_hostname: `${settings.tailscale_hostname || ""}`.trim(),
     tailscale_control_url: `${settings.tailscale_control_url || ""}`.trim(),
     // Every other field of a kind the tunnel is not collapses to nothing here;
-    // this one has a default, so it needs the same gate or a WireGuard tunnel
-    // ends up storing a Tailscale option it never showed.
+    // these two have a default, so they need the same gate or a WireGuard
+    // tunnel ends up storing an option it never showed.
     tailscale_accept_routes: kind === "tailscale" ? `${settings.tailscale_accept_routes || "1"}` : "",
+    accept_server_dns: SERVER_DNS_TUNNEL_KINDS.includes(kind) ? `${settings.accept_server_dns || "1"}` : "",
     tailscale_exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
     tailscale_detour_section: `${settings.tailscale_detour_enabled || ""}` === "1" ? `${settings.tailscale_detour_section || ""}`.trim() : "",
     // The dialog drops the section along with its switch, so a section it
@@ -22026,6 +22034,19 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
       )
     );
   };
+  const serverDnsOption = itemSection.option(
+    form.Flag,
+    "accept_server_dns",
+    _("Accept server DNS"),
+    _(
+      "Names in the domains the server declares are resolved by its DNS for connections through this tunnel. Add those domains to the section so that devices reach them through the tunnel"
+    )
+  );
+  serverDnsOption.default = "1";
+  serverDnsOption.rmempty = false;
+  SERVER_DNS_TUNNEL_KINDS.forEach(
+    (kind) => serverDnsOption.depends("tunnel_type", kind)
+  );
   addCascadeOptions(
     itemSection,
     () => section_id,

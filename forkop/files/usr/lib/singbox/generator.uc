@@ -25,6 +25,8 @@ const CONFIG_NAME = "forkop";
 // types fall through to the ordinary DNS rules.
 const FAKEIP_QUERY_TYPES = [ "A", "AAAA" ];
 const OPENCONNECT_RECONNECT_TIMEOUT = "876000h";
+// The DNS server type that answers for the names the server of a tunnel declares.
+const TUNNEL_DNS_SERVER_TYPES = { openconnect: "openconnect", "openvpn-client": "openvpn", tailscale: "tailscale" };
 
 function runtime_generate_unsupported(reason) {
     die(reason);
@@ -1216,6 +1218,10 @@ function add_connection_tunnels(config, section, selector_tags, urltest_candidat
         push(config.endpoints, endpoint);
         push(selector_tags, tag_name);
         push(urltest_candidate_tags, tag_name);
+
+        let dns_type = TUNNEL_DNS_SERVER_TYPES[endpoint_type];
+        if (wrapper_kind != "json" && dns_type != null && bool_option(tunnel, "accept_server_dns", true))
+            push(config.dns.servers, { type: dns_type, tag: tag_name, endpoint: tag_name, __tunnel: true });
     }
 }
 
@@ -1491,6 +1497,17 @@ function add_source_aware_dns_fallback(config) {
         server,
         rewrite_ttl
     });
+}
+
+// The names the server of a tunnel declares - split DNS and search domains, a
+// tailnet's MagicDNS - resolve through that server when the tunnel dials them.
+// The endpoint's lookup carries the inbound of the connection it dials for, so it
+// passes every rule for captured queries; a device's own query stops at the last
+// of them and is answered exactly as before.
+function add_tunnel_dns_rules(config) {
+    for (let server in config.dns.servers)
+        if (server.__tunnel)
+            push_dns_matcher_rule(config, { preferred_by: server.tag, action: "route", server: server.tag });
 }
 
 function dns_action_server_tag(section_name) {
@@ -1947,6 +1964,7 @@ function build(context) {
         add_route_for_section(config, section);
     add_static_hosts_dns_rule(config, static_hosts);
     add_source_aware_dns_fallback(config);
+    add_tunnel_dns_rules(config);
     add_server_routes(config, servers, sections);
     add_service_mixed_proxy(config, settings, sections);
 
