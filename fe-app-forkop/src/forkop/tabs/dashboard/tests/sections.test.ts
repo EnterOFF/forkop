@@ -38,8 +38,35 @@ interface FakeNode {
   type: string;
   attrs: Record<string, unknown>;
   children: Array<FakeNode | string>;
+  isConnected: boolean;
+  scrollTop: number;
   appendChild(child: FakeNode): void;
   setAttribute(name: string, value: string): void;
+  replaceChildren(...nodes: FakeNode[]): void;
+  querySelector(selector: string): FakeNode | null;
+}
+
+function findByClass(
+  node: FakeNode | string,
+  className: string,
+): FakeNode | null {
+  if (typeof node === 'string') {
+    return null;
+  }
+  if (
+    String(node.attrs.class || '')
+      .split(' ')
+      .includes(className)
+  ) {
+    return node;
+  }
+  for (const child of node.children) {
+    const found = findByClass(child, className);
+    if (found) {
+      return found;
+    }
+  }
+  return null;
 }
 
 function fakeNode(type: string, attrs: unknown, children?: unknown): FakeNode {
@@ -52,11 +79,19 @@ function fakeNode(type: string, attrs: unknown, children?: unknown): FakeNode {
         : Array.isArray(children)
           ? (children as Array<FakeNode | string>)
           : [children as FakeNode | string],
+    isConnected: true,
+    scrollTop: 0,
     appendChild(child) {
       this.children.push(child);
     },
     setAttribute(name, value) {
       this.attrs[name] = value;
+    },
+    replaceChildren(...nodes) {
+      this.children = nodes;
+    },
+    querySelector(selector) {
+      return findByClass(this, selector.replace(/^./, ''));
     },
   };
 }
@@ -66,6 +101,8 @@ function textOf(node: FakeNode | string): string {
 }
 
 const containers: Record<string, { children: FakeNode[] }> = {};
+let overlayActive = true;
+let shownModal: FakeNode | null = null;
 const stored = new Map<string, string>();
 const COLLAPSED_KEY = 'forkop:dashboard-collapsed-sections:v1';
 
@@ -139,6 +176,14 @@ beforeEach(() => {
     addEventListener() {},
   });
   vi.stubGlobal('requestAnimationFrame', () => 0);
+  overlayActive = true;
+  shownModal = null;
+  vi.stubGlobal('ui', {
+    showModal: (_title: string, content: FakeNode) => {
+      shownModal = content;
+    },
+    hideModal: () => {},
+  });
   vi.stubGlobal(
     'MutationObserver',
     class {
@@ -148,7 +193,9 @@ beforeEach(() => {
   vi.stubGlobal('document', {
     visibilityState: 'visible',
     timeline: { currentTime: 0 },
-    body: {},
+    body: {
+      classList: { contains: () => overlayActive },
+    },
     getElementById: (id: string) =>
       id === 'dashboard-sections-grid' || id === 'dashboard-sections-toolbar'
         ? container(id)
@@ -360,5 +407,157 @@ describe('folded sections', () => {
       stopPropagation() {},
     } as MouseEvent);
     expect(collapseButton('first')?.attrs['aria-expanded']).toBe('false');
+  });
+});
+
+describe('the group details dialogs', () => {
+  function urlTestSection(latency: number) {
+    return section('main', {
+      outbounds: [
+        {
+          code: 'main/auto',
+          displayName: 'Auto',
+          latency,
+          type: 'URLTest',
+          selected: true,
+          urlTestInfo: {
+            code: 'main/auto',
+            displayName: 'Auto',
+            outbounds: [
+              {
+                code: 'main/node',
+                displayName: 'Node',
+                latency,
+                type: 'VLESS',
+                selected: true,
+              },
+            ],
+          },
+        },
+      ],
+    });
+  }
+
+  async function openUrlTestDetails() {
+    const button = (function find(node: FakeNode | string): FakeNode | null {
+      if (typeof node === 'string') return null;
+      if (node.attrs['aria-label'] === 'URLTest details') return node;
+      for (const child of node.children) {
+        const found = find(child);
+        if (found) return found;
+      }
+      return null;
+    })(container('dashboard-sections-grid').children[0]);
+    (button?.attrs.click as (event: MouseEvent) => void)({
+      stopPropagation() {},
+    } as MouseEvent);
+    return shownModal as unknown as FakeNode;
+  }
+
+  async function publish(data: Forkop.OutboundGroup[]) {
+    const { store } = await import('../../../services/store.service');
+    store.set({
+      sectionsWidget: { ...store.get().sectionsWidget, data },
+    });
+    await vi.advanceTimersByTimeAsync(0);
+  }
+
+  it('follow the sections refresh and keep the list where it was scrolled', async () => {
+    await openDashboard([urlTestSection(50), section('other')]);
+    const dialog = await openUrlTestDetails();
+    expect(textOf(dialog)).toContain('50ms');
+    dialog.querySelector(
+      '.fkp_dashboard-page__urltest-details__table',
+    )!.scrollTop = 120;
+
+    await publish([urlTestSection(70), section('other')]);
+
+    expect(textOf(dialog)).toContain('70ms');
+    expect(
+      dialog.querySelector('.fkp_dashboard-page__urltest-details__table')
+        ?.scrollTop,
+    ).toBe(120);
+  });
+
+  it('stop redrawing once LuCI has closed them', async () => {
+    await openDashboard([urlTestSection(50), section('other')]);
+    const dialog = await openUrlTestDetails();
+
+    overlayActive = false;
+    await publish([urlTestSection(70), section('other')]);
+    overlayActive = true;
+    await publish([urlTestSection(90), section('other')]);
+
+    expect(textOf(dialog)).toContain('50ms');
+  });
+
+  function fallbackSection(levels: string[]) {
+    return section('chain', {
+      outbounds: [
+        {
+          code: 'chain/fallback',
+          displayName: 'Fallback',
+          latency: 0,
+          type: 'Fallback',
+          selected: true,
+          fallbackInfo: {
+            code: 'chain/fallback',
+            displayName: 'Fallback',
+            outbounds: levels.map((level, index) => ({
+              code: `chain/node${index}`,
+              displayName: `Node ${index}`,
+              latency: 0,
+              type: 'VLESS',
+              selected: index === 0,
+              pinned: false,
+              levelIndex: index,
+              levelName: level,
+              levelId: level,
+            })),
+          },
+        },
+      ],
+    });
+  }
+
+  async function fallbackLevelChips(levels: string[]) {
+    await openDashboard([fallbackSection(levels), section('other')]);
+    const button = (function find(node: FakeNode | string): FakeNode | null {
+      if (typeof node === 'string') return null;
+      if (node.attrs['aria-label'] === 'Fallback details') return node;
+      for (const child of node.children) {
+        const found = find(child);
+        if (found) return found;
+      }
+      return null;
+    })(container('dashboard-sections-grid').children[0]);
+    (button?.attrs.click as (event: MouseEvent) => void)({
+      stopPropagation() {},
+    } as MouseEvent);
+    const chips: string[] = [];
+    (function collect(node: FakeNode | string) {
+      if (typeof node === 'string') return;
+      if (
+        String(node.attrs.class || '').includes(
+          'fkp_dashboard-page__urltest-details__fallback-level',
+        )
+      ) {
+        chips.push(textOf(node));
+      }
+      node.children.forEach(collect);
+    })(shownModal as unknown as FakeNode);
+    return chips;
+  }
+
+  it('name a fallback level on a node only when there are levels to tell apart', async () => {
+    expect(await fallbackLevelChips(['Group #1', 'Group #1'])).toEqual([]);
+  });
+
+  it('name it on every node, the chosen one included, when there are', async () => {
+    expect(await fallbackLevelChips(['Group #1', 'Group #2'])).toEqual([
+      'Group #1',
+      'Group #1',
+      'Group #2',
+    ]);
   });
 });

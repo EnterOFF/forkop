@@ -89,9 +89,9 @@ const collapsedSections = readCollapsedSections();
 const selectorRequests = new Set<string>();
 const toolbarActions = new Set<'testAll' | 'subscriptions' | 'lists'>();
 const fallbackPinRequests = new Set<string>();
-let activeFallbackModal: {
-  code: string;
+let activeDetailsModal: {
   container: HTMLElement;
+  render: () => Node[];
   unsubscribe: () => void;
 } | null = null;
 
@@ -929,11 +929,9 @@ function renderUrlTestCopyButton(
   );
 }
 
-function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
-  const info = outbound.urlTestInfo;
-
+function renderUrlTestInfoModal(info?: Forkop.UrlTestInfo) {
   if (!info) {
-    return E('div', {}, _('URLTest details are unavailable'));
+    return [E('div', {}, _('URLTest details are unavailable'))];
   }
 
   const fields: Array<{
@@ -959,7 +957,7 @@ function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
     },
   ];
 
-  return E('div', { class: 'fkp_dashboard-page__urltest-details' }, [
+  return [
     E(
       'dl',
       { class: 'fkp_dashboard-page__urltest-details__params' },
@@ -1067,32 +1065,29 @@ function renderUrlTestInfoModal(outbound: Forkop.Outbound) {
             ],
       ),
     ]),
-    E('div', { class: 'fkp_dashboard-page__urltest-details__footer' }, [
-      E(
-        'button',
-        {
-          type: 'button',
-          class: 'btn cbi-button cbi-button-neutral',
-          click: () => {
-            ui.hideModal();
-          },
-        },
-        _('Close'),
-      ),
-    ]),
-  ]);
+    renderDetailsFooter(),
+  ];
 }
 
 function handleShowUrlTestInfo(outbound: Forkop.Outbound) {
-  if (!outbound.urlTestInfo) {
+  const info = outbound.urlTestInfo;
+
+  if (!info) {
     return;
   }
 
-  ui.showModal(
-    `${_('URLTest details')}: ${
-      outbound.urlTestInfo.displayName || outbound.displayName
-    }`,
-    renderUrlTestInfoModal(outbound),
+  showDetailsModal(
+    `${_('URLTest details')}: ${info.displayName || outbound.displayName}`,
+    () => renderUrlTestInfoModal(findGroupInfo('urlTestInfo', info.code)),
+  );
+}
+
+// A level is worth naming on a node only when the chain has more than one:
+// with a single level every node would carry the same chip.
+function hasSeveralLevels(info: Forkop.FallbackInfo) {
+  return (
+    new Set(info.outbounds.map((member) => member.levelId ?? member.levelName))
+      .size > 1
   );
 }
 
@@ -1122,7 +1117,9 @@ function renderFallbackSelectedValue(info: Forkop.FallbackInfo) {
             .filter(Boolean)
             .join(' '),
         },
-        selectedMember ? renderFallbackMemberName(selectedMember) : name,
+        selectedMember
+          ? renderFallbackMemberName(selectedMember, hasSeveralLevels(info))
+          : name,
       ),
       ...(selectedMember?.type
         ? [
@@ -1146,15 +1143,20 @@ function renderFallbackSelectedValue(info: Forkop.FallbackInfo) {
   );
 }
 
-function renderFallbackMemberName(member: Forkop.FallbackMember) {
-  const levelName = member.levelName || _('Level');
-
+function renderFallbackMemberName(
+  member: Forkop.FallbackMember,
+  showLevel: boolean,
+) {
   return [
-    E(
-      'span',
-      { class: 'fkp_dashboard-page__urltest-details__fallback-level' },
-      levelName,
-    ),
+    ...(showLevel
+      ? [
+          E(
+            'span',
+            { class: 'fkp_dashboard-page__urltest-details__fallback-level' },
+            member.levelName || _('Level'),
+          ),
+        ]
+      : []),
     E(
       'span',
       { class: 'fkp_dashboard-page__urltest-details__fallback-node' },
@@ -1163,11 +1165,16 @@ function renderFallbackMemberName(member: Forkop.FallbackMember) {
   ];
 }
 
-function findFallbackInfo(code: string) {
+// A dialog shows the group as the latest refresh of the sections has it, so it
+// is looked up again by its code on every redraw.
+function findGroupInfo<K extends 'urlTestInfo' | 'fallbackInfo'>(
+  kind: K,
+  code: string,
+): Forkop.Outbound[K] {
   for (const section of store.get().sectionsWidget.data) {
     for (const outbound of section.outbounds) {
-      if (outbound.fallbackInfo?.code === code) {
-        return outbound.fallbackInfo;
+      if (outbound[kind]?.code === code) {
+        return outbound[kind];
       }
     }
   }
@@ -1187,7 +1194,7 @@ async function handleFallbackPin(code: string, member: Forkop.FallbackMember) {
   }
 
   fallbackPinRequests.add(requestKey);
-  refreshFallbackModal();
+  refreshDetailsModal();
 
   try {
     const response = await CustomForkopMethods.setClashApiGroupProxy(
@@ -1205,13 +1212,14 @@ async function handleFallbackPin(code: string, member: Forkop.FallbackMember) {
     logger.error('[DASHBOARD]', 'handleFallbackPin failed', error);
   } finally {
     fallbackPinRequests.delete(requestKey);
-    refreshFallbackModal();
+    refreshDetailsModal();
   }
 }
 
 function renderFallbackMemberRow(
   info: Forkop.FallbackInfo,
   member: Forkop.FallbackMember,
+  showLevel: boolean,
 ) {
   const busy = fallbackPinRequests.has(
     fallbackPinRequestKey(info.code, member.code),
@@ -1257,7 +1265,7 @@ function renderFallbackMemberRow(
           E(
             'b',
             { class: 'fkp_dashboard-page__urltest-details__fallback-name' },
-            renderFallbackMemberName(member),
+            renderFallbackMemberName(member, showLevel),
           ),
           ...(member.type
             ? [
@@ -1358,14 +1366,14 @@ function renderFallbackInfoModal(info?: Forkop.FallbackInfo) {
       E(
         'div',
         { class: 'fkp_dashboard-page__urltest-details__hint' },
-        _('Click a server to pin its priority. Click it again to unpin.'),
+        _('Click a node to pin it, and click it again to unpin it.'),
       ),
       E(
         'div',
         { class: 'fkp_dashboard-page__urltest-details__table' },
         info.outbounds.length
           ? info.outbounds.map((member) =>
-              renderFallbackMemberRow(info, member),
+              renderFallbackMemberRow(info, member, hasSeveralLevels(info)),
             )
           : [
               E(
@@ -1376,43 +1384,79 @@ function renderFallbackInfoModal(info?: Forkop.FallbackInfo) {
             ],
       ),
     ]),
-    E('div', { class: 'fkp_dashboard-page__urltest-details__footer' }, [
-      E(
-        'button',
-        {
-          type: 'button',
-          class: 'btn cbi-button cbi-button-neutral',
-          click: () => {
-            closeFallbackModal();
-            ui.hideModal();
-          },
-        },
-        _('Close'),
-      ),
-    ]),
+    renderDetailsFooter(),
   ];
 }
 
-function closeFallbackModal() {
-  activeFallbackModal?.unsubscribe();
-  activeFallbackModal = null;
+function renderDetailsFooter() {
+  return E('div', { class: 'fkp_dashboard-page__urltest-details__footer' }, [
+    E(
+      'button',
+      {
+        type: 'button',
+        class: 'btn cbi-button cbi-button-neutral',
+        click: () => {
+          closeDetailsModal();
+          ui.hideModal();
+        },
+      },
+      _('Close'),
+    ),
+  ]);
 }
 
-function refreshFallbackModal() {
-  const modal = activeFallbackModal;
+function closeDetailsModal() {
+  activeDetailsModal?.unsubscribe();
+  activeDetailsModal = null;
+}
+
+// The URLTest and Fallback dialogs follow the sections refresh, so the delays
+// and the choice they show stay current while they are open. A redraw keeps
+// the node list where the reader scrolled it; it used to jump back to the top
+// every ten seconds. LuCI keeps a closed dialog in the page, so whether this
+// one is still showing is read from the overlay, not from the page.
+function refreshDetailsModal() {
+  const modal = activeDetailsModal;
 
   if (!modal) {
     return;
   }
 
-  if (!document.body.contains(modal.container)) {
-    closeFallbackModal();
+  if (
+    !modal.container.isConnected ||
+    !document.body.classList.contains('modal-overlay-active')
+  ) {
+    closeDetailsModal();
     return;
   }
 
-  modal.container.replaceChildren(
-    ...renderFallbackInfoModal(findFallbackInfo(modal.code)),
-  );
+  const table = '.fkp_dashboard-page__urltest-details__table';
+  const scrollTop = modal.container.querySelector(table)?.scrollTop ?? 0;
+  modal.container.replaceChildren(...modal.render());
+  const redrawn = modal.container.querySelector(table);
+  if (redrawn) {
+    redrawn.scrollTop = scrollTop;
+  }
+}
+
+function showDetailsModal(title: string, render: () => Node[]) {
+  closeDetailsModal();
+
+  const container = E(
+    'div',
+    { class: 'fkp_dashboard-page__urltest-details' },
+    render(),
+  ) as HTMLElement;
+
+  activeDetailsModal = {
+    container,
+    render,
+    unsubscribe: store.subscribeKey('sectionsWidget', () => {
+      refreshDetailsModal();
+    }),
+  };
+
+  ui.showModal(title, container);
 }
 
 function handleShowFallbackInfo(outbound: Forkop.Outbound) {
@@ -1422,25 +1466,9 @@ function handleShowFallbackInfo(outbound: Forkop.Outbound) {
     return;
   }
 
-  closeFallbackModal();
-
-  const container = E(
-    'div',
-    { class: 'fkp_dashboard-page__urltest-details' },
-    renderFallbackInfoModal(info),
-  ) as HTMLElement;
-
-  activeFallbackModal = {
-    code: info.code,
-    container,
-    unsubscribe: store.subscribeKey('sectionsWidget', () => {
-      refreshFallbackModal();
-    }),
-  };
-
-  ui.showModal(
+  showDetailsModal(
     `${_('Fallback details')}: ${info.displayName || outbound.displayName}`,
-    container,
+    () => renderFallbackInfoModal(findGroupInfo('fallbackInfo', info.code)),
   );
 }
 

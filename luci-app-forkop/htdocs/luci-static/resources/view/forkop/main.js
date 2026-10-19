@@ -4964,7 +4964,7 @@ var collapsedSections = readCollapsedSections();
 var selectorRequests = /* @__PURE__ */ new Set();
 var toolbarActions = /* @__PURE__ */ new Set();
 var fallbackPinRequests = /* @__PURE__ */ new Set();
-var activeFallbackModal = null;
+var activeDetailsModal = null;
 function readCollapsedSections() {
   try {
     const stored = JSON.parse(
@@ -5582,10 +5582,9 @@ function renderUrlTestCopyButton(title, onClick) {
     renderCopyIcon24()
   );
 }
-function renderUrlTestInfoModal(outbound) {
-  const info = outbound.urlTestInfo;
+function renderUrlTestInfoModal(info) {
   if (!info) {
-    return textE("div", {}, _("URLTest details are unavailable"));
+    return [textE("div", {}, _("URLTest details are unavailable"))];
   }
   const fields = [
     {
@@ -5605,7 +5604,7 @@ function renderUrlTestInfoModal(outbound) {
       value: info.interruptExistConnections
     }
   ];
-  return textE("div", { class: "fkp_dashboard-page__urltest-details" }, [
+  return [
     textE(
       "dl",
       { class: "fkp_dashboard-page__urltest-details__params" },
@@ -5699,29 +5698,21 @@ function renderUrlTestInfoModal(outbound) {
         ]
       )
     ]),
-    textE("div", { class: "fkp_dashboard-page__urltest-details__footer" }, [
-      textE(
-        "button",
-        {
-          type: "button",
-          class: "btn cbi-button cbi-button-neutral",
-          click: () => {
-            ui.hideModal();
-          }
-        },
-        _("Close")
-      )
-    ])
-  ]);
+    renderDetailsFooter()
+  ];
 }
 function handleShowUrlTestInfo(outbound) {
-  if (!outbound.urlTestInfo) {
+  const info = outbound.urlTestInfo;
+  if (!info) {
     return;
   }
-  ui.showModal(
-    `${_("URLTest details")}: ${outbound.urlTestInfo.displayName || outbound.displayName}`,
-    renderUrlTestInfoModal(outbound)
+  showDetailsModal(
+    `${_("URLTest details")}: ${info.displayName || outbound.displayName}`,
+    () => renderUrlTestInfoModal(findGroupInfo("urlTestInfo", info.code))
   );
+}
+function hasSeveralLevels(info) {
+  return new Set(info.outbounds.map((member) => member.levelId ?? member.levelName)).size > 1;
 }
 function renderFallbackSelectedValue(info) {
   const selectedMember = info.outbounds.find((member) => member.selected);
@@ -5742,7 +5733,7 @@ function renderFallbackSelectedValue(info) {
             selectedMember ? "fkp_dashboard-page__urltest-details__fallback-name" : ""
           ].filter(Boolean).join(" ")
         },
-        selectedMember ? renderFallbackMemberName(selectedMember) : name
+        selectedMember ? renderFallbackMemberName(selectedMember, hasSeveralLevels(info)) : name
       ),
       ...selectedMember?.type ? [
         textE(
@@ -5761,14 +5752,15 @@ function renderFallbackSelectedValue(info) {
     ]
   );
 }
-function renderFallbackMemberName(member) {
-  const levelName = member.levelName || _("Level");
+function renderFallbackMemberName(member, showLevel) {
   return [
-    textE(
-      "span",
-      { class: "fkp_dashboard-page__urltest-details__fallback-level" },
-      levelName
-    ),
+    ...showLevel ? [
+      textE(
+        "span",
+        { class: "fkp_dashboard-page__urltest-details__fallback-level" },
+        member.levelName || _("Level")
+      )
+    ] : [],
     textE(
       "span",
       { class: "fkp_dashboard-page__urltest-details__fallback-node" },
@@ -5776,11 +5768,11 @@ function renderFallbackMemberName(member) {
     )
   ];
 }
-function findFallbackInfo(code) {
+function findGroupInfo(kind, code) {
   for (const section of store.get().sectionsWidget.data) {
     for (const outbound of section.outbounds) {
-      if (outbound.fallbackInfo?.code === code) {
-        return outbound.fallbackInfo;
+      if (outbound[kind]?.code === code) {
+        return outbound[kind];
       }
     }
   }
@@ -5795,7 +5787,7 @@ async function handleFallbackPin(code, member) {
     return;
   }
   fallbackPinRequests.add(requestKey);
-  refreshFallbackModal();
+  refreshDetailsModal();
   try {
     const response = await CustomForkopMethods.setClashApiGroupProxy(
       code,
@@ -5810,10 +5802,10 @@ async function handleFallbackPin(code, member) {
     logger.error("[DASHBOARD]", "handleFallbackPin failed", error);
   } finally {
     fallbackPinRequests.delete(requestKey);
-    refreshFallbackModal();
+    refreshDetailsModal();
   }
 }
-function renderFallbackMemberRow(info, member) {
+function renderFallbackMemberRow(info, member, showLevel) {
   const busy = fallbackPinRequests.has(
     fallbackPinRequestKey(info.code, member.code)
   );
@@ -5852,7 +5844,7 @@ function renderFallbackMemberRow(info, member) {
           textE(
             "b",
             { class: "fkp_dashboard-page__urltest-details__fallback-name" },
-            renderFallbackMemberName(member)
+            renderFallbackMemberName(member, showLevel)
           ),
           ...member.type ? [
             textE(
@@ -5940,13 +5932,13 @@ function renderFallbackInfoModal(info) {
       textE(
         "div",
         { class: "fkp_dashboard-page__urltest-details__hint" },
-        _("Click a server to pin its priority. Click it again to unpin.")
+        _("Click a node to pin it, and click it again to unpin it.")
       ),
       textE(
         "div",
         { class: "fkp_dashboard-page__urltest-details__table" },
         info.outbounds.length ? info.outbounds.map(
-          (member) => renderFallbackMemberRow(info, member)
+          (member) => renderFallbackMemberRow(info, member, hasSeveralLevels(info))
         ) : [
           textE(
             "div",
@@ -5956,60 +5948,70 @@ function renderFallbackInfoModal(info) {
         ]
       )
     ]),
-    textE("div", { class: "fkp_dashboard-page__urltest-details__footer" }, [
-      textE(
-        "button",
-        {
-          type: "button",
-          class: "btn cbi-button cbi-button-neutral",
-          click: () => {
-            closeFallbackModal();
-            ui.hideModal();
-          }
-        },
-        _("Close")
-      )
-    ])
+    renderDetailsFooter()
   ];
 }
-function closeFallbackModal() {
-  activeFallbackModal?.unsubscribe();
-  activeFallbackModal = null;
+function renderDetailsFooter() {
+  return textE("div", { class: "fkp_dashboard-page__urltest-details__footer" }, [
+    textE(
+      "button",
+      {
+        type: "button",
+        class: "btn cbi-button cbi-button-neutral",
+        click: () => {
+          closeDetailsModal();
+          ui.hideModal();
+        }
+      },
+      _("Close")
+    )
+  ]);
 }
-function refreshFallbackModal() {
-  const modal = activeFallbackModal;
+function closeDetailsModal() {
+  activeDetailsModal?.unsubscribe();
+  activeDetailsModal = null;
+}
+function refreshDetailsModal() {
+  const modal = activeDetailsModal;
   if (!modal) {
     return;
   }
-  if (!document.body.contains(modal.container)) {
-    closeFallbackModal();
+  if (!modal.container.isConnected || !document.body.classList.contains("modal-overlay-active")) {
+    closeDetailsModal();
     return;
   }
-  modal.container.replaceChildren(
-    ...renderFallbackInfoModal(findFallbackInfo(modal.code))
+  const table = ".fkp_dashboard-page__urltest-details__table";
+  const scrollTop = modal.container.querySelector(table)?.scrollTop ?? 0;
+  modal.container.replaceChildren(...modal.render());
+  const redrawn = modal.container.querySelector(table);
+  if (redrawn) {
+    redrawn.scrollTop = scrollTop;
+  }
+}
+function showDetailsModal(title, render5) {
+  closeDetailsModal();
+  const container = textE(
+    "div",
+    { class: "fkp_dashboard-page__urltest-details" },
+    render5()
   );
+  activeDetailsModal = {
+    container,
+    render: render5,
+    unsubscribe: store.subscribeKey("sectionsWidget", () => {
+      refreshDetailsModal();
+    })
+  };
+  ui.showModal(title, container);
 }
 function handleShowFallbackInfo(outbound) {
   const info = outbound.fallbackInfo;
   if (!info) {
     return;
   }
-  closeFallbackModal();
-  const container = textE(
-    "div",
-    { class: "fkp_dashboard-page__urltest-details" },
-    renderFallbackInfoModal(info)
-  );
-  activeFallbackModal = {
-    code: info.code,
-    container,
-    unsubscribe: store.subscribeKey("sectionsWidget", () => {
-      refreshFallbackModal();
-    })
-  };
-  ui.showModal(
+  showDetailsModal(
     `${_("Fallback details")}: ${info.displayName || outbound.displayName}`,
-    container
+    () => renderFallbackInfoModal(findGroupInfo("fallbackInfo", info.code))
   );
 }
 async function runToolbarAction(action, run) {
