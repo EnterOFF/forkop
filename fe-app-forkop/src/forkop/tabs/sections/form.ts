@@ -435,6 +435,7 @@ export function createSectionContent(section: CBISection) {
   o.modalonly = true;
   o.addButtonLabel = _('+ Add tunnel');
   o.childType = 'tunnel';
+  o.entriesAreSections = true;
   o.ownerOption = 'section';
   o.removeNestedChildItems = removeTunnelPeers;
   o.childValueOption = undefined;
@@ -526,6 +527,7 @@ export function createSectionContent(section: CBISection) {
   o.modalonly = true;
   o.addButtonLabel = _('+ Add fallback');
   o.childType = 'fallback_group';
+  o.entriesAreSections = true;
   o.removeNestedChildItems = removeFallbackLevels;
   o.childValueOption = 'name';
   o.childDefaults = fallbackGroupChildDefaults();

@@ -480,7 +480,11 @@ export const SettingsDynamicList = form.DynamicList.extend({
     return node;
   },
 
+  // A list whose entries are sections is written on every save, also when it
+  // holds what it loaded: an entry added and taken out again leaves the list as
+  // it was, and only the write deletes its section.
   parse(section_id: string) {
+    this.forcewrite = this.entriesAreSections === true;
     if (
       this.isActive(section_id) &&
       typeof this.validateItemsOnSave === 'function'

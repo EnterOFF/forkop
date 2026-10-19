@@ -373,7 +373,9 @@ export function orderChildItemsByPosition(
   itemIds: string[],
 ): void {
   itemIds.forEach((itemId: string, index: number) => {
-    uci.set(FORKOP_UCI_PACKAGE, itemId, 'order', `${index}`);
+    if (uci.get(FORKOP_UCI_PACKAGE, itemId, 'order') !== `${index}`) {
+      uci.set(FORKOP_UCI_PACKAGE, itemId, 'order', `${index}`);
+    }
   });
 }
 

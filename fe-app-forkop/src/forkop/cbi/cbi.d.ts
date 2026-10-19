@@ -117,6 +117,10 @@ declare global {
       | ((inputValue: string, existing: boolean) => ChildSettings);
     // The id a new child section is created under.
     createId?: (inputValue?: string, sectionId?: string) => string;
+    // Every entry is a child section from the moment it is added, where other
+    // lists stage an entry until the section is saved: a tunnel's dialog writes
+    // the tunnel when it closes.
+    entriesAreSections?: boolean;
     // Where the per-entry settings of this list are stored on the owning section.
     // Entries are added through a dialog rather than by typing into the list.
     buttonAdd?: boolean;

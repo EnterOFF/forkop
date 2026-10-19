@@ -500,6 +500,64 @@ describe('a list the user can see owns its items', () => {
 
     expect(itemsOfType('tunnel')).toEqual(['tun1']);
   });
+
+  // A tunnel's dialog and a fallback group's write their item when they save, so
+  // one added and taken out again leaves the list holding what it loaded, and
+  // LuCI skips the write of a list that did not change.
+  it('a tunnel or a fallback added and taken out again is gone after the save', async () => {
+    addSections(connectionChildren());
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    harness.uci.add('forkop', 'tunnel', 'tun2');
+    Object.assign(harness.store.get('tun2'), {
+      section: 'sec',
+      kind: 'wireguard',
+      name: 'wg2',
+      private_key: WG_KEY,
+      address: ['10.8.1.10/32'],
+    });
+    harness.uci.add('forkop', 'fallback_group', 'grp2');
+    Object.assign(harness.store.get('grp2'), {
+      section: 'sec',
+      name: 'Fallback #2',
+    });
+    widgetAnswers(grid, { tunnels: ['tun1'], fallback_group: ['grp1'] });
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('sec'))
+        .catch(() => {});
+    }
+
+    expect(itemsOfType('tunnel')).toEqual(['tun1']);
+    expect(itemsOfType('fallback_group')).toEqual(['grp1']);
+  });
+
+  // uci.js records every set of a stored section as a change, the value it
+  // already holds included, and the page then reports changes nobody made. The
+  // lists above are written on every save, so their write must leave alone an
+  // item that already holds what it would set. LuCI's own flag on the section
+  // itself writes on every save as well, and is no item.
+  it('a save that changes nothing sets nothing on an item', async () => {
+    addSections(connectionChildren());
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    const sets = [];
+    const set = harness.uci.set;
+    harness.uci.set = (...args) => {
+      if (args[1] !== 'sec') sets.push(args.slice(1).join(' '));
+      return set.apply(harness.uci, args);
+    };
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('sec'))
+        .catch(() => {});
+    }
+    harness.uci.set = set;
+
+    expect(sets).toEqual([]);
+  });
 });
 
 /* ------------------------------- removing an owner takes its children */

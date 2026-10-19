@@ -12035,7 +12035,9 @@ function childItemNameCheck(dialog) {
 }
 function orderChildItemsByPosition(_ownerId, itemIds) {
   itemIds.forEach((itemId, index) => {
-    uci.set(FORKOP_UCI_PACKAGE, itemId, "order", `${index}`);
+    if (uci.get(FORKOP_UCI_PACKAGE, itemId, "order") !== `${index}`) {
+      uci.set(FORKOP_UCI_PACKAGE, itemId, "order", `${index}`);
+    }
   });
 }
 function parentSectionIdForItem(itemId) {
@@ -12703,7 +12705,11 @@ var SettingsDynamicList = form.DynamicList.extend({
     }
     return node;
   },
+  // A list whose entries are sections is written on every save, also when it
+  // holds what it loaded: an entry added and taken out again leaves the list as
+  // it was, and only the write deletes its section.
   parse(section_id) {
+    this.forcewrite = this.entriesAreSections === true;
     if (this.isActive(section_id) && typeof this.validateItemsOnSave === "function") {
       const result = this.validateItemsOnSave(
         this.childType ? this.childOwner(section_id) : section_id,
@@ -22566,6 +22572,7 @@ function createSectionContent(section) {
   o.modalonly = true;
   o.addButtonLabel = _("+ Add tunnel");
   o.childType = "tunnel";
+  o.entriesAreSections = true;
   o.ownerOption = "section";
   o.removeNestedChildItems = removeTunnelPeers;
   o.childValueOption = void 0;
@@ -22651,6 +22658,7 @@ function createSectionContent(section) {
   o.modalonly = true;
   o.addButtonLabel = _("+ Add fallback");
   o.childType = "fallback_group";
+  o.entriesAreSections = true;
   o.removeNestedChildItems = removeFallbackLevels;
   o.childValueOption = "name";
   o.childDefaults = fallbackGroupChildDefaults();
