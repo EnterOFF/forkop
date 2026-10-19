@@ -83,14 +83,11 @@ function status() {
     return { running, enabled, status: health.service_status_text(running, enabled) };
 }
 
-// The package holding the core, or "" without one. While postinst starts Forkop
-// the package manager can be locked, and the version the core package records
-// still proves which core is installed.
-function sing_box_package() {
-    for (let name in [ "sing-box-forkop-compressed", "sing-box-forkop" ])
-        if (packages.installed(name))
-            return name;
-    return packages.sing_box_version() != "" && has_command("sing-box") ? "sing-box-forkop" : "";
+// Whether the core package is installed. While postinst starts Forkop the
+// package manager can be locked, and the version the core package records
+// still proves that it is.
+function sing_box_installed() {
+    return packages.installed("sing-box-forkop") || (packages.sing_box_version() != "" && has_command("sing-box"));
 }
 
 function luci_app_version() {
@@ -107,14 +104,11 @@ function openwrt_release() {
 }
 
 function system_info() {
-    let package_name = sing_box_package();
-    let version = package_name == "" ? "not installed" : (singbox_runtime.version() || "unknown");
+    let version = sing_box_installed() ? (singbox_runtime.version() || "unknown") : "not installed";
     return {
         forkop_version: constants.FORKOP_VERSION,
-        forkop_latest_version: common.read_first_line("/tmp/forkop.latest-version.cache") || "unknown",
         luci_app_version: luci_app_version(),
         sing_box_version: version,
-        sing_box_compressed: package_name == "sing-box-forkop-compressed" ? 1 : 0,
         openwrt_version: openwrt_release(),
         device_model: common.read_first_line("/tmp/sysinfo/model") || "unknown",
         generated_at: common.now_seconds()
@@ -124,7 +118,7 @@ function system_info() {
 // The same questions the start asks: the version it would refuse, and the
 // listeners the readiness wait looks for.
 function sing_box() {
-    let installed = sing_box_package() != "" && has_command("sing-box");
+    let installed = sing_box_installed() && has_command("sing-box");
     let version = packages.sing_box_version();
     let service = fs.stat(paths.sing_box_init) != null;
     return {

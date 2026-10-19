@@ -1,8 +1,8 @@
 // What the page shows about the service: whether it runs, what is being done to
-// it right now, and the service and component actions the page started. An
-// action is a job file under /var/run that its worker finishes; the page reads
-// the files through the state service, and a job whose worker died is marked
-// stale instead of running forever.
+// it right now, and the service actions the page started. An action is a job
+// file under /var/run that its worker finishes; the page reads the files
+// through the state service, and a job whose worker died is marked stale
+// instead of running forever.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -24,8 +24,6 @@ const SERVICE_ACTIONS = { start: true, stop: true, restart: true, reload: true }
 let paths = {
     service_actions: "/var/run/forkop/ui-state/service-actions",
     service_action_lock: "/var/run/forkop/ui-state/service-actions.lock",
-    // Written by the component manager, which keeps its jobs here.
-    component_actions: "/var/run/forkop/component-actions",
     reload_lock: "/var/run/forkop.reload.lock",
     pending_reload: "/var/run/forkop/reload.pending",
     rc_dir: "/etc/rc.d"
@@ -91,13 +89,9 @@ function clean_dir(dir) {
 
 function refresh() {
     common.ensure_dir(paths.service_actions);
-    common.ensure_dir(paths.component_actions);
     clean_dir(paths.service_actions);
-    clean_dir(paths.component_actions);
     for (let path in fs.glob(paths.service_actions + "/*.json"))
         refresh_job(path, "Service action worker exited unexpectedly");
-    for (let path in fs.glob(paths.component_actions + "/*.json"))
-        refresh_job(path, "Component action worker exited unexpectedly");
 }
 
 function running_service_job() {
@@ -160,7 +154,7 @@ function current_state() {
             }
         },
         capabilities: capabilities(),
-        actions: { service: jobs(paths.service_actions), component: jobs(paths.component_actions) }
+        actions: { service: jobs(paths.service_actions) }
     };
 }
 
@@ -265,11 +259,8 @@ function start_action(action) {
     return response(false, "", active_action() != "" ? "Another service action is already running" : "Failed to write service action worker pid");
 }
 
-function acknowledge(kind, job_id) {
-    let dir = kind == "service" ? paths.service_actions : kind == "component" ? paths.component_actions : null;
-    if (dir == null)
-        return response(false, "", "Invalid UI action kind");
-    let path = job_path(dir, job_id);
+function acknowledge(job_id) {
+    let path = job_path(paths.service_actions, job_id);
     if (path == null)
         return response(false, "", "Invalid UI action job id");
     let value = read_job(path);

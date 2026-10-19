@@ -17,7 +17,6 @@ import {
   prepareAddedServer,
 } from '../tabs/servers';
 import { createSettingsContent } from '../tabs/settings';
-import { UpdatesTab } from '../tabs/updates';
 import { configureGridSection } from './gridSection';
 import { pageTitle } from './pageTitle';
 
@@ -115,7 +114,6 @@ export const ForkopView = {
     addMountedTab(forkopMap, 'dashboard', _('Dashboard'), DashboardTab);
     addMountedTab(forkopMap, 'monitoring', _('Monitoring'), MonitoringTab);
     addMountedTab(forkopMap, 'logs', _('Logs'), LogsTab);
-    addMountedTab(forkopMap, 'updates', _('Components'), UpdatesTab);
 
     const rendered = await forkopMap.render();
     coreService();

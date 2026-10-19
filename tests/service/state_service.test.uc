@@ -26,7 +26,7 @@ function runtime_state() {
             sing_box: { running, enabled: 1, status: health.service_status_text(running, 1) }
         },
         capabilities: {},
-        actions: { service: [], component: [] }
+        actions: { service: [] }
     };
 }
 
@@ -154,19 +154,6 @@ t.test("a service seen down while its process lives is believed only after the g
     t.eq(settled(false, true, false, 0, 1000), [ false, 0 ], "a service already down stays down");
 });
 
-t.test("an update check is served back until the installed packages change", () => {
-    let db = stub.tmpdir() + "/status";
-    fs.writefile(db, "one");
-    let service = fresh_service();
-    service.paths.package_databases = [ db, db + ".absent" ];
-
-    service.store_update_check("zapret", { component: "zapret", status: "outdated" });
-    t.eq(service.update_check_results(), [ { component: "zapret", status: "outdated" } ]);
-
-    fs.writefile(db, "two, and a good deal more of it");
-    t.eq(service.update_check_results(), []);
-});
-
 // procd reports on every service of the router, and each report is a full read
 // of the runtime: nft, iproute2 and a process spawn.
 t.test("only procd's reports on sing-box make the service read the runtime again", () => {
@@ -220,7 +207,6 @@ t.test("a refresh after the configuration changed reads the committed configurat
     let uci = require("uci");
     let dir = stub.tmpdir();
     ui.paths.service_actions = dir + "/service-actions";
-    ui.paths.component_actions = dir + "/component-actions";
     ui.paths.reload_lock = dir + "/reload.lock";
     ui.paths.rc_dir = dir + "/rc.d";
     let real = {
@@ -257,9 +243,8 @@ t.test("a refresh after the configuration changed reads the committed configurat
     t.eq(counts, [ 1, 2 ]);
 });
 
-// The Updates tab asks for the versions the moment a component install ends,
-// and an answer held until the database had been quiet for a while was the
-// version from before the install.
+// An answer held until the package database had been quiet for a while was the
+// version from before an install that had just ended.
 t.test("the installed versions are read again as soon as the package database changes", () => {
     let db = stub.tmpdir() + "/installed";
     fs.writefile(db, "one");

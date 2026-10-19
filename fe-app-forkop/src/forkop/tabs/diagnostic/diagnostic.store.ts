@@ -58,18 +58,14 @@ export const initialDiagnosticStore: Pick<
   | 'diagnosticsRunAction'
   | 'diagnosticsActions'
   | 'diagnosticsSystemInfo'
-  | 'updatesActions'
-  | 'updatesChecks'
 > = {
   diagnosticsSystemInfo: {
     loading: true,
     loaded: false,
     capabilitiesLoaded: false,
     forkop_version: 'loading',
-    forkop_latest_version: 'loading',
     luci_app_version: 'loading',
     sing_box_version: 'loading',
-    sing_box_compressed: 0,
     server_inbounds_enabled_count: -1,
     openwrt_version: 'loading',
     device_model: 'loading',
@@ -102,14 +98,4 @@ export const initialDiagnosticStore: Pick<
   },
   diagnosticsRunAction: { loading: false },
   diagnosticsChecks: getDiagnosticsChecks(_('Not running')),
-  updatesActions: {
-    forkopCheck: { loading: false },
-    forkopInstall: { loading: false },
-    singBoxCheck: { loading: false },
-    singBoxInstall: { loading: false },
-  },
-  updatesChecks: {
-    forkop: { status: null, latest_version: '', release_url: '' },
-    sing_box: { status: null, latest_version: '', release_url: '' },
-  },
 };

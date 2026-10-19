@@ -20,8 +20,6 @@ type DiagnosticServiceActions = {
   disable: LoadingActionState;
 };
 
-type ComponentActions = Record<string, LoadingActionState>;
-
 interface ServiceControlState {
   visible: boolean;
   loading: boolean;
@@ -163,10 +161,6 @@ export function shouldDisableDiagnosticRunAction({
   capabilitiesLoaded: boolean;
 }) {
   return !capabilitiesLoaded;
-}
-
-export function hasComponentActionLoading(actions: ComponentActions) {
-  return Object.values(actions).some((action) => action.loading);
 }
 
 // What a service action the router never took up says: the request to start it

@@ -43,7 +43,6 @@ function createUiState(
     },
     actions: {
       service: [],
-      component: [],
     },
   };
 }

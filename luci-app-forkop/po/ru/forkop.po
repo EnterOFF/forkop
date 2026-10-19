@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 04:27+0300\n"
-"PO-Revision-Date: 2026-10-19 04:27+0300\n"
+"POT-Creation-Date: 2026-10-19 05:00+0300\n"
+"PO-Revision-Date: 2026-10-19 05:00+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -305,9 +305,6 @@ msgstr "Ключ авторизации"
 msgid "Auto refresh"
 msgstr "Автообновление"
 
-msgid "Automatic component update checks"
-msgstr "Автоматическая проверка обновлений компонентов"
-
 msgid "Autostart disabled"
 msgstr "Автостарт отключён"
 
@@ -383,17 +380,11 @@ msgstr "Изменить HTTP-заголовки запроса"
 msgid "Change the parameters of the servers this subscription adds"
 msgstr "Изменить параметры серверов, которые добавляются из этой подписки"
 
-msgid "Check installed components for new versions"
-msgstr "Проверять новые версии установленных компонентов"
-
 msgid "Check interval"
 msgstr "Интервал проверки"
 
 msgid "Check timeout"
 msgstr "Таймаут проверки"
-
-msgid "Check update"
-msgstr "Проверить обновление"
 
 msgid "Check URL"
 msgstr "URL проверки"
@@ -482,20 +473,8 @@ msgstr "Имя CN (name)"
 msgid "comp-lzo has an unsupported mode %s"
 msgstr "comp-lzo: неподдерживаемый режим %s"
 
-msgid "Component update available"
-msgstr "Доступно обновление компонента"
-
-msgid "Component update check interval"
-msgstr "Период проверки обновлений"
-
-msgid "Components"
-msgstr "Компоненты"
-
 msgid "compress has an unsupported algorithm %s"
 msgstr "compress: неподдерживаемый алгоритм %s"
-
-msgid "compressed"
-msgstr "compressed"
 
 msgid "Compression"
 msgstr "Сжатие"
@@ -715,12 +694,6 @@ msgstr "Входящий"
 
 msgid "Download"
 msgstr "Скачать"
-
-msgid "Download components through"
-msgstr "Скачивать компоненты через"
-
-msgid "Download components through a section"
-msgstr "Скачивать компоненты через секцию"
 
 msgid "Download lists through"
 msgstr "Скачивать списки через"
@@ -992,9 +965,6 @@ msgstr "Системные логи Forkop"
 msgid "Forkop transparent proxy"
 msgstr "прозрачный прокси Forkop"
 
-msgid "Forkop, YACD and sing-box updates download through the selected section"
-msgstr "Обновления Forkop, YACD и sing-box скачиваются через выбранную секцию"
-
 msgid "Fragment size"
 msgstr "Размер фрагмента"
 
@@ -1118,14 +1088,8 @@ msgstr "Учитывает установку соединения и TLS-рук
 msgid "insecure: also MD5 and short keys"
 msgstr "insecure: ещё MD5 и короткие ключи"
 
-msgid "Install"
-msgstr "Установить"
-
 msgid "Installed"
 msgstr "Установлен"
-
-msgid "Installed version is newer than release"
-msgstr "Установлена версия новее релиза"
 
 msgid "Interface Monitoring"
 msgstr "Мониторинг интерфейса"
@@ -1268,12 +1232,6 @@ msgstr "Не удалось проверить задержку: Clash API не 
 msgid "Latency test URL"
 msgstr "URL для тестирования задержки"
 
-msgid "Latest version is installed"
-msgstr "Установлена последняя версия"
-
-msgid "Latest version:"
-msgstr "Последняя версия:"
-
 msgid "Level"
 msgstr "Уровень"
 
@@ -1309,9 +1267,6 @@ msgstr "Загрузка подключений..."
 
 msgid "Loading logs..."
 msgstr "Загрузка логов..."
-
-msgid "Loading..."
-msgstr "Загрузка..."
 
 msgid "Local resolver"
 msgstr "Локальный резолвер"
@@ -1421,9 +1376,6 @@ msgstr "Сетевой интерфейс"
 msgid "Network interface settings"
 msgstr "Настройки сетевого интерфейса"
 
-msgid "New version %s is available for %s"
-msgstr "Доступна новая версия %s для %s"
-
 msgid "No"
 msgstr "Нет"
 
@@ -1510,9 +1462,6 @@ msgstr "Только если сервер тоже его использует 
 
 msgid "Only selected"
 msgstr "Только выбранные"
-
-msgid "Open"
-msgstr "Открыть"
 
 msgid "Open dashboard"
 msgstr "Открыть панель"
@@ -1733,8 +1682,8 @@ msgstr "Интервал обновления ключа"
 msgid "Rekey timeout"
 msgstr "Таймаут обновления ключа"
 
-msgid "Remote lists and rule sets download through the selected section"
-msgstr "Удалённые списки и наборы правил скачиваются через выбранную секцию"
+msgid "Remote lists, rule sets, YACD and the sing-box dashboard download through the selected section"
+msgstr "Удалённые списки, наборы правил, YACD и панель sing-box скачиваются через выбранную секцию"
 
 msgid "remote names no server"
 msgstr "remote: не указан сервер"
@@ -2147,9 +2096,6 @@ msgstr "Сертификат и ключ должны быть разными ф
 msgid "The certificate is damaged"
 msgstr "Сертификат повреждён"
 
-msgid "The check is scheduled by cron: use whole minutes up to 59m, whole hours up to 23h, or exactly 1d"
-msgstr "Проверку запускает cron: укажите целые минуты до 59m, целые часы до 23h или ровно 1d"
-
 msgid "The client certificate and its key go together: add both or neither"
 msgstr "Сертификат клиента и его ключ идут вместе: добавьте оба или ни одного"
 
@@ -2360,17 +2306,8 @@ msgstr "Неуказанный IP-адрес не разрешён"
 msgid "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://"
 msgstr "Неподдерживаемый протокол DNS-сервера. Используйте udp://, tcp://, tls://, https://, quic:// или h3://"
 
-msgid "Update"
-msgstr "Обновить"
-
 msgid "Update interval"
 msgstr "Интервал обновления"
-
-msgid "Update is available"
-msgstr "Доступно обновление"
-
-msgid "Update is available:"
-msgstr "Доступна новая версия:"
 
 msgid "Update lists"
 msgstr "Обновить списки"

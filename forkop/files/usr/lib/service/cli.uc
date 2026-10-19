@@ -4,13 +4,6 @@ let exec = require("core.exec");
 let constants = require("core.constants");
 let library = require("core.library");
 
-// A module that is still a program of its own, run from the same library.
-function program(path, mode) {
-    return function(args) {
-        return exec.run(library.program(path, [ mode, ...args ]));
-    };
-}
-
 // Only the init script's start registers the service with procd, and that
 // registration carries the triggers Apply and a WAN coming up depend on.
 function init_script(verb) {
@@ -140,14 +133,9 @@ const COMMANDS = {
     get_core_features: { help: "Get what the installed sing-box can do, from the tags it was built with, in JSON format", run: json(() => require("singbox.features").report()) },
     get_section_rule_sets: { help: "Map each section to its rule-set tags in JSON format", run: json(() => require("singbox.rulesets").section_tag_map()) },
     service_action_async: { args: 1, usage: "<action>", help: "Start a service action in the background", run: action_reply((action) => ui().start_action(action)) },
-    ui_action_ack: { args: 2, usage: "<kind> <job>", help: "Acknowledge a finished UI action state", run: action_reply((kind, job) => ui().acknowledge(kind, job)) },
+    ui_action_ack: { args: 1, usage: "<job>", help: "Acknowledge a finished service action state", run: action_reply((job) => ui().acknowledge(job)) },
     generate_reality_keypair: { help: "Generate a sing-box Reality key pair in JSON format", run: reply(() => require("server.service").reality_keypair()) },
     generate_warp_profile: { help: "Generate a Cloudflare WARP profile in JSON format", run: warp_profile },
-    component_action: { args: 2, usage: "<component> <action>", help: "Manage the Forkop and sing-box components", run: program("components/action.uc", "component-action") },
-    component_action_async: { args: 2, usage: "<component> <action>", help: "Start a component action in the background", run: program("components/updates.uc", "component-action-async") },
-    component_action_status: { args: 1, usage: "<job>", help: "Get background component action status", run: program("components/updates.uc", "component-action-status") },
-    component_updates_if_due: { help: "Check installed components for updates when due", run: program("components/updates.uc", "component-updates-if-due") },
-    component_update_check_cache: { help: "Get cached component update check results", run: program("components/updates.uc", "component-update-check-cache") },
     package_prerm: { args: 1, run: (args) => require("service.package").prerm(args[0]) },
     package_postinst: { run: () => require("service.package").postinst() },
     luci_postinst: { run: () => require("service.package").luci_postinst() },

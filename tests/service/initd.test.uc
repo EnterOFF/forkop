@@ -18,7 +18,6 @@ function fresh(settings) {
     let dir = stub.tmpdir();
     ui.paths.service_actions = dir + "/service-actions";
     ui.paths.service_action_lock = dir + "/service-actions.lock";
-    ui.paths.component_actions = dir + "/component-actions";
     ui.paths.reload_lock = dir + "/forkop.reload.lock";
     ui.paths.pending_reload = dir + "/reload.pending";
     initd.paths.config = dir + "/forkop.config";

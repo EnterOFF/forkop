@@ -41,6 +41,7 @@ const FORKOP_LEGACY_RULESET_CACHE_DIR = getenv("FORKOP_LEGACY_RULESET_CACHE_DIR"
 const FORKOP_CRONTAB_BIN = getenv("FORKOP_CRONTAB_BIN") || "crontab";
 const LEGACY_LIST_UPDATE_CRON_MARKER = "# forkop-list-update";
 const LEGACY_SUBSCRIPTION_UPDATE_CRON_MARKER = "# forkop-subscription-update";
+const COMPONENT_UPDATE_CHECK_CRON_MARKER = "# forkop-component-update-check";
 const CONFIG_VERSION_OPTION = "config_version";
 const APPLIED_MIGRATIONS_OPTION = "applied_migrations";
 const MIN_CONFIG_VERSION = "1.0.2";
@@ -1613,6 +1614,18 @@ function migrate_dns_capture_settings(ctx) {
     delete_option(ctx, settings, "shutdown_correctly");
 }
 
+// Forkop no longer checks for or installs new Forkop and sing-box releases, so
+// the schedule of the check, the section its downloads went through and the
+// crontab line that ran it go with the component manager. The dashboards it
+// also routed now download through the lists section.
+function remove_component_manager_settings(ctx) {
+    let settings = ctx.model.settings;
+    for (let key in [ "component_update_check_enabled", "component_update_check_interval",
+            "download_components_via_proxy", "download_components_via_proxy_section" ])
+        delete_option(ctx, settings, key);
+    push(ctx.removed_cron_markers, COMPONENT_UPDATE_CHECK_CRON_MARKER);
+}
+
 // The model carries no dhcp state, so this only asks the runtime adapter to
 // restore /etc/config/dhcp the one time this registry entry first applies.
 function request_dnsmasq_restore(ctx) {
@@ -1960,7 +1973,8 @@ const CURRENT_TRANSFORMS = [
     migrate_native_protocol_json,
     merge_destination_conditions,
     migrate_connection_links,
-    migrate_section_cascades
+    migrate_section_cascades,
+    remove_component_manager_settings
 ];
 
 function migrate_to_current(ctx) {

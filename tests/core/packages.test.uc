@@ -53,13 +53,11 @@ t.test("an apk version comes from the installed list, whatever the description s
 });
 
 t.test("the sing-box-forkop version is the one the core records, and only a well-formed one", () => {
-    let installed = [ [ "apk list --installed sing-box-forkop", { stdout: "<sing-box> sing-box-forkop-1.13.14.2.5.3.1-r0 aarch64 {local} [installed]\n" } ],
-        [ "apk list --installed sing-box-forkop-compressed", { stdout: "<sing-box> sing-box-forkop-compressed-1.13.14.2.5.3.1-r0 aarch64 {local} [installed]\n" } ] ];
+    let installed = [ [ "apk list --installed sing-box-forkop", { stdout: "<sing-box> sing-box-forkop-1.13.14.2.5.3.1-r0 aarch64 {local} [installed]\n" } ] ];
     apk(installed);
     for (let recorded in [ "1.13.14-extended-2.5.3-f1", "1.13.14-extended-2.5.2-forkop.14" ]) {
         fs.writefile(packages.paths.sing_box_version, recorded + "\n");
         t.eq(packages.version("sing-box-forkop"), recorded);
-        t.eq(packages.version("sing-box-forkop-compressed"), recorded);
     }
     fs.writefile(packages.paths.sing_box_version, "1.13.14.2.5.3.1-r0\n");
     t.eq(packages.version("sing-box-forkop"), "", "a malformed record is not replaced by the package version");

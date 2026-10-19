@@ -39,7 +39,7 @@ function state(revision: number) {
       sing_box: { running: 1, enabled: 0, status: 'running but disabled' },
     },
     capabilities: { server_inbounds_enabled_count: 0 },
-    actions: { service: [], component: [] },
+    actions: { service: [] },
   };
 }
 

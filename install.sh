@@ -17,7 +17,6 @@ FORKOP_WAS_RUNNING=0
 FORKOP_LEGACY_DETECTED=0
 FORKOP_I18N_REQUESTED=0
 INSTALLER_LANG="en"
-SING_BOX_INSTALL_FLAVOR="normal"
 
 FORKOP_RELEASE_JSON=""
 FORKOP_RELEASE_TAG=""
@@ -53,33 +52,28 @@ fail() {
 
 usage() {
     cat <<EOF
-Usage: $0 [--compressed]
+Usage: $0
 
 Installs or updates Forkop packages:
   - forkop
   - luci-app-forkop
   - luci-i18n-forkop-ru when requested or when LuCI language is Russian
 
-Installs sing-box-forkop. Use --compressed for the smaller UPX-compressed package.
+Does not install sing-box-forkop; install it separately.
 EOF
 }
 
 parse_args() {
-    while [ "$#" -gt 0 ]; do
-        case "$1" in
-            -h|--help)
-                usage
-                exit 0
-                ;;
-            --compressed)
-                SING_BOX_INSTALL_FLAVOR="compressed"
-                ;;
-            *)
-                fail "Unknown installer option: $1"
-                ;;
-        esac
-        shift
-    done
+    [ "$#" -gt 0 ] || return 0
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            fail "Unknown installer option: $1"
+            ;;
+    esac
 }
 
 cleanup() {
@@ -1200,12 +1194,9 @@ function installer_finalize_legacy() {
 function installer_post_install() {
     remove_globs(env("FORKOP_INSTALLER_LUCI_CACHE_GLOBS", "/var/luci-indexcache* /tmp/luci-indexcache*"));
     for (let path in [
-        env("FORKOP_INSTALLER_LATEST_VERSION_CACHE", "/tmp/forkop.latest-version.cache"),
         env("FORKOP_INSTALLER_SYSTEM_INFO_CACHE", "/var/run/forkop/system-info.json"),
         env("FORKOP_INSTALLER_SING_BOX_VERSION_CACHE", "/var/run/forkop/ui-state/sing-box-version"),
         env("FORKOP_INSTALLER_TMP_SYSTEM_INFO_CACHE", "/tmp/forkop/system-info.json"),
-        env("FORKOP_INSTALLER_COMPONENT_UPDATE_CACHE", "/var/run/forkop/component-update-checks"),
-        env("FORKOP_INSTALLER_COMPONENT_UPDATE_STATE", "/var/run/forkop/component-update-check.timestamp"),
         env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_TMP", "/tmp/sing-box/subscriptions"),
         env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_CACHE", "/etc/forkop/subscription-cache"),
         env("FORKOP_INSTALLER_LEGACY_SUBSCRIPTION_UPDATE_STATE", "/var/run/forkop/subscription-update"),
@@ -1788,17 +1779,11 @@ resolve_forkop_release() {
     fi
 }
 
-install_selected_sing_box() {
-    output_file="$TMP_DIR/sing-box-component-action.json"
-
-    [ -x /usr/bin/forkop ] || fail "forkop backend must be installed before sing-box component action"
-    msg "Installing sing-box-forkop ($SING_BOX_INSTALL_FLAVOR)"
-    if ! FORKOP_SING_BOX_INSTALL_FLAVOR="$SING_BOX_INSTALL_FLAVOR" \
-        /usr/bin/forkop component_action sing_box install >"$output_file" 2>&1; then
-        cat "$output_file" >&2 2>/dev/null || true
-        fail "Failed to install sing-box-forkop"
-    fi
+warn_missing_sing_box() {
+    pkg_is_installed sing-box-forkop ||
+        warn "sing-box-forkop is not installed; install it before starting Forkop"
 }
+
 cleanup_legacy_installation() {
     state_file="$TMP_DIR/install-state.env"
 
@@ -1968,8 +1953,8 @@ main() {
     install_backend_package
     migrate_legacy_configuration
     install_ui_packages
-    install_selected_sing_box
     post_install
+    warn_missing_sing_box
 
     msg "Forkop $FORKOP_PACKAGE_VERSION has been installed successfully"
     msg "Source release: ${REPO_OWNER}/${REPO_NAME}@${FORKOP_RELEASE_TAG}"

@@ -181,28 +181,12 @@ export interface StoreType {
     loaded: boolean;
     capabilitiesLoaded: boolean;
     forkop_version: string;
-    forkop_latest_version: string;
     luci_app_version: string;
     sing_box_version: string;
-    sing_box_compressed: number;
     server_inbounds_enabled_count: number;
     openwrt_version: string;
     device_model: string;
   };
-  updatesActions: {
-    forkopCheck: { loading: boolean };
-    forkopInstall: { loading: boolean };
-    singBoxCheck: { loading: boolean };
-    singBoxInstall: { loading: boolean };
-  };
-  updatesChecks: Record<
-    Forkop.ComponentName,
-    {
-      status: 'latest' | 'outdated' | 'dev' | null;
-      latest_version: string;
-      release_url: string;
-    }
-  >;
 }
 
 const initialStore: StoreType = {

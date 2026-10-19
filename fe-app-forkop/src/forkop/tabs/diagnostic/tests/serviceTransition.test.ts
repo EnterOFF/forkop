@@ -3,7 +3,6 @@ import {
   getAutostartControlsPresentation,
   getServiceControlsPresentation,
   getServiceOperation,
-  hasComponentActionLoading,
   hasLocalMutatingServiceActionLoading,
   isServiceBusy,
   serviceActionFailureMessage,
@@ -238,7 +237,7 @@ describe('diagnostics run action', () => {
   });
 });
 
-describe('polling and component actions', () => {
+describe('polling and service actions', () => {
   it('detects only local button loading as local mutation', () => {
     expect(hasLocalMutatingServiceActionLoading(actions())).toBe(false);
     expect(hasLocalMutatingServiceActionLoading(actions({ stop: true }))).toBe(
@@ -246,16 +245,6 @@ describe('polling and component actions', () => {
     );
     expect(
       hasLocalMutatingServiceActionLoading(actions({ disable: true })),
-    ).toBe(true);
-  });
-
-  it('detects running component actions', () => {
-    expect(hasComponentActionLoading({ a: { loading: false } })).toBe(false);
-    expect(
-      hasComponentActionLoading({
-        a: { loading: false },
-        b: { loading: true },
-      }),
     ).toBe(true);
   });
 

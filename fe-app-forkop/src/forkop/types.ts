@@ -82,9 +82,6 @@ export namespace Forkop {
     GET_SECTION_RULE_SETS = 'get_section_rule_sets',
     SERVICE_ACTION_ASYNC = 'service_action_async',
     UI_ACTION_ACK = 'ui_action_ack',
-    COMPONENT_ACTION_ASYNC = 'component_action_async',
-    COMPONENT_ACTION_STATUS = 'component_action_status',
-    COMPONENT_UPDATE_CHECK_CACHE = 'component_update_check_cache',
   }
 
   export interface Outbound {
@@ -418,10 +415,8 @@ export namespace Forkop {
 
   export interface GetSystemInfo {
     forkop_version: string;
-    forkop_latest_version: string;
     luci_app_version: string;
     sing_box_version: string;
-    sing_box_compressed: 0 | 1;
     openwrt_version: string;
     device_model: string;
     generated_at?: number;
@@ -476,39 +471,8 @@ export namespace Forkop {
     capabilities: GetUiCapabilities;
     actions: {
       service: ServiceActionState[];
-      component: ComponentActionResult[];
     };
   }
-
-  export type ComponentName = 'forkop' | 'sing_box';
-
-  export type ComponentAction = 'check_update' | 'install';
-
-  export interface ComponentActionResult {
-    success: boolean;
-    running?: boolean;
-    kind?: 'component';
-    job_id?: string;
-    component: ComponentName;
-    action: ComponentAction;
-    message: string;
-    current_version: string;
-    latest_version: string;
-    release_url?: string;
-    changed: boolean;
-    status?: 'latest' | 'outdated' | 'dev' | '';
-    pid?: string | null;
-    started_at?: number;
-    updated_at?: number | null;
-    exit_code?: number | null;
-  }
-
-  export interface ComponentUpdateCheckCache {
-    enabled: boolean;
-    results: ComponentActionResult[];
-  }
-
-  export type ComponentActionStartResult = UiActionStartResult;
 
   export interface GetClashApiProxyLatency {
     delay: number;

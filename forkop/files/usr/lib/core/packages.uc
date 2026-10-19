@@ -108,30 +108,9 @@ function sing_box_version() {
 }
 
 function version(name) {
-    if ((name == "sing-box-forkop" || name == "sing-box-forkop-compressed") && installed(name) &&
-        fs.stat(paths.sing_box_version) != null)
+    if (name == "sing-box-forkop" && installed(name) && fs.stat(paths.sing_box_version) != null)
         return recorded_sing_box_version();
     return apk_version(name) || opkg_version(name);
 }
 
-let exports = { paths, installed, opkg_installed, opkg_version, opkg_status_version, apk_version, version, sing_box_version };
-
-// A caller frame, or no arguments at all, means the module was required.
-if (sourcepath(1) != null || ARGV[0] == null)
-    return exports;
-
-// The component manager runs these as a program.
-let mode = ARGV[0];
-let name = ARGV[1] ?? "";
-if (mode == "opkg-installed")
-    exit(opkg_installed(name) ? 0 : 1);
-else if (mode == "version")
-    print(version(name), "\n");
-else if (mode == "apk-version")
-    print(apk_version(name), "\n");
-else if (mode == "opkg-version")
-    print(opkg_version(name), "\n");
-else {
-    warn("Usage: core/packages.uc <opkg-installed|version|apk-version|opkg-version> <package>\n");
-    exit(1);
-}
+return { paths, installed, opkg_installed, opkg_version, opkg_status_version, apk_version, version, sing_box_version };

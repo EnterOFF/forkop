@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   uiState: {
     service: {},
     capabilities: { server_inbounds_enabled_count: 0 },
-    actions: { service: [], component: [] },
+    actions: { service: [] },
   } as unknown as Forkop.UiState,
 }));
 
@@ -78,7 +78,6 @@ function finished(action: string, success: boolean, jobId: string) {
     ...mocks.uiState,
     actions: {
       service: [{ action, job_id: jobId, running: false, success }],
-      component: [],
     },
   } as unknown as Forkop.UiState;
 }
@@ -130,7 +129,7 @@ describe('service action alerts', () => {
     ]) {
       mocks.listener!(finished(action, false, jobId));
       await flush();
-      expect(mocks.uiActionAck).toHaveBeenLastCalledWith('service', jobId);
+      expect(mocks.uiActionAck).toHaveBeenLastCalledWith(jobId);
     }
 
     expect(mocks.showToast).not.toHaveBeenCalled();

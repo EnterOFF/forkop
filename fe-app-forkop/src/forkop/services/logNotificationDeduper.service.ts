@@ -5,14 +5,11 @@ const MAX_STORED_LOG_NOTIFICATIONS = 500;
 // level before the message the alert shows.
 const FORKOP_ERROR_LINE_PATTERN = /\bforkop(?:\[\d+\])?:\s+\[error\]\s+(.*)$/i;
 
-export type ForkopLogNotification =
-  | { kind: 'error'; line: string; message: string }
-  | {
-      kind: 'component-update';
-      line: string;
-      component: string;
-      version: string;
-    };
+export type ForkopLogNotification = {
+  kind: 'error';
+  line: string;
+  message: string;
+};
 
 function readStoredKeys(storage: Storage | null): string[] {
   if (!storage) {
@@ -52,24 +49,7 @@ export function getForkopLogNotification(
   line: string,
 ): ForkopLogNotification | null {
   const error = line.match(FORKOP_ERROR_LINE_PATTERN);
-  if (error) {
-    return { kind: 'error', line, message: error[1].trim() };
-  }
-
-  const update = line.match(
-    /\[component-update\]\s+(forkop|sing_box)\s+(\S+)/i,
-  );
-
-  if (!update) {
-    return null;
-  }
-
-  return {
-    kind: 'component-update',
-    line,
-    component: update[1].toLowerCase(),
-    version: update[2],
-  };
+  return error ? { kind: 'error', line, message: error[1].trim() } : null;
 }
 
 export function getLogNotificationKey(line: string) {

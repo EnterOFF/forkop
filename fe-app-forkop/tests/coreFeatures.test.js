@@ -92,7 +92,7 @@ describe('the runtime feed', () => {
         sing_box: { running: 1, enabled: 1, status: 'running' },
       },
       capabilities: { server_inbounds_enabled_count: 0, core },
-      actions: { service: [], component: [] },
+      actions: { service: [] },
     });
 
     applyUiStateToStore(state(coreFeatures({ remove: ['with_quic'] })));

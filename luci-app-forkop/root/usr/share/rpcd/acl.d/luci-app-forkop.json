@@ -3,9 +3,6 @@
     "description": "Grant UCI and RPC access to LuCI app Forkop",
     "read": {
       "file": {
-        "/var/run/forkop/component-actions/*": [
-          "read"
-        ],
         "/usr/bin/forkop": [
           "exec"
         ]

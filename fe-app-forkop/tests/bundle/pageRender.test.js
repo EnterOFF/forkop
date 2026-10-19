@@ -147,7 +147,6 @@ const EXPECTED_TABS = [
   'dashboard',
   'monitoring',
   'logs',
-  'updates',
 ];
 
 describe('the shipped page', () => {

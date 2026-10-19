@@ -13,7 +13,6 @@ function fresh() {
     let dir = stub.tmpdir();
     ui.paths.service_actions = dir + "/ui-state/service-actions";
     ui.paths.service_action_lock = dir + "/ui-state/service-actions.lock";
-    ui.paths.component_actions = dir + "/component-actions";
     ui.paths.reload_lock = dir + "/forkop.reload.lock";
     ui.paths.pending_reload = dir + "/reload.pending";
     ui.paths.rc_dir = dir + "/rc.d";
@@ -64,13 +63,12 @@ t.test("a job whose worker died is stale once its grace passed, and a finished o
 t.test("the page acknowledges a finished job, never a running one", () => {
     fresh();
     let begun = ui.begin("start", "ui", me);
-    t.eq(ui.acknowledge("service", begun.job_id), { success: false, job_id: begun.job_id, message: "UI action is still running" });
+    t.eq(ui.acknowledge(begun.job_id), { success: false, job_id: begun.job_id, message: "UI action is still running" });
     ui.finish("start", begun.job_id, 0);
-    t.eq(ui.acknowledge("service", begun.job_id).message, "UI action acknowledged");
+    t.eq(ui.acknowledge(begun.job_id).message, "UI action acknowledged");
     t.ok(job(begun.job_id).acked_at > 0);
-    t.eq(ui.acknowledge("service", "gone").message, "UI action already acknowledged");
-    t.eq(ui.acknowledge("service", "../x").message, "Invalid UI action job id");
-    t.eq(ui.acknowledge("other", begun.job_id).message, "Invalid UI action kind");
+    t.eq(ui.acknowledge("gone").message, "UI action already acknowledged");
+    t.eq(ui.acknowledge("../x").message, "Invalid UI action job id");
 });
 
 t.test("a page action runs the init script in a worker whose pid the job records", () => {
@@ -129,6 +127,7 @@ t.test("the state tells what the service is apart from what is being done to it"
     t.eq(state.service.sing_box, { running: 1, enabled: 0, status: "running but disabled" });
     t.eq(state.capabilities, { server_inbounds_enabled_count: 2 });
     t.eq(length(state.actions.service), 1);
+    t.eq(keys(state.actions), [ "service" ]);
 });
 
 t.done();

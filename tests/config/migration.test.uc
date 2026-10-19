@@ -499,7 +499,23 @@ t.test("a released dont_touch_dhcp leaves what no rule claims with the router's 
 t.test("leaving the released schema restores dnsmasq once and retires the old workers", () => {
     t.eq(full.restore_dnsmasq, true);
     t.ok(length(filter(full.removed_caches, (path) => index(path, "server-country-cache.json") >= 0)) > 0);
-    t.eq(length(full.removed_cron_markers), 2);
+    t.eq(full.removed_cron_markers, [ "# forkop-list-update", "# forkop-subscription-update", "# forkop-component-update-check" ]);
+});
+
+t.test("the component manager's settings and its crontab line leave a released configuration", () => {
+    let out = migrated({
+        settings: settings("1.0.5", {
+            component_update_check_enabled: "1", component_update_check_interval: "1d",
+            download_components_via_proxy: "1", download_components_via_proxy_section: "main"
+        }),
+        section: []
+    });
+    absent(out.config.settings, [ "component_update_check_enabled", "component_update_check_interval",
+        "download_components_via_proxy", "download_components_via_proxy_section" ]);
+    t.contains(out.removed_cron_markers, "# forkop-component-update-check");
+    let again = migrated(out.config);
+    t.eq(again.config, out.config);
+    t.eq(again.operations, []);
 });
 
 /* --------------------------------------------------------- the version graph */

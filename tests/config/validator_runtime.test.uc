@@ -1359,11 +1359,11 @@ t.test("servers share a port only on different transports", () => {
     v.accepts(data([ vless, hysteria ]));
 });
 
-t.test("a server may not take the port the component manager downloads through", () => {
+t.test("a server may not take the port the proxy diagnostic measures the core through", () => {
     v.refuses({
         section: [ { ".name": "main", enabled: "1", action: "connection" } ],
         connection_link: fixture.links("main", [ "socks://127.0.0.1:1080#one" ]),
-        server: [ { ".name": "srv", enabled: "1", protocol: "mixed", listen_port: "4535", mixed_auth_enabled: "0", routing_mode: "direct" } ]
+        server: [ { ".name": "srv", enabled: "1", protocol: "mixed", listen_port: "4534", mixed_auth_enabled: "0", routing_mode: "direct" } ]
     }, "already used by a Forkop inbound");
 });
 

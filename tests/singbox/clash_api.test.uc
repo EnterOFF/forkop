@@ -2,7 +2,7 @@ let t = require("t");
 let stub = require("stub");
 let fs = require("fs");
 let fixture = require("fixture");
-let program = require("program");
+let repo = require("repo");
 let cli = require("service.cli");
 let clash = require("singbox.clash_api");
 
@@ -149,7 +149,7 @@ t.test("the authentication file is removed even when the request runner throws",
 t.test("the transport loads nothing beyond core and the constants", () => {
     let probe = stub.tmpdir() + "/probe.uc";
     fs.writefile(probe, "require(\"singbox.clash_api\");\nprint(join(\" \", keys(global.modules)), \"\\n\");\n");
-    let pipe = fs.popen("ucode -L '" + program.LIBRARY + "' '" + probe + "'", "r");
+    let pipe = fs.popen("ucode -L '" + repo.path("forkop/files/usr/lib") + "' '" + probe + "'", "r");
     let loaded = split(trim(pipe.read("all")), " ");
     pipe.close();
     t.contains(loaded, "singbox.clash_api");

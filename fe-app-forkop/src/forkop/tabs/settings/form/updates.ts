@@ -3,11 +3,7 @@ import {
   FORKOP_UCI_PACKAGE,
   LATENCY_TEST_URL_OPTIONS,
 } from '../../../../constants';
-import {
-  isSingBoxDuration,
-  validateRequiredSingBoxDuration,
-} from '../../../../validators/validateSingBoxDuration';
-import { isCronExpressibleInterval } from '../durations';
+import { validateRequiredSingBoxDuration } from '../../../../validators/validateSingBoxDuration';
 import {
   configureDownloadSectionOption,
   configureDownloadViaProxyFlag,
@@ -18,8 +14,8 @@ import {
   validateCoreFeature,
 } from '../../../services/coreFeatures.service';
 
-// What Forkop downloads - rule sets and component releases on a schedule, WARP
-// profiles when a tunnel needs one - how often it looks, and through what.
+// What Forkop downloads - rule sets on a schedule, the dashboards, WARP profiles
+// when a tunnel needs one - how often it looks, and through what.
 export function addUpdateOptions(section: CBISection) {
   let o = section.option(
     form.Flag,
@@ -54,59 +50,6 @@ export function addUpdateOptions(section: CBISection) {
 
   o = section.option(
     form.Flag,
-    'component_update_check_enabled',
-    _('Automatic component update checks'),
-    _('Check installed components for new versions'),
-  );
-  o.default = '0';
-  o.rmempty = false;
-
-  o = section.option(
-    form.Value,
-    'component_update_check_interval',
-    _('Component update check interval'),
-  );
-  o.depends('component_update_check_enabled', '1');
-  o.retain = true;
-  o.placeholder = '1d';
-  o.default = '1d';
-  o.rmempty = false;
-  o.cfgvalue = function (section_id: string) {
-    return (
-      uci.get(
-        FORKOP_UCI_PACKAGE,
-        section_id,
-        'component_update_check_interval',
-      ) || '1d'
-    );
-  };
-  o.write = function (section_id: string, value: string) {
-    const normalized = value ? `${value}`.trim() : '';
-    uci.set(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      'component_update_check_interval',
-      normalized.length ? normalized : '1d',
-    );
-  };
-  o.validate = function (_section_id: string, value: string) {
-    const normalized = value ? `${value}`.trim() : '';
-
-    if (!normalized.length || !isSingBoxDuration(normalized)) {
-      return _('Use sing-box duration format like 1d, 12h or 30m');
-    }
-
-    if (!isCronExpressibleInterval(normalized)) {
-      return _(
-        'The check is scheduled by cron: use whole minutes up to 59m, whole hours up to 23h, or exactly 1d',
-      );
-    }
-
-    return true;
-  };
-
-  o = section.option(
-    form.Flag,
     'unified_delay',
     _('Accurate latency measurement'),
     _('Includes connection setup and the TLS handshake'),
@@ -132,7 +75,9 @@ export function addUpdateOptions(section: CBISection) {
     form.Flag,
     'download_lists_via_proxy',
     _('Download lists through a section'),
-    _('Remote lists and rule sets download through the selected section'),
+    _(
+      'Remote lists, rule sets, YACD and the sing-box dashboard download through the selected section',
+    ),
   );
   configureDownloadViaProxyFlag(o, 'download_lists_via_proxy_section');
 
@@ -144,25 +89,6 @@ export function addUpdateOptions(section: CBISection) {
   o.depends('download_lists_via_proxy', '1');
   o.retain = true;
   configureDownloadSectionOption(o, 'download_lists_via_proxy_section');
-
-  o = section.option(
-    form.Flag,
-    'download_components_via_proxy',
-    _('Download components through a section'),
-    _(
-      'Forkop, YACD and sing-box updates download through the selected section',
-    ),
-  );
-  configureDownloadViaProxyFlag(o, 'download_components_via_proxy_section');
-
-  o = section.option(
-    form.ListValue,
-    'download_components_via_proxy_section',
-    _('Download components through'),
-  );
-  o.depends('download_components_via_proxy', '1');
-  o.retain = true;
-  configureDownloadSectionOption(o, 'download_components_via_proxy_section');
 
   // A WARP tunnel asks Cloudflare's API for its profile whenever it starts, and
   // the tunnel dialog registers new ones there. The setting exists only in a

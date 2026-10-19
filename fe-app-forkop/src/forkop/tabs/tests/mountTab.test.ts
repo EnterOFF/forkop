@@ -43,7 +43,7 @@ describe('mountTab', () => {
     const render = () => fakeNode('');
 
     expect(mountTab('logs', render, () => undefined)).not.toBe(
-      mountTab('updates', render, () => undefined),
+      mountTab('monitoring', render, () => undefined),
     );
   });
 

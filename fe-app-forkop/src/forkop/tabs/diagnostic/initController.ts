@@ -171,7 +171,7 @@ function settleFinishedServiceActions(uiState: Forkop.UiState) {
     }
 
     handledServiceActionJobs.add(action.job_id);
-    void ForkopShellMethods.uiActionAck('service', action.job_id);
+    void ForkopShellMethods.uiActionAck(action.job_id);
     releaseDiagnosticsChecks();
   }
 }
@@ -525,7 +525,7 @@ function renderDiagnosticSystemInfoWidget() {
     },
     {
       key: 'Sing-box',
-      value: formatSingBoxVersion(diagnosticsSystemInfo, false),
+      value: formatSingBoxVersion(diagnosticsSystemInfo),
     },
   ];
 

@@ -163,7 +163,7 @@ function clash_api_config(settings, service_address) {
     };
     if (bool_option(settings, "enable_yacd", false)) {
         result.external_ui = "ui";
-        result.external_ui_download_detour = download_detour(settings, "components");
+        result.external_ui_download_detour = download_detour(settings, "lists");
         let secret = option(settings, "yacd_secret_key", "");
         if (secret != "")
             result.secret = secret;
@@ -307,7 +307,7 @@ function base_config(settings, service_address, runtime_context) {
             type: "api", tag: "forkop-api", listen: service_address || "127.0.0.1",
             listen_port: 9091, secret: option(settings, "native_api_secret", ""),
             dashboard: { enabled: true, path: "/tmp/sing-box/dashboard",
-                http_client: { detour: download_detour(settings, "components") } }
+                http_client: { detour: download_detour(settings, "lists") } }
         }] : [],
         experimental: {
             unified_delay: {
@@ -1126,17 +1126,13 @@ function first_outbound_section(sections) {
 // outbound. The proxy diagnostic measures the running core through one instead
 // of starting a second sing-box beside it, on the first section: the one the
 // transparent proxy check sends its domain to, so both checks see one exit. The
-// component manager's curl and wget take another when component downloads go
-// through a section, and the page's WARP profile generator a third when WARP
-// profiles do. What the core downloads itself names its section as a detour.
+// page's WARP profile generator takes another when WARP profiles go through a
+// section. What the core downloads itself names its section as a detour.
 function add_service_mixed_proxy(config, settings, sections) {
     let first = first_outbound_section(sections);
     if (first != null)
         add_service_mixed_proxy_inbound(config, runtime_constants.SERVICE_MIXED_INBOUND_TAG,
             runtime_constants.SERVICE_MIXED_INBOUND_PORT, outbound_tag(first[".name"]));
-    if (connections.download_via_proxy_enabled(settings, "components"))
-        add_service_mixed_proxy_inbound(config, runtime_constants.COMPONENTS_MIXED_INBOUND_TAG,
-            runtime_constants.COMPONENTS_MIXED_INBOUND_PORT, download_detour(settings, "components"));
     if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
         add_service_mixed_proxy_inbound(config, runtime_constants.WARP_PROFILES_MIXED_INBOUND_TAG,
             runtime_constants.WARP_PROFILES_MIXED_INBOUND_PORT, download_detour(settings, "warp_profiles"));

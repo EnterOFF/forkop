@@ -37,7 +37,6 @@ var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "system6-in",
   "system-dns-in",
   "service-mixed-in",
-  "service-components-in",
   "service-warp-in",
   "direct-out"
 ]);
@@ -643,35 +642,6 @@ function renderCopyIcon24() {
       }),
       svgEl("path", {
         d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"
-      })
-    ]
-  );
-}
-
-// src/icons/renderDownloadIcon24.ts
-function renderDownloadIcon24() {
-  const NS = "http://www.w3.org/2000/svg";
-  return svgEl(
-    "svg",
-    {
-      xmlns: NS,
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "2",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      class: "lucide lucide-download-icon lucide-download"
-    },
-    [
-      svgEl("path", {
-        d: "M12 15V3"
-      }),
-      svgEl("path", {
-        d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
-      }),
-      svgEl("path", {
-        d: "m7 10 5 5 5-5"
       })
     ]
   );
@@ -1676,9 +1646,6 @@ var Forkop;
     AvailableMethods2["GET_SECTION_RULE_SETS"] = "get_section_rule_sets";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
-    AvailableMethods2["COMPONENT_ACTION_ASYNC"] = "component_action_async";
-    AvailableMethods2["COMPONENT_ACTION_STATUS"] = "component_action_status";
-    AvailableMethods2["COMPONENT_UPDATE_CHECK_CACHE"] = "component_update_check_cache";
   })(AvailableMethods = Forkop2.AvailableMethods || (Forkop2.AvailableMethods = {}));
 })(Forkop || (Forkop = {}));
 
@@ -1748,41 +1715,13 @@ async function callUbusOnce({
   }
 }
 
-// src/forkop/helpers/isTransientRpcError.ts
-var TRANSIENT_RPC_ERROR_PATTERNS = [
-  "no related rpc reply",
-  "request aborted",
-  "operation was aborted"
-];
-function isTransientRpcError(message) {
-  if (!message) {
-    return false;
-  }
-  const normalized = message.toLowerCase();
-  return TRANSIENT_RPC_ERROR_PATTERNS.some(
-    (pattern) => normalized.includes(pattern)
-  );
-}
-
 // src/forkop/methods/shell/index.ts
 var UI_ACTION_RPC_TIMEOUT_MS = 15e3;
-var COMPONENT_ACTION_RPC_TIMEOUT_MS = 15e3;
-var COMPONENT_ACTION_POLL_INTERVAL_MS = 1500;
-var COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS = 15e3;
-var COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS = 3e4;
-var COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS = 3e4;
-var COMPONENT_ACTION_STATE_DIR = "/var/run/forkop/component-actions";
 var GET_UI_STATE_RPC_TIMEOUT_MS = 3e3;
 var SYSTEM_INFO_UBUS_TIMEOUT_MS = 5e3;
 var CLASH_API_TRANSPORT_TIMEOUT_MS = 65e3;
 var DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1e3;
 var checkLogsRequest = null;
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-function translate(message) {
-  return typeof _ === "function" ? _(message) : message;
-}
 function checkLogs() {
   if (!checkLogsRequest) {
     checkLogsRequest = executeShellCommand({
@@ -1818,87 +1757,13 @@ function parseJsonObjectOutput(output) {
     }
   }
 }
-function parseComponentActionOutput(output) {
-  return parseJsonObjectOutput(output);
-}
-function parseComponentActionResult(response) {
-  return parseComponentActionOutput(response.stdout);
-}
-function parseComponentActionStartResult(response) {
-  const parsedResponse = parseComponentActionResult(response);
-  if (!parsedResponse) {
-    return null;
-  }
-  return parsedResponse;
-}
 function parseUiActionStartResult(response) {
   return parseJsonObjectOutput(response.stdout);
-}
-function isComponentActionJobId(jobId) {
-  return /^[A-Za-z0-9._-]+$/.test(jobId) && jobId !== "." && jobId !== "..";
-}
-async function readComponentActionState(jobId) {
-  if (!isComponentActionJobId(jobId)) {
-    return null;
-  }
-  try {
-    return parseComponentActionOutput(
-      await fs.read(`${COMPONENT_ACTION_STATE_DIR}/${jobId}.json`)
-    );
-  } catch (_error) {
-    return null;
-  }
-}
-async function readForkopVersion() {
-  const response = await executeShellCommand({
-    command: "/usr/bin/forkop",
-    args: ["show_version"],
-    timeout: COMPONENT_ACTION_RPC_TIMEOUT_MS
-  });
-  if ((response.code ?? 0) !== 0 || !response.stdout) {
-    return "";
-  }
-  return response.stdout.trim();
-}
-async function isComponentActionStillRunning(jobId, component, action) {
-  const response = await callBaseMethod(
-    Forkop.AvailableMethods.GET_UI_STATE,
-    [],
-    "/usr/bin/forkop",
-    { timeout: GET_UI_STATE_RPC_TIMEOUT_MS }
-  );
-  return response.success && response.data.actions.component.some(
-    (state) => state.job_id === jobId && state.component === component && state.action === action && state.running === true
-  );
-}
-function componentActionFailure(response, parsedResponse) {
-  return {
-    success: false,
-    error: parsedResponse?.message || response.stderr || _("Failed to execute")
-  };
 }
 function uiActionFailure(response, parsedResponse, fallback = _("Failed to execute")) {
   return {
     success: false,
     error: parsedResponse?.message || response.stderr || fallback
-  };
-}
-function createTransientRpcGraceTracker(graceMs) {
-  let failureStartedAt = 0;
-  return {
-    reset() {
-      failureStartedAt = 0;
-    },
-    shouldContinue(error) {
-      if (!isTransientRpcError(error)) {
-        failureStartedAt = 0;
-        return false;
-      }
-      if (!failureStartedAt) {
-        failureStartedAt = Date.now();
-      }
-      return Date.now() - failureStartedAt < graceMs;
-    }
   };
 }
 function diagnosticCheck(method, args = []) {
@@ -2004,10 +1869,10 @@ var ForkopShellMethods = {
       data: parsedResponse
     };
   },
-  uiActionAck: async (kind, jobId) => {
+  uiActionAck: async (jobId) => {
     const response = await executeShellCommand({
       command: "/usr/bin/forkop",
-      args: [Forkop.AvailableMethods.UI_ACTION_ACK, kind, jobId],
+      args: [Forkop.AvailableMethods.UI_ACTION_ACK, jobId],
       timeout: UI_ACTION_RPC_TIMEOUT_MS
     });
     const parsedResponse = parseUiActionStartResult(response);
@@ -2018,116 +1883,6 @@ var ForkopShellMethods = {
       success: true,
       data: parsedResponse
     };
-  },
-  componentActionStart: async (component, action) => {
-    const response = await executeShellCommand({
-      command: "/usr/bin/forkop",
-      args: [Forkop.AvailableMethods.COMPONENT_ACTION_ASYNC, component, action],
-      timeout: COMPONENT_ACTION_RPC_TIMEOUT_MS
-    });
-    const parsedResponse = parseComponentActionStartResult(response);
-    if ((response.code ?? 0) !== 0 || !parsedResponse?.success || !parsedResponse.job_id) {
-      return componentActionFailure(response, parsedResponse);
-    }
-    return {
-      success: true,
-      data: parsedResponse
-    };
-  },
-  componentActionStatus: async (jobId) => {
-    const response = await executeShellCommand({
-      command: "/usr/bin/forkop",
-      args: [Forkop.AvailableMethods.COMPONENT_ACTION_STATUS, jobId],
-      timeout: COMPONENT_ACTION_RPC_TIMEOUT_MS
-    });
-    const parsedResponse = parseComponentActionResult(response);
-    if ((response.code ?? 0) !== 0 || !parsedResponse) {
-      return componentActionFailure(response, parsedResponse);
-    }
-    return {
-      success: true,
-      data: parsedResponse
-    };
-  },
-  componentUpdateCheckCache: async () => callBaseMethod(
-    Forkop.AvailableMethods.COMPONENT_UPDATE_CHECK_CACHE
-  ),
-  waitComponentActionJob: async (jobId, component, action, expectedLatestVersion) => {
-    let selfUpdateVersionMatchedAt = 0;
-    let lastStatusRefreshAt = 0;
-    const transientRpc = createTransientRpcGraceTracker(
-      COMPONENT_ACTION_TRANSIENT_RPC_GRACE_MS
-    );
-    while (true) {
-      await sleep(COMPONENT_ACTION_POLL_INTERVAL_MS);
-      const stateResponse = await readComponentActionState(jobId);
-      if (stateResponse) {
-        if (!stateResponse.running) {
-          transientRpc.reset();
-          return {
-            success: true,
-            data: stateResponse
-          };
-        }
-        if (Date.now() - lastStatusRefreshAt < COMPONENT_ACTION_STATUS_REFRESH_INTERVAL_MS) {
-          continue;
-        }
-      }
-      lastStatusRefreshAt = Date.now();
-      const statusResponse = await executeShellCommand({
-        command: "/usr/bin/forkop",
-        args: [Forkop.AvailableMethods.COMPONENT_ACTION_STATUS, jobId],
-        timeout: COMPONENT_ACTION_RPC_TIMEOUT_MS
-      });
-      const parsedResponse = parseComponentActionResult(statusResponse);
-      if ((statusResponse.code ?? 0) !== 0 || !parsedResponse) {
-        if (stateResponse?.running) {
-          transientRpc.reset();
-          continue;
-        }
-        if (await isComponentActionStillRunning(jobId, component, action)) {
-          transientRpc.reset();
-          continue;
-        }
-        const failure = componentActionFailure(statusResponse, parsedResponse);
-        if (transientRpc.shouldContinue(failure.error)) {
-          continue;
-        }
-        if (component === "forkop" && action === "install") {
-          const installedVersion = expectedLatestVersion ? await readForkopVersion() : "";
-          if (expectedLatestVersion && installedVersion === expectedLatestVersion) {
-            if (!selfUpdateVersionMatchedAt) {
-              selfUpdateVersionMatchedAt = Date.now();
-            }
-            if (Date.now() - selfUpdateVersionMatchedAt >= COMPONENT_ACTION_SELF_UPDATE_SETTLE_MS) {
-              return {
-                success: true,
-                data: {
-                  success: true,
-                  component,
-                  action,
-                  message: translate("Forkop has been installed"),
-                  current_version: installedVersion,
-                  latest_version: expectedLatestVersion,
-                  changed: true,
-                  status: "latest"
-                }
-              };
-            }
-          }
-          continue;
-        }
-        return failure;
-      }
-      transientRpc.reset();
-      if (parsedResponse.running) {
-        continue;
-      }
-      return {
-        success: true,
-        data: parsedResponse
-      };
-    }
   }
 };
 
@@ -3517,10 +3272,8 @@ var initialDiagnosticStore = {
     loaded: false,
     capabilitiesLoaded: false,
     forkop_version: "loading",
-    forkop_latest_version: "loading",
     luci_app_version: "loading",
     sing_box_version: "loading",
-    sing_box_compressed: 0,
     server_inbounds_enabled_count: -1,
     openwrt_version: "loading",
     device_model: "loading"
@@ -3552,17 +3305,7 @@ var initialDiagnosticStore = {
     }
   },
   diagnosticsRunAction: { loading: false },
-  diagnosticsChecks: getDiagnosticsChecks(_("Not running")),
-  updatesActions: {
-    forkopCheck: { loading: false },
-    forkopInstall: { loading: false },
-    singBoxCheck: { loading: false },
-    singBoxInstall: { loading: false }
-  },
-  updatesChecks: {
-    forkop: { status: null, latest_version: "", release_url: "" },
-    sing_box: { status: null, latest_version: "", release_url: "" }
-  }
+  diagnosticsChecks: getDiagnosticsChecks(_("Not running"))
 };
 
 // src/forkop/services/store.service.ts
@@ -3723,7 +3466,7 @@ function adopt(reply) {
   }
   return reply.lines || [];
 }
-function sleep2(ms) {
+function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 function getForkopLogCursor() {
@@ -3741,7 +3484,7 @@ function startForkopLogFeed(onNewLog, resumeFrom = 0) {
     }
     for (; ; ) {
       if (!isDocumentVisible()) {
-        await sleep2(FORKOP_WAIT_RETRY_MS);
+        await sleep(FORKOP_WAIT_RETRY_MS);
         continue;
       }
       const response = started ? await callUbus({
@@ -3770,11 +3513,11 @@ function startForkopLogFeed(onNewLog, resumeFrom = 0) {
       }
       if (response.unavailable) {
         logger.info("[LOG_FEED]", "log feed went away", response.message);
-        await sleep2(FORKOP_LOG_RETRY_MS);
+        await sleep(FORKOP_LOG_RETRY_MS);
         continue;
       }
       logger.error("[LOG_FEED]", "log wait failed", response.message);
-      await sleep2(FORKOP_WAIT_RETRY_MS);
+      await sleep(FORKOP_WAIT_RETRY_MS);
     }
   })();
 }
@@ -3819,21 +3562,7 @@ function writeStoredKeys(storage, keys) {
 }
 function getForkopLogNotification(line) {
   const error = line.match(FORKOP_ERROR_LINE_PATTERN);
-  if (error) {
-    return { kind: "error", line, message: error[1].trim() };
-  }
-  const update = line.match(
-    /\[component-update\]\s+(forkop|sing_box)\s+(\S+)/i
-  );
-  if (!update) {
-    return null;
-  }
-  return {
-    kind: "component-update",
-    line,
-    component: update[1].toLowerCase(),
-    version: update[2]
-  };
+  return error ? { kind: "error", line, message: error[1].trim() } : null;
 }
 function getLogNotificationKey(line) {
   return line.trim();
@@ -3910,7 +3639,6 @@ function takeLogNotificationHandoff(storage = getSessionStorage(), now = Date.no
 }
 
 // src/forkop/services/localActionOverlay.service.ts
-var componentActions = /* @__PURE__ */ new Set();
 var subscriptionSections = /* @__PURE__ */ new Set();
 var serviceActions = /* @__PURE__ */ new Set();
 function setMembership(set, value, active) {
@@ -3919,9 +3647,6 @@ function setMembership(set, value, active) {
   } else {
     set.delete(value);
   }
-}
-function setLocalComponentAction(action, active) {
-  setMembership(componentActions, action, active);
 }
 function setLocalSubscriptionAction(section, active) {
   if (section) {
@@ -3935,21 +3660,9 @@ function setLocalServiceAction(action, active) {
 }
 function getLocalActionOverlay() {
   return {
-    componentActions: new Set(componentActions),
     subscriptionSections: new Set(subscriptionSections),
     serviceActions: new Set(serviceActions)
   };
-}
-
-// src/forkop/helpers/getComponentActionKey.ts
-var componentActionKeyMap = {
-  "forkop:check_update": "forkopCheck",
-  "forkop:install": "forkopInstall",
-  "sing_box:check_update": "singBoxCheck",
-  "sing_box:install": "singBoxInstall"
-};
-function getComponentActionKey(component, action) {
-  return componentActionKeyMap[`${component}:${action}`];
 }
 
 // src/forkop/services/coreFeatures.service.ts
@@ -4079,14 +3792,6 @@ async function loadCoreFeatures() {
 function isRunningAction(state) {
   return state.running === true;
 }
-function getEmptyUpdatesActions() {
-  return {
-    forkopCheck: { loading: false },
-    forkopInstall: { loading: false },
-    singBoxCheck: { loading: false },
-    singBoxInstall: { loading: false }
-  };
-}
 function getEmptyDiagnosticsActions() {
   return {
     ...store.get().diagnosticsActions,
@@ -4125,22 +3830,9 @@ function applyActionState(actions = {}) {
   }
   const localOverlay = getLocalActionOverlay();
   const subscriptionUpdatingSections = {};
-  const updatesActions = getEmptyUpdatesActions();
   const diagnosticsActions = getEmptyDiagnosticsActions();
-  for (const state of actions.component || []) {
-    if (!isRunningAction(state)) {
-      continue;
-    }
-    const key = getComponentActionKey(state.component, state.action);
-    if (key) {
-      updatesActions[key] = { loading: true };
-    }
-  }
   for (const section of localOverlay.subscriptionSections) {
     subscriptionUpdatingSections[section] = true;
-  }
-  for (const key of localOverlay.componentActions) {
-    updatesActions[key] = { loading: true };
   }
   for (const action of localOverlay.serviceActions) {
     diagnosticsActions[action] = { loading: true };
@@ -4150,7 +3842,6 @@ function applyActionState(actions = {}) {
       ...current.sectionsWidget,
       subscriptionUpdatingSections
     },
-    updatesActions,
     diagnosticsActions
   });
 }
@@ -4190,9 +3881,7 @@ var waitLoopRunning = false;
 var waitLoopStop = false;
 var runtimeUiStateListeners = /* @__PURE__ */ new Set();
 function hasRunningAction(uiState) {
-  return Boolean(uiState.service.forkop.busy) || [...uiState.actions.service, ...uiState.actions.component].some(
-    (action) => action.running
-  );
+  return Boolean(uiState.service.forkop.busy) || uiState.actions.service.some((action) => action.running);
 }
 function stateSignature(uiState) {
   const forkop = uiState.service.forkop;
@@ -4201,14 +3890,12 @@ function stateSignature(uiState) {
     forkop.enabled,
     forkop.busy || "",
     uiState.service.sing_box.running,
-    [...uiState.actions.service, ...uiState.actions.component].filter(
-      (action) => action.running
-    ).length
+    uiState.actions.service.filter((action) => action.running).length
   ].join("|");
 }
 function hasLocalPendingAction() {
   const overlay = getLocalActionOverlay();
-  return overlay.serviceActions.size > 0 || overlay.componentActions.size > 0 || overlay.subscriptionSections.size > 0;
+  return overlay.serviceActions.size > 0 || overlay.subscriptionSections.size > 0;
 }
 function isRuntimeStateActive() {
   return runtimeStateHasRunningAction || hasLocalPendingAction();
@@ -4423,10 +4110,8 @@ var UNKNOWN_SYSTEM_INFO = {
   loaded: false,
   capabilitiesLoaded: false,
   forkop_version: _("unknown"),
-  forkop_latest_version: _("unknown"),
   luci_app_version: _("unknown"),
   sing_box_version: _("unknown"),
-  sing_box_compressed: 0,
   server_inbounds_enabled_count: -1,
   openwrt_version: _("unknown"),
   device_model: _("unknown")
@@ -4509,26 +4194,7 @@ async function ensureSystemInfo({
 // src/forkop/services/core.service.ts
 var LOG_FEED_START_DELAY_MS = 5e3;
 var SYSTEM_INFO_PREFETCH_DELAY_MS = 2e3;
-function componentDisplayName(component) {
-  const names = {
-    forkop: "Forkop",
-    sing_box: "sing-box"
-  };
-  return names[component] || component;
-}
 function showLogNotification(notification) {
-  if (notification.kind === "component-update") {
-    const message = _("New version %s is available for %s").format(
-      notification.version,
-      componentDisplayName(notification.component)
-    );
-    return ui.addNotification(
-      _("Component update available"),
-      textE("div", {}, message),
-      "warning",
-      "fkp-component-update-notification"
-    );
-  }
   return ui.addNotification(
     _("Forkop Error"),
     textE("div", {}, notification.message),
@@ -4724,103 +4390,6 @@ var SocketManager = class _SocketManager {
   }
 };
 var socket = SocketManager.getInstance();
-
-// src/forkop/services/uiActionNotification.service.ts
-var UI_ACTION_NOTIFICATION_STORAGE_KEY = "forkop:owned-ui-action-notifications:v1";
-var MAX_STORED_UI_ACTION_NOTIFICATIONS = 100;
-function getNotificationKey(kind, jobId) {
-  return `${kind}:${jobId}`;
-}
-function isStoredNotification(value) {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-  const candidate = value;
-  return candidate.kind === "component" && typeof candidate.jobId === "string" && typeof candidate.notified === "boolean" && typeof candidate.updatedAt === "number";
-}
-function readStoredNotifications(storage) {
-  if (!storage) {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(
-      storage.getItem(UI_ACTION_NOTIFICATION_STORAGE_KEY) || "[]"
-    );
-    return Array.isArray(parsed) ? parsed.filter(isStoredNotification) : [];
-  } catch {
-    return [];
-  }
-}
-function writeStoredNotifications(storage, notifications) {
-  if (!storage) {
-    return;
-  }
-  try {
-    storage.setItem(
-      UI_ACTION_NOTIFICATION_STORAGE_KEY,
-      JSON.stringify(
-        notifications.sort((a, b) => a.updatedAt - b.updatedAt).slice(-MAX_STORED_UI_ACTION_NOTIFICATIONS)
-      )
-    );
-  } catch {
-  }
-}
-var UiActionNotificationTracker = class {
-  constructor(storage = getSessionStorage()) {
-    this.notifications = /* @__PURE__ */ new Map();
-    this.storage = storage;
-    for (const notification of readStoredNotifications(storage)) {
-      this.notifications.set(
-        getNotificationKey(notification.kind, notification.jobId),
-        notification
-      );
-    }
-  }
-  markOwned(kind, jobId) {
-    if (!jobId) {
-      return;
-    }
-    const key = getNotificationKey(kind, jobId);
-    const current = this.notifications.get(key);
-    this.notifications.set(key, {
-      kind,
-      jobId,
-      notified: current?.notified ?? false,
-      updatedAt: Date.now()
-    });
-    this.persist();
-  }
-  shouldNotify(kind, jobId) {
-    if (!jobId) {
-      return false;
-    }
-    const key = getNotificationKey(kind, jobId);
-    const current = this.notifications.get(key);
-    if (!current || current.notified) {
-      return false;
-    }
-    this.notifications.set(key, {
-      ...current,
-      notified: true,
-      updatedAt: Date.now()
-    });
-    this.persist();
-    return true;
-  }
-  persist() {
-    writeStoredNotifications(
-      this.storage,
-      Array.from(this.notifications.values())
-    );
-  }
-};
-var uiActionNotifications = new UiActionNotificationTracker();
-function markUiActionOwned(kind, jobId) {
-  uiActionNotifications.markOwned(kind, jobId);
-}
-function shouldNotifyOwnedUiAction(kind, jobId) {
-  return uiActionNotifications.shouldNotify(kind, jobId);
-}
 
 // src/forkop/methods/custom/getClashApiSecret.ts
 async function getClashApiSecret2() {
@@ -8557,9 +8126,6 @@ function getAutostartControlsPresentation({
     }
   };
 }
-function hasLocalMutatingServiceActionLoading(actions) {
-  return actions.restart.loading || actions.start.loading || actions.stop.loading || actions.enable.loading || actions.disable.loading;
-}
 function shouldDisableDiagnosticRunAction({
   capabilitiesLoaded
 }) {
@@ -8584,19 +8150,9 @@ function formatOsRelease(value) {
 }
 
 // src/forkop/helpers/singBoxVersion.ts
-function isVersionPlaceholder(version) {
-  const normalized = version.trim().toLowerCase();
-  return !normalized || normalized === "loading" || normalized === "unknown" || normalized === "not installed" || typeof _ === "function" && normalized === _("unknown").toLowerCase() || typeof _ === "function" && normalized === _("Not installed").toLowerCase();
-}
-function formatSingBoxVersion(value, showPackageFlavor = true) {
+function formatSingBoxVersion(value) {
   const version = String(value.sing_box_version || "");
-  if (!version || version === "not installed") {
-    return _("Not installed");
-  }
-  if (isVersionPlaceholder(version)) {
-    return version;
-  }
-  return showPackageFlavor && value.sing_box_compressed ? `${version} (${_("compressed")})` : version;
+  return !version || version === "not installed" ? _("Not installed") : version;
 }
 
 // src/forkop/tabs/diagnostic/initController.ts
@@ -8667,7 +8223,7 @@ function settleFinishedServiceActions(uiState) {
       continue;
     }
     handledServiceActionJobs.add(action.job_id);
-    void ForkopShellMethods.uiActionAck("service", action.job_id);
+    void ForkopShellMethods.uiActionAck(action.job_id);
     releaseDiagnosticsChecks();
   }
 }
@@ -8931,7 +8487,7 @@ function renderDiagnosticSystemInfoWidget() {
     },
     {
       key: "Sing-box",
-      value: formatSingBoxVersion(diagnosticsSystemInfo, false)
+      value: formatSingBoxVersion(diagnosticsSystemInfo)
     }
   ];
   items.push(
@@ -11808,949 +11364,12 @@ var LogsTab = {
   styles: styles6
 };
 
-// src/forkop/tabs/updates/render.ts
-function render5() {
-  return textE("div", { id: "updates-status", class: "fkp_updates-page" }, [
-    textE("div", {
-      id: "fkp_updates-components",
-      class: "fkp_updates-page__components"
-    })
-  ]);
-}
-
-// src/forkop/helpers/restoredActionLoading.ts
-function shouldShowLoadingForRestoredAction(state) {
-  return state.running === true;
-}
-
-// src/forkop/tabs/updates/componentActionCompletion.ts
-function shouldApplyCompletedComponentActionResult(result, notify) {
-  return result.action !== "check_update" || notify;
-}
-
-// src/forkop/tabs/updates/checkResultLifecycle.ts
-function shouldPreserveCompletedCheckResultOnNextMount({
-  action,
-  mounted
-}) {
-  return action === "check_update" && !mounted;
-}
-function shouldResetCheckResultsOnMount({
-  anyActionLoading,
-  preserveCheckResultsOnNextMount: preserveCheckResultsOnNextMount2,
-  persistentCacheEnabled = false
-}) {
-  return !persistentCacheEnabled && !anyActionLoading && !preserveCheckResultsOnNextMount2;
-}
-function shouldRefreshComponentStateBeforeRender(uiState) {
-  return Boolean(
-    uiState?.actions.component.some((state) => state.running === true)
-  );
-}
-function shouldExposeCheckResults({
-  mounted,
-  cacheResolved
-}) {
-  return mounted && cacheResolved;
-}
-
-// src/forkop/tabs/updates/initController.ts
-var updatesLifecycleRegistered = false;
-var updatesControllerInitialized = false;
-var updatesMounted = false;
-var updatesMountId = 0;
-var pageUnloading2 = false;
-var preserveCheckResultsOnNextMount = false;
-var componentUpdateCheckCacheResolved = false;
-var componentUpdateCheckCacheSnapshot = null;
-var componentUpdateCheckCachePromise = null;
-var componentActionStateUnsubscribe = null;
-var componentActionStateRefreshPromise = null;
-var followedComponentJobs = /* @__PURE__ */ new Set();
-var handledComponentJobs = /* @__PURE__ */ new Set();
-if (typeof window !== "undefined") {
-  window.addEventListener("pagehide", () => {
-    pageUnloading2 = true;
-  });
-  window.addEventListener("pageshow", () => {
-    pageUnloading2 = false;
-  });
-}
-function isNotInstalled(version) {
-  return !version || version === "not installed";
-}
-function shouldShowInstallAfterCheck(component) {
-  const status = getVisibleCheckResult(component)?.status;
-  return status === "outdated" || status === "dev";
-}
-function getVisibleCheckResult(component) {
-  if (!shouldExposeCheckResults({
-    mounted: updatesMounted,
-    cacheResolved: componentUpdateCheckCacheResolved
-  })) {
-    return null;
-  }
-  return store.get().updatesChecks[component];
-}
-function getLatestVersion(component) {
-  const checkResult = getVisibleCheckResult(component);
-  if (!checkResult || !shouldShowInstallAfterCheck(component)) {
-    return void 0;
-  }
-  return checkResult.latest_version || void 0;
-}
-function getGitHubReleaseUrl(component) {
-  const checkResult = getVisibleCheckResult(component);
-  if (!checkResult || !shouldShowInstallAfterCheck(component) || !checkResult.release_url) {
-    return void 0;
-  }
-  return checkResult.release_url;
-}
-function isAnyActionLoading() {
-  return Object.values(store.get().updatesActions).some((item) => item.loading);
-}
-function isServiceRuntimeActionLoading() {
-  const state = store.get();
-  return hasLocalMutatingServiceActionLoading(state.diagnosticsActions) || state.servicesInfoWidget.data.forkopBusy !== null;
-}
-function isSystemInfoLoading() {
-  const systemInfo = store.get().diagnosticsSystemInfo;
-  return systemInfo.loading || !systemInfo.loaded;
-}
-function setActionLoading(action, loading3, local = false) {
-  if (local || !loading3) {
-    setLocalComponentAction(action, loading3 && local);
-  }
-  const updatesActions = store.get().updatesActions;
-  store.set({
-    updatesActions: {
-      ...updatesActions,
-      [action]: { loading: loading3 }
-    }
-  });
-}
-function beginComponentAction(button) {
-  if (isAnyActionLoading()) {
-    return false;
-  }
-  setActionLoading(button.key, true, true);
-  return true;
-}
-function setCheckResult(component, status, latestVersion, releaseUrl = "") {
-  const updatesChecks = store.get().updatesChecks;
-  store.set({
-    updatesChecks: {
-      ...updatesChecks,
-      [component]: {
-        status,
-        latest_version: latestVersion,
-        release_url: releaseUrl
-      }
-    }
-  });
-}
-function resetCheckResult(component) {
-  setCheckResult(component, null, "");
-}
-function applyCachedCheckResults(results) {
-  results.forEach((result) => {
-    const status = result.status || null;
-    if (status === "latest" || status === "outdated" || status === "dev") {
-      setCheckResult(
-        result.component,
-        status,
-        result.latest_version || "",
-        result.release_url || ""
-      );
-    }
-  });
-}
-function loadComponentUpdateCheckCache({ force = false } = {}) {
-  if (!force && componentUpdateCheckCacheSnapshot) {
-    return Promise.resolve(componentUpdateCheckCacheSnapshot);
-  }
-  if (componentUpdateCheckCachePromise) {
-    return componentUpdateCheckCachePromise;
-  }
-  const promise = ForkopShellMethods.componentUpdateCheckCache().then(
-    (response) => response.success ? response.data : {
-      enabled: false,
-      results: []
-    }
-  ).then((cache) => {
-    componentUpdateCheckCacheSnapshot = cache;
-    return cache;
-  }).finally(() => {
-    if (componentUpdateCheckCachePromise === promise) {
-      componentUpdateCheckCachePromise = null;
-    }
-  });
-  componentUpdateCheckCachePromise = promise;
-  return promise;
-}
-function getErrorMessage(error, fallback) {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-async function ackComponentActionJob(jobId) {
-  try {
-    const response = await ForkopShellMethods.uiActionAck("component", jobId);
-    if (!response.success) {
-      logger.debug("[UPDATES]", "component action ack failed", response.error);
-    }
-  } catch (error) {
-    logger.debug("[UPDATES]", "component action ack failed", error);
-  }
-}
-function getExpectedLatestVersionForAction(button) {
-  if (button.component !== "forkop" || button.action !== "install") {
-    return void 0;
-  }
-  return store.get().updatesChecks[button.component].latest_version || void 0;
-}
-function getCheckToastMessage(status) {
-  if (status === "outdated") {
-    return _("Update is available");
-  }
-  if (status === "dev") {
-    return _("Installed version is newer than release");
-  }
-  return _("Latest version is installed");
-}
-async function refreshSystemInfoAfterMutation() {
-  await ensureSystemInfo({ force: true, silent: true });
-}
-function reloadPageAfterForkopUpdate() {
-  window.setTimeout(() => {
-    window.location.reload();
-  }, 1200);
-}
-function patchSystemInfoAfterMutation(result) {
-  const systemInfo = store.get().diagnosticsSystemInfo;
-  const nextSystemInfo = { ...systemInfo, loading: false, loaded: true };
-  const version = result.current_version || result.latest_version || _("unknown");
-  if (result.component === "forkop" && result.action === "install") {
-    nextSystemInfo.forkop_version = version;
-  }
-  if (result.component === "sing_box") {
-    nextSystemInfo.sing_box_version = version;
-  }
-  store.set({
-    diagnosticsSystemInfo: nextSystemInfo
-  });
-}
-async function applyCompletedComponentAction({
-  key,
-  result,
-  notify
-}) {
-  if (result.action === "check_update") {
-    setActionLoading(key, false);
-    if (!shouldApplyCompletedComponentActionResult(result, notify)) {
-      return;
-    }
-    if (shouldPreserveCompletedCheckResultOnNextMount({
-      action: result.action,
-      mounted: updatesMounted
-    })) {
-      preserveCheckResultsOnNextMount = true;
-    }
-    const status = result.status || null;
-    if (status === "latest" || status === "outdated" || status === "dev") {
-      setCheckResult(
-        result.component,
-        status,
-        result.latest_version || "",
-        result.release_url || ""
-      );
-    }
-    if (notify) {
-      showToast(getCheckToastMessage(status), "success");
-    }
-    return;
-  }
-  if (result.action === "install") {
-    setCheckResult(result.component, "latest", result.latest_version || "");
-  } else {
-    resetCheckResult(result.component);
-  }
-  patchSystemInfoAfterMutation(result);
-  setActionLoading(key, false);
-  if (result.component === "forkop" && result.action === "install") {
-    if (notify && result.message) {
-      showToast(result.message, "success", 1200);
-    }
-    if (notify) {
-      reloadPageAfterForkopUpdate();
-    }
-    return;
-  }
-  if (notify && result.message) {
-    showToast(result.message, "success");
-  }
-  void refreshSystemInfoAfterMutation();
-}
-async function completeComponentActionJob(key, jobId, response) {
-  if (pageUnloading2) {
-    setActionLoading(key, false);
-    return;
-  }
-  const alreadyHandled = handledComponentJobs.has(jobId);
-  if (alreadyHandled) {
-    setActionLoading(key, false);
-    return;
-  }
-  const shouldNotify = shouldNotifyOwnedUiAction("component", jobId);
-  if (!response.success || response.data.success === false) {
-    const message = response.success ? response.data.message || _("Failed to execute") : response.error || _("Failed to execute");
-    if (isTransientRpcError(message)) {
-      setActionLoading(key, false);
-      void refreshComponentActionState();
-      return;
-    }
-    handledComponentJobs.add(jobId);
-    setActionLoading(key, false);
-    if (shouldNotify) {
-      showToast(message, "error");
-    }
-    await ackComponentActionJob(jobId);
-    return;
-  }
-  handledComponentJobs.add(jobId);
-  await ackComponentActionJob(jobId);
-  await applyCompletedComponentAction({
-    key,
-    result: response.data,
-    notify: shouldNotify
-  });
-}
-async function followComponentActionState(state) {
-  const jobId = state.job_id;
-  const key = getComponentActionKey(state.component, state.action);
-  if (!jobId || !key || followedComponentJobs.has(jobId)) {
-    return;
-  }
-  if (!state.running && handledComponentJobs.has(jobId)) {
-    return;
-  }
-  followedComponentJobs.add(jobId);
-  if (shouldShowLoadingForRestoredAction(state)) {
-    setActionLoading(key, true);
-  }
-  try {
-    const response = state.running ? await ForkopShellMethods.waitComponentActionJob(
-      jobId,
-      state.component,
-      state.action,
-      state.latest_version || void 0
-    ) : {
-      success: true,
-      data: state
-    };
-    await completeComponentActionJob(key, jobId, response);
-  } catch (error) {
-    logger.error("[UPDATES]", "followComponentActionState failed", error);
-    if (!pageUnloading2) {
-      const message = getErrorMessage(error, _("Failed to execute"));
-      setActionLoading(key, false);
-      if (!isTransientRpcError(message)) {
-        showToast(message, "error");
-      }
-    }
-  } finally {
-    followedComponentJobs.delete(jobId);
-  }
-}
-async function followAlreadyRunningComponentAction(button) {
-  const uiState = await refreshRuntimeUiState({ force: true });
-  if (!uiState) {
-    return false;
-  }
-  const state = uiState.actions.component.find(
-    (item) => item.running && item.component === button.component && item.action === button.action
-  );
-  if (!state) {
-    return false;
-  }
-  if (state.job_id) {
-    markUiActionOwned("component", state.job_id);
-  }
-  await followComponentActionState(state);
-  return true;
-}
-function isComponentActionAlreadyRunningError(message) {
-  return Boolean(
-    message && message.includes("Another component action is already running")
-  );
-}
-function handleComponentUiState(uiState) {
-  for (const state of uiState.actions.component || []) {
-    void followComponentActionState(state);
-  }
-}
-async function refreshComponentActionState() {
-  if (componentActionStateRefreshPromise) {
-    return componentActionStateRefreshPromise;
-  }
-  componentActionStateRefreshPromise = (async () => {
-    if (!updatesMounted) {
-      return;
-    }
-    const state = await refreshRuntimeUiState({ force: true });
-    if (!state) {
-      return;
-    }
-    handleComponentUiState(state);
-  })().finally(() => {
-    componentActionStateRefreshPromise = null;
-  });
-  return componentActionStateRefreshPromise;
-}
-function startComponentActionStateWatcher() {
-  if (componentActionStateUnsubscribe) {
-    return;
-  }
-  componentActionStateUnsubscribe = subscribeRuntimeUiState((uiState) => {
-    if (updatesMounted) {
-      handleComponentUiState(uiState);
-    }
-  });
-}
-function stopComponentActionStateWatcher() {
-  if (!componentActionStateUnsubscribe) {
-    return;
-  }
-  componentActionStateUnsubscribe();
-  componentActionStateUnsubscribe = null;
-}
-async function handleComponentAction(button) {
-  if (!beginComponentAction(button)) {
-    return;
-  }
-  let jobId = "";
-  let ownsJobFollow = false;
-  try {
-    const startResponse = await ForkopShellMethods.componentActionStart(
-      button.component,
-      button.action
-    );
-    if (!startResponse.success) {
-      if (isComponentActionAlreadyRunningError(startResponse.error)) {
-        setActionLoading(button.key, false);
-        if (!await followAlreadyRunningComponentAction(button)) {
-          await refreshComponentActionState();
-        }
-        return;
-      }
-      if (isTransientRpcError(startResponse.error)) {
-        if (!await followAlreadyRunningComponentAction(button)) {
-          setActionLoading(button.key, false);
-          await refreshComponentActionState();
-        }
-        return;
-      }
-      throw new Error(startResponse.error);
-    }
-    jobId = startResponse.data.job_id;
-    markUiActionOwned("component", jobId);
-    if (followedComponentJobs.has(jobId)) {
-      return;
-    }
-    followedComponentJobs.add(jobId);
-    ownsJobFollow = true;
-    const response = await ForkopShellMethods.waitComponentActionJob(
-      jobId,
-      button.component,
-      button.action,
-      getExpectedLatestVersionForAction(button)
-    );
-    await completeComponentActionJob(button.key, jobId, response);
-  } catch (error) {
-    logger.error("[UPDATES]", "handleComponentAction failed", error);
-    if (!pageUnloading2) {
-      const message = getErrorMessage(error, _("Failed to execute"));
-      setActionLoading(button.key, false);
-      if (!isTransientRpcError(message)) {
-        showToast(message, "error");
-      }
-      void refreshComponentActionState();
-    }
-  } finally {
-    if (ownsJobFollow) {
-      followedComponentJobs.delete(jobId);
-    }
-  }
-}
-function getCheckAction(component, key) {
-  return {
-    key,
-    text: _("Check update"),
-    icon: renderSearchIcon24,
-    component,
-    action: "check_update"
-  };
-}
-function getInstallAction(component, key, installed) {
-  return {
-    key,
-    text: installed ? _("Update") : _("Install"),
-    icon: installed ? renderRotateCcwIcon24 : renderDownloadIcon24,
-    component,
-    action: "install"
-  };
-}
-function getInstalledUpdateActions(component, checkKey, installKey, installed = true) {
-  if (!installed) {
-    return [];
-  }
-  const actions = [getCheckAction(component, checkKey)];
-  if (shouldShowInstallAfterCheck(component)) {
-    actions.push(getInstallAction(component, installKey, true));
-  }
-  return actions;
-}
-function getComponentCards() {
-  const systemInfo = store.get().diagnosticsSystemInfo;
-  const systemInfoLoading = isSystemInfoLoading();
-  const singBoxInstalled = !isNotInstalled(systemInfo.sing_box_version);
-  const forkopActions = getInstalledUpdateActions(
-    "forkop",
-    "forkopCheck",
-    "forkopInstall"
-  );
-  const singBoxActions = getInstalledUpdateActions(
-    "sing_box",
-    "singBoxCheck",
-    "singBoxInstall",
-    singBoxInstalled
-  );
-  return [
-    {
-      component: "forkop",
-      column: 0,
-      title: "Forkop",
-      version: systemInfoLoading ? _("Loading...") : normalizeCompiledVersion(systemInfo.forkop_version),
-      latestVersion: getLatestVersion("forkop"),
-      releaseUrl: getGitHubReleaseUrl("forkop"),
-      actions: forkopActions
-    },
-    {
-      component: "sing_box",
-      column: 0,
-      title: "Sing-box",
-      version: systemInfoLoading ? _("Loading...") : formatSingBoxVersion(systemInfo),
-      latestVersion: getLatestVersion("sing_box"),
-      releaseUrl: getGitHubReleaseUrl("sing_box"),
-      actions: singBoxActions
-    }
-  ];
-}
-function renderComponentCard(card) {
-  const updatesActions = store.get().updatesActions;
-  const anyActionLoading = isAnyActionLoading();
-  const serviceRuntimeActionLoading = isServiceRuntimeActionLoading();
-  const systemInfoLoading = isSystemInfoLoading();
-  const headerChildren = [
-    textE("b", { class: "fkp_updates-page__component__title" }, card.title),
-    textE(
-      "span",
-      { class: "fkp_updates-page__component__header-version" },
-      card.version
-    )
-  ];
-  const header = textE(
-    "div",
-    { class: "fkp_updates-page__component__header" },
-    headerChildren
-  );
-  const detailsChildren = [];
-  const checkResult = getVisibleCheckResult(card.component);
-  if (checkResult && checkResult.status) {
-    let labelText = "";
-    const latestValueNodes = [];
-    if (checkResult.status === "outdated") {
-      labelText = _("Update is available:");
-      const versionToShow = checkResult.latest_version || card.latestVersion || card.version;
-      if (checkResult.release_url) {
-        latestValueNodes.push(
-          textE(
-            "a",
-            {
-              class: "fkp_updates-page__component__release-version-link",
-              href: checkResult.release_url,
-              target: "_blank",
-              rel: "noopener noreferrer"
-            },
-            versionToShow || _("Open")
-          )
-        );
-      } else if (versionToShow) {
-        latestValueNodes.push(document.createTextNode(versionToShow));
-      }
-    } else if (checkResult.status === "latest") {
-      labelText = _("Latest version is installed");
-    } else if (checkResult.status === "dev") {
-      labelText = `${_("Installed version is newer than release")}. ${_("Latest version:")}`;
-      const versionToShow = checkResult.latest_version || card.latestVersion;
-      if (checkResult.release_url) {
-        latestValueNodes.push(
-          textE(
-            "a",
-            {
-              class: "fkp_updates-page__component__release-version-link",
-              href: checkResult.release_url,
-              target: "_blank",
-              rel: "noopener noreferrer"
-            },
-            versionToShow || _("Open")
-          )
-        );
-      } else if (versionToShow) {
-        latestValueNodes.push(document.createTextNode(versionToShow));
-      }
-    }
-    if (labelText) {
-      const rowChildren = [
-        textE(
-          "span",
-          { class: "fkp_updates-page__component__info-label" },
-          labelText
-        )
-      ];
-      if (latestValueNodes.length > 0) {
-        rowChildren.push(
-          textE(
-            "span",
-            {
-              class: "fkp_updates-page__component__info-value fkp_updates-page__component__info-value--latest"
-            },
-            latestValueNodes
-          )
-        );
-      }
-      detailsChildren.push(
-        textE(
-          "div",
-          { class: "fkp_updates-page__component__info-row" },
-          rowChildren
-        )
-      );
-    }
-  }
-  const detailsContainer = detailsChildren.length > 0 ? textE(
-    "div",
-    { class: "fkp_updates-page__component__details" },
-    detailsChildren
-  ) : null;
-  const actionElements = [];
-  const primaryButtons = card.actions.map((action) => {
-    const loading3 = updatesActions[action.key].loading;
-    const isUpdateOrInstall = action.action === "install";
-    return renderButton({
-      classNames: isUpdateOrInstall ? ["cbi-button-save"] : [],
-      text: action.text,
-      icon: action.icon,
-      loading: loading3,
-      disabled: systemInfoLoading || serviceRuntimeActionLoading || anyActionLoading && !loading3,
-      onClick: () => void handleComponentAction(action)
-    });
-  });
-  if (primaryButtons.length > 0) {
-    actionElements.push(
-      textE(
-        "div",
-        { class: "fkp_updates-page__component__actions-main" },
-        primaryButtons
-      )
-    );
-  }
-  const actionsContainer = textE(
-    "div",
-    {
-      class: [
-        "fkp_updates-page__component__actions",
-        detailsContainer ? "fkp_updates-page__component__actions--with-details" : ""
-      ].filter(Boolean).join(" ")
-    },
-    actionElements
-  );
-  const cardChildren = [header];
-  if (detailsContainer) {
-    cardChildren.push(detailsContainer);
-  }
-  cardChildren.push(actionsContainer);
-  return textE("div", { class: "fkp_updates-page__component" }, cardChildren);
-}
-function renderUpdatesComponents() {
-  const container = document.getElementById("fkp_updates-components");
-  if (!container) {
-    return;
-  }
-  const columns = [[], []];
-  getComponentCards().forEach((card) => {
-    columns[card.column].push(renderComponentCard(card));
-  });
-  return preserveScrollForPage(() => {
-    container.replaceChildren(
-      textE("div", { class: "fkp_updates-page__components-column" }, columns[0]),
-      textE("div", { class: "fkp_updates-page__components-column" }, columns[1])
-    );
-  });
-}
-function onStoreUpdate3(_next, _prev, diff) {
-  if (diff.diagnosticsSystemInfo || diff.updatesActions || diff.updatesChecks || diff.diagnosticsActions || diff.servicesInfoWidget) {
-    renderUpdatesComponents();
-  }
-}
-function applyComponentUpdateCheckCache(componentUpdateCheckCache) {
-  componentUpdateCheckCacheResolved = true;
-  if (componentUpdateCheckCache.enabled) {
-    store.reset(["updatesChecks"]);
-    applyCachedCheckResults(componentUpdateCheckCache.results);
-  }
-  if (shouldResetCheckResultsOnMount({
-    anyActionLoading: isAnyActionLoading(),
-    preserveCheckResultsOnNextMount,
-    persistentCacheEnabled: componentUpdateCheckCache.enabled
-  })) {
-    store.reset(["updatesChecks"]);
-  }
-}
-async function onPageMount4() {
-  onPageUnmount4();
-  updatesMounted = true;
-  updatesMountId += 1;
-  const mountId = updatesMountId;
-  const cachedRuntimeState = getCachedRuntimeUiState();
-  const hasRuntimeSnapshot = Boolean(cachedRuntimeState);
-  const needsFreshStateBeforeRender = shouldRefreshComponentStateBeforeRender(cachedRuntimeState);
-  const runtimeStateRefreshPromise = !hasRuntimeSnapshot || needsFreshStateBeforeRender ? refreshRuntimeUiState({ force: true }) : null;
-  const prefetchedComponentUpdateCheckCache = componentUpdateCheckCacheSnapshot;
-  if (prefetchedComponentUpdateCheckCache) {
-    applyComponentUpdateCheckCache(prefetchedComponentUpdateCheckCache);
-  }
-  renderUpdatesComponents();
-  const componentUpdateCheckCache = await loadComponentUpdateCheckCache({
-    force: Boolean(prefetchedComponentUpdateCheckCache)
-  });
-  if (!updatesMounted || mountId !== updatesMountId) {
-    return;
-  }
-  applyComponentUpdateCheckCache(componentUpdateCheckCache);
-  preserveCheckResultsOnNextMount = false;
-  renderUpdatesComponents();
-  if (runtimeStateRefreshPromise) {
-    await runtimeStateRefreshPromise;
-    if (!updatesMounted || mountId !== updatesMountId) {
-      return;
-    }
-  }
-  store.subscribe(onStoreUpdate3);
-  startComponentActionStateWatcher();
-  renderUpdatesComponents();
-  void ensureSystemInfo();
-  if (hasRuntimeSnapshot) {
-    void refreshRuntimeUiState({ force: true });
-  }
-}
-function onPageUnmount4() {
-  updatesMounted = false;
-  updatesMountId += 1;
-  stopComponentActionStateWatcher();
-  store.unsubscribe(onStoreUpdate3);
-}
-function registerLifecycleListeners4() {
-  if (updatesLifecycleRegistered) {
-    return;
-  }
-  updatesLifecycleRegistered = true;
-  store.subscribe((next, prev, diff) => {
-    if (diff.tabService && next.tabService.current !== prev.tabService.current) {
-      const isUpdatesVisible = next.tabService.current === "updates";
-      if (isUpdatesVisible) {
-        return onPageMount4();
-      }
-      if (updatesMounted) {
-        return onPageUnmount4();
-      }
-    }
-  });
-}
-async function initController5() {
-  if (updatesControllerInitialized) {
-    return;
-  }
-  updatesControllerInitialized = true;
-  void loadComponentUpdateCheckCache();
-  onMount("updates-status").then(() => {
-    logger.debug("[UPDATES]", "initController", "onMount");
-    registerLifecycleListeners4();
-    if (store.get().tabService.current === "updates" || isActiveLuciTab("updates")) {
-      onPageMount4();
-    }
-  });
-}
-
-// src/forkop/tabs/updates/styles.ts
-var styles7 = `
-#cbi-${FORKOP_UCI_PACKAGE}-updates-_mount_node > div {
-    width: 100%;
-}
-
-#cbi-${FORKOP_UCI_PACKAGE}-updates > h3 {
-    display: none;
-}
-
-.fkp_updates-page {
-    width: 100%;
-}
-
-.fkp_updates-page__components {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    width: 100%;
-    flex-wrap: wrap;
-}
-
-.fkp_updates-page__components-column {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    gap: 10px;
-    min-width: max-content;
-}
-
-@media (max-width: 760px) {
-    .fkp_updates-page__components {
-        flex-direction: column;
-    }
-
-    .fkp_updates-page__components-column {
-        width: 100%;
-        min-width: 0;
-    }
-
-    .fkp_updates-page__component {
-        min-width: 0;
-    }
-}
-
-.fkp_updates-page__component {
-    border: 2px var(--background-color-low, lightgray) solid;
-    border-radius: 4px;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-width: max-content;
-}
-
-.fkp_updates-page__component__header {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-    border-bottom: 1px var(--background-color-low, lightgray) solid;
-    padding-bottom: 8px;
-    margin-bottom: 2px;
-}
-
-.fkp_updates-page__component__title {
-    color: var(--text-color-high);
-    font-size: 16px;
-    font-weight: bold;
-    line-height: 1.2;
-}
-
-.fkp_updates-page__component__header-version {
-    color: var(--text-color-medium, #888);
-    font-size: 13px;
-    font-weight: normal;
-}
-
-.fkp_updates-page__component__details {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.fkp_updates-page__component__info-row {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    min-height: 24px;
-    gap: 8px;
-    white-space: nowrap;
-}
-
-.fkp_updates-page__component__info-label {
-    color: var(--text-color-medium, #888);
-    font-size: 12px;
-}
-
-.fkp_updates-page__component__info-value {
-    color: var(--text-color-high, #000);
-    font-weight: 500;
-    font-size: 13px;
-    text-align: left;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
-.fkp_updates-page__component__info-value--latest {
-    flex-wrap: wrap;
-    justify-content: flex-start;
-}
-
-.fkp_updates-page__component__release-version-link {
-    color: var(--link-color, #3498db) !important;
-    text-decoration: underline;
-    font-weight: bold;
-}
-
-.fkp_updates-page__component__release-version-link:hover {
-    color: var(--link-color-dark, #2980b9) !important;
-}
-
-.fkp_updates-page__component__actions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: auto;
-}
-
-.fkp_updates-page__component__actions--with-details {
-    border-top: 1px var(--background-color-low, lightgray) solid;
-    padding-top: 10px;
-}
-
-.fkp_updates-page__component__actions-main {
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-`;
-
-// src/forkop/tabs/updates/index.ts
-var UpdatesTab = {
-  render: render5,
-  initController: initController5,
-  styles: styles7
-};
-
 // src/styles.ts
 var GlobalStyles = `
 ${DashboardTab.styles}
 ${DiagnosticTab.styles}
 ${MonitoringTab.styles}
 ${LogsTab.styles}
-${UpdatesTab.styles}
 ${PartialStyles}
 
 
@@ -12917,15 +11536,15 @@ function injectGlobalStyles() {
 
 // src/forkop/tabs/mountTab.ts
 var mountNodes = /* @__PURE__ */ new Map();
-function mountTab(key, render6, initController6) {
+function mountTab(key, render5, initController5) {
   let node = mountNodes.get(key);
   if (!node) {
-    node = render6();
+    node = render5();
     mountNodes.set(key, node);
   }
   const report2 = (error) => console.error(`[TABS] Failed to start the ${key} controller`, error);
   try {
-    Promise.resolve(initController6()).catch(report2);
+    Promise.resolve(initController5()).catch(report2);
   } catch (error) {
     report2(error);
   }
@@ -22142,7 +20761,6 @@ var RESERVED_PORTS = [
   ["1604", _("Forkop transparent proxy")],
   ["1605", _("Forkop transparent proxy")],
   ["4534", _("Forkop service proxy")],
-  ["4535", _("Forkop service proxy")],
   ["4536", _("Forkop service proxy")],
   ["9090", _("sing-box Clash API")]
 ];
@@ -26325,48 +24943,6 @@ function addTrafficOptions(section) {
   o.rmempty = false;
 }
 
-// src/forkop/tabs/settings/durations.ts
-function singBoxDurationSeconds(value) {
-  const multipliers = {
-    ns: 1e-9,
-    us: 1e-6,
-    ms: 1e-3,
-    s: 1,
-    m: 60,
-    h: 3600,
-    d: 86400
-  };
-  let rest = `${value || ""}`;
-  let total = 0;
-  while (rest.length) {
-    const matched = /^([0-9]+(?:\.[0-9]+)?)(ns|us|ms|s|m|h|d)/.exec(rest);
-    if (!matched) {
-      return null;
-    }
-    total += parseFloat(matched[1]) * multipliers[matched[2]];
-    rest = rest.slice(matched[0].length);
-  }
-  return total > 0 ? Math.round(total) : null;
-}
-function isCronExpressibleInterval(value) {
-  const seconds2 = singBoxDurationSeconds(value);
-  if (seconds2 === null) {
-    return false;
-  }
-  if (seconds2 === 86400) {
-    return true;
-  }
-  if (seconds2 % 3600 === 0) {
-    const hours = seconds2 / 3600;
-    return hours >= 1 && hours <= 23;
-  }
-  if (seconds2 % 60 === 0) {
-    const minutes = seconds2 / 60;
-    return minutes >= 1 && minutes <= 59;
-  }
-  return false;
-}
-
 // src/forkop/tabs/settings/form/updates.ts
 function addUpdateOptions(section) {
   let o = section.option(
@@ -26399,52 +24975,6 @@ function addUpdateOptions(section) {
   };
   o = section.option(
     form.Flag,
-    "component_update_check_enabled",
-    _("Automatic component update checks"),
-    _("Check installed components for new versions")
-  );
-  o.default = "0";
-  o.rmempty = false;
-  o = section.option(
-    form.Value,
-    "component_update_check_interval",
-    _("Component update check interval")
-  );
-  o.depends("component_update_check_enabled", "1");
-  o.retain = true;
-  o.placeholder = "1d";
-  o.default = "1d";
-  o.rmempty = false;
-  o.cfgvalue = function(section_id) {
-    return uci.get(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      "component_update_check_interval"
-    ) || "1d";
-  };
-  o.write = function(section_id, value) {
-    const normalized = value ? `${value}`.trim() : "";
-    uci.set(
-      FORKOP_UCI_PACKAGE,
-      section_id,
-      "component_update_check_interval",
-      normalized.length ? normalized : "1d"
-    );
-  };
-  o.validate = function(_section_id, value) {
-    const normalized = value ? `${value}`.trim() : "";
-    if (!normalized.length || !isSingBoxDuration(normalized)) {
-      return _("Use sing-box duration format like 1d, 12h or 30m");
-    }
-    if (!isCronExpressibleInterval(normalized)) {
-      return _(
-        "The check is scheduled by cron: use whole minutes up to 59m, whole hours up to 23h, or exactly 1d"
-      );
-    }
-    return true;
-  };
-  o = section.option(
-    form.Flag,
     "unified_delay",
     _("Accurate latency measurement"),
     _("Includes connection setup and the TLS handshake")
@@ -26467,7 +24997,9 @@ function addUpdateOptions(section) {
     form.Flag,
     "download_lists_via_proxy",
     _("Download lists through a section"),
-    _("Remote lists and rule sets download through the selected section")
+    _(
+      "Remote lists, rule sets, YACD and the sing-box dashboard download through the selected section"
+    )
   );
   configureDownloadViaProxyFlag(o, "download_lists_via_proxy_section");
   o = section.option(
@@ -26478,23 +25010,6 @@ function addUpdateOptions(section) {
   o.depends("download_lists_via_proxy", "1");
   o.retain = true;
   configureDownloadSectionOption(o, "download_lists_via_proxy_section");
-  o = section.option(
-    form.Flag,
-    "download_components_via_proxy",
-    _("Download components through a section"),
-    _(
-      "Forkop, YACD and sing-box updates download through the selected section"
-    )
-  );
-  configureDownloadViaProxyFlag(o, "download_components_via_proxy_section");
-  o = section.option(
-    form.ListValue,
-    "download_components_via_proxy_section",
-    _("Download components through")
-  );
-  o.depends("download_components_via_proxy", "1");
-  o.retain = true;
-  configureDownloadSectionOption(o, "download_components_via_proxy_section");
   o = section.option(
     form.Flag,
     "warp_profiles_via_proxy",
@@ -26764,7 +25279,6 @@ var ForkopView = {
     addMountedTab(forkopMap, "dashboard", _("Dashboard"), DashboardTab);
     addMountedTab(forkopMap, "monitoring", _("Monitoring"), MonitoringTab);
     addMountedTab(forkopMap, "logs", _("Logs"), LogsTab);
-    addMountedTab(forkopMap, "updates", _("Components"), UpdatesTab);
     const rendered = await forkopMap.render();
     coreService();
     return rendered;

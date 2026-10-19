@@ -1,5 +1,3 @@
-#!/usr/bin/env ucode
-
 function as_string(value) {
     return value == null ? "" : "" + value;
 }
@@ -66,15 +64,4 @@ function version_at_least(current, required) {
     return version_compare(current, required) >= 0;
 }
 
-// Loaded as a module by the config validator and the diagnostics runtime, and
-// spawned as a command by the component updater, which has no ucode caller.
-if (sourcepath(1) != null && sourcepath(1) != "")
-    return { version_compare, version_at_least };
-
-let mode = ARGV[0] || "";
-
-if (mode == "version-at-least")
-    exit(version_at_least(ARGV[1], ARGV[2]) ? 0 : 1);
-
-warn("Usage: core/version.uc version-at-least <current> <required>\n");
-exit(1);
+return { version_compare, version_at_least };

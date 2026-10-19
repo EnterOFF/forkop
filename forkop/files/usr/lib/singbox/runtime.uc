@@ -46,14 +46,6 @@ function configure_service() {
         exec.log("warn", "Failed to disable the sing-box autostart; at boot sing-box may start without Forkop");
 }
 
-// The mixed inbound the component manager downloads through when a section is
-// chosen for component downloads.
-function components_proxy_address() {
-    if (connections.download_via_proxy_section(settings(), "components") == "")
-        return "";
-    return singbox_constants.SERVICE_MIXED_INBOUND_ADDRESS + ":" + singbox_constants.COMPONENTS_MIXED_INBOUND_PORT;
-}
-
 function interface_ipv4_address(name) {
     let status = common.parse_json(exec.output([ "ubus", "call", "network.interface." + name, "status" ]));
     return common.as_string(status?.["ipv4-address"]?.[0]?.address);
@@ -156,12 +148,8 @@ function write_config(checked) {
 }
 
 function version() {
-    for (let name in [ "sing-box-forkop-compressed", "sing-box-forkop" ]) {
-        let value = packages.version(name);
-        if (value != "")
-            return replace(value, /~/g, "-");
-    }
-    return replace(trim(fs.readfile(packages.paths.sing_box_version) ?? ""), /~/g, "-");
+    let value = packages.version("sing-box-forkop") || trim(fs.readfile(packages.paths.sing_box_version) ?? "");
+    return replace(value, /~/g, "-");
 }
 
 // The service's core, not whatever else runs the binary: the state service asks
@@ -206,19 +194,7 @@ function warp_profile() {
     return result;
 }
 
-let exports = {
-    configure_service, write_config, components_proxy_address, listen_address, device_ipv4_address,
+return {
+    configure_service, write_config, listen_address, device_ipv4_address,
     mwan3_active, version, process_running, warp_profile
 };
-
-// A caller frame, or no arguments at all, means the module was required.
-if (sourcepath(1) != null || ARGV[0] == null)
-    return exports;
-
-// The component manager asks for its download proxy as a program.
-let mode = ARGV[0];
-if (mode != "components-proxy-address") {
-    warn("Usage: singbox/runtime.uc components-proxy-address\n");
-    exit(1);
-}
-print(components_proxy_address(), "\n");

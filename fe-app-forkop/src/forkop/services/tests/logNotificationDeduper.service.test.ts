@@ -36,7 +36,7 @@ class MemoryStorage implements Storage {
 }
 
 describe('LogNotificationDeduper', () => {
-  it('accepts only Forkop errors and component update log lines', () => {
+  it('accepts only Forkop errors', () => {
     expect(isErrorLogLine('forkop: [info] ok')).toBe(false);
     expect(isErrorLogLine('forkop: [error] failed')).toBe(true);
     expect(isErrorLogLine('forkop: [warn] retrying what [error] said')).toBe(
@@ -48,16 +48,6 @@ describe('LogNotificationDeduper', () => {
         'daemon.err sing-box[123]: ERROR[0000] connection: dial failed',
       ),
     ).toBe(false);
-    expect(
-      getForkopLogNotification(
-        'forkop: [info] [component-update] sing_box v1.2.3',
-      ),
-    ).toEqual({
-      kind: 'component-update',
-      line: 'forkop: [info] [component-update] sing_box v1.2.3',
-      component: 'sing_box',
-      version: 'v1.2.3',
-    });
     expect(getForkopLogNotification('forkop: [info] ok')).toBeNull();
     expect(
       getForkopLogNotification(
@@ -83,9 +73,6 @@ describe('LogNotificationDeduper', () => {
     expect(first.shouldNotify('sing-box[123]: [error] dial failed')).toBe(
       false,
     );
-    expect(
-      first.shouldNotify('forkop: [info] [component-update] forkop 1.2.3'),
-    ).toBe(true);
 
     const afterReload = new LogNotificationDeduper(storage);
 

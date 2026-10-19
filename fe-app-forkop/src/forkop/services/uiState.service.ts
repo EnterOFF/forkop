@@ -1,4 +1,3 @@
-import { getComponentActionKey } from '../helpers/getComponentActionKey';
 import type { Forkop } from '../types';
 import { setCoreFeatures } from './coreFeatures.service';
 import {
@@ -12,15 +11,6 @@ type UiActionMap = Partial<Forkop.UiState['actions']>;
 
 function isRunningAction(state: { running?: boolean }) {
   return state.running === true;
-}
-
-function getEmptyUpdatesActions(): StoreType['updatesActions'] {
-  return {
-    forkopCheck: { loading: false },
-    forkopInstall: { loading: false },
-    singBoxCheck: { loading: false },
-    singBoxInstall: { loading: false },
-  };
 }
 
 function getEmptyDiagnosticsActions(): StoreType['diagnosticsActions'] {
@@ -70,26 +60,10 @@ function applyActionState(actions: UiActionMap = {}) {
 
   const localOverlay = getLocalActionOverlay();
   const subscriptionUpdatingSections: Record<string, boolean> = {};
-  const updatesActions = getEmptyUpdatesActions();
   const diagnosticsActions = getEmptyDiagnosticsActions();
-
-  for (const state of actions.component || []) {
-    if (!isRunningAction(state)) {
-      continue;
-    }
-
-    const key = getComponentActionKey(state.component, state.action);
-    if (key) {
-      updatesActions[key] = { loading: true };
-    }
-  }
 
   for (const section of localOverlay.subscriptionSections) {
     subscriptionUpdatingSections[section] = true;
-  }
-
-  for (const key of localOverlay.componentActions) {
-    updatesActions[key] = { loading: true };
   }
 
   for (const action of localOverlay.serviceActions) {
@@ -101,7 +75,6 @@ function applyActionState(actions: UiActionMap = {}) {
       ...current.sectionsWidget,
       subscriptionUpdatingSections,
     },
-    updatesActions,
     diagnosticsActions,
   });
 }

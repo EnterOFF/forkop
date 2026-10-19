@@ -674,37 +674,27 @@ t.test("interface outbounds resolve through their own resolver group", () => {
 
 t.test("downloads through a section get service inbounds and rule-set detours", () => {
     let d = build({
-        settings: settings({
-            download_lists_via_proxy: "1", download_components_via_proxy: "1",
-            download_lists_via_proxy_section: "proxy", download_components_via_proxy_section: "components_proxy"
-        }),
+        settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "proxy" }),
         section: [
             {
                 ".name": "proxy", enabled: "1", action: "outbound",
                 outbound_json: "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1080}",
                 destinations: "example.org", community_lists: [ "discord" ],
                 rule_set: [ "https://example.com/rules.srs" ], rule_set_with_subnets: [ "https://example.com/mixed.txt" ]
-            },
-            {
-                ".name": "components_proxy", enabled: "1", action: "outbound",
-                outbound_json: "{\"type\":\"socks\",\"server\":\"127.0.0.2\",\"server_port\":1080}",
-                destinations: "components.example"
             }
         ]
     });
     t.ok(q.inbound(d, "service-mixed-in") != null);
     t.ok(q.route_rule(d, (r) => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null);
-    t.eq(q.inbound(d, "service-components-in").listen_port, 4535);
-    t.ok(q.route_rule(d, (r) => r.inbound == "service-components-in" && r.outbound == "components_proxy") != null);
     t.eq(filter(d.inbounds, (inbound) => index(inbound.tag, "service-subscription") == 0), [], "a subscription downloads through its detour, not a port");
 
     let lists_elsewhere = build({
-        settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "components_proxy" }),
+        settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "lists_proxy" }),
         section: [
             { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"a\"}" ], destinations: "example.org" },
-            { ".name": "components_proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"b\"}" ], destinations: "components.example" }
+            { ".name": "lists_proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"b\"}" ], destinations: "lists.example" }
         ],
-        subscription_url: [ { ".name": "sub_list", section: "components_proxy", url: "https://sub.example/list", tag: "sub1" } ]
+        subscription_url: [ { ".name": "sub_list", section: "lists_proxy", url: "https://sub.example/list", tag: "sub1" } ]
     });
     t.ok(q.route_rule(lists_elsewhere, (r) => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null,
         "the proxy diagnostic measures the first section, as the transparent proxy check does, wherever lists download");
@@ -754,21 +744,21 @@ t.test("WARP profile requests go through the chosen section: the tunnel names it
         "without a section the profile goes the way the router's own traffic goes");
 });
 
-t.test("the Clash API dashboard downloads its interface through the component download section", () => {
+t.test("the Clash API dashboard downloads its interface through the lists download section", () => {
     let sections = [
         { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "example.org" },
-        { ".name": "components_proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "components.example" }
+        { ".name": "lists_proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "lists.example" }
     ];
     let through_section = build({
-        settings: settings({ enable_yacd: "1", download_components_via_proxy: "1", download_components_via_proxy_section: "components_proxy" }),
+        settings: settings({ enable_yacd: "1", download_lists_via_proxy: "1", download_lists_via_proxy_section: "lists_proxy" }),
         section: sections
     });
     t.eq([ through_section.experimental.clash_api.external_ui, through_section.experimental.clash_api.external_ui_download_detour ],
-        [ "ui", "components_proxy" ]);
+        [ "ui", "lists_proxy" ]);
     let direct = build({ settings: settings({ enable_yacd: "1" }), section: sections });
     t.eq(direct.experimental.clash_api.external_ui_download_detour, "direct-out");
     let without_ui = build({
-        settings: settings({ download_components_via_proxy: "1", download_components_via_proxy_section: "components_proxy" }),
+        settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "lists_proxy" }),
         section: sections
     });
     t.eq(without_ui.experimental.clash_api.external_ui_download_detour, null, "no interface, nothing to download");

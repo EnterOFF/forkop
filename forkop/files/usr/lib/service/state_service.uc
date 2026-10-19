@@ -106,14 +106,12 @@ function path_signature(path) {
 function watch_signature() {
     return path_signature(paths.config) + "|" +
         path_signature(ui.paths.service_actions) + "|" +
-        path_signature(ui.paths.component_actions) + "|" +
         path_signature(ui.paths.reload_lock) + "|" +
         path_signature(ui.paths.rc_dir + "/S" + constants.FORKOP_START_PRIORITY + "forkop");
 }
 
 let state = { revision: 0, payload: null, text: "" };
 let system_info = { value: null, signature: "" };
-let update_checks = { entries: {}, signature: "" };
 let log_lines = [];
 let log_cursor = 0;
 let log_waiters = [];
@@ -213,40 +211,6 @@ function package_db_signature() {
     for (let path in paths.package_databases)
         signature += path_signature(path) + "|";
     return signature;
-}
-
-// What the last update check found upstream. A scheduled job has to leave its
-// answer somewhere for the page to read hours later; it used to be a file per
-// component under /var/run, which is a copy of an answer that can go out of date
-// without anything noticing.
-//
-// Here it is held beside everything else this process holds, and stamped with
-// the package database as it was when the check ran. Install or remove anything
-// and the stamp no longer matches, so the answer is dropped rather than served -
-// which is the case the files got wrong: an `opkg upgrade` behind Forkop's back
-// left them claiming an update was available for a version already installed.
-function store_update_check(component, result) {
-    component = common.as_string(component);
-    if (component == "" || type(result) != "object")
-        return false;
-
-    if (package_db_signature() != update_checks.signature)
-        update_checks = { entries: {}, signature: package_db_signature() };
-
-    update_checks.entries[component] = result;
-    return true;
-}
-
-function update_check_results() {
-    if (package_db_signature() != update_checks.signature) {
-        update_checks = { entries: {}, signature: package_db_signature() };
-        return [];
-    }
-
-    let results = [];
-    for (let _, entry in update_checks.entries)
-        push(results, entry);
-    return results;
 }
 
 // Read from the CLI rather than by requiring diagnostics/runtime.uc: that module
@@ -470,29 +434,6 @@ function object_methods() {
             },
             args: { cursor: 0, ubus_rpc_session: "" }
         },
-        // What the last update check found. Dropped when the installed packages
-        // change, so it cannot outlive the versions it was an answer about.
-        update_checks: {
-            call: function(request) {
-                return { results: update_check_results() };
-            },
-            args: { ubus_rpc_session: "" }
-        },
-        // Written by the check itself, scheduled or started by hand.
-        report_update_check: {
-            call: function(request) {
-                let result = common.parse_json(request.args.result);
-                return { stored: store_update_check(request.args.component, result) };
-            },
-            args: { component: "", result: "", ubus_rpc_session: "" }
-        },
-        forget_update_checks: {
-            call: function(request) {
-                update_checks = { entries: {}, signature: package_db_signature() };
-                return { forgotten: true };
-            },
-            args: { ubus_rpc_session: "" }
-        },
         // Installed versions and the device it all runs on. Worked out once and
         // held until the installed packages change, which is what the page used
         // to keep in a file with a TTL it then had to prove.
@@ -506,7 +447,7 @@ function object_methods() {
             args: { ubus_rpc_session: "" }
         },
         // For a caller that has just changed something and does not want to wait
-        // for the watch to notice - a component action, an apply.
+        // for the watch to notice - an apply.
         refresh: {
             call: function(request) {
                 recompute();
@@ -585,8 +526,6 @@ if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
         // Seeding the buffer is what lets the delta logic be exercised without a
         // router and without a log to read.
         remember_log_line: function(line) { append_log_lines([ line ]); },
-        store_update_check,
-        update_check_results,
         object_methods,
         run
     };

@@ -42,9 +42,7 @@ const runtimeUiStateListeners = new Set<RuntimeUiStateListener>();
 function hasRunningAction(uiState: Forkop.UiState) {
   return (
     Boolean(uiState.service.forkop.busy) ||
-    [...uiState.actions.service, ...uiState.actions.component].some(
-      (action) => action.running,
-    )
+    uiState.actions.service.some((action) => action.running)
   );
 }
 
@@ -60,9 +58,7 @@ function stateSignature(uiState: Forkop.UiState) {
     forkop.enabled,
     forkop.busy || '',
     uiState.service.sing_box.running,
-    [...uiState.actions.service, ...uiState.actions.component].filter(
-      (action) => action.running,
-    ).length,
+    uiState.actions.service.filter((action) => action.running).length,
   ].join('|');
 }
 
@@ -72,9 +68,7 @@ function stateSignature(uiState: Forkop.UiState) {
 function hasLocalPendingAction() {
   const overlay = getLocalActionOverlay();
   return (
-    overlay.serviceActions.size > 0 ||
-    overlay.componentActions.size > 0 ||
-    overlay.subscriptionSections.size > 0
+    overlay.serviceActions.size > 0 || overlay.subscriptionSections.size > 0
   );
 }
 

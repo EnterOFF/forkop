@@ -4,7 +4,6 @@ import { store } from '../store.service';
 import { Forkop } from '../../types';
 import {
   clearLocalActionOverlay,
-  setLocalComponentAction,
   setLocalServiceAction,
   setLocalSubscriptionAction,
 } from '../localActionOverlay.service';
@@ -35,7 +34,6 @@ function createUiState(
     },
     actions: {
       service: [],
-      component: [],
       ...actions,
     },
   };
@@ -59,19 +57,6 @@ describe('applyUiStateToStore', () => {
             job_id: 'service-1',
           },
         ],
-        component: [
-          {
-            success: true,
-            running: true,
-            job_id: 'component-1',
-            component: 'sing_box',
-            action: 'install',
-            message: 'Install is running',
-            current_version: '',
-            latest_version: '',
-            changed: false,
-          },
-        ],
       }),
     );
 
@@ -92,7 +77,6 @@ describe('applyUiStateToStore', () => {
     });
     expect(state.diagnosticsActions.start.loading).toBe(false);
     expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
-    expect(state.updatesActions.singBoxInstall.loading).toBe(true);
   });
 
   it('clears finished persisted action flags while preserving local enable actions', () => {
@@ -106,10 +90,6 @@ describe('applyUiStateToStore', () => {
         ...store.get().sectionsWidget,
         subscriptionUpdatingSections: { main: true },
       },
-      updatesActions: {
-        ...store.get().updatesActions,
-        singBoxInstall: { loading: true },
-      },
     });
 
     applyUiStateToStore(createUiState());
@@ -119,17 +99,14 @@ describe('applyUiStateToStore', () => {
     expect(state.diagnosticsActions.start.loading).toBe(false);
     expect(state.diagnosticsActions.enable.loading).toBe(true);
     expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
-    expect(state.updatesActions.singBoxInstall.loading).toBe(false);
   });
 
   it('keeps locally started actions loading until their owner clears them', () => {
-    setLocalComponentAction('singBoxInstall', true);
     setLocalSubscriptionAction('proxy', true);
     setLocalServiceAction('restart', true);
 
     applyUiStateToStore(createUiState());
 
-    expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);
     expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({
       proxy: true,
     });
@@ -138,7 +115,6 @@ describe('applyUiStateToStore', () => {
     clearLocalActionOverlay();
     applyUiStateToStore(createUiState());
 
-    expect(store.get().updatesActions.singBoxInstall.loading).toBe(false);
     expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({});
     expect(store.get().diagnosticsActions.restart.loading).toBe(false);
   });
@@ -209,73 +185,5 @@ describe('applyUiStateToStore', () => {
     );
 
     expect(store.get().servicesInfoWidget.data.forkopBusy).toBeNull();
-  });
-
-  it('keeps current sing-box package info while an update is running', () => {
-    store.set({
-      diagnosticsSystemInfo: {
-        ...store.get().diagnosticsSystemInfo,
-        capabilitiesLoaded: true,
-        sing_box_version: '1.13.14-extended-2.5.2-forkop.1',
-        sing_box_compressed: 1,
-        server_inbounds_enabled_count: 0,
-      },
-    });
-
-    applyUiStateToStore(
-      createUiState(
-        {
-          component: [
-            {
-              success: true,
-              running: true,
-              job_id: 'sing-box-install',
-              component: 'sing_box',
-              action: 'install',
-              message: 'Install is running',
-              current_version: '',
-              latest_version: '',
-              changed: false,
-            },
-          ],
-        },
-        {
-          server_inbounds_enabled_count: 2,
-        },
-      ),
-    );
-
-    expect(store.get().diagnosticsSystemInfo).toMatchObject({
-      capabilitiesLoaded: true,
-      sing_box_version: '1.13.14-extended-2.5.2-forkop.1',
-      sing_box_compressed: 1,
-      server_inbounds_enabled_count: 2,
-    });
-    expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);
-  });
-
-  it('marks the running sing-box install action without pretending it is installed', () => {
-    applyUiStateToStore(
-      createUiState({
-        component: [
-          {
-            success: true,
-            running: true,
-            job_id: 'sing-box-install',
-            component: 'sing_box',
-            action: 'install',
-            message: 'Install is running',
-            current_version: '',
-            latest_version: '',
-            changed: false,
-          },
-        ],
-      }),
-    );
-
-    expect(store.get().diagnosticsSystemInfo).toMatchObject({
-      sing_box_compressed: 0,
-    });
-    expect(store.get().updatesActions.singBoxInstall.loading).toBe(true);
   });
 });

@@ -1,17 +1,15 @@
 // The Forkop runtime and the order it comes up and goes down in: sing-box, the
 // nft table that steers traffic to it, the routing that table relies on, and the
-// workers that keep both current. Every action holds the lifecycle lock, which
-// the component manager takes as well.
+// workers that keep both current. Every action holds the lifecycle lock.
 //
 // A reload changes only what would come out different: the nft script is
 // compared with the one applied last, the sing-box configuration with the file
-// the service reads, the cron jobs with the crontab.
+// the service reads.
 
 let fs = require("fs");
 let common = require("core.common");
 let exec = require("core.exec");
 let constants = require("core.constants");
-let library = require("core.library");
 let netstat = require("core.netstat");
 let uci = require("core.uci");
 let validator = require("config.validator");
@@ -28,7 +26,6 @@ const CONFIG_NAME = "forkop";
 const RT_TABLE = constants.RT_TABLE_NAME;
 const NFT_TABLE = constants.NFT_TABLE_NAME;
 const FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
-const CRON_MARKER = "# forkop-component-update-check";
 const LOCK_TIMEOUT = 360;
 // A start watches a fresh sing-box long enough to see an early crash; a reload
 // only has to outlast the gap between the HUP and the ports dropping, measured at
@@ -39,7 +36,6 @@ const READY_HOLD = 2;
 const MAX_READY_WAIT = 300;
 const STOP_TIMEOUT = 15;
 const NOT_CAPTURING = "Forkop was not fully running after the nftables rules were applied";
-const CRON_FAILED = "Failed to write the component update check to the crontab";
 
 let paths = {
     config: "/etc/config/forkop",
@@ -170,29 +166,6 @@ function clash_controller_free() {
     return false;
 }
 
-function cron_program(args) {
-    return library.program("components/updates.uc", args);
-}
-
-function cron_current() {
-    let plan = exec.capture(cron_program([ "cron-refresh-plan", constants.FORKOP_BIN, CRON_MARKER ]));
-    if (plan.status != 0)
-        return false;
-    let wanted = map(filter(split(plan.stdout, "\n"), (line) => substr(line, 0, 10) == "component\t"), (line) => substr(line, 10));
-    let installed = filter(split(exec.output([ "crontab", "-l" ]) ?? "", "\n"), (line) => index(line, CRON_MARKER) >= 0);
-    return join("\n", wanted) == join("\n", installed);
-}
-
-function refresh_cron() {
-    return exec.run(cron_program([ "refresh-cron-from-uci", constants.FORKOP_BIN, CRON_MARKER ])) == 0;
-}
-
-// Only when there is one: a stop after a stop has nothing to remove.
-function remove_cron_jobs() {
-    if (index(exec.output([ "crontab", "-l" ]) ?? "", CRON_MARKER) >= 0)
-        exec.run(cron_program([ "remove-cron-jobs", CRON_MARKER ]));
-}
-
 function build_nft() {
     try {
         return nft.build();
@@ -238,7 +211,6 @@ function stop_runtime(keep_watcher) {
     if (!keep_watcher)
         watch.stop_worker();
     rulesets.stop_worker();
-    remove_cron_jobs();
     if (!cleanup_network())
         ok = false;
     if (((fs.stat(paths.sing_box_init)?.mode ?? 0) & 0111) != 0 && exec.run([ paths.sing_box_init, "stop" ]) != 0) {
@@ -291,10 +263,6 @@ function start_runtime() {
         return false;
     if (!clash_controller_free())
         return false;
-    if (!refresh_cron()) {
-        log("error", CRON_FAILED);
-        return false;
-    }
 
     if (!exec.ok([ paths.sing_box_init, "start" ])) {
         log("error", "Failed to start sing-box");
@@ -499,10 +467,6 @@ function reload_runtime(reason) {
         return 0;
     }
 
-    let cron_changed = !cron_current();
-    if (cron_changed && !refresh_cron())
-        return abort_reload(CRON_FAILED, false);
-
     let built = build_nft();
     if (built == null)
         return reload_failed(false);
@@ -552,7 +516,7 @@ function reload_runtime(reason) {
     if (worker_changed && !rulesets.start_worker())
         return abort_reload("Failed to start the rule-set sync worker", true);
 
-    if (nft_changed || config_changed || forced || worker_changed || cron_changed)
+    if (nft_changed || config_changed || forced || worker_changed)
         log("info", "Configuration applied");
     else
         log("info", "Configuration already applied; nothing changed");

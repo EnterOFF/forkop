@@ -28,7 +28,6 @@ import {
 } from '../src/forkop/methods/custom/getDashboardSections';
 import { FORKOP_WAIT_TIMEOUT_MS } from '../src/forkop/services/forkopWaitTransport';
 import { tunnelStorageSettings } from '../src/forkop/tabs/sections/tunnels/model';
-import { isCronExpressibleInterval } from '../src/forkop/tabs/settings/durations';
 import { AMNEZIA_PARAMETERS } from '../src/helpers/wireguard';
 
 const contract = JSON.parse(
@@ -86,18 +85,6 @@ describe('the tables the page carries', () => {
   it('describe an unset group option as the generator reads it', () => {
     expect(URLTEST_DEFAULTS).toEqual(contract.urltest_defaults);
     expect(FALLBACK_DEFAULTS).toEqual(contract.fallback_defaults);
-  });
-
-  // Cron is the update check's only schedule, so the settings form has to
-  // refuse exactly the intervals the backend writes no cron line for.
-  it('refuse an update interval cron cannot express', () => {
-    const { accepted, refused } = contract.cron_intervals;
-    expect(
-      accepted.filter((value) => !isCronExpressibleInterval(value)),
-    ).toEqual([]);
-    expect(refused.filter((value) => isCronExpressibleInterval(value))).toEqual(
-      [],
-    );
   });
 
   // The state service releases a parked request at its ceiling, so a reply

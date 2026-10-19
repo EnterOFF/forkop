@@ -427,15 +427,12 @@ function destinations(section) {
     return rule_config.destination_conditions(option(section, "destinations", ""));
 }
 
-// Which section a download is routed through. "components" falls back to the
-// lists section so one choice can cover both, which is what the settings form
-// offers. WARP profiles name their own section or none.
+// Which section a download is routed through: rule sets, remote lists and the
+// dashboards take the lists section, WARP profiles name their own or none.
 function download_via_proxy_flag_option(purpose) {
     purpose = as_string(purpose || "lists");
     if (purpose == "lists")
         return "download_lists_via_proxy";
-    if (purpose == "components")
-        return "download_components_via_proxy";
     if (purpose == "warp_profiles")
         return "warp_profiles_via_proxy";
     return "";
@@ -453,12 +450,6 @@ function download_via_proxy_section(settings, purpose) {
     purpose = as_string(purpose || "lists");
     if (purpose == "warp_profiles")
         return option(settings, "warp_profiles_via_proxy_section", "");
-    if (purpose == "components") {
-        let configured = option(settings, "download_components_via_proxy_section", "");
-        if (configured != "")
-            return configured;
-    }
-
     return option(settings, "download_lists_via_proxy_section", "");
 }
 

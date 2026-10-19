@@ -51,7 +51,7 @@ const mocks = vi.hoisted(() => {
       capabilities: {
         server_inbounds_enabled_count: 0,
       },
-      actions: { service: [], component: [] },
+      actions: { service: [] },
     } as unknown as Forkop.UiState,
   };
 });

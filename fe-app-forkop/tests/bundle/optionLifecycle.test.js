@@ -672,8 +672,6 @@ describe.each([
           dns_detour_section: 'target',
           download_lists_via_proxy: '1',
           download_lists_via_proxy_section: 'target',
-          download_components_via_proxy: '1',
-          download_components_via_proxy_section: 'target',
         },
       ],
       LIVE_SECTION,
@@ -690,7 +688,6 @@ describe.each([
     for (const name of [
       'dns_detour_section',
       'download_lists_via_proxy_section',
-      'download_components_via_proxy_section',
     ]) {
       expect(harness.uci.get('forkop', 'settings', name), name).toBe('target');
     }

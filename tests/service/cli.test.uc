@@ -21,10 +21,8 @@ t.test("start, stop, restart and reload go to the init script and return its sta
     t.eq(reload.commands, [ "/etc/init.d/forkop reload manual" ]);
 });
 
-t.test("a command that is still a program runs from the library with its arguments", () => {
-    t.eq(run([ "component_action", "sing_box", "update", "extra" ]).commands,
-        [ "env FORKOP_LIB=/lib ucode -L /lib /lib/components/action.uc component-action sing_box update" ],
-        "a command takes only the arguments it declares");
+t.test("a command takes only the arguments it declares", () => {
+    t.eq(run([ "reload", "manual", "extra" ]).commands, [ "/etc/init.d/forkop reload manual" ]);
 });
 
 t.test("a key material command answers the page with success and its fields, or with the reason", () => {
@@ -66,20 +64,11 @@ t.test("the log command answers an empty log with nothing, successfully", () => 
     t.eq([ some.result, some.stdout ], [ 0, "forkop: [info] up\n" ]);
 });
 
-t.test("the component commands reach the component manager programs", () => {
-    t.eq(run([ "component_action_async", "forkop", "update" ]).commands,
-        [ "env FORKOP_LIB=/lib ucode -L /lib /lib/components/updates.uc component-action-async forkop update" ]);
-    t.eq(run([ "component_action_status", "42-1" ]).commands,
-        [ "env FORKOP_LIB=/lib ucode -L /lib /lib/components/updates.uc component-action-status 42-1" ]);
-    t.eq(run([ "component_updates_if_due" ]).commands,
-        [ "env FORKOP_LIB=/lib ucode -L /lib /lib/components/updates.uc component-updates-if-due" ]);
-    t.eq(run([ "component_update_check_cache" ]).commands,
-        [ "env FORKOP_LIB=/lib ucode -L /lib /lib/components/updates.uc component-update-check-cache" ]);
-});
-
 t.test("an unknown or retired command prints the help and fails without running anything", () => {
     for (let name in [ "", "main", "get_sing_box_status", "service_action_status", "check_sing_box_logs", "check_nft",
-        "generate_server_certificate", "get_tls_certificate_sha256", "generate_ssh_host_key" ]) {
+        "generate_server_certificate", "get_tls_certificate_sha256", "generate_ssh_host_key",
+        "component_action", "component_action_async", "component_action_status", "component_updates_if_due",
+        "component_update_check_cache" ]) {
         let result = run([ name ]);
         t.eq(result.result, 1, name);
         t.eq(result.commands, [], name);
@@ -90,7 +79,7 @@ t.test("an unknown or retired command prints the help and fails without running 
 t.test("the help lists the public commands and hides the package hooks", () => {
     let help = run([ "help" ]).stdout;
     t.contains(help, "    get_ui_state");
-    t.contains(help, "    component_action <component> <action>");
+    t.contains(help, "    ui_action_ack <job>");
     t.excludes(help, "package_postinst");
     t.excludes(help, "sing_box_crash_cleanup");
 });

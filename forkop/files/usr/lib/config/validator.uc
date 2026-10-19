@@ -1217,7 +1217,6 @@ function validate_server_listen_ports() {
         as_string(singbox_constants.SYSTEM_DNS_INBOUND_PORT),
         as_string(singbox_constants.DNS_INBOUND_PORT),
         as_string(singbox_constants.SERVICE_MIXED_INBOUND_PORT),
-        as_string(singbox_constants.COMPONENTS_MIXED_INBOUND_PORT),
         as_string(singbox_constants.WARP_PROFILES_MIXED_INBOUND_PORT),
         as_string(singbox_constants.CLASH_API_CONTROLLER_PORT)
     ])
@@ -1697,7 +1696,7 @@ function validate_runtime_config(context) {
         fail_validation("The sing-box API is enabled, but 'API secret' in Settings is empty");
     validate_http_url_option(option(settings, "latency_test_url", DEFAULT_LATENCY_TEST_URL) || DEFAULT_LATENCY_TEST_URL, "'Latency test URL' in Settings");
 
-    for (let purpose in [ "lists", "components", "warp_profiles" ])
+    for (let purpose in [ "lists", "warp_profiles" ])
         if (connections.download_via_proxy_enabled(settings, purpose))
             validate_download_section(sections, connections.download_via_proxy_section(settings, purpose));
     if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
@@ -1749,7 +1748,7 @@ function check_requirements() {
     if (sing_box_version == "")
         die("Failed to read sing-box-forkop version. Reinstall sing-box-forkop");
     else if (!core_version.version_at_least(sing_box_version, ctx.sing_box_required_version))
-        die("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update it from Forkop Components");
+        die("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update sing-box-forkop");
 
     if (ctx.core_tags == null)
         die("Failed to read the tags sing-box was built with from 'sing-box version'. Reinstall sing-box-forkop");

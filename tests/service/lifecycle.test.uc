@@ -48,8 +48,6 @@ function reset(options) {
         capture: true,
         script: "table inet ForkopTable\n",
         config_changed: false,
-        cron_installed: "",
-        cron_wanted: "",
         slept: 0,
         // What the core does on its own between two looks of a wait.
         on_sleep: null,
@@ -147,11 +145,7 @@ function reset(options) {
             if (!world.table_delete_fails)
                 world.network = false;
             return { status: world.table_delete_fails ? 1 : 0 };
-        } ],
-        [ /cron-refresh-plan/, () => ({ stdout: world.cron_wanted == "" ? "" : "component\t" + world.cron_wanted + "\n" }) ],
-        [ "crontab -l", () => ({ stdout: world.cron_installed == "" ? "" : world.cron_installed + "\n" }) ],
-        [ /refresh-cron-from-uci/, () => { event("cron refreshed"); world.cron_installed = world.cron_wanted; return { status: world.cron_fails ? 1 : 0 }; } ],
-        [ /remove-cron-jobs/, () => { event("cron removed"); world.cron_installed = ""; return {}; } ]
+        } ]
     ]);
 }
 
@@ -196,7 +190,7 @@ t.test("a start answers only once sing-box is ready, then turns the table on, th
     reset();
     let result = run(() => lifecycle.start());
     t.eq(result.result, 0);
-    t.eq(world.events, [ "firewall opened", "config checked", "cron refreshed", "sing-box started", "nft applied", "watcher started", "rule-set worker started" ]);
+    t.eq(world.events, [ "firewall opened", "config checked", "sing-box started", "nft applied", "watcher started", "rule-set worker started" ]);
     t.eq(fs.readfile(lifecycle.paths.applied_nft), world.script, "the applied table is recorded");
     t.eq(world.logs, [ "[info] Starting Forkop", "[info] Forkop started" ]);
     t.eq(result.stdout, "", "a start prints nothing");
@@ -252,7 +246,6 @@ t.test("a start refuses to run a second sing-box", () => {
 t.test("each failed step of a start names itself in the log as an error", () => {
     for (let failure in [
         [ { bridge_fails: true }, "Failed to disable bridge netfilter for transparent proxying" ],
-        [ { cron_fails: true }, "Failed to write the component update check to the crontab" ],
         [ { watcher_fails: true }, "Failed to start the sing-box crash watcher" ],
         [ { ruleset_fails: true }, "Failed to start the rule-set sync worker" ],
         [ { requirements_fail: true }, "requirements" ],
@@ -358,15 +351,6 @@ t.test("a reload of a runtime that is not complete restarts it", () => {
     t.contains(world.events, "nft applied");
 });
 
-t.test("a cron schedule that moved is refreshed, and one that did not is left alone", () => {
-    let line = "0 */6 * * * /usr/bin/forkop component_updates_if_due # forkop-component-update-check";
-    reloaded({ cron_wanted: line, cron_installed: "" });
-    t.contains(world.events, "cron refreshed");
-    t.contains(world.logs, "[info] Configuration applied");
-    reloaded({ cron_wanted: line, cron_installed: line });
-    t.eq(filter(world.events, (e) => e == "cron refreshed"), []);
-});
-
 t.test("a configuration changed while a reload ran queues another one", () => {
     running({ config_changed: true });
     runtime.write_config = (checked) => {
@@ -377,13 +361,11 @@ t.test("a configuration changed while a reload ran queues another one", () => {
     t.matches(fs.readfile(lifecycle.paths.pending_reload), /^reason=config_changed_during_reload\n/);
 });
 
-const CRON_LINE = "0 0 * * * /usr/bin/forkop component_updates_if_due # forkop-component-update-check";
-
 t.test("a stop marks itself planned, closes the ports and takes everything down", () => {
-    running({ cron_installed: CRON_LINE });
+    running();
     let result = run(() => lifecycle.stop());
     t.eq(result.result, 0);
-    t.eq(world.events, [ "firewall closed", "watcher stopped", "rule-set worker stopped", "cron removed", "nft table deleted", "sing-box stopped" ]);
+    t.eq(world.events, [ "firewall closed", "watcher stopped", "rule-set worker stopped", "nft table deleted", "sing-box stopped" ]);
     t.ok(fs.stat(lifecycle.paths.planned_stop) != null);
     t.ok(fs.stat(lifecycle.paths.applied_nft) == null, "no table is recorded once it is gone");
 });
@@ -541,7 +523,6 @@ t.test("a stop is reported from its start to its end, and a stop with nothing ru
     reset();
     t.eq(run(() => lifecycle.stop()).result, 0);
     t.eq(world.logs, [], "the stop of an upgrade after the one of the installer");
-    t.eq(filter(world.events, (e) => e == "cron removed"), [], "and no cron job to remove");
 });
 
 t.test("a forced reload says what set it off", () => {

@@ -137,19 +137,10 @@ t.test("the service runs the generated file as root, committed only when somethi
     stub.restore();
 });
 
-t.test("the component manager downloads through the mixed inbound only when a section is chosen for components", () => {
-    fixture.seed({ settings: { download_lists_via_proxy: "1", download_lists_via_proxy_section: "main" } });
-    t.eq(runtime.components_proxy_address(), "", "components have a switch of their own");
-    fixture.seed({ settings: { download_components_via_proxy: "1", download_lists_via_proxy_section: "main" } });
-    t.eq(runtime.components_proxy_address(), "127.0.0.1:4535");
-    fixture.seed({ settings: {} });
-    t.eq(runtime.components_proxy_address(), "");
-});
-
-t.test("the core version is the compressed package's first, with the release spelling", () => {
+t.test("the core version is the package's, with the release spelling", () => {
     let dir = stub.tmpdir();
     packages.paths.opkg_status = dir + "/status";
-    fs.writefile(packages.paths.opkg_status, "Package: sing-box-forkop-compressed\nVersion: 1.13.14~extended~2.5.3~f1\nStatus: install ok installed\n");
+    fs.writefile(packages.paths.opkg_status, "Package: sing-box-forkop\nVersion: 1.13.14~extended~2.5.3~f1\nStatus: install ok installed\n");
     packages.paths.sing_box_version = dir + "/missing";
     stub.commands([ [ "sh -c command -v apk", { status: 1 } ] ]);
     t.eq(runtime.version(), "1.13.14-extended-2.5.3-f1");

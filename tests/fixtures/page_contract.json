@@ -1,5 +1,5 @@
 {
-  "reserved_ports": [53, 1602, 1603, 1604, 1605, 4534, 4535, 4536, 9090],
+  "reserved_ports": [53, 1602, 1603, 1604, 1605, 4534, 4536, 9090],
   "reserved_tags": [
     "bootstrap-dns-server",
     "direct-out",
@@ -10,7 +10,6 @@
     "fakeip-ruleset-dns-rule-tag",
     "fakeip-server",
     "hosts-server",
-    "service-components-in",
     "service-fakeip-dns-rule-tag",
     "service-mixed-in",
     "service-warp-in",
@@ -136,10 +135,6 @@
     "warp_auth_token": "warp_profile_auth_token",
     "warp_license_key": "warp_profile_license_key",
     "warp_private_key": "warp_profile_private_key"
-  },
-  "cron_intervals": {
-    "accepted": ["1m", "2m", "30m", "45m", "59m", "60m", "1h", "2h", "7h", "12h", "23h", "24h", "1d", "1440m"],
-    "refused": ["90m", "61m", "2d", "36h", "25h", "1h30m", "30s", "500ms", "0m", "1w"]
   },
   "link_features": [
     ["hy2://secret@example.com:443?sni=example.com#h", ["quic"]],
