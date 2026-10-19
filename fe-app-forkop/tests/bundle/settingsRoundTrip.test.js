@@ -546,8 +546,6 @@ describe('a value behind a switch that is off', () => {
       native_api_secret: 'api-secret',
       list_update_enabled: '0',
       update_interval: '6h',
-      dns_optimistic: '0',
-      dns_optimistic_timeout: '12h',
     });
     const map = new harness.form.Map('forkop');
     const section = map.section(harness.form.NamedSection, 'settings');
@@ -560,7 +558,6 @@ describe('a value behind a switch that is off', () => {
       ['yacd_secret_key', 'yacd-secret'],
       ['native_api_secret', 'api-secret'],
       ['update_interval', '6h'],
-      ['dns_optimistic_timeout', '12h'],
     ])
       expect(harness.uci.get('forkop', 'settings', name), name).toBe(value);
   });

@@ -10,13 +10,13 @@ function openvpn(settings, endpoint) {
         ping_interval: "10s", ping_restart: "60s"
     };
     return {
-        settings: { dns_timeout: "4s", dns_optimistic: "1", dns_optimistic_timeout: "2h", service_listen_address: "127.0.0.1", ...(settings ?? {}) },
+        settings: { dns_timeout: "4s", service_listen_address: "127.0.0.1", ...(settings ?? {}) },
         section: [ { ".name": "vpn", enabled: "1", action: "connection", user_domains: "example.test" } ],
         tunnel: [ { ".name": "openvpn", section: "vpn", kind: "openvpn-client", name: "OpenVPN", endpoint_json: sprintf("%J", endpoint) } ]
     };
 }
 
-t.test("a 1.14 OpenVPN endpoint and optimistic DNS pass", () => {
+t.test("a 1.14 OpenVPN endpoint and DNS timeout pass", () => {
     v.accepts(openvpn());
 });
 

@@ -25831,24 +25831,6 @@ function addDnsOptions(section) {
   o.rmempty = false;
   o.validate = (_sectionId, value) => validateRequiredSingBoxDuration(value);
   o = section.option(
-    form.Flag,
-    "dns_optimistic",
-    _("Optimistic DNS cache"),
-    _("Serve expired DNS answers while refreshing them in the background")
-  );
-  o.default = "0";
-  o.rmempty = false;
-  o = section.option(
-    form.Value,
-    "dns_optimistic_timeout",
-    _("Maximum age of expired DNS answers")
-  );
-  o.default = "3d";
-  o.rmempty = false;
-  o.depends("dns_optimistic", "1");
-  o.retain = true;
-  o.validate = (_sectionId, value) => validateRequiredSingBoxDuration(value);
-  o = section.option(
     form.ListValue,
     "unmatched_dns_mode",
     _("DNS outside the rules"),

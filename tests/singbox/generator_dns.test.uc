@@ -142,13 +142,13 @@ t.test("router mode hands every unmatched client query back to the local resolve
     t.eq(q.dns_rule(config, (r) => r.server == "dnsmasq-server" && r.domain_regex == "^[^.]+$"), null, "there is no local zone to carve out");
 });
 
-t.test("DNS timeout and optimistic answers reach the core as configured", () => {
+t.test("DNS timeout reaches the core as configured", () => {
     let config = build({
-        settings: { dns_server: [ "1.1.1.1" ], bootstrap_dns_server: [ "1.1.1.1" ], dns_timeout: "4s", dns_optimistic: "1", dns_optimistic_timeout: "2h" },
+        settings: { dns_server: [ "1.1.1.1" ], bootstrap_dns_server: [ "1.1.1.1" ], dns_timeout: "4s" },
         section: [ { ".name": "direct", enabled: "1", action: "bypass", destinations: "example.org" } ]
     });
     t.eq(config.dns.timeout, "4s");
-    t.eq(config.dns.optimistic, { enabled: true, timeout: "2h" });
+    t.eq(config.dns.optimistic, null);
     t.eq(config.dns.independent_cache, null);
     t.eq(config.experimental.cache_file.store_subscriptions, true);
 });

@@ -295,11 +295,7 @@ function base_config(settings, service_address, runtime_context) {
             rules: dns_rules,
             final: runtime_constants.DNS_SERVER_TAG,
             strategy: option(settings, "dns_strategy", "prefer_ipv4"),
-            timeout: option(settings, "dns_timeout", "10s"),
-            optimistic: bool_option(settings, "dns_optimistic", false) ? {
-                enabled: true,
-                timeout: option(settings, "dns_optimistic_timeout", "3d")
-            } : false
+            timeout: option(settings, "dns_timeout", "10s")
         },
         endpoints: [],
         inbounds,

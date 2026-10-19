@@ -281,8 +281,6 @@ function dns_setting_values(settings, key) {
 
 function validate_dns_settings(settings, sections, context) {
     validate_required_duration_option(option(settings, "dns_timeout", "10s"), "'DNS timeout' in Settings");
-    if (bool_option(settings, "dns_optimistic", false))
-        validate_required_duration_option(option(settings, "dns_optimistic_timeout", "3d"), "'Maximum age of expired DNS answers' in Settings");
     let dns_strategy = option(settings, "dns_strategy", "prefer_ipv4");
     if (!contains([ "prefer_ipv4", "ipv4_only", "prefer_ipv6", "ipv6_only" ], dns_strategy))
         fail_validation("Unsupported DNS strategy '" + dns_strategy + "'. Use prefer_ipv4, ipv4_only, prefer_ipv6, or ipv6_only");

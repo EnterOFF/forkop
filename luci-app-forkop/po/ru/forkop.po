@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 03:32+0300\n"
-"PO-Revision-Date: 2026-10-19 03:32+0300\n"
+"POT-Creation-Date: 2026-10-19 03:39+0300\n"
+"PO-Revision-Date: 2026-10-19 03:39+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1331,9 +1331,6 @@ msgstr "Макс. скорость от клиента, Мбит/с"
 msgid "Max speed to a client, Mbps"
 msgstr "Макс. скорость к клиенту, Мбит/с"
 
-msgid "Maximum age of expired DNS answers"
-msgstr "Максимальный возраст устаревших ответов DNS"
-
 msgid "Maximum handshake attempts"
 msgstr "Максимум попыток рукопожатия"
 
@@ -1522,9 +1519,6 @@ msgstr "Открывает порт в файерволе роутера для 
 
 msgid "Operation timed out"
 msgstr "Время ожидания истекло"
-
-msgid "Optimistic DNS cache"
-msgstr "Оптимистический кеш DNS"
 
 msgid "Option \"%s\" contains an invalid input value."
 msgstr "Параметр \"%s\" содержит некорректное значение."
@@ -1909,9 +1903,6 @@ msgstr "Пропускать торрент-трафик мимо прокси"
 
 msgid "Sequential"
 msgstr "Последовательно"
-
-msgid "Serve expired DNS answers while refreshing them in the background"
-msgstr "Возвращать устаревшие ответы DNS, обновляя их в фоне"
 
 msgid "Server"
 msgstr "Сервер"
