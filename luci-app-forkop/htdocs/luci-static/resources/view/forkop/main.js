@@ -811,6 +811,29 @@ function renderGaugeIcon24() {
   );
 }
 
+// src/icons/renderFolderOpenIcon24.ts
+function renderFolderOpenIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-folder-open-icon lucide-folder-open"
+    },
+    [
+      svgEl("path", {
+        d: "m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"
+      })
+    ]
+  );
+}
+
 // src/helpers/isCopyableProxyLink.ts
 var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
 function isCopyableProxyLink(link) {
@@ -13711,18 +13734,21 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
         );
         const action = options.secondaryAction;
         return action ? [
-          textE("span", {}, [
-            textE(
-              "button",
-              {
-                class: "btn cbi-button cbi-button-neutral",
-                click: () => action.run(save)
-              },
-              action.label
-            ),
-            " ",
-            saveButton
-          ])
+          textE(
+            "span",
+            {
+              style: "display: inline-flex; align-items: center; gap: 4px"
+            },
+            [
+              renderButton({
+                classNames: ["cbi-button", "cbi-button-neutral"],
+                icon: action.icon,
+                text: action.label,
+                onClick: () => action.run(save)
+              }),
+              saveButton
+            ]
+          )
         ] : [saveButton];
       })()
     );
@@ -21591,6 +21617,7 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
       // files it names can be selected with it or after it.
       secondaryAction: {
         label: _("From a file\u2026"),
+        icon: renderFolderOpenIcon24,
         run: (save) => pickFiles(
           true,
           (selected) => readFiles(selected).then((files) => {

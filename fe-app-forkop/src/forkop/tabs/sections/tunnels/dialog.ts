@@ -48,6 +48,7 @@ import {
 } from '../../../../helpers/parseOpenConnectConfig';
 import { pickFiles, readMaterialFile } from '../../../cbi/material';
 import { showToast } from '../../../../helpers/showToast';
+import { renderFolderOpenIcon24 } from '../../../../icons';
 import {
   looksLikeOpenVPNConfig,
   parseOpenVPNConfig,
@@ -375,6 +376,7 @@ function showTunnelImportModal(
       // files it names can be selected with it or after it.
       secondaryAction: {
         label: _('From a file…'),
+        icon: renderFolderOpenIcon24,
         run: (save) =>
           pickFiles(true, (selected) =>
             readFiles(selected).then((files) => {

@@ -254,6 +254,7 @@ declare global {
     // decides when to run it.
     secondaryAction?: {
       label: string;
+      icon?: () => SVGSVGElement;
       run: (save: () => Promise<unknown>) => void;
     };
   }

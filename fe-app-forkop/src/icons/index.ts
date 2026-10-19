@@ -22,3 +22,4 @@ export * from './renderListFilterIcon24';
 export * from './renderPinIcon24';
 export * from './renderChevronUpIcon24';
 export * from './renderGaugeIcon24';
+export * from './renderFolderOpenIcon24';

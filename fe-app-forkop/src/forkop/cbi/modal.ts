@@ -13,6 +13,7 @@ import {
 import { setDynamicListItemValue } from './listItems';
 import { E } from '../../helpers/element';
 import { showToast } from '../../helpers/showToast';
+import { renderButton } from '../../partials';
 
 // LuCI keeps a dialog open when its save is refused and says nothing. A field
 // whose widget checks its own value is already marked, and its tab counts it;
@@ -216,21 +217,26 @@ export function renderStackedJsonSettingsModal(
         );
         const action = options.secondaryAction;
         // The theme spreads the items of the row apart, so two buttons meant to
-        // sit together on its right are one item of it.
+        // sit together on its right are one item of it. That item lines them up
+        // itself: on a line of text a button with an icon is aligned by the
+        // icon's baseline and stood 4px above the save button beside it.
         return action
           ? [
-              E('span', {}, [
-                E(
-                  'button',
-                  {
-                    class: 'btn cbi-button cbi-button-neutral',
-                    click: () => action.run(save),
-                  },
-                  action.label,
-                ),
-                ' ',
-                saveButton,
-              ]),
+              E(
+                'span',
+                {
+                  style: 'display: inline-flex; align-items: center; gap: 4px',
+                },
+                [
+                  renderButton({
+                    classNames: ['cbi-button', 'cbi-button-neutral'],
+                    icon: action.icon,
+                    text: action.label,
+                    onClick: () => action.run(save),
+                  }),
+                  saveButton,
+                ],
+              ),
             ]
           : [saveButton];
       })(),
