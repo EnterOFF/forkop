@@ -265,7 +265,7 @@ function lines(value: string) {
 
 function number(value: string | undefined, directive: string) {
   if (!/^\d+$/.test(`${value ?? ''}`)) {
-    fail(_('%s needs a whole number').format(directive));
+    fail(_('%s: needs a whole number').format(directive));
   }
   return Number(value);
 }
@@ -273,7 +273,7 @@ function number(value: string | undefined, directive: string) {
 function port(value: string | undefined, directive: string) {
   const result = number(value, directive);
   if (result < 1 || result > 65535) {
-    fail(_('%s has an invalid port %s').format(directive, value));
+    fail(_('%s: invalid port %s').format(directive, value));
   }
   return result;
 }
@@ -285,9 +285,7 @@ function transport(value: string | undefined, directive: string) {
   if (/^tcp[46]?-server$/.test(proto)) {
     fail(_('This is a server configuration, not a client profile'));
   }
-  return fail(
-    _('%s names an unsupported protocol %s').format(directive, value),
-  );
+  return fail(_('%s: unsupported protocol %s').format(directive, value));
 }
 
 // OpenVPN reads cipher and digest names in any case; the core takes them in
@@ -358,21 +356,21 @@ function material(state: State, directive: Directive, kind: MaterialKind) {
     if (!reference || isInlineReference(reference)) {
       content = state.blocks.get(directive.name);
       if (content == null) {
-        fail(_('The profile names no content for %s').format(directive.name));
+        fail(_('%s is empty').format(directive.name));
       }
     } else {
       content = state.files[basename(reference)];
       if (content == null) {
         fail(
-          _(
-            'The profile refers to the file %s. Select it together with the profile',
-          ).format(basename(reference)),
+          _('Missing file %s: select it together with the profile').format(
+            basename(reference),
+          ),
         );
       }
     }
   }
   const check = checkMaterial(kind, content.trim());
-  if (!check.valid) fail(`${directive.name}: ${check.message}`);
+  if (check !== true) fail(`${directive.name}: ${check}`);
   return content.trim();
 }
 
@@ -385,7 +383,7 @@ function inlineDirection(directive: Directive) {
 
 function addRemote(state: State, directive: Directive, network: string) {
   const [server, remotePort, proto] = directive.args;
-  if (!server) fail(_('remote names no server'));
+  if (!server) fail(_('remote: no server'));
   if (remotePort != null) port(remotePort, 'remote');
   state.remotes.push({
     server,
@@ -418,7 +416,7 @@ function readCompression(state: State, directive: Directive) {
   if (directive.name === 'comp-lzo') {
     const mode = `${directive.args[0] || 'adaptive'}`.toLowerCase();
     if (!['yes', 'no', 'adaptive'].includes(mode)) {
-      fail(_('comp-lzo has an unsupported mode %s').format(directive.args[0]));
+      fail(_('comp-lzo: unsupported mode %s').format(directive.args[0]));
     }
     endpoint.compression_lzo = mode;
     return;
@@ -428,9 +426,7 @@ function readCompression(state: State, directive: Directive) {
   else if (['lz4', 'lz4-v2', 'stub', 'stub-v2'].includes(algorithm)) {
     endpoint.compression = algorithm;
   } else if (algorithm !== 'migrate') {
-    fail(
-      _('compress has an unsupported algorithm %s').format(directive.args[0]),
-    );
+    fail(_('compress: unsupported algorithm %s').format(directive.args[0]));
   }
 }
 
@@ -446,20 +442,12 @@ function readDirective(state: State, directive: Directive) {
     fail(_('This is a server configuration, not a client profile'));
   }
   if (OS_KEY_DIRECTIVES.has(name)) {
-    fail(
-      _(
-        'The key of this profile is kept by the operating system or a token and cannot be exported to the router',
-      ),
-    );
+    fail(_('The key is kept by the system or a token and cannot be exported'));
   }
   switch (name) {
     case 'dev':
       if (/^tap/i.test(args[0] || '')) {
-        fail(
-          _(
-            'The profile uses a TAP (layer 2) device. Only TUN profiles are supported',
-          ),
-        );
+        fail(_('TAP (layer 2) is not supported, only TUN'));
       }
       return;
     case 'proto':
@@ -494,15 +482,13 @@ function readDirective(state: State, directive: Directive) {
     case 'pkcs12':
       fail(
         _(
-          'The profile keeps its certificate in a PKCS#12 bundle. Export the certificate and the key as PEM files',
+          'PKCS#12 is not supported: export the certificate and the key as PEM',
         ),
       );
       return;
     case 'askpass':
       fail(
-        _(
-          'The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem',
-        ),
+        _('Remove the key passphrase: openssl pkey -in key.pem -out plain.pem'),
       );
       return;
     case 'tls-auth':
@@ -535,10 +521,10 @@ function readDirective(state: State, directive: Directive) {
       state.login = directive;
       return;
     case 'verify-x509-name': {
-      if (!args[0]) fail(_('verify-x509-name names no certificate name'));
+      if (!args[0]) fail(_('verify-x509-name: no name'));
       const type = `${args[1] || 'subject'}`.toLowerCase();
       if (!['subject', 'name', 'name-prefix'].includes(type)) {
-        fail(_('verify-x509-name has an unsupported type %s').format(args[1]));
+        fail(_('verify-x509-name: unsupported type %s').format(args[1]));
       }
       tls.server_name = args[0];
       tls.server_name_type = type;
@@ -572,7 +558,7 @@ function readDirective(state: State, directive: Directive) {
         !fingerprints.length ||
         fingerprints.some((value) => !/^[0-9a-f]{64}$/.test(value))
       ) {
-        fail(_('peer-fingerprint needs SHA-256 fingerprints'));
+        fail(_('peer-fingerprint: SHA-256 only'));
       }
       tls.peer_fingerprint = fingerprints;
       return;
@@ -637,7 +623,7 @@ function readDirective(state: State, directive: Directive) {
       return;
     case 'ifconfig': {
       const length = netmaskLength(args[1]);
-      if (!args[0] || !args[1]) fail(_('ifconfig needs two addresses'));
+      if (!args[0] || !args[1]) fail(_('ifconfig: needs two addresses'));
       if (length >= 0 && length < 31) {
         state.addresses.push(`${args[0]}/${length}`);
       } else {
@@ -647,7 +633,7 @@ function readDirective(state: State, directive: Directive) {
       return;
     }
     case 'ifconfig-ipv6':
-      if (!args[0]) fail(_('ifconfig-ipv6 needs an address'));
+      if (!args[0]) fail(_('ifconfig-ipv6: needs an address'));
       state.addresses.push(args[0].includes('/') ? args[0] : `${args[0]}/128`);
       state.peerAddress6 = args[1] || '';
       return;
@@ -716,7 +702,7 @@ function finishStaticKey(state: State) {
     fail(_('A static key profile needs a CBC cipher'));
   }
   if (!state.addresses.length) {
-    fail(_('A static key profile needs its tunnel addresses (ifconfig)'));
+    fail(_('A static key profile needs ifconfig'));
   }
   endpoint.address = state.addresses;
   if (state.peerAddress) endpoint.peer_address = state.peerAddress;
@@ -735,13 +721,11 @@ function finishStaticKey(state: State) {
 function finishTls(state: State) {
   const { endpoint, tls } = state;
   if (!tls.certificate && !tls.peer_fingerprint) {
-    fail(_('The profile has no CA certificate (ca) to check the server by'));
+    fail(_('No CA certificate (ca)'));
   }
   if (!tls.client_certificate !== !tls.client_key) {
     fail(
-      tls.client_certificate
-        ? _('The profile has a client certificate but no key for it')
-        : _('The profile has a client key but no certificate for it'),
+      tls.client_certificate ? _('cert without key') : _('key without cert'),
     );
   }
   if (tls.extra_certificates) {
@@ -841,7 +825,7 @@ function buildEndpoint(input: string, files: OpenVPNFiles) {
   if (!state.remotes.length) {
     fail(
       looksLikeOpenVPNConfig(input)
-        ? _('The profile names no server: it has no remote directive')
+        ? _('No remote directive')
         : _('This is not an OpenVPN profile'),
     );
   }

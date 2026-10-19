@@ -139,7 +139,7 @@ export function missingFilterSelectionMessage(
       ).length > 0,
   )
     ? null
-    : _('Select at least one server or set a pattern');
+    : _('Select a server or set a pattern');
 }
 
 export function addServerFilterOptions(

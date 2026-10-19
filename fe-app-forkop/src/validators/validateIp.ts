@@ -1,4 +1,5 @@
-import { ValidationResult } from './types';
+import { message } from './messages';
+import { Check } from './types';
 
 export function isIPv4(ip: string): boolean {
   const ipRegex =
@@ -20,10 +21,6 @@ export function isIPv6(ip: string): boolean {
   }
 }
 
-export function validateIP(ip: string): ValidationResult {
-  if (isIPv4(ip) || isIPv6(ip)) {
-    return { valid: true, message: _('Valid') };
-  }
-
-  return { valid: false, message: _('Invalid IP address') };
+export function validateIP(ip: string): Check {
+  return isIPv4(ip) || isIPv6(ip) ? true : message.invalidIp();
 }

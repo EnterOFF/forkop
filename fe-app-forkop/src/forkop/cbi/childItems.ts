@@ -5,6 +5,7 @@ import {
   setDynamicListItemValue,
 } from './listItems';
 import { normalizeDynamicListItems } from './listValues';
+import { required } from './required';
 
 // A section id stays in the config for good, so it names the type it belongs to.
 // LuCI's createSID() is not that name: its "new" prefix marks a section the browser
@@ -358,11 +359,7 @@ export function cleanupRemovedChildItems(
 export function childItemNameCheck(dialog: {
   validateName?: ChildItemNameValidator;
 }) {
-  return function (_itemId: string, value: unknown) {
-    return `${value || ''}`.trim()
-      ? (dialog.validateName?.(value) ?? true)
-      : _('Enter a display name');
-  };
+  return required((_itemId, value) => dialog.validateName?.(value) ?? true);
 }
 
 // A child item list whose order matters - fallback levels are tried in order,

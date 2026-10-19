@@ -124,12 +124,12 @@ describe('server client names', () => {
   it('rejects an empty, over-long or unprintable name', () => {
     const { clients } = load({ srv: { protocol: 'trojan' } });
 
-    expect(clients.validateClientName('srv', '')).toMatch(/required/);
+    expect(clients.validateClientName('srv', '')).toBe('Required');
     expect(clients.validateClientName('srv', 'a'.repeat(65))).toMatch(/64/);
     expect(clients.validateClientName('srv', 'Дом')).toBe(true);
     expect(
       clients.validateClientName('srv', `a${String.fromCharCode(7)}b`),
-    ).toMatch(/control/);
+    ).toBe('Control characters are not allowed');
   });
 
   it('requires an account-safe name where the protocol sends it on the wire', () => {
@@ -245,7 +245,7 @@ describe('saving the client list', () => {
   it('asks for at least one client', () => {
     const { clients } = load({ srv: { protocol: 'trojan' } });
 
-    expect(clients.validateClientsOnSave('srv', [])).toMatch(/at least one/);
+    expect(clients.validateClientsOnSave('srv', [])).toBe('Required');
   });
 
   it('reports a client whose credential is missing', () => {
@@ -266,8 +266,8 @@ describe('saving the client list', () => {
       ...client('two', 'srv', { name: 'Client #1', password: 'b' }),
     });
 
-    expect(clients.validateClientsOnSave('srv', ['one', 'two'], {})).toMatch(
-      /unique/,
+    expect(clients.validateClientsOnSave('srv', ['one', 'two'], {})).toBe(
+      'Client #1: Name already taken',
     );
   });
 

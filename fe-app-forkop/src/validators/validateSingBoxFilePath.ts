@@ -1,4 +1,4 @@
-import { ValidationResult } from './types';
+import { Check } from './types';
 import { validatePath } from './validatePath';
 
 // Both sing-box file paths are write targets the user picks: the generated
@@ -9,27 +9,17 @@ import { validatePath } from './validatePath';
 export function validateSingBoxFilePath(
   value: string,
   fileName: string,
-): ValidationResult {
+): Check {
   const path = validatePath(value);
-  if (!path.valid) {
+  if (path !== true) {
     return path;
   }
 
   if (!value.endsWith(fileName)) {
-    return {
-      valid: false,
-      message: _('Path must end with %s').replace('%s', fileName),
-    };
+    return _('Path must end with %s').format(fileName);
   }
 
-  if (value.split('/').filter(Boolean).length < 2) {
-    return {
-      valid: false,
-      message: _(
-        'Path must contain at least one directory (like /tmp/%s)',
-      ).replace('%s', fileName),
-    };
-  }
-
-  return { valid: true, message: _('Valid') };
+  return value.split('/').filter(Boolean).length < 2
+    ? _('Format: %s').format(`/tmp/${fileName}`)
+    : true;
 }

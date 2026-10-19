@@ -1,4 +1,5 @@
 import { DETOUR_TARGET_ACTIONS, FORKOP_UCI_PACKAGE } from '../../../constants';
+import { parseCommentAwareListTokens } from '../../cbi/annotatedTextarea';
 import { normalizeDynamicListItems } from '../../cbi/listValues';
 import { modalOptionFormValue } from '../../cbi/modal';
 import { getUciSectionLabel, getUciSectionName } from '../../cbi/uci';
@@ -18,6 +19,24 @@ export function missingConnectionOutbound(
       normalizeDynamicListItems(
         modalOptionFormValue(modalMap, section_id, optionName),
       ).length > 0,
+  );
+}
+
+// A DNS section answers the queries for the domains it names, or every query of
+// the devices it takes whole; one with neither has nothing to answer, and the
+// backend refuses it.
+export function missingDnsMatcher(modalMap: CBIMap, section_id: string) {
+  if (modalOptionFormValue(modalMap, section_id, 'action') !== 'dns') {
+    return false;
+  }
+
+  const value = (name: string) =>
+    modalOptionFormValue(modalMap, section_id, name);
+  return (
+    !parseCommentAwareListTokens(value('_dns_destinations')).length &&
+    !['community_lists', '_dns_rule_set', 'fully_routed_ips'].some(
+      (name) => normalizeDynamicListItems(value(name)).length > 0,
+    )
   );
 }
 

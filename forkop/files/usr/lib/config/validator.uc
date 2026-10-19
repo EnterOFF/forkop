@@ -175,9 +175,8 @@ function validate_subscription_tags(section) {
 }
 
 // A link's server runs under the name the link stores, which groups and filters
-// refer to, so every link has one. An http:// or https:// address is refused: it
-// is almost always a subscription in the wrong field, and an HTTP proxy, which
-// carries no UDP, is a JSON outbound.
+// refer to, so every link has one. An http:// or https:// address is no link
+// the core dials.
 function validate_connection_links(section) {
     for (let link in connections.connection_link_items(section)) {
         let link_name = option(link, "name", "");
@@ -185,8 +184,7 @@ function validate_connection_links(section) {
         if (trim(option(link, "uri", "")) == "")
             fail_validation("A link in section '" + section_label(section) + "' is empty. Paste the link in its settings");
         if (scheme == "http" || scheme == "https")
-            fail_validation("Link '" + link_name + "' in section '" + section_label(section) + "' is a web address. " +
-                "Add a subscription under Subscription, and an HTTP proxy as a JSON outbound");
+            fail_validation("Link '" + link_name + "' in section '" + section_label(section) + "' is not a supported link");
         if (trim(link_name) == "")
             fail_validation("A link in section '" + section_label(section) + "' has no name. Set one in its settings");
     }
@@ -621,27 +619,28 @@ function validate_destinations(section, action) {
     }
 }
 
-function validate_service_value(service, context) {
+function validate_service_value(service, section) {
     if (rulesets.is_community(service))
         return;
 
-    fail_validation("Invalid service in community lists: " + service + ". Check config and LuCI cache");
+    fail_validation("Section '" + section_label(section) + "' names an unknown built-in list '" + service + "'");
 }
 
-function validate_ruleset_reference_value(reference, context) {
+function validate_ruleset_reference_value(reference, section) {
     if (ruleset_reference_valid(reference))
         return;
 
-    fail_validation("Unknown rule set reference '" + reference + "'");
+    fail_validation("Rule set '" + reference + "' in section '" + section_label(section) +
+        "' is neither an http(s) URL nor an absolute path, or is a YAML list");
 }
 
-function validate_common_rule_references(section, context) {
+function validate_common_rule_references(section) {
     for (let value in connections.community_lists(section))
-        validate_service_value(value, context);
+        validate_service_value(value, section);
     for (let value in connections.rule_sets(section))
-        validate_ruleset_reference_value(value, context);
+        validate_ruleset_reference_value(value, section);
     for (let value in connections.rule_sets_with_subnets(section))
-        validate_ruleset_reference_value(value, context);
+        validate_ruleset_reference_value(value, section);
 }
 
 function outbound_json_object(value) {
@@ -1047,7 +1046,7 @@ function validate_dns_action(section, sections, context) {
     if (length(connections.rule_sets_with_subnets(section)) > 0)
         fail_validation("Section '" + section_label(name) + "' can use domain-only rule sets, but subnet extraction is enabled. Disable 'Include IP addresses and subnets'");
     if (!connections.has_dns_matchers(section) && length(list_option(section, "fully_routed_ips")) == 0)
-        fail_validation("Section '" + section_label(name) + "' must contain at least one domain condition or domain rule set");
+        fail_validation("DNS section '" + section_label(name) + "' needs a domain, a built-in list, a rule set or a device");
     if (!bool_option(section, "dns_detour_enabled", false))
         return;
 
@@ -1136,7 +1135,7 @@ function validate_rule(section, sections, context) {
     if (action == "outbound")
         validate_outbound_json_rule(section);
 
-    validate_common_rule_references(section, context);
+    validate_common_rule_references(section);
     if (connections.is_connections_action(action) && !connections.has_connection_sources(section))
         core_exec.log("warn", "Section '" + section_label(section) + "' has no servers and is skipped");
 }
@@ -1167,6 +1166,18 @@ function validate_subscription_download_sections(sections, context) {
 const SERVER_CLIENT_FIELDS = runtime_servers.CLIENT_FIELDS;
 const SHADOWSOCKS_2022_KEY_BYTES = runtime_servers.SHADOWSOCKS_2022_KEY_BYTES;
 const LOGIN_NAME_PROTOCOLS = runtime_servers.LOGIN_NAME_PROTOCOLS;
+// A credential the dialog asks for is named by its field, one the router issues
+// by what it is.
+const CLIENT_FIELD_LABELS = { uuid: "UUID", password: "Password" };
+const ISSUED_CLIENT_FIELDS = {
+    wireguard_private_key: "WireGuard private key",
+    wireguard_public_key: "WireGuard public key",
+    wireguard_pre_shared_key: "WireGuard pre-shared key",
+    wireguard_address: "tunnel address",
+    openvpn_certificate: "OpenVPN certificate",
+    openvpn_key: "OpenVPN key",
+    openvpn_certificate_sha256: "OpenVPN certificate fingerprint"
+};
 
 function base64_decoded_length(value) {
     value = as_string(value);
@@ -1215,7 +1226,11 @@ function validate_server_clients(server, protocol, name) {
             if (field == "password" && !auth_required)
                 continue;
             if (value == "")
-                fail_validation("Server '" + server_label(name) + "' client '" + client_name + "' has no " + field);
+                fail_validation(CLIENT_FIELD_LABELS[field] != null
+                    ? "'" + CLIENT_FIELD_LABELS[field] + "' of client '" + client_name + "' of server '" +
+                        server_label(name) + "' is empty"
+                    : "Client '" + client_name + "' of server '" + server_label(name) + "' has no " +
+                        (ISSUED_CLIENT_FIELDS[field] ?? field));
             if (field == "uuid" && match(value, /^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/) == null)
                 fail_validation("Server '" + server_label(name) + "' client '" + client_name + "' has an invalid UUID");
             if (field == "password" && key_bytes != null && base64_decoded_length(value) != key_bytes)
@@ -1368,12 +1383,12 @@ function validate_server_security(server, protocol, name) {
         // SNI names, so this is also the check on the handshake target.
         if (option(server, "tls_server_name", "") == "")
             fail_validation("Server '" + server_label(name) + "' uses Reality and needs an SNI");
-        for (let field in [ "reality_private_key", "reality_public_key" ]) {
-            let key = option(server, field, "");
+        for (let field in [ [ "reality_private_key", "Reality private key" ], [ "reality_public_key", "Reality public key" ] ]) {
+            let key = option(server, field[0], "");
             if (key == "")
-                fail_validation("Server '" + server_label(name) + "' has no " + field + ". Generate a Reality key pair");
+                fail_validation("'" + field[1] + "' of server '" + server_label(name) + "' is empty. Generate a Reality key pair");
             if (match(key, /^[A-Za-z0-9_-]{43}$/) == null)
-                fail_validation("Server '" + server_label(name) + "' has an invalid " + field);
+                fail_validation("'" + field[1] + "' of server '" + server_label(name) + "' is not a Reality key");
         }
         let short_ids = list_option(server, "reality_short_id");
         if (length(short_ids) == 0)
@@ -1409,17 +1424,17 @@ function validate_server_security(server, protocol, name) {
 // whole service down instead of only that server. Each entry was checked against
 // `sing-box check` on a listener carrying exactly that value.
 const SERVER_ENUMS = [
-    [ "listen", "transport", [ "", "tcp", "raw", "ws", "grpc", "http", "httpupgrade", "xhttp" ] ],
-    [ "xhttp", "transport_xhttp_mode", [ "", "auto", "packet-up", "stream-up", "stream-one" ] ],
+    [ "listen", "transport", [ "", "tcp", "raw", "ws", "grpc", "http", "httpupgrade", "xhttp" ], "Transport" ],
+    [ "xhttp", "transport_xhttp_mode", [ "", "auto", "packet-up", "stream-up", "stream-one" ], "XHTTP mode" ],
     [ "shadowsocks", "shadowsocks_method", [ "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm",
         "2022-blake3-chacha20-poly1305", "aes-128-gcm", "aes-192-gcm", "aes-256-gcm",
-        "chacha20-ietf-poly1305", "xchacha20-ietf-poly1305", "none" ] ],
-    [ "mieru", "mieru_transport", [ "TCP", "UDP" ] ],
-    [ "naive", "naive_network", [ "", "tcp", "udp", "tcp_udp" ] ],
-    [ "tuic", "tuic_congestion_control", [ "", "cubic", "new_reno", "bbr" ] ],
-    [ "hysteria2", "hysteria2_obfs_type", [ "", "salamander", "gecko" ] ],
-    [ "hysteria2", "hysteria2_bbr_profile", [ "", "standard", "conservative", "aggressive" ] ],
-    [ "openvpn", "openvpn_network", [ "", "udp", "tcp" ] ]
+        "chacha20-ietf-poly1305", "xchacha20-ietf-poly1305", "none" ], "Method" ],
+    [ "mieru", "mieru_transport", [ "TCP", "UDP" ], "Transport" ],
+    [ "naive", "naive_network", [ "", "tcp", "udp", "tcp_udp" ], "Network" ],
+    [ "tuic", "tuic_congestion_control", [ "", "cubic", "new_reno", "bbr" ], "Congestion control" ],
+    [ "hysteria2", "hysteria2_obfs_type", [ "", "salamander", "gecko" ], "Obfuscation" ],
+    [ "hysteria2", "hysteria2_bbr_profile", [ "", "standard", "conservative", "aggressive" ], "BBR profile" ],
+    [ "openvpn", "openvpn_network", [ "", "udp", "tcp" ], "Transport" ]
 ];
 
 function server_enum_applies(scope, protocol, server) {
@@ -1483,7 +1498,7 @@ function validate_wireguard_server(server, name, protocol) {
     let owner = "Server '" + server_label(name) + "'";
     for (let field in [ "wireguard_private_key", "wireguard_public_key" ])
         if (!valid_wireguard_key(option(server, field, "")))
-            fail_validation(owner + " has no valid " + field);
+            fail_validation(owner + " has an invalid WireGuard key pair");
 
     let subnets = list_option(server, "tunnel_address");
     let own = map(subnets, (subnet) => split(subnet, "/")[0]);
@@ -1492,7 +1507,7 @@ function validate_wireguard_server(server, name, protocol) {
         let client_owner = owner + " client '" + option(client, "name", client[".name"]) + "'";
         for (let field in [ "wireguard_private_key", "wireguard_public_key", "wireguard_pre_shared_key" ])
             if (!valid_wireguard_key(option(client, field, "")))
-                fail_validation(client_owner + " has no valid " + field);
+                fail_validation(client_owner + " has invalid WireGuard keys");
         let addresses = list_option(client, "wireguard_address");
         for (let subnet in subnets)
             if (length(filter(addresses, (address) => core_ip.prefix_contains(subnet, split(address, "/")[0]))) != 1)
@@ -1517,9 +1532,10 @@ function validate_wireguard_server(server, name, protocol) {
 
 function validate_openvpn_server(server, name) {
     validate_tunnel_subnets(server, name);
-    for (let field in [ "openvpn_certificate", "openvpn_key", "openvpn_tls_crypt_key" ])
-        if (option(server, field, "") == "")
-            fail_validation("OpenVPN server '" + server_label(name) + "' has no " + field);
+    for (let field in [ [ "openvpn_certificate", "certificate" ], [ "openvpn_key", "key" ], [ "openvpn_tls_crypt_key", "tls-crypt key" ] ])
+        if (option(server, field[0], "") == "")
+            fail_validation("OpenVPN server '" + server_label(name) + "' has no " + field[1] +
+                " yet");
 }
 
 // Everything else the core parses out of a server option and refuses on its own: a
@@ -1531,8 +1547,8 @@ function validate_server_values(server, protocol, name) {
             continue;
         let value = option(server, entry[1], "");
         if (!contains(entry[2], value))
-            fail_validation("Server '" + server_label(name) + "' has an unsupported " + entry[1] +
-                " '" + value + "'");
+            fail_validation("'" + entry[3] + "' of server '" + server_label(name) + "' has an unsupported value '" +
+                value + "'");
     }
 
     if (runtime_servers.CLIENT_FIELDS[protocol] != null && protocol != "tailscale" &&
@@ -1560,11 +1576,12 @@ function validate_server_values(server, protocol, name) {
         if (masquerade != "" && match(masquerade, /^(https?|file):\/\//) == null)
             fail_validation("Server '" + server_label(name) + "' masquerade '" + masquerade +
                 "' must start with https://, http:// or file://");
-        for (let field in [ "hysteria2_up_mbps", "hysteria2_down_mbps" ]) {
-            let value = option(server, field, "");
+        for (let field in [ [ "hysteria2_up_mbps", "Max speed to a client, Mbps" ],
+            [ "hysteria2_down_mbps", "Max speed from a client, Mbps" ] ]) {
+            let value = option(server, field[0], "");
             if (value != "" && match(value, /^[0-9]+$/) == null)
-                fail_validation("Server '" + server_label(name) + "' " + field + " '" + value +
-                    "' must be a whole number of megabits");
+                fail_validation("'" + field[1] + "' of server '" + server_label(name) + "' is '" + value +
+                    "', not a whole number of megabits");
         }
     }
 }

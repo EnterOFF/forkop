@@ -2,7 +2,11 @@ import {
   childItemInputValue,
   parentSectionIdForItem,
 } from '../../cbi/childItems';
-import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../cbi/choices';
+import { required } from '../../cbi/required';
 import {
   configureDnsQueryMode,
   configureDnsServerList,
@@ -156,19 +160,16 @@ function addInterfaceItemOptions(
       : parentSectionIdForItem;
 
   let o = itemSection.option(form.Value, 'display_name', _('Interface name'));
-  o.rmempty = false;
-  o.validate = function (itemId: string, value: unknown) {
-    return `${value || ''}`.trim()
-      ? validateSectionChildName(
-          parentSectionForItem(itemId),
-          'interface',
-          value,
-          typeof options.itemValue === 'function'
-            ? `${options.itemValue() || ''}`.trim()
-            : '',
-        )
-      : _('Enter a display name');
-  };
+  o.validate = required(function (itemId, value) {
+    return validateSectionChildName(
+      parentSectionForItem(itemId),
+      'interface',
+      value,
+      typeof options.itemValue === 'function'
+        ? `${options.itemValue() || ''}`.trim()
+        : '',
+    );
+  });
 
   o = itemSection.option(
     form.Flag,
@@ -247,7 +248,7 @@ function addInterfaceItemOptions(
     ) {
       return true;
     }
-    return value ? true : _('Select a section');
+    return validateSectionChoice(this, value, parentSectionForItem(itemId));
   };
 }
 

@@ -1467,7 +1467,7 @@ function renderButton({
 }
 
 // src/helpers/showToast.ts
-function showToast(message, type, duration = 3e3) {
+function showToast(message2, type, duration = 3e3) {
   let container = document.querySelector(".toast-container");
   if (!container) {
     container = document.createElement("div");
@@ -1476,7 +1476,7 @@ function showToast(message, type, duration = 3e3) {
   }
   const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
-  toast.textContent = message;
+  toast.textContent = message2;
   container.appendChild(toast);
   setTimeout(() => toast.classList.add("visible"), 100);
   setTimeout(() => {
@@ -1772,10 +1772,10 @@ function alignLuciRpcTimeout(timeoutMs) {
   if (!env || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     return;
   }
-  const required = Math.ceil(timeoutMs / 1e3) + LUCI_RPC_TIMEOUT_HEADROOM_SECONDS;
+  const required2 = Math.ceil(timeoutMs / 1e3) + LUCI_RPC_TIMEOUT_HEADROOM_SECONDS;
   const current = typeof env.rpctimeout === "number" && Number.isFinite(env.rpctimeout) ? env.rpctimeout : LUCI_RPC_TIMEOUT_DEFAULT_SECONDS;
-  if (current < required) {
-    env.rpctimeout = required;
+  if (current < required2) {
+    env.rpctimeout = required2;
   }
 }
 
@@ -1910,8 +1910,8 @@ function isUnavailable(error) {
   if (typeof status === "number") {
     return UNAVAILABLE_STATUS.has(status);
   }
-  const message = error instanceof Error ? error.message : String(error ?? "");
-  return /not found|permission denied|Object not found/i.test(message);
+  const message2 = error instanceof Error ? error.message : String(error ?? "");
+  return /not found|permission denied|Object not found/i.test(message2);
 }
 var UNAVAILABLE_RETRIES = 2;
 var UNAVAILABLE_RETRY_MS = 700;
@@ -3889,7 +3889,7 @@ function missingCoreFeatureNote(feature) {
   );
 }
 function validateCoreFeature(feature) {
-  return !feature || coreHas(feature) ? true : _("The installed sing-box was built without %s").format(
+  return !feature || coreHas(feature) ? true : _("sing-box is built without %s").format(
     missingCoreTags(feature).join(", ")
   );
 }
@@ -8842,6 +8842,42 @@ function shouldCopyFullMonitoringValue(element3, selectedText, fullText) {
   return compactSelected.length >= Math.max(4, visibleChars - 2);
 }
 
+// src/validators/messages.ts
+var message = {
+  required: () => _("Required"),
+  nameTaken: () => _("Name already taken"),
+  reservedName: () => _("Reserved name"),
+  slashInName: () => _("The / character is not allowed"),
+  nameCharacters: () => _("Only letters, digits and . _ -"),
+  duplicate: () => _("Duplicate value"),
+  invalidIp: () => _("Invalid IP address"),
+  invalidSubnet: () => _("Invalid subnet"),
+  invalidIpOrSubnet: () => _("Invalid IP address or subnet"),
+  invalidDomain: () => _("Invalid domain"),
+  invalidHost: () => _("Invalid domain or IP address"),
+  invalidPort: () => _("Invalid port"),
+  invalidUrl: () => _("Invalid URL"),
+  invalidJson: () => _("Invalid JSON object"),
+  noTag: () => _("No tag field"),
+  invalidRegex: () => _("Invalid regular expression"),
+  invalidKey: () => _("Invalid key"),
+  invalidUuid: () => _("Invalid UUID"),
+  invalidPath: () => _("Invalid path"),
+  urlOrPath: () => _("URL or absolute path only"),
+  duration: () => _("Format: 30m, 12h, 1d"),
+  wholeNumber: (min, max) => _("Whole number from %d to %d").format(min, max),
+  rangeReversed: () => _("The range starts after it ends"),
+  numberOrRange: () => _("Number or range from 0 to 4294967295"),
+  prefixLength: () => _("Format: 10.0.0.2/24"),
+  prefixRange: (min, max) => _("Prefix length from %d to %d").format(min, max),
+  sectionSelf: () => _("Cannot be this section"),
+  sectionUnavailable: () => _("Section unavailable"),
+  noControlCharacters: () => _("Control characters are not allowed"),
+  fixSettings: () => _("Fix the settings"),
+  // A problem of one entry of a list, said where the whole list stands.
+  item: (name, problem) => name ? `${name}: ${problem}` : problem
+};
+
 // src/validators/validateIp.ts
 function isIPv4(ip) {
   const ipRegex = /^(?:(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$/;
@@ -8859,10 +8895,7 @@ function isIPv6(ip) {
   }
 }
 function validateIP(ip) {
-  if (isIPv4(ip) || isIPv6(ip)) {
-    return { valid: true, message: _("Valid") };
-  }
-  return { valid: false, message: _("Invalid IP address") };
+  return isIPv4(ip) || isIPv6(ip) ? true : message.invalidIp();
 }
 
 // src/forkop/cbi/listValues.ts
@@ -8935,7 +8968,7 @@ function normalizeLocalDeviceName(name) {
 }
 function normalizeLocalDeviceIp(ip) {
   const normalizedIp = `${ip || ""}`.trim();
-  return validateIP(normalizedIp).valid ? normalizedIp : "";
+  return validateIP(normalizedIp) === true ? normalizedIp : "";
 }
 function addLocalDeviceName(names, ip, name) {
   const normalizedName = normalizeLocalDeviceName(name);
@@ -8950,7 +8983,7 @@ function addOfferedAddress(offered, ip, mac) {
 }
 function addRouterIp(routerIps, ip) {
   const normalizedIp = `${ip || ""}`.trim();
-  if (!normalizedIp || !validateIP(normalizedIp).valid) {
+  if (!normalizedIp || validateIP(normalizedIp) !== true) {
     return;
   }
   routerIps[normalizedIp] = true;
@@ -9074,7 +9107,7 @@ function loadLocalDevices() {
 }
 function namesALocalDevice(values) {
   return normalizeOptionValues(values).some(
-    (value) => value === SYSTEM_DEVICE_VALUE || validateIP(value).valid
+    (value) => value === SYSTEM_DEVICE_VALUE || validateIP(value) === true
   );
 }
 function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
@@ -11533,35 +11566,29 @@ function validateUniqueDynamicListItemName(widget, itemNode, value) {
     widget?.node?.querySelectorAll(".fkp-dynlist-label") || []
   ).some(
     (label) => label !== currentLabel && `${label.textContent || ""}`.trim() === `${value || ""}`.trim()
-  ) ? _("Name must be unique") : true;
+  ) ? message.nameTaken() : true;
 }
 
 // src/validators/validateOutboundJson.ts
-function invalid(message) {
-  return { valid: false, message };
-}
 function validateOutboundJson(value, usedTags = []) {
   const normalized = `${value || ""}`.trim();
   if (!normalized.length) {
-    return invalid(_("JSON outbound cannot be empty"));
+    return message.required();
   }
   let parsed;
   try {
     parsed = JSON.parse(normalized);
   } catch {
-    return invalid(_("Invalid JSON format"));
+    return message.invalidJson();
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    return invalid(_("JSON outbound must be a JSON object"));
+    return message.invalidJson();
   }
   const tag = parsed.tag;
   if (typeof tag !== "string" || !tag.trim()) {
-    return invalid(_("JSON outbound must contain a non-empty tag field"));
+    return message.noTag();
   }
-  if (usedTags.some((usedTag) => `${usedTag || ""}`.trim() === tag.trim())) {
-    return invalid(_("Duplicate JSON outbound tag"));
-  }
-  return { valid: true, message: _("Valid") };
+  return usedTags.some((usedTag) => `${usedTag || ""}`.trim() === tag.trim()) ? message.nameTaken() : true;
 }
 
 // src/forkop/cbi/itemSettings.ts
@@ -11651,6 +11678,33 @@ function clearChildPendingSettings(option2, section_id) {
   if (option2.pendingChildSettings) {
     delete option2.pendingChildSettings[section_id];
   }
+}
+
+// src/forkop/cbi/required.ts
+function isBlank(value) {
+  return `${value ?? ""}`.trim() === "";
+}
+function optionListValues(option2, sectionId) {
+  const formValue2 = option2.formvalue(sectionId);
+  return normalizeDynamicListItems(
+    formValue2 != null ? formValue2 : option2.cfgvalue(sectionId)
+  );
+}
+function required(check) {
+  return function(sectionId, value) {
+    if (isBlank(value)) {
+      return message.required();
+    }
+    return check ? check.call(this, sectionId, value) : true;
+  };
+}
+function requiredList(check) {
+  return function(sectionId, value) {
+    if (isBlank(value)) {
+      return optionListValues(this, sectionId).length ? true : message.required();
+    }
+    return check ? check.call(this, sectionId, value) : true;
+  };
 }
 
 // src/forkop/cbi/childItems.ts
@@ -11851,9 +11905,7 @@ function cleanupRemovedChildItems(section_id, typeName, keepValues, ownerOption,
   );
 }
 function childItemNameCheck(dialog) {
-  return function(_itemId, value) {
-    return `${value || ""}`.trim() ? dialog.validateName?.(value) ?? true : _("Enter a display name");
-  };
+  return required((_itemId, value) => dialog.validateName?.(value) ?? true);
 }
 function orderChildItemsByPosition(_ownerId, itemIds) {
   itemIds.forEach((itemId, index) => {
@@ -11900,17 +11952,29 @@ function writeListOption(section_id, key, values) {
 function keepUnavailableSectionChoice(option2, storedValue) {
   const value = `${storedValue || ""}`.trim();
   if (!value || (option2.keylist || []).includes(value)) {
+    option2.unavailableChoice = "";
     return;
   }
   const target2 = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
     (section2) => getUciSectionName(section2) === value
   );
+  option2.unavailableChoice = value;
   option2.value(
     value,
     _("%s (section is unavailable)").format(
       target2 ? getUciSectionLabel(target2) : value
     )
   );
+}
+function validateSectionChoice(option2, value, ownSection) {
+  const section2 = `${value || ""}`.trim();
+  if (!section2) {
+    return message.required();
+  }
+  if (section2 === ownSection) {
+    return message.sectionSelf();
+  }
+  return option2.unavailableChoice && section2 === option2.unavailableChoice ? message.sectionUnavailable() : true;
 }
 function refreshOptionChoices(option2, choices) {
   delete option2.keylist;
@@ -11961,20 +12025,14 @@ function validateDomain(domain, allowDotTLD = false) {
     const dotTld = normalized.startsWith(".") ? normalized.slice(1) : "";
     const ascii2 = asciiHostname(dotTld);
     if (ascii2 && !ascii2.includes(".") && validAsciiDomain(ascii2, false)) {
-      return { valid: true, message: _("Valid") };
+      return true;
     }
   }
   const slashIndex = normalized.indexOf("/");
   const hostname = slashIndex >= 0 ? normalized.slice(0, slashIndex) : normalized;
   const path = slashIndex >= 0 ? normalized.slice(slashIndex) : "";
-  if (path && /\s/.test(path)) {
-    return { valid: false, message: _("Invalid domain address") };
-  }
   const ascii = asciiHostname(hostname);
-  if (!ascii || !validAsciiDomain(ascii)) {
-    return { valid: false, message: _("Invalid domain address") };
-  }
-  return { valid: true, message: _("Valid") };
+  return path && /\s/.test(path) || !ascii || !validAsciiDomain(ascii) ? message.invalidDomain() : true;
 }
 
 // src/validators/hostPort.ts
@@ -11986,7 +12044,7 @@ function unbracketHost(host) {
 }
 function isValidHost(host) {
   const normalizedHost = unbracketHost(host);
-  return isIPv4(normalizedHost) || isIPv6(normalizedHost) || validateDomain(normalizedHost).valid;
+  return isIPv4(normalizedHost) || isIPv6(normalizedHost) || validateDomain(normalizedHost) === true;
 }
 function isValidPort(port2) {
   const normalized = String(port2 ?? "");
@@ -12025,69 +12083,40 @@ var DNS_SCHEMES = /* @__PURE__ */ new Set(["udp", "tcp", "tls", "https", "quic",
 function validateDNS(value, ipOnly = false) {
   const normalized = `${value || ""}`.trim();
   if (!normalized) {
-    return { valid: false, message: _("DNS server address cannot be empty") };
+    return message.required();
   }
+  const invalid = _("Invalid DNS server");
   if (/[\s@?#]/.test(normalized)) {
-    return {
-      valid: false,
-      message: _(
-        "DNS server URI must not contain whitespace, credentials, query parameters, or fragments"
-      )
-    };
+    return invalid;
   }
   const schemeMatch = normalized.match(/^([a-z][a-z0-9+.-]*):\/\//i);
   const scheme = schemeMatch?.[1].toLowerCase() || "udp";
   if (!DNS_SCHEMES.has(scheme)) {
-    return {
-      valid: false,
-      message: _(
-        "Unsupported DNS server protocol. Use udp://, tcp://, tls://, https://, quic://, or h3://"
-      )
-    };
+    return _("Protocol %s is not supported").format(`${scheme}://`);
   }
   const endpoint = schemeMatch ? normalized.slice(schemeMatch[0].length) : normalized;
   const slash = endpoint.indexOf("/");
   const authority = slash >= 0 ? endpoint.slice(0, slash) : endpoint;
   const path = slash >= 0 ? endpoint.slice(slash) : "";
   if (path && scheme !== "https" && scheme !== "h3") {
-    return {
-      valid: false,
-      message: _("DNS server paths are supported only for https:// and h3://")
-    };
+    return _("A path only with https:// and h3://");
   }
   const parsedHostPort = parseHostPort(authority);
   const host = parsedHostPort ? parsedHostPort.host : unbracketHost(authority);
   if (parsedHostPort && !isValidPort(parsedHostPort.port)) {
-    return { valid: false, message: _("Invalid DNS server port") };
+    return message.invalidPort();
   }
-  if (validateIP(host).valid) {
-    return { valid: true, message: _("Valid") };
+  if (validateIP(host) === true) {
+    return true;
   }
   if (ipOnly) {
-    return {
-      valid: false,
-      message: _("Bootstrap DNS server must use an IP address")
-    };
+    return _("IP address only");
   }
-  if (validateDomain(host).valid) {
-    return { valid: true, message: _("Valid") };
-  }
-  return {
-    valid: false,
-    message: _(
-      "Invalid DNS server format. Examples: 8.8.8.8, tls://1.1.1.1, or https://dns.example.com/dns-query"
-    )
-  };
+  return validateDomain(host) === true ? true : invalid;
 }
 
 // src/forkop/cbi/dnsServers.ts
 var MULTIPLE_DNS_SENTINEL = "__forkop_multiple_dns__";
-function optionListValues(option2, section_id) {
-  const formValue2 = option2.formvalue(section_id);
-  return normalizeDynamicListItems(
-    formValue2 != null ? formValue2 : option2.cfgvalue(section_id)
-  );
-}
 function siblingValues(map, name, section_id) {
   const lookup = map.lookupOption(name, section_id);
   return lookup ? optionListValues(lookup[0], lookup[1]) : [];
@@ -12102,22 +12131,14 @@ function dnsServerPrefixes() {
   ].join(", ");
 }
 function configureDnsServerList(option2, options = {}) {
+  const check = requiredList(function(_section_id, value) {
+    const server2 = value.trim();
+    const validation = validateDNS(server2, options.ipOnly);
+    return validation === true ? validateCoreFeature(/^(quic|h3):\/\//i.test(server2) ? "quic" : "") : validation;
+  });
   option2.rmempty = false;
   option2.validate = function(section_id, value) {
-    if (options.appliesTo && !options.appliesTo(this, section_id)) {
-      return true;
-    }
-    const normalized = `${value || ""}`.trim();
-    if (!normalized) {
-      return optionListValues(this, section_id).length ? true : _("Add at least one DNS server");
-    }
-    const validation = validateDNS(normalized, options.ipOnly);
-    if (!validation.valid) {
-      return validation.message;
-    }
-    return validateCoreFeature(
-      /^(quic|h3):\/\//i.test(normalized) ? "quic" : ""
-    );
+    return options.appliesTo && !options.appliesTo(this, section_id) ? true : check.call(this, section_id, value);
   };
 }
 function configureDnsQueryMode(modeOption, dnsServerOptionName, options = {}) {
@@ -12381,7 +12402,7 @@ var ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
       updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
     });
     const control = node.querySelector(".add-item > .fkp-button-add-control");
-    const showValidity = (invalid3) => control?.classList.toggle("cbi-input-invalid", invalid3);
+    const showValidity = (invalid) => control?.classList.toggle("cbi-input-invalid", invalid);
     node.addEventListener("validation-failure", () => showValidity(true));
     node.addEventListener("validation-success", () => showValidity(false));
     showValidity(node.classList.contains("cbi-input-invalid"));
@@ -12562,12 +12583,8 @@ var SettingsDynamicList = form.DynamicList.extend({
         section_id
       );
       if (result !== true) {
-        const title = this.stripTags(this.title).trim();
-        return Promise.reject(
-          new TypeError(
-            `${_('Option "%s" contains an invalid input value.').format(title || this.option)} ${result}`
-          )
-        );
+        const title = this.stripTags(this.title).trim() || this.option;
+        return Promise.reject(new TypeError(`${title}: ${result}`));
       }
     }
     return form.DynamicList.prototype.parse.call(this, section_id);
@@ -12740,61 +12757,37 @@ function parseValueList(value) {
 function validateSubnet(value) {
   const [ip, cidr, extra] = value.split("/");
   if (!ip || extra !== void 0 || !isIPv4(ip) && !isIPv6(ip)) {
-    return {
-      valid: false,
-      message: _("Invalid format. Use an IP address or CIDR subnet")
-    };
+    return message.invalidIpOrSubnet();
   }
   if ((ip === "0.0.0.0" || ip === "::") && cidr == null) {
-    return {
-      valid: false,
-      message: _("Unspecified IP address is not allowed")
-    };
+    return _("Address %s is not allowed").format(ip);
   }
   if (cidr !== void 0) {
-    if (!cidr || !/^(?:0|[1-9]\d*)$/.test(cidr)) {
-      return {
-        valid: false,
-        message: _("Invalid CIDR prefix")
-      };
-    }
-    const cidrNum = parseInt(cidr, 10);
     const maxPrefix = isIPv6(ip) ? 128 : 32;
-    if (cidrNum < 0 || cidrNum > maxPrefix) {
-      return {
-        valid: false,
-        message: _(
-          "CIDR must be between 0 and 32 for IPv4 or 0 and 128 for IPv6"
-        )
-      };
+    if (!/^(?:0|[1-9]\d*)$/.test(cidr) || Number(cidr) > maxPrefix) {
+      return message.prefixRange(0, maxPrefix);
     }
   }
-  return { valid: true, message: _("Valid") };
+  return true;
 }
 
 // src/forkop/cbi/annotations.ts
-function getValidationHeaderText() {
-  return _("Validation errors:");
-}
-function getDuplicateValueText() {
-  return _("Duplicate value");
-}
 function createAnnotationKey(annotation) {
   return `${annotation.start}:${annotation.end}`;
 }
-function addAnnotationIssue(annotationMap, annotation, message) {
+function addAnnotationIssue(annotationMap, annotation, message2) {
   const key = createAnnotationKey(annotation);
   const existing = annotationMap.get(key);
   if (existing) {
-    if (!existing.messages.includes(message)) {
-      existing.messages.push(message);
+    if (!existing.messages.includes(message2)) {
+      existing.messages.push(message2);
     }
     return;
   }
   annotationMap.set(key, {
     start: annotation.start,
     end: annotation.end,
-    messages: [message]
+    messages: [message2]
   });
 }
 function finalizeAnnotations(annotationMap) {
@@ -13034,25 +13027,18 @@ function parseCommentAwareListTokens(value) {
   });
   return tokens;
 }
-function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
-  const text6 = value ? `${value}` : "";
-  if (!text6.length) {
-    return { valid: true, message: "", annotations: [] };
-  }
-  const tokens = parseCommentAwareListTokens(text6);
-  if (!tokens.length) {
-    return { valid: false, message: emptyMessage, annotations: [] };
-  }
-  const duplicateMessage = options.duplicateMessage || getDuplicateValueText();
+function analyzeTextListValue(value, validateItem, options = {}) {
+  const tokens = parseCommentAwareListTokens(value ? `${value}` : "");
+  const duplicateMessage = options.duplicateMessage || message.duplicate();
   const annotationMap = /* @__PURE__ */ new Map();
   const errors = [];
   const seen = /* @__PURE__ */ new Set();
   tokens.forEach((token) => {
     if (typeof validateItem === "function") {
       const validation = validateItem(token.value);
-      if (!validation.valid) {
-        errors.push(`${token.value}: ${validation.message}`);
-        addAnnotationIssue(annotationMap, token, `${validation.message}`);
+      if (validation !== true) {
+        errors.push(`${token.value}: ${validation}`);
+        addAnnotationIssue(annotationMap, token, validation);
       }
     }
     const normalized = options.normalizeDuplicateValue ? options.normalizeDuplicateValue(token.value) : token.value;
@@ -13071,7 +13057,7 @@ function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
   }
   return {
     valid: false,
-    message: [getValidationHeaderText(), ...errors].join("\n"),
+    message: errors.join("\n"),
     annotations: finalizeAnnotations(annotationMap)
   };
 }
@@ -13107,17 +13093,8 @@ function validateRegex(value) {
     new RegExp(value.replace(/^\(\?i\)/, "").replace(/\(\?P</g, "(?<"));
     return true;
   } catch (_error) {
-    return _("Invalid regular expression");
+    return message.invalidRegex();
   }
-}
-function validateKeyword(value) {
-  if (!value || !value.length) {
-    return true;
-  }
-  if (/[,\s]/.test(value)) {
-    return _("Keyword must not contain spaces or commas");
-  }
-  return true;
 }
 
 // src/forkop/tabs/sections/conditions.ts
@@ -13178,65 +13155,39 @@ var DESTINATION_CONDITION_PLACEHOLDER = [
   IP_CONDITION_PLACEHOLDER
 ].join("\n");
 var ADDRESS_SHAPE = /^[\d.]+(?:\/.*)?$|^[\da-f]*:[\da-f:.]*(?:\/.*)?$/i;
-function validateDomainName(domain) {
-  const normalized = `${domain || ""}`.trim();
-  if (normalized.includes("/")) {
-    return { valid: false, message: _("Invalid domain address") };
-  }
-  return validateDomain(normalized, true);
-}
 function validateDomainCondition(item) {
   const colonIndex = item.indexOf(":");
   const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : "";
   const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
-  if (!prefix) {
-    return validateDomainName(body);
+  if (prefix && !["full", "keyword", "regex"].includes(prefix)) {
+    return _("Prefixes: full:, keyword:, regex:");
   }
-  if (!["full", "keyword", "regex"].includes(prefix)) {
-    return {
-      valid: false,
-      message: _("Allowed domain prefixes are full:, keyword:, and regex:")
-    };
-  }
-  if (!body.length) {
-    return { valid: false, message: _("Value cannot be empty") };
-  }
-  if (prefix === "full") {
-    return validateDomainName(body);
+  if (prefix && !body.length) {
+    return _("Nothing after %s").format(`${prefix}:`);
   }
   if (prefix === "keyword") {
-    const validation2 = validateKeyword(body);
-    return validation2 === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation2 };
+    return true;
   }
-  if (/[,\s]/.test(body)) {
-    return {
-      valid: false,
-      message: _("Regular expression must not contain spaces or commas")
-    };
+  if (prefix === "regex") {
+    return validateRegex(body);
   }
-  const validation = validateRegex(body);
-  return validation === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation };
+  return body.includes("/") ? message.invalidDomain() : validateDomain(body, true);
 }
-function analyzeConditionText(value, validateItem, emptyMessage) {
-  return analyzeTextListValue(value, validateItem, emptyMessage, {
+function analyzeConditionText(value, validateItem) {
+  return analyzeTextListValue(value, validateItem, {
     normalizeDuplicateValue: (item) => `${item}`.toLowerCase()
   });
 }
 function analyzeDestinationText(value) {
   return analyzeConditionText(
     value,
-    (item) => ADDRESS_SHAPE.test(item) ? validateSubnet(item) : validateDomainCondition(item),
-    _("At least one valid domain, IP or subnet must be specified.")
+    (item) => ADDRESS_SHAPE.test(item) ? validateSubnet(item) : validateDomainCondition(item)
   );
 }
 function analyzeDnsDestinationText(value) {
   return analyzeConditionText(
     value,
-    (item) => validateSubnet(item).valid ? {
-      valid: false,
-      message: _("IP addresses cannot be used in a DNS section")
-    } : validateDomainCondition(item),
-    _("At least one valid domain must be specified.")
+    (item) => validateSubnet(item) === true ? _("Domains only") : validateDomainCondition(item)
   );
 }
 function validatePortCondition(_section_id, value) {
@@ -13246,17 +13197,14 @@ function validatePortCondition(_section_id, value) {
   }
   const match = normalized.match(/^(\d+)(?:-(\d+))?$/);
   if (!match) {
-    return _("Invalid port or range. Use 80 or 1000-2000");
+    return _("Format: 80 or 1000-2000");
   }
   const start = Number.parseInt(match[1], 10);
   const end = match[2] ? Number.parseInt(match[2], 10) : start;
   if (start < 1 || start > 65535 || end < 1 || end > 65535) {
-    return _("Port must be between 1 and 65535");
+    return message.invalidPort();
   }
-  if (start > end) {
-    return _("Port range start must be less than or equal to end");
-  }
-  return true;
+  return start > end ? message.rangeReversed() : true;
 }
 function configureConditionListStorage(o, key) {
   o.load = function(section_id) {
@@ -13308,8 +13256,7 @@ function addLocalDeviceSubnetDynamicField(section2, config) {
     if (value === SYSTEM_DEVICE_VALUE) {
       return true;
     }
-    const validation = validateSubnet(value);
-    return validation.valid ? true : validation.message;
+    return validateSubnet(value);
   };
   configureConditionListStorage(o, config.key);
   o.renderWidget = function(section_id, _option_index, cfgvalue) {
@@ -13378,29 +13325,20 @@ var CONNECTION_OUTBOUND_SOURCES = [
 
 // src/validators/validateUrl.ts
 function validateUrl(url, protocols = ["http:", "https:"]) {
-  if (!url.length) {
-    return { valid: false, message: _("Invalid URL format") };
+  if (!protocols.some((p) => url.indexOf(p + "//") === 0)) {
+    return url.length ? _("Only %s").format(protocols.map((p) => `${p}//`).join(", ")) : message.invalidUrl();
   }
-  const hasValidProtocol = protocols.some((p) => url.indexOf(p + "//") === 0);
-  if (!hasValidProtocol)
-    return {
-      valid: false,
-      message: _("URL must use one of the following protocols:") + " " + protocols.join(", ")
-    };
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
-    if ((isValidHost(host) || host === "localhost") && (!parsed.port || isValidPort(parsed.port))) {
-      return { valid: true, message: _("Valid") };
-    }
+    return (isValidHost(host) || host === "localhost") && (!parsed.port || isValidPort(parsed.port)) ? true : message.invalidUrl();
   } catch (_e) {
-    return { valid: false, message: _("Invalid URL format") };
+    return message.invalidUrl();
   }
-  return { valid: false, message: _("Invalid URL format") };
 }
 function validateUrlField(value) {
-  const validation = validateUrl(`${value || ""}`.trim());
-  return validation.valid ? true : validation.message;
+  const url = `${value || ""}`.trim();
+  return url ? validateUrl(url) : message.required();
 }
 
 // src/forkop/cbi/modal.ts
@@ -13408,8 +13346,8 @@ function reportRefusedSave(error, dialog) {
   if (dialog?.querySelector(".cbi-input-invalid")) {
     return;
   }
-  const message = error instanceof Error ? error.message : `${error ?? ""}`;
-  showToast(message.trim() || _("Settings not saved"), "error");
+  const message2 = error instanceof Error ? error.message : `${error ?? ""}`;
+  showToast(message2.trim() || _("Settings not saved"), "error");
 }
 function saveSectionModal(sectionRef, modalMap, ev) {
   const mapNode = sectionRef.getActiveModalMap();
@@ -13750,17 +13688,16 @@ function showOutboundJsonSettingsModal(section_id, itemValue, _option, widget, i
   jsonOption.wrap = "soft";
   jsonOption.textarea = true;
   jsonOption.modalonly = true;
-  jsonOption.rmempty = false;
   jsonOption.validate = function(_itemId, value) {
     const usedTags = widget && widget.node ? Array.from(widget.node.querySelectorAll(".item")).filter((item) => item !== itemNode).map(
       (item) => outboundJsonDisplayTag(dynamicListItemCurrentValue(item, ""))
     ).filter(Boolean) : [];
     const validation = validateOutboundJson(`${value || ""}`, usedTags);
-    return validation.valid ? validateSectionChildName(
+    return validation === true ? validateSectionChildName(
       section_id,
       "json",
       outboundJsonDisplayTag(value)
-    ) : validation.message;
+    ) : validation;
   };
   configureTextareaOption(jsonOption);
   const tag = context.adding ? "" : outboundJsonDisplayTag(itemValue);
@@ -13787,9 +13724,8 @@ function validateOutboundJsonItemsBeforeSave(_section_id, values) {
   const tags = [];
   for (const value of items) {
     const validation = validateOutboundJson(`${value || ""}`, tags);
-    if (!validation.valid) {
-      const tag2 = outboundJsonDisplayTag(value);
-      return tag2 ? `${tag2}: ${validation.message}` : validation.message;
+    if (validation !== true) {
+      return message.item(outboundJsonDisplayTag(value), validation);
     }
     const tag = outboundJsonDisplayTag(value);
     tags.push(tag);
@@ -13807,6 +13743,15 @@ function missingConnectionOutbound(modalMap, section_id) {
     (optionName) => normalizeDynamicListItems(
       modalOptionFormValue(modalMap, section_id, optionName)
     ).length > 0
+  );
+}
+function missingDnsMatcher(modalMap, section_id) {
+  if (modalOptionFormValue(modalMap, section_id, "action") !== "dns") {
+    return false;
+  }
+  const value = (name) => modalOptionFormValue(modalMap, section_id, name);
+  return !parseCommentAwareListTokens(value("_dns_destinations")).length && !["community_lists", "_dns_rule_set", "fully_routed_ips"].some(
+    (name) => normalizeDynamicListItems(value(name)).length > 0
   );
 }
 function isDetourTargetSection(section2, currentSectionId) {
@@ -13893,24 +13838,9 @@ function subscriptionDownloadTargetChoices(section_id) {
 // src/validators/validatePath.ts
 function validatePath(value) {
   if (!value) {
-    return {
-      valid: false,
-      message: _("Path cannot be empty")
-    };
+    return message.required();
   }
-  const pathRegex = /^\/[a-zA-Z0-9_\-/.]+$/;
-  if (pathRegex.test(value)) {
-    return {
-      valid: true,
-      message: _("Valid")
-    };
-  }
-  return {
-    valid: false,
-    message: _(
-      'Invalid path format. Path must start with "/" and contain valid characters'
-    )
-  };
+  return /^\/[a-zA-Z0-9_\-/.]+$/.test(value) ? true : message.invalidPath();
 }
 
 // src/forkop/tabs/sections/subscriptions/overrides.ts
@@ -13951,7 +13881,7 @@ function subscriptionRenameLines(value) {
   return lines3.map((line) => `${line ?? ""}`.trim()).filter(Boolean);
 }
 function validateRenameReplacement(replacement) {
-  return /\$[0-9]+[A-Za-z_]/.test(`${replacement}`.replace(/\$\$/g, "")) ? _("Write ${1} instead of $1 when a letter follows the group number") : true;
+  return /\$[0-9]+[A-Za-z_]/.test(`${replacement}`.replace(/\$\$/g, "")) ? _("Before a letter, write ${1} instead of $1") : true;
 }
 function showSubscriptionOverrideModal(parentMap, itemId) {
   const read = (key) => parentMap.data.get(parentMap.config, itemId, key);
@@ -13993,12 +13923,9 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
       return true;
     }
     const separator = normalized.indexOf("=>");
-    if (separator < 0) {
-      return _("Use the pattern => replacement form");
-    }
-    const pattern = normalized.slice(0, separator).trim();
+    const pattern = separator < 0 ? "" : normalized.slice(0, separator).trim();
     if (!pattern) {
-      return _("Enter a regular expression before =>");
+      return _("Format: pattern => replacement");
     }
     const patternError = validateRegex(pattern);
     if (patternError !== true) {
@@ -14028,16 +13955,14 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     try {
       parsed = JSON.parse(normalized);
     } catch (_error) {
-      return _("Enter a valid JSON object");
+      return message.invalidJson();
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return _("Enter a valid JSON object");
+      return message.invalidJson();
     }
     const reserved = reservedOverridePatchPath(parsed);
     if (reserved) {
-      return _(
-        "%s is set by the cascade connection of the subscription"
-      ).format(reserved);
+      return _("%s is set by the cascade connection").format(reserved);
     }
     return true;
   };
@@ -14184,7 +14109,7 @@ function parseSubscriptionUrlEntry(value) {
   if (normalized.includes("|")) {
     return {
       valid: false,
-      message: _("Configure User-Agent in the item settings")
+      message: _("Set the User-Agent under Headers")
     };
   }
   return { valid: true, url: normalized };
@@ -14202,7 +14127,7 @@ function validateSubscriptionUrlEntry(_section_id, value) {
     return parsed.message;
   }
   const validation = isRemoteSubscriptionSource(parsed.url) ? validateUrl(`${parsed.url}`) : validatePath(`${parsed.url}`);
-  return validation.valid ? true : _("Subscription must be an HTTP(S) URL or an absolute local path");
+  return validation === true ? true : message.urlOrPath();
 }
 
 // src/helpers/pem.ts
@@ -14279,7 +14204,6 @@ function isCertificate(der) {
 
 // src/helpers/material.ts
 var PRIVATE_KEY_LABELS = ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"];
-var VALID = { valid: true, message: "" };
 function isRouterPath(value) {
   return /^\/[^\n]*$/.test(value.trim());
 }
@@ -14295,20 +14219,14 @@ function splitCertificateAndKey(text6) {
   ).map((block) => block[0].replace(/\r/g, ""));
   return certificates.length && keys.length === 1 ? { certificate: certificates.join("\n"), key: keys[0] } : null;
 }
-function invalid2(message) {
-  return { valid: false, message };
-}
 function certificatesCheck(text6) {
   const blocks = pemBlocks(text6).filter(
     (block) => block.label === "CERTIFICATE"
   );
-  if (!blocks.length) {
-    return invalid2(_("Paste a PEM certificate or load it from a file"));
-  }
-  return blocks.every((block) => {
+  return blocks.length && blocks.every((block) => {
     const der = decodeBase64(block.body);
     return der && isCertificate(der);
-  }) ? VALID : invalid2(_("The certificate is damaged"));
+  }) ? true : _("Invalid PEM certificate");
 }
 function isEncrypted(block) {
   return block.label === "ENCRYPTED PRIVATE KEY" || block.headers.some((header) => /ENCRYPTED/.test(header));
@@ -14319,33 +14237,29 @@ function isEncryptedKey(value) {
 function keyCheck(text6, passphrase) {
   const blocks = pemBlocks(text6);
   if (!passphrase && blocks.some(isEncrypted)) {
-    return invalid2(
-      _(
-        "The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem"
-      )
+    return _(
+      "Remove the key passphrase: openssl pkey -in key.pem -out plain.pem"
     );
   }
   const labels = passphrase ? [...PRIVATE_KEY_LABELS, "ENCRYPTED PRIVATE KEY"] : PRIVATE_KEY_LABELS;
   const keys = blocks.filter((block) => labels.includes(block.label));
-  return keys.length === 1 && decodeBase64(keys[0].body) ? VALID : invalid2(_("Paste a PEM private key or load it from a file"));
+  return keys.length === 1 && decodeBase64(keys[0].body) ? true : _("Invalid PEM private key");
 }
 function staticKeyCheck(text6) {
   const block = pemBlocks(text6).find(
     (item) => item.label === "OpenVPN Static key V1"
   );
-  return block && /^[0-9a-fA-F]{512}$/.test(block.body) ? VALID : invalid2(_("Paste an OpenVPN static key or load it from a file"));
+  return block && /^[0-9a-fA-F]{512}$/.test(block.body) ? true : _("Invalid OpenVPN static key");
 }
 function cryptV2Check(text6) {
   const block = pemBlocks(text6).find(
     (item) => item.label === "OpenVPN tls-crypt-v2 client key"
   );
-  return block && decodeBase64(block.body) ? VALID : invalid2(
-    _("Paste an OpenVPN tls-crypt-v2 client key or load it from a file")
-  );
+  return block && decodeBase64(block.body) ? true : _("Invalid tls-crypt-v2 key");
 }
 function checkMaterial(kind, value) {
   const text6 = `${value ?? ""}`.trim();
-  if (!text6 || isRouterPath(text6)) return VALID;
+  if (!text6 || isRouterPath(text6)) return true;
   switch (kind) {
     case "ca":
     case "certificate":
@@ -14494,8 +14408,8 @@ var OS_KEY_DIRECTIVES = /* @__PURE__ */ new Set([
 ]);
 var ImportError = class extends Error {
 };
-function fail(message) {
-  throw new ImportError(message);
+function fail(message2) {
+  throw new ImportError(message2);
 }
 function tokenize(line) {
   const tokens = [];
@@ -14582,14 +14496,14 @@ function lines(value) {
 }
 function number(value, directive) {
   if (!/^\d+$/.test(`${value ?? ""}`)) {
-    fail(_("%s needs a whole number").format(directive));
+    fail(_("%s: needs a whole number").format(directive));
   }
   return Number(value);
 }
 function port(value, directive) {
   const result = number(value, directive);
   if (result < 1 || result > 65535) {
-    fail(_("%s has an invalid port %s").format(directive, value));
+    fail(_("%s: invalid port %s").format(directive, value));
   }
   return result;
 }
@@ -14600,9 +14514,7 @@ function transport2(value, directive) {
   if (/^tcp[46]?-server$/.test(proto)) {
     fail(_("This is a server configuration, not a client profile"));
   }
-  return fail(
-    _("%s names an unsupported protocol %s").format(directive, value)
-  );
+  return fail(_("%s: unsupported protocol %s").format(directive, value));
 }
 function cipherName(value) {
   return `${value || ""}`.toUpperCase();
@@ -14631,21 +14543,21 @@ function material(state, directive, kind) {
     if (!reference || isInlineReference(reference)) {
       content = state.blocks.get(directive.name);
       if (content == null) {
-        fail(_("The profile names no content for %s").format(directive.name));
+        fail(_("%s is empty").format(directive.name));
       }
     } else {
       content = state.files[basename(reference)];
       if (content == null) {
         fail(
-          _(
-            "The profile refers to the file %s. Select it together with the profile"
-          ).format(basename(reference))
+          _("Missing file %s: select it together with the profile").format(
+            basename(reference)
+          )
         );
       }
     }
   }
   const check = checkMaterial(kind, content.trim());
-  if (!check.valid) fail(`${directive.name}: ${check.message}`);
+  if (check !== true) fail(`${directive.name}: ${check}`);
   return content.trim();
 }
 function inlineDirection(directive) {
@@ -14654,7 +14566,7 @@ function inlineDirection(directive) {
 }
 function addRemote(state, directive, network2) {
   const [server2, remotePort, proto] = directive.args;
-  if (!server2) fail(_("remote names no server"));
+  if (!server2) fail(_("remote: no server"));
   if (remotePort != null) port(remotePort, "remote");
   state.remotes.push({
     server: server2,
@@ -14685,7 +14597,7 @@ function readCompression(state, directive) {
   if (directive.name === "comp-lzo") {
     const mode = `${directive.args[0] || "adaptive"}`.toLowerCase();
     if (!["yes", "no", "adaptive"].includes(mode)) {
-      fail(_("comp-lzo has an unsupported mode %s").format(directive.args[0]));
+      fail(_("comp-lzo: unsupported mode %s").format(directive.args[0]));
     }
     endpoint.compression_lzo = mode;
     return;
@@ -14695,9 +14607,7 @@ function readCompression(state, directive) {
   else if (["lz4", "lz4-v2", "stub", "stub-v2"].includes(algorithm)) {
     endpoint.compression = algorithm;
   } else if (algorithm !== "migrate") {
-    fail(
-      _("compress has an unsupported algorithm %s").format(directive.args[0])
-    );
+    fail(_("compress: unsupported algorithm %s").format(directive.args[0]));
   }
 }
 function readDirective(state, directive) {
@@ -14712,20 +14622,12 @@ function readDirective(state, directive) {
     fail(_("This is a server configuration, not a client profile"));
   }
   if (OS_KEY_DIRECTIVES.has(name)) {
-    fail(
-      _(
-        "The key of this profile is kept by the operating system or a token and cannot be exported to the router"
-      )
-    );
+    fail(_("The key is kept by the system or a token and cannot be exported"));
   }
   switch (name) {
     case "dev":
       if (/^tap/i.test(args[0] || "")) {
-        fail(
-          _(
-            "The profile uses a TAP (layer 2) device. Only TUN profiles are supported"
-          )
-        );
+        fail(_("TAP (layer 2) is not supported, only TUN"));
       }
       return;
     case "proto":
@@ -14760,15 +14662,13 @@ function readDirective(state, directive) {
     case "pkcs12":
       fail(
         _(
-          "The profile keeps its certificate in a PKCS#12 bundle. Export the certificate and the key as PEM files"
+          "PKCS#12 is not supported: export the certificate and the key as PEM"
         )
       );
       return;
     case "askpass":
       fail(
-        _(
-          "The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem"
-        )
+        _("Remove the key passphrase: openssl pkey -in key.pem -out plain.pem")
       );
       return;
     case "tls-auth":
@@ -14801,10 +14701,10 @@ function readDirective(state, directive) {
       state.login = directive;
       return;
     case "verify-x509-name": {
-      if (!args[0]) fail(_("verify-x509-name names no certificate name"));
+      if (!args[0]) fail(_("verify-x509-name: no name"));
       const type = `${args[1] || "subject"}`.toLowerCase();
       if (!["subject", "name", "name-prefix"].includes(type)) {
-        fail(_("verify-x509-name has an unsupported type %s").format(args[1]));
+        fail(_("verify-x509-name: unsupported type %s").format(args[1]));
       }
       tls.server_name = args[0];
       tls.server_name_type = type;
@@ -14828,7 +14728,7 @@ function readDirective(state, directive) {
     case "peer-fingerprint": {
       const fingerprints = `${directive.inline ?? args.join(" ")}`.split(/[\s,;]+/).filter(Boolean).map((value) => value.replace(/:/g, "").toLowerCase());
       if (!fingerprints.length || fingerprints.some((value) => !/^[0-9a-f]{64}$/.test(value))) {
-        fail(_("peer-fingerprint needs SHA-256 fingerprints"));
+        fail(_("peer-fingerprint: SHA-256 only"));
       }
       tls.peer_fingerprint = fingerprints;
       return;
@@ -14890,7 +14790,7 @@ function readDirective(state, directive) {
       return;
     case "ifconfig": {
       const length = netmaskLength(args[1]);
-      if (!args[0] || !args[1]) fail(_("ifconfig needs two addresses"));
+      if (!args[0] || !args[1]) fail(_("ifconfig: needs two addresses"));
       if (length >= 0 && length < 31) {
         state.addresses.push(`${args[0]}/${length}`);
       } else {
@@ -14900,7 +14800,7 @@ function readDirective(state, directive) {
       return;
     }
     case "ifconfig-ipv6":
-      if (!args[0]) fail(_("ifconfig-ipv6 needs an address"));
+      if (!args[0]) fail(_("ifconfig-ipv6: needs an address"));
       state.addresses.push(args[0].includes("/") ? args[0] : `${args[0]}/128`);
       state.peerAddress6 = args[1] || "";
       return;
@@ -14964,7 +14864,7 @@ function finishStaticKey(state) {
     fail(_("A static key profile needs a CBC cipher"));
   }
   if (!state.addresses.length) {
-    fail(_("A static key profile needs its tunnel addresses (ifconfig)"));
+    fail(_("A static key profile needs ifconfig"));
   }
   endpoint.address = state.addresses;
   if (state.peerAddress) endpoint.peer_address = state.peerAddress;
@@ -14982,11 +14882,11 @@ function finishStaticKey(state) {
 function finishTls(state) {
   const { endpoint, tls } = state;
   if (!tls.certificate && !tls.peer_fingerprint) {
-    fail(_("The profile has no CA certificate (ca) to check the server by"));
+    fail(_("No CA certificate (ca)"));
   }
   if (!tls.client_certificate !== !tls.client_key) {
     fail(
-      tls.client_certificate ? _("The profile has a client certificate but no key for it") : _("The profile has a client key but no certificate for it")
+      tls.client_certificate ? _("cert without key") : _("key without cert")
     );
   }
   if (tls.extra_certificates) {
@@ -15063,7 +14963,7 @@ function buildEndpoint(input, files) {
   directives.forEach((directive) => readDirective(state, directive));
   if (!state.remotes.length) {
     fail(
-      looksLikeOpenVPNConfig(input) ? _("The profile names no server: it has no remote directive") : _("This is not an OpenVPN profile")
+      looksLikeOpenVPNConfig(input) ? _("No remote directive") : _("This is not an OpenVPN profile")
     );
   }
   finishServers(state);
@@ -15471,56 +15371,26 @@ function openVPNEndpoint(settings) {
   return mergePreserved(endpoint, settings);
 }
 function validateServerEntry(value) {
-  return parseOpenVPNServer(value) ? true : _("Enter a host and a port, such as vpn.example.com:1194");
+  return parseOpenVPNServer(value) ? true : _("Format: host:port");
 }
 function validateAddress(value) {
   const address = trimmed(value);
-  if (!address.includes("/")) return _("Use an IP address with a CIDR prefix");
-  const validation = validateSubnet(address);
-  return validation.valid ? true : validation.message;
+  return address.includes("/") ? validateSubnet(address) : message.prefixLength();
 }
-function validateOpenVPNSettings(settings) {
+function openVPNSettingsComplete(settings) {
   const servers2 = normalizeOptionValues(settings.openvpn_servers);
-  if (!servers2.length) return _("Add at least one OpenVPN server");
-  for (const server2 of servers2) {
-    const result = validateServerEntry(server2);
-    if (result !== true) return `${server2}: ${result}`;
+  if (!servers2.length || servers2.some((server2) => validateServerEntry(server2) !== true)) {
+    return false;
   }
   if (settings.openvpn_mode === "static_key") {
-    if (!trimmed(settings.openvpn_static_key)) return _("Add the static key");
     const addresses = normalizeOptionValues(settings.openvpn_address);
-    if (!addresses.length) {
-      return _("A static key tunnel needs its tunnel addresses");
-    }
-    if (addresses.some((address) => isIPv4(address.split("/")[0])) && !trimmed(settings.openvpn_peer_address)) {
-      return _(
-        "A static key tunnel with an IPv4 address needs the IPv4 address of the peer"
-      );
-    }
-    if (addresses.some((address) => isIPv6(address.split("/")[0])) && !trimmed(settings.openvpn_peer_address_ipv6)) {
-      return _(
-        "A static key tunnel with an IPv6 address needs the IPv6 address of the peer"
-      );
-    }
-    return true;
+    const family = (test) => addresses.some((address) => test(address.split("/")[0]));
+    return !!trimmed(settings.openvpn_static_key) && addresses.length > 0 && addresses.every((address) => validateAddress(address) === true) && (!family(isIPv4) || !!trimmed(settings.openvpn_peer_address)) && (!family(isIPv6) || !!trimmed(settings.openvpn_peer_address_ipv6));
   }
-  if (!trimmed(settings.openvpn_ca) && !(settings.openvpn_advanced === "1" && normalizeOptionValues(settings.openvpn_peer_fingerprint).length)) {
-    return _(
-      "Add the CA certificate the server certificate is checked against"
-    );
-  }
-  if (!trimmed(settings.openvpn_cert) !== !trimmed(settings.openvpn_key)) {
-    return _(
-      "The client certificate and its key go together: add both or neither"
-    );
-  }
-  if (settings.openvpn_login === "1" && !trimmed(settings.openvpn_username)) {
-    return _("Enter the username");
-  }
-  if (trimmed(settings.openvpn_control_wrap) && !trimmed(settings.openvpn_control_wrap_key)) {
-    return _("Add the key of the control channel protection");
-  }
-  return true;
+  return (!!trimmed(settings.openvpn_ca) || settings.openvpn_advanced === "1" && normalizeOptionValues(settings.openvpn_peer_fingerprint).length > 0) && !trimmed(settings.openvpn_cert) === !trimmed(settings.openvpn_key) && (settings.openvpn_login !== "1" || !!trimmed(settings.openvpn_username)) && (!trimmed(settings.openvpn_control_wrap) || !!trimmed(settings.openvpn_control_wrap_key));
+}
+function validateOpenVPNSettings(settings) {
+  return openVPNSettingsComplete(settings) ? true : message.fixSettings();
 }
 
 // src/helpers/parseOpenConnectConfig.ts
@@ -15542,8 +15412,8 @@ var OPENCONNECT_REPORTED_OS = [
 ];
 var ImportError2 = class extends Error {
 };
-function fail2(message) {
-  throw new ImportError2(message);
+function fail2(message2) {
+  throw new ImportError2(message2);
 }
 function text3(value) {
   return `${value ?? ""}`.trim();
@@ -15559,50 +15429,34 @@ function normalizeOpenConnectServer(value) {
   const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(rest);
   if (scheme) {
     if (scheme[1].toLowerCase() !== "https") {
-      return {
-        message: _(
-          "The server is reached over HTTPS: use https:// or no scheme"
-        )
-      };
+      return { message: _("Only https:// or no scheme") };
     }
     rest = rest.slice(scheme[0].length);
   }
-  if (!rest) return { message: _("Enter the server address") };
+  if (!rest) return { message: message.required() };
   if (/[?#]/.test(rest)) {
-    return {
-      message: _(
-        "sing-box does not support a query in the server address, such as the secret of ocserv camouflage after ?"
-      )
-    };
+    return { message: _("Parameters after ? are not supported") };
   }
   if (/\s/.test(rest)) {
-    return { message: _("The server address cannot contain spaces") };
+    return { message: _("Spaces are not allowed") };
   }
   const slash = rest.indexOf("/");
   const authority = slash < 0 ? rest : rest.slice(0, slash);
   const path = slash < 0 ? "" : rest.slice(slash).replace(/\/+$/, "");
   if (authority.includes("@")) {
-    return {
-      message: _(
-        "Put the username in its own field, not in the server address"
-      )
-    };
+    return { message: _("The username goes in its own field") };
   }
   let host = authority;
   let port2 = "";
   const hostPort = parseHostPort(authority);
   if (hostPort) {
     if (!isValidPort(hostPort.port)) {
-      return { message: _("Invalid port %s").format(hostPort.port) };
+      return { message: message.invalidPort() };
     }
     host = hostPort.host;
     port2 = hostPort.port === "443" ? "" : hostPort.port;
   } else if (!isValidHost(authority)) {
-    return {
-      message: _(
-        "Enter a host name or an IP address, with a port and a group path if the server has them: vpn.example.com:8443/staff"
-      )
-    };
+    return { message: _("Format: host:port/group") };
   }
   const bare = unbracketHost(host);
   const shown2 = isIPv6(bare) ? `[${bare}]` : bare;
@@ -15610,7 +15464,7 @@ function normalizeOpenConnectServer(value) {
 }
 function server(value) {
   const result = normalizeOpenConnectServer(value);
-  return "server" in result ? result.server : fail2(result.message);
+  return "server" in result ? result.server : fail2(`${_("Server")}: ${result.message}`);
 }
 var HEX = /^[0-9a-f]+$/i;
 var BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
@@ -15621,28 +15475,20 @@ function normalizeOpenConnectFingerprint(value) {
     const prefix = prefixed[1].toLowerCase();
     const body = prefixed[2];
     if (prefix === "pin-sha256") {
-      return BASE64.test(body) && body.length >= 4 && body.length <= 44 ? { fingerprint: `pin-sha256:${body}` } : { message: _("pin-sha256 needs the base64 that openconnect prints") };
+      return BASE64.test(body) && body.length >= 4 && body.length <= 44 ? { fingerprint: `pin-sha256:${body}` } : { message: _("Invalid pin-sha256") };
     }
     const size = prefix === "sha256" ? 64 : 40;
-    return HEX.test(body) && body.length >= 4 && body.length <= size ? { fingerprint: `${prefix}:${body.toLowerCase()}` } : { message: _("%s: needs hexadecimal digits").format(prefix) };
+    return HEX.test(body) && body.length >= 4 && body.length <= size ? { fingerprint: `${prefix}:${body.toLowerCase()}` } : { message: _("Invalid %s").format(prefix) };
   }
   const hex = /^([0-9a-f]{2}:)+[0-9a-f]{2}$/i.test(input) ? input.replace(/:/g, "") : input;
   if (HEX.test(hex) && hex.length === 64) {
-    return {
-      message: _(
-        "A SHA-256 of the whole certificate is not supported: use pin-sha256 as openconnect prints it"
-      )
-    };
+    return { message: _("Use pin-sha256 instead of a certificate SHA-256") };
   }
-  return HEX.test(hex) && hex.length >= 4 && hex.length <= 40 ? { fingerprint: hex.toLowerCase() } : {
-    message: _(
-      "Use pin-sha256:\u2026 as openconnect prints it, or the SHA-1 of the certificate"
-    )
-  };
+  return HEX.test(hex) && hex.length >= 4 && hex.length <= 40 ? { fingerprint: hex.toLowerCase() } : { message: _("Format: pin-sha256:\u2026 or a SHA-1") };
 }
 function fingerprint(value) {
   const result = normalizeOpenConnectFingerprint(value);
-  return "fingerprint" in result ? result.fingerprint : fail2(result.message);
+  return "fingerprint" in result ? result.fingerprint : fail2(`${text3(value)}: ${result.message}`);
 }
 var BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 function base32(bytes) {
@@ -15680,12 +15526,12 @@ function totpSecret(value) {
   if (/^base32:/i.test(secret)) {
     encoded = secret.slice(7).replace(/[\s=]/g, "").toUpperCase();
     if (!/^[A-Z2-7]+$/.test(encoded)) {
-      fail2(_("The token secret is not valid base32"));
+      fail2(_("Token secret: invalid base32"));
     }
   } else if (secret.startsWith("0x")) {
     const hex = secret.slice(2);
     if (!HEX.test(hex) || hex.length % 2) {
-      fail2(_("The token secret is not valid hexadecimal"));
+      fail2(_("Token secret: invalid hexadecimal"));
     }
     encoded = base32(
       Uint8Array.from(hex.match(/../g), (pair) => parseInt(pair, 16))
@@ -15715,26 +15561,20 @@ function draft(files) {
 }
 function fileContent(state, reference) {
   if (/^(pkcs11|system):/i.test(reference)) {
-    fail2(
-      _(
-        "The key of this configuration is kept by the operating system or a token and cannot be exported to the router"
-      )
-    );
+    fail2(_("The key is kept by the system or a token and cannot be exported"));
   }
   const name = basename2(reference);
   if (/\.(p12|pfx)$/i.test(name)) {
     fail2(
       _(
-        "The certificate is in the PKCS#12 bundle %s. Export the certificate and the key as PEM: openssl pkcs12 -in %s -out client.pem -nodes"
+        "%s is PKCS#12: export it as PEM with openssl pkcs12 -in %s -out client.pem -nodes"
       ).format(name, name)
     );
   }
   const content = state.files[name];
   if (content == null) {
     fail2(
-      _(
-        "The profile refers to the file %s. Select it together with the profile"
-      ).format(name)
+      _("Missing file %s: select it together with the profile").format(name)
     );
   }
   return content.trim();
@@ -15742,14 +15582,14 @@ function fileContent(state, reference) {
 function material3(state, reference, kind) {
   const content = fileContent(state, reference);
   const check = checkMaterial(kind, content);
-  if (!check.valid) fail2(`${basename2(reference)}: ${check.message}`);
+  if (check !== true) fail2(`${basename2(reference)}: ${check}`);
   return lines2(content);
 }
 function seconds2(value, option2) {
   return `${whole(value, option2)}s`;
 }
 function whole(value, option2) {
-  if (!/^\d+$/.test(value)) fail2(_("%s needs a whole number").format(option2));
+  if (!/^\d+$/.test(value)) fail2(_("%s: needs a whole number").format(option2));
   return Number(value);
 }
 function flavor(value) {
@@ -15764,7 +15604,7 @@ function flavor(value) {
 }
 function formEntry(value) {
   const match = /^([^:=]+):([^=]+)=(.*)$/.exec(value);
-  if (!match) fail2(_("form-entry needs FORM:NAME=VALUE"));
+  if (!match) fail2(_("form-entry: format FORM:NAME=VALUE"));
   return { form_id: match[1], name: match[2], value: match[3] };
 }
 function pushTo(object, key, value) {
@@ -16147,7 +15987,7 @@ function readCommandLine(state, input) {
       if (arg.length > 2) value = arg.slice(2);
     }
     if (OPTION_ARGUMENTS[name] === 1 && value == null) {
-      if (i + 1 >= args.length) fail2(_("Option %s needs a value").format(arg));
+      if (i + 1 >= args.length) fail2(_("%s: needs a value").format(arg));
       i += 1;
       value = args[i];
     }
@@ -16239,7 +16079,7 @@ function readNetworkManager(state, input) {
   const secrets = sections["vpn-secrets"] || {};
   const { endpoint, tls } = state;
   state.host = text3(data.gateway);
-  if (!state.host) fail2(_("The connection names no gateway"));
+  if (!state.host) fail2(_("No gateway"));
   const xml = secrets.xmlconfig ? decodeBase64(secrets.xmlconfig) : null;
   if (xml && !/[.:/]/.test(state.host)) {
     const entry = hostEntries(new TextDecoder().decode(xml)).find(
@@ -16335,7 +16175,7 @@ function hostEntries(xml) {
 function readAnyConnectProfile(state, input) {
   const entries = hostEntries(input).filter((entry) => entry.address);
   const usable = entries.filter((entry) => !entry.ipsec);
-  if (!entries.length) fail2(_("The profile lists no server"));
+  if (!entries.length) fail2(_("No server"));
   if (!usable.length) {
     fail2(
       _("The profile connects over IPsec, which OpenConnect does not speak")
@@ -16362,7 +16202,7 @@ function readAnyConnectLink(state, input) {
     fail2(_("The link connects over IPsec, which OpenConnect does not speak"));
   }
   state.host = text3(query.get("host"));
-  if (!state.host) fail2(_("The link names no host"));
+  if (!state.host) fail2(_("No host"));
   state.endpoint.flavor = "anyconnect";
   const username = text3(query.get("prefill_username"));
   const password = query.get("prefill_password") ?? "";
@@ -16402,7 +16242,7 @@ function readOpenFortiVPN(state, input) {
   });
   const { endpoint, tls } = state;
   endpoint.flavor = "fortinet";
-  if (!values.host) fail2(_("The configuration names no host"));
+  if (!values.host) fail2(_("No host"));
   state.host = values.port ? `${values.host}:${values.port}` : values.host;
   if (values.realm) state.path = values.realm;
   Object.entries(values).forEach(([key, value]) => {
@@ -16446,7 +16286,7 @@ function readJson(state, input) {
   try {
     parsed = JSON.parse(input);
   } catch (_error) {
-    fail2(_("This is not valid JSON"));
+    fail2(_("Invalid JSON"));
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || parsed.type !== "openconnect") {
     fail2(_("This JSON is not an openconnect endpoint"));
@@ -16484,7 +16324,7 @@ function looksLikeOpenConnectConfig(input) {
 function finishCertificate(state) {
   if (!state.certificate && !state.key) return;
   if (!state.certificate) {
-    fail2(_("The configuration has a client key but no certificate for it"));
+    fail2(_("A client key without its certificate"));
   }
   const content = fileContent(state, state.certificate);
   const both = state.key ? null : splitCertificateAndKey(content);
@@ -16492,9 +16332,7 @@ function finishCertificate(state) {
   const key = both ? both.key : state.key ? fileContent(state, state.key) : "";
   if (!key) {
     fail2(
-      _(
-        "The configuration has a client certificate but no key for it. Select the key file together with it"
-      )
+      _("A client certificate without its key: select the key file with it")
     );
   }
   for (const [value, kind] of [
@@ -16502,7 +16340,7 @@ function finishCertificate(state) {
     [key, "passphrase-key"]
   ]) {
     const check = checkMaterial(kind, value);
-    if (!check.valid) fail2(check.message);
+    if (check !== true) fail2(check);
   }
   state.tls.client_certificate = lines2(certificate);
   state.tls.client_key = lines2(key);
@@ -16546,7 +16384,7 @@ function buildEndpoint2(input, files) {
     default:
       fail2(_("This is not an OpenConnect configuration"));
   }
-  if (!state.host) fail2(_("The configuration names no server"));
+  if (!state.host) fail2(_("No server"));
   const { endpoint } = state;
   const path = state.path.replace(/^\/+/, "");
   endpoint.server = server(
@@ -16896,53 +16734,31 @@ function validateOpenConnectFingerprint(value) {
 function validateTokenSecret(mode, value) {
   const secret = trimmed2(value);
   if (!secret) {
-    return mode === "oidc" ? _("Enter the access token") : _("Enter the secret of the token");
+    return message.required();
   }
   if (mode !== "totp") return true;
   if (/^otpauth:\/\//i.test(secret)) {
-    return /^otpauth:\/\/totp\//i.test(secret) && /[?&]secret=/i.test(secret) ? true : _("The otpauth:// link must be of the totp type and carry a secret");
+    return /^otpauth:\/\/totp\//i.test(secret) && /[?&]secret=/i.test(secret) ? true : _("Invalid otpauth:// link");
   }
-  return isBase32Secret(secret) ? true : _("Enter the base32 secret or the otpauth:// link of the QR code");
+  return isBase32Secret(secret) ? true : _("Invalid base32 secret");
 }
 function validateFormEntry(value) {
-  return !trimmed2(value) || parseFormEntry(value) ? true : _("Write it as FORM:NAME=VALUE, as openconnect --form-entry takes it");
+  return !trimmed2(value) || parseFormEntry(value) ? true : _("Format: FORM:NAME=VALUE");
 }
 function validateOpenConnectSettings(settings) {
-  const server2 = validateOpenConnectServer(settings.openconnect_server);
-  if (server2 !== true) return server2;
   const mode = trimmed2(settings.openconnect_token_mode);
-  if (mode) {
-    const secret = validateTokenSecret(mode, settings.openconnect_token_secret);
-    if (secret !== true) return secret;
-  }
   const certificate = settings.openconnect_certificate_enabled === "1";
-  if (certificate) {
-    if (!trimmed2(settings.openconnect_cert) || !trimmed2(settings.openconnect_key)) {
-      return _("The client certificate and its key go together: add both");
-    }
-    if (isEncryptedKey(settings.openconnect_key) && !text4(settings.openconnect_key_password)) {
-      return _("The client key is protected by a passphrase: enter it");
-    }
-  }
-  for (const value of normalizeOptionValues(
-    settings.openconnect_fingerprints
-  )) {
-    const result = validateOpenConnectFingerprint(value);
-    if (result !== true) return `${value}: ${result}`;
-  }
   const advanced = settings.openconnect_advanced === "1";
-  if (advanced) {
-    for (const value of normalizeOptionValues(
-      settings.openconnect_form_entries
-    )) {
-      const result = validateFormEntry(value);
-      if (result !== true) return `${value}: ${result}`;
-    }
+  const complete = validateOpenConnectServer(settings.openconnect_server) === true && (!mode || validateTokenSecret(mode, settings.openconnect_token_secret) === true) && (!certificate || !!trimmed2(settings.openconnect_cert) && !!trimmed2(settings.openconnect_key) && (!isEncryptedKey(settings.openconnect_key) || !!text4(settings.openconnect_key_password))) && normalizeOptionValues(settings.openconnect_fingerprints).every(
+    (value) => validateOpenConnectFingerprint(value) === true
+  ) && (!advanced || normalizeOptionValues(settings.openconnect_form_entries).every(
+    (value) => validateFormEntry(value) === true
+  ));
+  if (!complete) {
+    return message.fixSettings();
   }
   if (!trimmed2(settings.openconnect_username) && !certificate && mode !== "oidc" && !(advanced && trimmed2(settings.openconnect_cookie)) && !(advanced && settings.openconnect_browser === "1")) {
-    return _(
-      "Add how the router signs in: a username, a client certificate or a session cookie"
-    );
+    return _("Add a username, a client certificate or a session cookie");
   }
   return true;
 }
@@ -17073,6 +16889,11 @@ function parseRange(value, maximum = UINT32_MAX) {
   if (from === void 0 || to === void 0 || from > to) return void 0;
   return parts.length === 2 ? value : from;
 }
+function validateRange(value) {
+  if (parseRange(value) !== void 0) return true;
+  const parts = value.split("-");
+  return parts.length === 2 && parts.every((part) => parseUnsigned(part, UINT32_MAX) !== void 0) ? message.rangeReversed() : message.numberOrRange();
+}
 function validateWireGuardKey(value) {
   const normalized = value.trim();
   if (!/^[A-Za-z0-9+/]{43}=$/u.test(normalized)) return false;
@@ -17098,30 +16919,23 @@ function validateAmneziaSignature(value) {
   }
   return tags > 0;
 }
-function keyMessage() {
-  return _("WireGuard keys must be standard base64-encoded 32-byte values");
-}
 function validateAmneziaValue(key, value) {
   const text6 = `${value ?? ""}`.trim();
   const entry = amneziaParameter(key);
   if (!text6 || !entry) return true;
   switch (entry.kind) {
     case "count":
-      return parseUnsigned(text6, UINT32_MAX) !== void 0 ? true : _("Use a whole number from 0 to 4294967295");
+      return parseUnsigned(text6, UINT32_MAX) !== void 0 ? true : message.wholeNumber(0, UINT32_MAX);
     case "padding":
-      return parseUnsigned(text6, UINT16_MAX) !== void 0 ? true : _("Use a whole number from 0 to 65535");
+      return parseUnsigned(text6, UINT16_MAX) !== void 0 ? true : message.wholeNumber(0, UINT16_MAX);
     case "range":
-      return parseRange(text6) !== void 0 ? true : _(
-        "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
-      );
+      return validateRange(text6);
     case "signature":
-      return validateAmneziaSignature(text6) ? true : _(
-        "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
-      );
+      return validateAmneziaSignature(text6) ? true : _("Format: <b 0xdeadbeef><r 4>");
     case "key":
-      return validateWireGuardKey(text6) ? true : keyMessage();
+      return validateWireGuardKey(text6) ? true : message.invalidKey();
     default:
-      return text6 === "0" || text6 === "1" ? true : _("Use 0 or 1");
+      return text6 === "0" || text6 === "1" ? true : _("Only 0 or 1");
   }
 }
 function rangeBounds(value) {
@@ -17132,9 +16946,7 @@ function validateAmneziaSet(values) {
   const text6 = (key) => `${values[key] ?? ""}`.trim();
   const protectionKey = text6("header_protection_key");
   if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text6(key) || 0) < 12)) {
-    return _(
-      "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
-    );
+    return _("HeaderProtectionKey needs S1-S4 of at least 12");
   }
   const headers = ["h1", "h2", "h3", "h4"];
   if (headers.some((key) => text6(key))) {
@@ -17144,10 +16956,10 @@ function validateAmneziaSet(values) {
     const overlap = bounds.some(
       ([from, to], index) => bounds.slice(index + 1).some(([otherFrom, otherTo]) => from <= otherTo && otherFrom <= to)
     );
-    if (overlap) return _("H1, H2, H3 and H4 must not overlap");
+    if (overlap) return _("H1-H4 must not overlap");
   }
   if (Number(text6("jmin") || 0) > Number(text6("jmax") || 0)) {
-    return _("Jmin must not be greater than Jmax");
+    return _("Jmin is greater than Jmax");
   }
   return true;
 }
@@ -17976,11 +17788,11 @@ function currentDraftOutboundNames(section_id) {
 function validateSectionChildName(section_id, kind, value, own) {
   const name = `${value || ""}`.trim();
   if (name.includes("/")) {
-    return _("The name must not contain /");
+    return message.slashInName();
   }
   return sectionChildNames(section_id).some(
     (child) => child.name === name && (child.kind !== kind || own !== void 0 && child.value !== own)
-  ) ? _("Another server or group of the section has this name") : true;
+  ) ? message.nameTaken() : true;
 }
 function validateSectionChildListName(section_id, kind, widget, itemNode, value) {
   const unique = validateUniqueDynamicListItemName(widget, itemNode, value);
@@ -18132,7 +17944,7 @@ function missingFilterSelectionMessage(modeOption, itemId) {
     (optionName) => normalizeDynamicListItems(
       modalOptionFormValue(modeOption.map, itemId, optionName)
     ).length > 0
-  ) ? null : _("Select at least one server or set a pattern");
+  ) ? null : _("Select a server or set a pattern");
 }
 function addServerFilterOptions(itemSection, parentSectionForItem, options = {}) {
   const modes = Array.isArray(options.modes) ? options.modes : [];
@@ -18286,9 +18098,9 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
   );
   const modeOptionParse = modeOption.parse;
   modeOption.parse = function(itemId) {
-    const message = missingFilterSelectionMessage(this, itemId);
-    if (message) {
-      return Promise.reject(new TypeError(message));
+    const message2 = missingFilterSelectionMessage(this, itemId);
+    if (message2) {
+      return Promise.reject(new TypeError(message2));
     }
     return modeOptionParse.call(this, itemId);
   };
@@ -18300,20 +18112,35 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
 }
 
 // src/validators/validateSingBoxDuration.ts
-var SING_BOX_DURATION_MESSAGE = () => _("Use sing-box duration format like 1d, 12h or 30m");
 function isSingBoxDuration(value) {
   return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
 }
+var UNIT_SECONDS = {
+  ns: 1e-9,
+  us: 1e-6,
+  ms: 1e-3,
+  s: 1,
+  m: 60,
+  h: 3600,
+  d: 86400
+};
+function singBoxDurationSeconds(value) {
+  const text6 = `${value ?? ""}`.trim();
+  if (!isSingBoxDuration(text6)) {
+    return null;
+  }
+  return [...text6.matchAll(/([0-9]+(?:\.[0-9]+)?)(ns|us|ms|s|m|h|d)/g)].reduce(
+    (total, [, amount, unit]) => total + Number(amount) * UNIT_SECONDS[unit],
+    0
+  );
+}
 function validateOptionalSingBoxDuration(value) {
   const normalized = value ? `${value}`.trim() : "";
-  if (!normalized.length) {
-    return true;
-  }
-  return isSingBoxDuration(normalized) ? true : SING_BOX_DURATION_MESSAGE();
+  return !normalized || isSingBoxDuration(normalized) ? true : message.duration();
 }
 function validateRequiredSingBoxDuration(value) {
   const normalized = value ? `${value}`.trim() : "";
-  return normalized.length && isSingBoxDuration(normalized) ? true : SING_BOX_DURATION_MESSAGE();
+  return normalized ? validateOptionalSingBoxDuration(normalized) : message.required();
 }
 
 // src/forkop/tabs/sections/healthCheck.ts
@@ -18323,22 +18150,16 @@ function validateExpectedStatus(value) {
     return true;
   }
   const parts = normalized.replaceAll(",", "/").split("/");
-  if (parts.length > 28) {
-    return _("Use *, status codes, or ranges such as 204/200-299");
-  }
-  for (const part of parts) {
+  const valid = parts.length <= 28 && parts.every((part) => {
     if (!part.trim()) {
-      continue;
+      return true;
     }
-    const bounds = part.split("-");
-    if (bounds.length > 2 || bounds.some((bound) => {
-      const code = bound.trim().replace(/[[\] ]/g, "");
-      return !/^[0-9]+$/.test(code) || Number(code) > 65535;
-    })) {
-      return _("Use *, status codes, or ranges such as 204/200-299");
-    }
-  }
-  return true;
+    const codes = part.split("-").map((bound) => bound.trim().replace(/[[\] ]/g, ""));
+    return codes.length <= 2 && codes.every(
+      (code) => /^[0-9]+$/.test(code) && Number(code) >= 100 && Number(code) <= 599
+    ) && (codes.length === 1 || Number(codes[0]) <= Number(codes[1]));
+  });
+  return valid ? true : _("Format: *, 204, 200-299");
 }
 function addExpectedStatusOption(itemSection) {
   const o = itemSection.option(
@@ -18350,12 +18171,11 @@ function addExpectedStatusOption(itemSection) {
     )
   );
   o.default = "*";
-  o.rmempty = false;
   o.validate = function(_itemId, value) {
     return validateExpectedStatus(value);
   };
 }
-function addGroupHealthCheckTailOptions(itemSection, idleTimeoutDefault) {
+function addGroupHealthCheckTailOptions(itemSection, idleTimeoutDefault, intervalOption) {
   let o = itemSection.option(
     form.Value,
     "idle_timeout",
@@ -18363,9 +18183,15 @@ function addGroupHealthCheckTailOptions(itemSection, idleTimeoutDefault) {
     _("How long until health checks stop when the group is unused")
   );
   o.default = idleTimeoutDefault;
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return validateRequiredSingBoxDuration(value);
+  o.validate = function(itemId, value) {
+    const duration = validateRequiredSingBoxDuration(value);
+    if (duration !== true) {
+      return duration;
+    }
+    const interval = singBoxDurationSeconds(
+      currentOptionValue(this, itemId, intervalOption)
+    );
+    return interval != null && interval > singBoxDurationSeconds(value) ? _("Shorter than the check interval") : true;
   };
   o = itemSection.option(
     form.Flag,
@@ -18441,7 +18267,7 @@ function fallbackLevelSettingsForValidation(groupId, levelId, option2) {
 function validateFallbackLevelItemsBeforeSave(groupId, values, option2) {
   const normalizedValues = normalizeDynamicListItems(values);
   if (!normalizedValues.length) {
-    return _("Add at least one server group");
+    return message.required();
   }
   const names = /* @__PURE__ */ new Set();
   for (const value of normalizedValues) {
@@ -18451,11 +18277,9 @@ function validateFallbackLevelItemsBeforeSave(groupId, values, option2) {
       levelId,
       option2
     );
-    if (!`${settings.name || ""}`.trim()) {
-      return _("Enter a server group name");
-    }
-    const name = `${settings.name}`.trim();
-    if (names.has(name)) return _("Server group names must be unique");
+    const name = `${settings.name || ""}`.trim();
+    if (!name) return message.fixSettings();
+    if (names.has(name)) return message.item(name, message.nameTaken());
     names.add(name);
   }
   return true;
@@ -18463,11 +18287,7 @@ function validateFallbackLevelItemsBeforeSave(groupId, values, option2) {
 function addFallbackLevelItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
   const o = itemSection.option(form.Value, "name", _("Group name"));
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    if (!`${value || ""}`.trim()) return _("Enter a server group name");
-    return typeof options.validateName === "function" ? options.validateName(value) : true;
-  };
+  o.validate = childItemNameCheck(options);
   const fallbackLevelModes = [
     { value: "all", label: _("All remaining") },
     { value: "exclude", label: _("All except selected") },
@@ -18488,7 +18308,6 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   const parentSectionForGroup = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
   const ownerId = typeof options.ownerId === "function" ? options.ownerId : () => "";
   let o = itemSection.option(form.Value, "name", _("Group name"));
-  o.rmempty = false;
   o.validate = childItemNameCheck(options);
   o = itemSection.option(
     form.Value,
@@ -18497,7 +18316,6 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     _("Availability check for every server")
   );
   o.default = "https://www.gstatic.com/generate_204";
-  o.rmempty = false;
   LATENCY_TEST_URL_OPTIONS.forEach((value) => o.value(value));
   o.validate = function(_itemId, value) {
     return validateUrlField(value);
@@ -18510,7 +18328,6 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     _("How often every server of the group is checked")
   );
   o.default = "5m";
-  o.rmempty = false;
   o.validate = function(_itemId, value) {
     return validateRequiredSingBoxDuration(value);
   };
@@ -18521,7 +18338,6 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     _("How long to wait for a server to answer")
   );
   o.default = "5s";
-  o.rmempty = false;
   o.validate = function(_itemId, value) {
     return validateRequiredSingBoxDuration(value);
   };
@@ -18532,16 +18348,15 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
     _("How long to wait for a connection before moving to the next server")
   );
   o.default = "5s";
-  o.rmempty = false;
   o.validate = function(_itemId, value) {
     return validateRequiredSingBoxDuration(value);
   };
-  addGroupHealthCheckTailOptions(itemSection, "5m");
+  addGroupHealthCheckTailOptions(itemSection, "5m", "health_check_interval");
   o = itemSection.option(
     ButtonAddSettingsDynamicList,
     "fallback_level",
     _("Server groups"),
-    _("Required. Checked from top to bottom until the first working server")
+    _("Checked from top to bottom until the first working server")
   );
   o.rmempty = false;
   o.modalonly = true;
@@ -18557,13 +18372,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
   o.validateItemsOnSave = function(groupId, values) {
     return validateFallbackLevelItemsBeforeSave(groupId, values, this);
   };
-  o.validate = function(groupId, value) {
-    if (!`${value || ""}`.trim()) {
-      const current = typeof this.formvalue === "function" ? this.formvalue(groupId) : [];
-      return normalizeDynamicListItems(current).length ? true : _("Add at least one server group");
-    }
-    return true;
-  };
+  o.validate = requiredList();
   o.afterMaterializeChildItems = orderChildItemsByPosition;
   o.renderListItemLabel = function(groupId, itemId) {
     return renderChildItemLabel(this, groupId, itemId);
@@ -18672,11 +18481,8 @@ function showFallbackGroupSettingsModal(section_id, itemValue, option2, widget, 
 function validateFallbackGroupItemsBeforeSave(section_id, values) {
   for (const value of normalizeDynamicListItems(values)) {
     const groupId = `${value || ""}`.trim();
-    if (!isExistingChildItem(section_id, groupId, "fallback_group")) {
-      return _("Open Fallback settings and enter a display name");
-    }
-    if (!`${uci.get(FORKOP_UCI_PACKAGE, groupId, "name") || ""}`.trim()) {
-      return _("Enter a display name");
+    if (!isExistingChildItem(section_id, groupId, "fallback_group") || !`${uci.get(FORKOP_UCI_PACKAGE, groupId, "name") || ""}`.trim()) {
+      return message.item(_("Fallback"), message.fixSettings());
     }
   }
   return true;
@@ -18776,15 +18582,14 @@ function defaultInterfaceSettings(displayName = "") {
 function addInterfaceItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
   let o = itemSection.option(form.Value, "display_name", _("Interface name"));
-  o.rmempty = false;
-  o.validate = function(itemId, value) {
-    return `${value || ""}`.trim() ? validateSectionChildName(
+  o.validate = required(function(itemId, value) {
+    return validateSectionChildName(
       parentSectionForItem(itemId),
       "interface",
       value,
       typeof options.itemValue === "function" ? `${options.itemValue() || ""}`.trim() : ""
-    ) : _("Enter a display name");
-  };
+    );
+  });
   o = itemSection.option(
     form.Flag,
     "domain_resolver_enabled",
@@ -18851,7 +18656,7 @@ function addInterfaceItemOptions(itemSection, options = {}) {
     if (currentOptionValue(this, itemId, "domain_resolver_enabled") !== "1" || currentOptionValue(this, itemId, "domain_resolver_dns_detour_enabled") !== "1") {
       return true;
     }
-    return value ? true : _("Select a section");
+    return validateSectionChoice(this, value, parentSectionForItem(itemId));
   };
 }
 function showInterfaceSettingsModal(_section_id, itemValue, option2) {
@@ -18890,21 +18695,8 @@ var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
   "vmess"
 ]);
 function validateProxyUrl(url) {
-  const trimmedUrl = url.trim();
-  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(trimmedUrl);
-  if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
-    return { valid: true, message: _("Valid") };
-  if (match && (match[1] === "http" || match[1] === "https"))
-    return {
-      valid: false,
-      message: _(
-        "This is a web address: add a subscription under Subscription, and an HTTP proxy as a JSON outbound"
-      )
-    };
-  return {
-    valid: false,
-    message: _("The pasted link is not supported. Try JSON outbound.")
-  };
+  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(url.trim());
+  return match && NATIVE_PROXY_SCHEMES.has(match[1]) ? true : _("Unsupported link");
 }
 
 // src/forkop/tabs/sections/cascade.ts
@@ -18948,13 +18740,7 @@ function addCascadeOptions(itemSection, parentSectionForItem, description, depen
     return value;
   };
   target2.validate = function(itemId, value) {
-    if (currentOptionValue(this, itemId, "_cascade") !== "1") {
-      return true;
-    }
-    if (!value) {
-      return _("Select a section");
-    }
-    return value === parentSectionForItem(itemId) ? _("Current section cannot be used as its own transit section") : true;
+    return currentOptionValue(this, itemId, "_cascade") === "1" ? validateSectionChoice(this, value, parentSectionForItem(itemId)) : true;
   };
 }
 
@@ -18965,7 +18751,7 @@ function validateConnectionLink(value) {
     return true;
   }
   const validation = validateProxyUrl(link);
-  return validation.valid ? validateConnectionUriCore(link) : validation.message;
+  return validation === true ? validateConnectionUriCore(link) : validation;
 }
 function listedLinkValues(sectionId, option2) {
   let values = null;
@@ -19021,24 +18807,20 @@ function showConnectionLinkSettingsModal(sectionId, itemValue, option2, widget, 
     defaults: (inputValue) => ({ uri: inputValue, name }),
     addOptions: (itemSection) => {
       let o = itemSection.option(form.Value, "name", _("Server name"));
-      o.rmempty = false;
       o.write = writeTrimmed;
-      o.validate = function(_itemId, value) {
-        return `${value || ""}`.trim() ? validateSectionChildListName(
+      o.validate = required(function(_itemId, value) {
+        return validateSectionChildListName(
           sectionId,
           "link",
           widget,
           itemNode,
           value
-        ) : _("Enter a display name");
-      };
+        );
+      });
       o = itemSection.option(form.Value, "uri", _("Connection URI"));
       o.password = true;
-      o.rmempty = false;
       o.write = writeTrimmed;
-      o.validate = function(_itemId, value) {
-        return `${value || ""}`.trim() ? validateConnectionLink(value) : _("Paste a connection URI");
-      };
+      o.validate = required((_itemId, value) => validateConnectionLink(value));
       addCascadeOptions(
         itemSection,
         () => sectionId,
@@ -19130,19 +18912,14 @@ function isBuiltinRulesetValue(value) {
   return Object.prototype.hasOwnProperty.call(DOMAIN_LIST_OPTIONS, value);
 }
 function validateCustomRulesetReference(value) {
-  const errorMessage = _(
-    "Rule set must be an HTTP(S) URL or an absolute local path"
-  );
   if (!value) {
     return true;
   }
-  if (value.startsWith("http://") || value.startsWith("https://")) {
-    return validateUrl(value).valid ? true : errorMessage;
+  if (/\.ya?ml$/i.test(value.replace(/[?#].*$/, ""))) {
+    return _("YAML is not supported");
   }
-  if (value.startsWith("/")) {
-    return validatePath(value).valid ? true : errorMessage;
-  }
-  return errorMessage;
+  const valid = value.startsWith("http://") || value.startsWith("https://") ? validateUrl(value) === true : value.startsWith("/") && validatePath(value) === true;
+  return valid ? true : message.urlOrPath();
 }
 function getRulesetReferences(section_id) {
   return getConfigListValues(section_id, "rule_set");
@@ -19216,15 +18993,11 @@ function subscriptionHeaderRows(value) {
     ...parseSubscriptionHeader(line)
   }));
 }
-function validateSubscriptionHeaderName(_sectionId, value) {
-  const name = `${value || ""}`.trim();
-  if (!name) {
-    return _("Enter a header name");
-  }
-  return /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name) ? true : _("Header name contains invalid characters");
-}
+var validateSubscriptionHeaderName = required(
+  (_sectionId, value) => /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(value.trim()) ? true : _("Invalid header name")
+);
 function validateSubscriptionHeaderValue(_sectionId, value) {
-  return /[\r\n\0]/.test(`${value || ""}`) ? _("Header value must stay on one line") : true;
+  return /[\r\n\0]/.test(`${value || ""}`) ? _("Line breaks are not allowed") : true;
 }
 function subscriptionHeaderLines(map) {
   return map.data.sections(map.config, "header").map((row2) => {
@@ -19302,7 +19075,6 @@ function showSubscriptionHeadersModal(parentMap, itemId) {
   };
   let o = headers.option(form.Value, "name", _("Header name"));
   o.editable = true;
-  o.rmempty = false;
   o.validate = validateSubscriptionHeaderName;
   o = headers.option(form.Value, "value", _("Header value"));
   o.editable = true;
@@ -19323,12 +19095,10 @@ var REMOTE_SOURCE = /^https?:\/\//;
 function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
   let o = itemSection.option(form.Value, "tag", _("Subscription name"));
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    const normalized = `${value || ""}`.trim();
-    if (!normalized) return _("Enter a subscription name");
+  o.validate = required(function(_itemId, value) {
+    const normalized = value.trim();
     if (normalized.includes("/")) {
-      return _("Subscription name must not contain /");
+      return message.slashInName();
     }
     const sectionId = parentSectionForItem(_itemId);
     const ownerId = typeof options.ownerId === "function" ? options.ownerId() : "";
@@ -19336,8 +19106,8 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     return configuredSubscriptionTags(sectionId, options.listOption, [
       ownerId === sectionId ? "" : ownerId,
       inputValue
-    ]).includes(normalized) ? _("Subscription name must be unique within the section") : true;
-  };
+    ]).includes(normalized) ? message.nameTaken() : true;
+  });
   o = itemSection.option(
     form.Value,
     "url",
@@ -19345,11 +19115,9 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     _("A URL, or the absolute path of a file on the router")
   );
   o.password = true;
-  o.rmempty = false;
-  o.validate = function(itemId, value) {
-    const source = `${value || ""}`.trim();
-    return source ? validateSubscriptionUrlEntry(itemId, source) : _("Enter a subscription URL or local path");
-  };
+  o.validate = required(
+    (itemId, value) => validateSubscriptionUrlEntry(itemId, value.trim())
+  );
   addCascadeOptions(
     itemSection,
     parentSectionForItem,
@@ -19398,17 +19166,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     return value;
   };
   o.validate = function(itemId, value) {
-    const sectionId = parentSectionForItem(itemId);
-    if (currentOptionValue(this, itemId, "download_via_proxy_enabled") !== "1") {
-      return true;
-    }
-    if (!value) {
-      return _("Select a section for downloading this subscription");
-    }
-    if (value === sectionId) {
-      return _("Current section cannot download its own subscription");
-    }
-    return true;
+    return currentOptionValue(this, itemId, "download_via_proxy_enabled") === "1" ? validateSectionChoice(this, value, parentSectionForItem(itemId)) : true;
   };
   o = itemSection.option(
     form.Button,
@@ -19520,7 +19278,7 @@ function normalizePrefixes(values) {
   const result = [];
   for (const value of values) {
     const normalized = value.includes("/") ? value : isIPv4(value) ? `${value}/32` : isIPv6(value) ? `${value}/128` : value;
-    if (!normalized.includes("/") || !validateSubnet(normalized).valid)
+    if (!normalized.includes("/") || validateSubnet(normalized) !== true)
       return null;
     result.push(normalized);
   }
@@ -19591,11 +19349,7 @@ function readConfigFile2(input) {
   const iface = sections.find((section2) => section2.name === "interface");
   const peers = sections.filter((section2) => section2.name === "peer");
   if (!iface || peers.length === 0)
-    return {
-      message: _(
-        "WireGuard configuration must contain Interface and Peer sections"
-      )
-    };
+    return { message: _("No [Interface] or [Peer] section") };
   return {
     iface: iface.values,
     peers: peers.map((section2) => section2.values)
@@ -19648,9 +19402,7 @@ function rejectUnsupportedFields(source) {
   for (const values of [source.iface, ...source.peers]) {
     const reserved = splitValues(values.reserved);
     if (reserved.some((byte) => parseUnsigned(byte, 255) !== 0))
-      return _(
-        "Cloudflare WARP reserved bytes are not supported here. Add a Cloudflare WARP tunnel instead"
-      );
+      return _("Reserved is not supported: add a Cloudflare WARP tunnel");
   }
   return "";
 }
@@ -19664,7 +19416,8 @@ function parseAmnezia(iface) {
     if (text6 === null)
       return { valid: false, message: _("Invalid AmneziaWG parameters") };
     const validation = validateAmneziaValue(key, text6);
-    if (validation !== true) return { valid: false, message: validation };
+    if (validation !== true)
+      return { valid: false, message: `${conf}: ${validation}` };
     texts[key] = text6;
     if (kind !== "flag" || text6 === "1")
       amnezia[key] = amneziaJsonValue(key, text6);
@@ -19684,24 +19437,11 @@ function buildEndpoint3(source) {
   const address = normalizePrefixes(addressValues);
   const privateKey = firstValue(iface, "privatekey");
   if (addressValues.length === 0 || !privateKey)
-    return {
-      valid: false,
-      message: _("WireGuard address and private key are required")
-    };
+    return { valid: false, message: _("No Address or PrivateKey") };
   if (!validateWireGuardKey(privateKey))
-    return {
-      valid: false,
-      message: _(
-        "WireGuard keys must be standard base64-encoded 32-byte values"
-      )
-    };
+    return { valid: false, message: _("Invalid %s").format("PrivateKey") };
   if (!address)
-    return {
-      valid: false,
-      message: _(
-        "WireGuard addresses and AllowedIPs must use valid CIDR subnets"
-      )
-    };
+    return { valid: false, message: _("Invalid %s").format("Address") };
   const peers = [];
   for (const values of source.peers) {
     const publicKey = firstValue(values, "publickey");
@@ -19709,15 +19449,10 @@ function buildEndpoint3(source) {
     if (!publicKey || !remote)
       return {
         valid: false,
-        message: _("Every WireGuard peer needs a public key and endpoint")
+        message: _("[Peer] without PublicKey or Endpoint")
       };
     if (!validateWireGuardKey(publicKey))
-      return {
-        valid: false,
-        message: _(
-          "WireGuard keys must be standard base64-encoded 32-byte values"
-        )
-      };
+      return { valid: false, message: _("Invalid %s").format("PublicKey") };
     const peer = {
       address: remote.address,
       port: remote.port,
@@ -19726,17 +19461,12 @@ function buildEndpoint3(source) {
     };
     const preSharedKey = firstValue(values, "presharedkey");
     if (preSharedKey && !validateWireGuardKey(preSharedKey))
-      return {
-        valid: false,
-        message: _(
-          "WireGuard keys must be standard base64-encoded 32-byte values"
-        )
-      };
+      return { valid: false, message: _("Invalid %s").format("PresharedKey") };
     const allowedIps = normalizePrefixes(splitValues(values.allowedips));
     if (!allowedIps || allowedIps.length === 0)
       return {
         valid: false,
-        message: allowedIps ? _("Every WireGuard peer needs at least one AllowedIPs subnet") : _("WireGuard addresses and AllowedIPs must use valid CIDR subnets")
+        message: allowedIps ? _("[Peer] without AllowedIPs") : _("Invalid %s").format("AllowedIPs")
       };
     const keepaliveValue = firstValue(values, "persistentkeepalive");
     if (preSharedKey) peer.pre_shared_key = preSharedKey;
@@ -19746,7 +19476,7 @@ function buildEndpoint3(source) {
       if (keepalive === void 0)
         return {
           valid: false,
-          message: _("Invalid WireGuard persistent keepalive")
+          message: _("Invalid %s").format("PersistentKeepalive")
         };
       peer.persistent_keepalive_interval = keepalive;
     }
@@ -19763,13 +19493,13 @@ function buildEndpoint3(source) {
   if (listenPortValue) {
     const listenPort = parseUnsigned(listenPortValue, 65535);
     if (listenPort === void 0 || listenPort === 0)
-      return { valid: false, message: _("Invalid WireGuard listen port") };
+      return { valid: false, message: _("Invalid %s").format("ListenPort") };
     endpoint.listen_port = listenPort;
   }
   if (mtuValue) {
     const mtu = parseUnsigned(mtuValue, 65535);
     if (mtu === void 0 || mtu === 0)
-      return { valid: false, message: _("Invalid WireGuard MTU") };
+      return { valid: false, message: _("Invalid %s").format("MTU") };
     endpoint.mtu = mtu;
   }
   const amnezia = parseAmnezia(iface);
@@ -19883,12 +19613,9 @@ async function parseWireGuardInput(input) {
 function validateTailscaleHostname(value) {
   const hostname = `${value || ""}`.trim();
   if (!hostname) {
-    return _("This field is required");
+    return message.required();
   }
-  if (hostname.length > 63) {
-    return _("A host name holds at most 63 characters");
-  }
-  return /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname) ? true : _("Use lowercase letters, digits and hyphens");
+  return hostname.length <= 63 && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(hostname) ? true : _("Only a-z, 0-9 and hyphens, up to 63 characters");
 }
 
 // src/forkop/cbi/material.ts
@@ -19971,7 +19698,7 @@ function loadedMaterial(text6, kind, paired) {
   if (!both) return { own: text6, pair: null };
   return kind === "key" || kind === "passphrase-key" ? { own: both.key, pair: both.certificate } : { own: both.certificate, pair: both.key };
 }
-function configureMaterialOption(option2, kind, required, pair) {
+function configureMaterialOption(option2, kind, required2, pair) {
   option2.rows = 4;
   option2.wrap = "off";
   option2.rmempty = true;
@@ -19979,12 +19706,11 @@ function configureMaterialOption(option2, kind, required, pair) {
   option2.validate = function(sectionId, value) {
     const values = formValueOf(this, sectionId);
     const content = `${value ?? ""}`.trim();
-    if (!content) return required(values) || true;
-    const check = checkMaterial(
+    if (!content) return required2(values) ? message.required() : true;
+    return checkMaterial(
       typeof kind === "function" ? kind(values) : kind,
       content
     );
-    return check.valid ? true : check.message;
   };
   const renderWidget2 = option2.renderWidget;
   option2.renderWidget = function(sectionId, optionIndex, cfgvalue) {
@@ -20044,13 +19770,53 @@ function configureMaterialOption(option2, kind, required, pair) {
   };
 }
 
+// src/validators/fields.ts
+function wholeNumberField(min, max = Infinity) {
+  return (_sectionId, value) => {
+    const text6 = `${value ?? ""}`.trim();
+    const number4 = Number(text6);
+    return !text6 || /^[0-9]+$/.test(text6) && number4 >= min && number4 <= max ? true : max === Infinity ? _("Whole number from %d").format(min) : message.wholeNumber(min, max);
+  };
+}
+function portField(_sectionId, value) {
+  return wholeNumberField(1, 65535)(_sectionId, value) === true ? true : message.invalidPort();
+}
+function anyPortField(_sectionId, value) {
+  return wholeNumberField(0, 65535)(_sectionId, value) === true ? true : message.invalidPort();
+}
+function domainField(_sectionId, value) {
+  const text6 = `${value ?? ""}`.trim();
+  const ascii = asciiHostname(text6.toLowerCase());
+  return !text6 || ascii && validAsciiDomain(ascii, false) ? true : message.invalidDomain();
+}
+function hostField(_sectionId, value) {
+  const text6 = `${value ?? ""}`.trim();
+  return !text6 || isIPv4(text6) || isIPv6(text6) || domainField(_sectionId, text6) === true ? true : message.invalidHost();
+}
+function ipv4Field(_sectionId, value) {
+  const text6 = `${value ?? ""}`.trim();
+  return !text6 || isIPv4(text6) ? true : message.invalidIp();
+}
+function ipv6Field(_sectionId, value) {
+  const text6 = `${value ?? ""}`.trim();
+  return !text6 || isIPv6(text6) ? true : message.invalidIp();
+}
+
 // src/forkop/tabs/sections/tunnels/openvpnForm.ts
 function secondsOption(section2, name, title, description, placeholder) {
   const o = section2.option(form.Value, name, title, description ?? void 0);
-  o.datatype = "uinteger";
+  o.validate = wholeNumberField(0);
   o.placeholder = placeholder;
   o.rmempty = true;
   return o;
+}
+function peerAddressCheck(family, check) {
+  return function(sectionId, value) {
+    const needed = normalizeOptionValues(
+      currentOptionValue(this, sectionId, "openvpn_address")
+    ).some((address) => family(address.split("/")[0]));
+    return needed && !trimmed(value) ? message.required() : check(sectionId, value);
+  };
 }
 function onKind(o, extra = {}) {
   o.depends({ tunnel_type: "openvpn-client", ...extra });
@@ -20079,13 +19845,7 @@ function addOpenVPNOptions(section2) {
     )
   );
   o.rmempty = false;
-  o.validate = function(_sectionId, value) {
-    if (!trimmed(value)) {
-      const current = typeof this.formvalue === "function" ? this.formvalue("settings") : [];
-      return normalizeOptionValues(current).length ? true : _("Add at least one OpenVPN server");
-    }
-    return validateServerEntry(value);
-  };
+  o.validate = requiredList((_sectionId, value) => validateServerEntry(value));
   o = add(
     "openvpn_network",
     onKind(section2.option(form.ListValue, "openvpn_network", _("Transport")))
@@ -20118,8 +19878,7 @@ function addOpenVPNOptions(section2) {
       openvpn_login: "1"
     })
   );
-  o.rmempty = false;
-  o.validate = (_sectionId, value) => trimmed(value) ? true : _("Enter the username");
+  o.validate = required();
   o = add(
     "openvpn_password",
     onKind(section2.option(form.Value, "openvpn_password", _("Password")), {
@@ -20139,7 +19898,7 @@ function addOpenVPNOptions(section2) {
   configureMaterialOption(
     o,
     "ca",
-    (value) => value("openvpn_advanced") === "1" && normalizeOptionValues(value("openvpn_peer_fingerprint")).length ? "" : _("Add the CA certificate the server certificate is checked against")
+    (value) => !(value("openvpn_advanced") === "1" && normalizeOptionValues(value("openvpn_peer_fingerprint")).length)
   );
   o = add(
     "openvpn_cert",
@@ -20151,7 +19910,7 @@ function addOpenVPNOptions(section2) {
   configureMaterialOption(
     o,
     "certificate",
-    (value) => trimmed(value("openvpn_key")) ? _("Add the certificate of the client key") : "",
+    (value) => !!trimmed(value("openvpn_key")),
     "openvpn_key"
   );
   o = add(
@@ -20161,7 +19920,7 @@ function addOpenVPNOptions(section2) {
   configureMaterialOption(
     o,
     "key",
-    (value) => trimmed(value("openvpn_cert")) ? _("Add the key of the client certificate") : "",
+    (value) => !!trimmed(value("openvpn_cert")),
     "openvpn_cert"
   );
   o = add(
@@ -20194,7 +19953,7 @@ function addOpenVPNOptions(section2) {
   configureMaterialOption(
     o,
     (value) => value("openvpn_control_wrap") === "tls_crypt_v2" ? "crypt-v2" : "static",
-    () => _("Add the key of the control channel protection")
+    () => true
   );
   options.openvpn_control_wrap.onchange = () => window.setTimeout(
     () => options.openvpn_control_wrap_key.triggerValidation("settings"),
@@ -20218,7 +19977,7 @@ function addOpenVPNOptions(section2) {
       staticKey
     )
   );
-  configureMaterialOption(o, "static", () => _("Add the static key"));
+  configureMaterialOption(o, "static", () => true);
   o = add(
     "openvpn_static_cipher",
     onKind(
@@ -20242,7 +20001,7 @@ function addOpenVPNOptions(section2) {
     )
   );
   o.rmempty = false;
-  o.validate = (_sectionId, value) => trimmed(value) ? validateAddress(value) : true;
+  o.validate = requiredList((_sectionId, value) => validateAddress(value));
   o = add(
     "openvpn_peer_address",
     onKind(
@@ -20255,8 +20014,7 @@ function addOpenVPNOptions(section2) {
       staticKey
     )
   );
-  o.datatype = 'ip4addr("nomask")';
-  o.rmempty = true;
+  o.validate = peerAddressCheck(isIPv4, ipv4Field);
   o = add(
     "openvpn_peer_address_ipv6",
     onKind(
@@ -20269,8 +20027,7 @@ function addOpenVPNOptions(section2) {
       staticKey
     )
   );
-  o.datatype = 'ip6addr("nomask")';
-  o.rmempty = true;
+  o.validate = peerAddressCheck(isIPv6, ipv6Field);
   o = add(
     "openvpn_advanced",
     onKind(
@@ -20355,7 +20112,7 @@ function addOpenVPNOptions(section2) {
     )
   );
   o.rmempty = true;
-  o.validate = (_sectionId, value) => !trimmed(value) || /^[0-9a-f]{64}$/.test(trimmed(value).replace(/:/g, "").toLowerCase()) ? true : _("Enter a SHA-256 fingerprint of 64 hex digits");
+  o.validate = (_sectionId, value) => !trimmed(value) || /^[0-9a-f]{64}$/.test(trimmed(value).replace(/:/g, "").toLowerCase()) ? true : _("Invalid SHA-256 fingerprint");
   o = add(
     "openvpn_certificate_profile",
     onKind(
@@ -20484,7 +20241,7 @@ function addOpenVPNOptions(section2) {
       advanced
     )
   );
-  o.datatype = "range(576,65535)";
+  o.validate = wholeNumberField(576, 65535);
   o.placeholder = "1500";
   o.rmempty = true;
   o = add(
@@ -20499,7 +20256,7 @@ function addOpenVPNOptions(section2) {
       { ...advanced, openvpn_network: "udp" }
     )
   );
-  o.datatype = "range(68,65535)";
+  o.validate = wholeNumberField(68, 65535);
   o.rmempty = true;
   o = add(
     "openvpn_mss_fix",
@@ -20513,7 +20270,7 @@ function addOpenVPNOptions(section2) {
       advanced
     )
   );
-  o.datatype = "range(0,65535)";
+  o.validate = wholeNumberField(0, 65535);
   o.placeholder = "1492";
   o.rmempty = true;
   add(
@@ -20676,7 +20433,6 @@ function addOpenConnectOptions(section2) {
       )
     )
   );
-  o.rmempty = false;
   o.validate = (_sectionId, value) => validateOpenConnectServer(value);
   o = add(
     onKind2(section2.option(form.Value, "openconnect_username", _("Username")))
@@ -20727,7 +20483,6 @@ function addOpenConnectOptions(section2) {
     (mode) => onKind2(o, { openconnect_token_mode: mode })
   );
   o.password = true;
-  o.rmempty = false;
   o.validate = function(_sectionId, value) {
     return validateTokenSecret(
       formValue(this, "openconnect_token_mode"),
@@ -20785,24 +20540,14 @@ function addOpenConnectOptions(section2) {
       certificate
     )
   );
-  configureMaterialOption(
-    o,
-    "certificate",
-    () => _("Add the client certificate"),
-    "openconnect_key"
-  );
+  configureMaterialOption(o, "certificate", () => true, "openconnect_key");
   o = add(
     onKind2(
       section2.option(form.TextValue, "openconnect_key", _("Key")),
       certificate
     )
   );
-  configureMaterialOption(
-    o,
-    "passphrase-key",
-    () => _("Add the key of the client certificate"),
-    "openconnect_cert"
-  );
+  configureMaterialOption(o, "passphrase-key", () => true, "openconnect_cert");
   o.onchange = () => window.setTimeout(
     () => options.openconnect_key_password.triggerValidation("settings"),
     0
@@ -20821,7 +20566,7 @@ function addOpenConnectOptions(section2) {
   o.password = true;
   o.rmempty = true;
   o.validate = function(_sectionId, value) {
-    return `${value ?? ""}` === "" && isEncryptedKey(formValue(this, "openconnect_key")) ? _("The client key is protected by a passphrase: enter it") : true;
+    return `${value ?? ""}` === "" && isEncryptedKey(formValue(this, "openconnect_key")) ? message.required() : true;
   };
   o = add(
     onKind2(
@@ -20835,7 +20580,7 @@ function addOpenConnectOptions(section2) {
       )
     )
   );
-  configureMaterialOption(o, "ca", () => "");
+  configureMaterialOption(o, "ca", () => false);
   o = add(
     onKind2(
       section2.option(
@@ -20993,7 +20738,7 @@ function addOpenConnectOptions(section2) {
       advanced
     )
   );
-  o.datatype = "hostname";
+  o.validate = domainField;
   o.rmempty = true;
   o = add(
     onKind2(
@@ -21066,7 +20811,7 @@ function addOpenConnectOptions(section2) {
   o = add(
     onKind2(section2.option(form.Value, "openconnect_mtu", _("MTU")), advanced)
   );
-  o.datatype = "range(576,65535)";
+  o.validate = wholeNumberField(576, 65535);
   o.rmempty = true;
   o = add(
     onFlavors(
@@ -21081,7 +20826,7 @@ function addOpenConnectOptions(section2) {
       ["anyconnect", "gp", "fortinet", "f5"]
     )
   );
-  o.datatype = "range(1280,65535)";
+  o.validate = wholeNumberField(1280, 65535);
   o.placeholder = "1406";
   o.rmempty = true;
   o = add(
@@ -21094,7 +20839,7 @@ function addOpenConnectOptions(section2) {
       advanced
     )
   );
-  o.datatype = "range(2,86400)";
+  o.validate = wholeNumberField(2, 86400);
   o.rmempty = true;
   return options;
 }
@@ -21122,48 +20867,36 @@ function applyImportedOpenConnect(map, options, result) {
 }
 
 // src/forkop/tabs/sections/tunnels/validate.ts
-function validateWireGuardPeer(peer) {
-  if (!peer || typeof peer !== "object" || Array.isArray(peer) || typeof peer.address !== "string" || !peer.address.trim() || typeof peer.public_key !== "string" || !peer.public_key.trim() || typeof peer.port !== "number" || !Number.isInteger(peer.port) || peer.port < 1 || peer.port > 65535) {
-    return _(
-      "Every WireGuard peer needs string address/public key and a numeric port"
-    );
-  }
-  if (!validateWireGuardKey(peer.public_key)) {
-    return _("WireGuard keys must be standard base64-encoded 32-byte values");
-  }
-  if (Object.keys(peer).some((key) => !WIREGUARD_PEER_FIELDS.has(key))) {
-    return _("WireGuard peer contains unsupported fields");
-  }
-  if (peer.pre_shared_key != null && (typeof peer.pre_shared_key !== "string" || !peer.pre_shared_key.trim())) {
-    return _("WireGuard peer fields must use native sing-box JSON types");
-  }
-  if (typeof peer.pre_shared_key === "string" && peer.pre_shared_key.trim() && !validateWireGuardKey(peer.pre_shared_key)) {
-    return _("WireGuard keys must be standard base64-encoded 32-byte values");
-  }
+function validateWireGuardPrefix(value) {
+  const address = typeof value === "string" ? value.trim() : "";
+  return address.includes("/") ? validateSubnet(address) : message.prefixLength();
+}
+function validateAmneziaRange(value) {
+  const normalized = `${value || ""}`.trim();
+  return !normalized || validateRange(normalized);
+}
+function isKeepalive(value) {
+  return typeof value === "string" ? validateAmneziaRange(value) === true : typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 4294967295;
+}
+function wireGuardPeerComplete(peer) {
   const allowedIps = Array.isArray(peer.allowed_ips) ? peer.allowed_ips : peer.allowed_ips != null ? [peer.allowed_ips] : [];
-  if (allowedIps.length === 0) {
-    return _("Every WireGuard peer needs at least one AllowedIPs subnet");
-  }
-  if (allowedIps.some(
-    (allowedIp) => validateWireGuardPrefix(allowedIp) !== true
-  )) {
-    return _("WireGuard peer allowed_ips must contain valid CIDR subnets");
-  }
-  if (peer.persistent_keepalive_interval != null && (typeof peer.persistent_keepalive_interval === "string" ? validateAmneziaRange(peer.persistent_keepalive_interval) !== true : typeof peer.persistent_keepalive_interval !== "number" || !Number.isInteger(peer.persistent_keepalive_interval) || peer.persistent_keepalive_interval < 0 || peer.persistent_keepalive_interval > 4294967295)) {
-    return _("WireGuard peer fields must use native sing-box JSON types");
-  }
-  return true;
+  return typeof peer.address === "string" && hostField("", peer.address) === true && !!peer.address.trim() && typeof peer.port === "number" && portField("", peer.port) === true && typeof peer.public_key === "string" && validateWireGuardKey(peer.public_key) && Object.keys(peer).every((key) => WIREGUARD_PEER_FIELDS.has(key)) && (peer.pre_shared_key == null || typeof peer.pre_shared_key === "string" && validateWireGuardKey(peer.pre_shared_key)) && allowedIps.length > 0 && allowedIps.every(
+    (allowedIp) => validateWireGuardPrefix(allowedIp) === true
+  ) && (peer.persistent_keepalive_interval == null || isKeepalive(peer.persistent_keepalive_interval));
 }
 function validateWireGuardPeerValue(value, tunnelId, option2) {
   const peer = tunnelPeerForValue(tunnelId, value, option2);
-  return peer ? validateWireGuardPeer(peer) : _("Open peer settings and complete the configuration");
+  return peer && wireGuardPeerComplete(peer) ? true : message.item(
+    peer ? wireGuardPeerDisplayNameFromObject(peer) : "",
+    message.fixSettings()
+  );
 }
 function validateWireGuardPeers(values, tunnelId, option2) {
   const peers = L.toArray(values).filter(
     (value) => `${value || ""}`.trim()
   );
   if (peers.length === 0) {
-    return _("Add at least one WireGuard peer");
+    return message.required();
   }
   for (const value of peers) {
     const validation = validateWireGuardPeerValue(
@@ -21175,41 +20908,31 @@ function validateWireGuardPeers(values, tunnelId, option2) {
   }
   return true;
 }
-function validateWireGuardPrefix(value) {
-  if (typeof value !== "string") {
-    return _("Use an IP address with a CIDR prefix");
-  }
-  const address = `${value || ""}`.trim();
-  if (!address.includes("/")) {
-    return _("Use an IP address with a CIDR prefix");
-  }
-  const validation = validateSubnet(address);
-  return validation.valid ? true : validation.message;
-}
-function validateWireGuardListInput(value) {
-  if (Array.isArray(value)) {
-    const values = normalizeOptionValues(value);
-    return values.every((item) => validateWireGuardPrefix(item) === true) ? true : validateWireGuardPrefix(
-      values.find((item) => validateWireGuardPrefix(item) !== true) || ""
-    );
-  }
-  return `${value || ""}`.trim() ? validateWireGuardPrefix(value) : true;
-}
 function isOptionalUint16(value, minimum) {
   const text6 = `${value ?? ""}`.trim();
   const parsed = parseUnsigned(text6, 65535);
   return !text6 || parsed !== void 0 && parsed >= minimum;
 }
-function isHostname(value) {
-  return value.length <= 253 && /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/u.test(
-    value
-  );
+function amneziaProblem(kind, settings) {
+  if (kind !== "amneziawg" && !oneSidedAmneziaEnabled(kind, settings)) {
+    return true;
+  }
+  const keys = kind === "amneziawg" ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS;
+  const values = {};
+  for (const key of keys) {
+    values[key] = settings[`amnezia_${key}`];
+    if (validateAmneziaValue(key, values[key]) !== true) {
+      return message.fixSettings();
+    }
+  }
+  return validateAmneziaSet(values);
 }
-function validateAmneziaRange(value) {
-  const normalized = `${value || ""}`.trim();
-  return !normalized || parseRange(normalized) !== void 0 ? true : _(
-    "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
-  );
+function warpComplete(settings, endpoint) {
+  return hostField("", settings.warp_address) === true && isOptionalUint16(settings.warp_port, 0) && validateAmneziaRange(settings.warp_keepalive) === true && [
+    endpoint.profile?.id,
+    endpoint.profile?.auth_token,
+    endpoint.profile?.private_key
+  ].every(Boolean);
 }
 function validateTunnelSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
@@ -21217,9 +20940,8 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
   if (core !== true) {
     return core;
   }
-  const name = `${settings.name || ""}`.trim();
-  if (kind !== "json" && !name) {
-    return _("Enter a tunnel name");
+  if (kind !== "json" && !`${settings.name || ""}`.trim()) {
+    return message.fixSettings();
   }
   if (kind === "openvpn-client") {
     return validateOpenVPNSettings(settings);
@@ -21229,104 +20951,43 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
   }
   const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (!endpoint) {
-    return kind === "json" ? _("Enter a valid JSON endpoint object") : _("Open peer settings and complete the configuration");
+    return message.fixSettings();
   }
   if (kind === "json") {
-    if (typeof endpoint.tag !== "string" || !endpoint.tag.trim()) {
-      return _("JSON endpoint must contain a non-empty tag");
-    }
-    return true;
+    return typeof endpoint.tag === "string" && endpoint.tag.trim() ? true : message.fixSettings();
   }
   if (endpoint.type === "tailscale") {
-    if (!endpoint.auth_key) return _("Enter a Tailscale auth key");
-    if (!endpoint.hostname) return _("Enter a Tailscale hostname");
-    const hostname = validateTailscaleHostname(endpoint.hostname);
-    if (hostname !== true) return hostname;
-    if (!validateUrl(endpoint.control_url || "").valid) {
-      return _("Enter a valid Tailscale control URL");
-    }
-    if (`${settings.tailscale_detour_enabled || ""}` === "1" && !endpoint.detour) {
-      return _("Select a section");
-    }
-    return true;
+    return endpoint.auth_key && validateTailscaleHostname(endpoint.hostname) === true && validateUrl(endpoint.control_url || "") === true && (`${settings.tailscale_detour_enabled || ""}` !== "1" || endpoint.detour) ? true : message.fixSettings();
   }
-  if (kind === "amneziawg" || oneSidedAmneziaEnabled(kind, settings)) {
-    const keys = kind === "amneziawg" ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS;
-    const values = {};
-    for (const key of keys) {
-      const value = settings[`amnezia_${key}`];
-      const validation = validateAmneziaValue(key, value);
-      if (validation !== true) return validation;
-      values[key] = value;
-    }
-    const combination = validateAmneziaSet(values);
-    if (combination !== true) return combination;
+  const amnezia = amneziaProblem(kind, settings);
+  if (amnezia !== true) {
+    return amnezia;
   }
   if (endpoint.type === "warp") {
-    const address = `${settings.warp_address || ""}`.trim();
-    if (address && !isIPv4(address) && !isIPv6(address) && !isHostname(address))
-      return _("Enter a valid server address");
-    if (!isOptionalUint16(settings.warp_port, 0))
-      return _("Enter a valid server port");
-    const keepalive = validateAmneziaRange(settings.warp_keepalive);
-    if (keepalive !== true) return keepalive;
-    const profileValues = [
-      endpoint.profile?.id,
-      endpoint.profile?.auth_token,
-      endpoint.profile?.private_key
-    ].filter(Boolean);
-    if (profileValues.length !== 3) {
-      return _(
-        "Register a Cloudflare WARP device and fill the profile fields."
-      );
-    }
-    return true;
+    return warpComplete(settings, endpoint) ? true : message.fixSettings();
   }
-  if (!isOptionalUint16(settings.listen_port, 0)) {
-    return _("Enter a valid listen port");
+  if (!isOptionalUint16(settings.listen_port, 0) || !isOptionalUint16(settings.mtu, 1) || !endpoint.private_key || !validateWireGuardKey(endpoint.private_key) || endpoint.address.length === 0 || endpoint.address.some(
+    (address) => validateWireGuardPrefix(address) !== true
+  ) || endpoint.peers.length === 0 || validateWireGuardPeers(settings.peer_ids, tunnelId, peerOption) !== true) {
+    return message.fixSettings();
   }
-  if (!isOptionalUint16(settings.mtu, 1)) {
-    return _("Enter an MTU from 1 to 65535");
-  }
-  if (!endpoint.private_key || endpoint.address.length === 0) {
-    return _("WireGuard address and private key are required");
-  }
-  if (!validateWireGuardKey(endpoint.private_key)) {
-    return _("WireGuard keys must be standard base64-encoded 32-byte values");
-  }
-  for (const address of endpoint.address) {
-    const addressValidation = validateWireGuardPrefix(address);
-    if (addressValidation !== true) {
-      return addressValidation;
-    }
-  }
-  if (endpoint.peers.length === 0) {
-    return _("Add at least one WireGuard peer");
-  }
-  const peersValidation = validateWireGuardPeers(
-    settings.peer_ids,
-    tunnelId,
-    peerOption
-  );
-  if (peersValidation !== true) {
-    return peersValidation;
-  }
-  if (`${settings.tunnel_type || ""}` === "amneziawg" && Object.keys(endpoint.amnezia || {}).length === 0) {
-    return _("Enter at least one AmneziaWG parameter");
+  if (kind === "amneziawg" && Object.keys(endpoint.amnezia || {}).length === 0) {
+    return _("Add at least one AmneziaWG parameter");
   }
   return true;
 }
+function validateTunnelItem(section_id, tunnelId) {
+  const validation = isExistingChildItem(section_id, tunnelId, "tunnel") ? validateTunnelSettings(tunnelInitialSettings(tunnelId, section_id)) : message.fixSettings();
+  return validation === true ? true : message.item(
+    tunnelDisplayName(section_id, tunnelId) || _("Tunnel"),
+    validation
+  );
+}
 function validateTunnelItemsBeforeSave(section_id, values) {
   for (const value of normalizeDynamicListItems(values)) {
-    const tunnelId = `${value || ""}`.trim();
-    if (!isExistingChildItem(section_id, tunnelId, "tunnel")) {
-      return _("Open tunnel settings and complete the configuration");
-    }
-    const validation = validateTunnelSettings(
-      tunnelInitialSettings(tunnelId, section_id)
-    );
+    const validation = validateTunnelItem(section_id, `${value || ""}`.trim());
     if (validation !== true) {
-      return `${tunnelDisplayName(section_id, tunnelId) || _("Tunnel")}: ${validation}`;
+      return validation;
     }
   }
   return true;
@@ -21335,26 +20996,19 @@ function validateTunnelItemsBeforeSave(section_id, values) {
 // src/forkop/tabs/sections/tunnels/dialog.ts
 function addWireGuardPeerItemOptions(section2) {
   let o = section2.option(form.Value, "address", _("Server address"));
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return `${value || ""}`.trim() ? true : _("Enter a server address");
-  };
+  o.validate = required(hostField);
   o = section2.option(form.Value, "port", _("Server port"));
-  o.datatype = "port";
-  o.rmempty = false;
+  o.validate = required(portField);
   o = section2.option(form.Value, "public_key", _("Public key"));
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    const key = `${value || ""}`.trim();
-    if (!key) return _("Enter a public key");
-    return validateWireGuardKey(key) ? true : _("WireGuard keys must be standard base64-encoded 32-byte values");
-  };
+  o.validate = required(
+    (_itemId, value) => validateWireGuardKey(value) ? true : message.invalidKey()
+  );
   o = section2.option(form.Value, "pre_shared_key", _("Pre-shared key"));
   o.password = true;
   o.rmempty = true;
   o.validate = function(_itemId, value) {
     const key = `${value || ""}`.trim();
-    return !key || validateWireGuardKey(key) ? true : _("WireGuard keys must be standard base64-encoded 32-byte values");
+    return !key || validateWireGuardKey(key) ? true : message.invalidKey();
   };
   o = section2.option(
     form.DynamicList,
@@ -21363,9 +21017,7 @@ function addWireGuardPeerItemOptions(section2) {
     _("The subnets that go through this peer")
   );
   o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return validateWireGuardListInput(value);
-  };
+  o.validate = requiredList((_itemId, value) => validateWireGuardPrefix(value));
   o = section2.option(
     form.Value,
     "persistent_keepalive_interval",
@@ -21431,12 +21083,14 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
   const configuration = itemSection.option(
     form.TextValue,
     "configuration",
-    _("Configuration")
+    _("Configuration"),
+    _(
+      "A WireGuard, OpenVPN or OpenConnect configuration, or a wireguard://, vpn:// or anyconnect:// link"
+    )
   );
   configuration.rows = 12;
   configuration.wrap = "off";
   configuration.textarea = true;
-  configuration.rmempty = false;
   let failedInput = "";
   let importError = "";
   configuration.validate = function(_itemId, value) {
@@ -21447,9 +21101,7 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
     importError = "";
     failedInput = "";
     if (!input) {
-      return _(
-        "Paste a WireGuard, OpenVPN or OpenConnect configuration, or a wireguard://, vpn:// or anyconnect:// link"
-      );
+      return message.required();
     }
     const format2 = importedFormat(input);
     if (format2 === "openvpn") {
@@ -21461,9 +21113,7 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
       return parsed2.valid ? true : parsed2.message;
     }
     if (!format2) {
-      return _(
-        "This is neither a WireGuard, an OpenVPN nor an OpenConnect configuration"
-      );
+      return _("Unknown format");
     }
     if (/^vpn:\/\//iu.test(input) || input.startsWith("{")) {
       return true;
@@ -21472,11 +21122,11 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
     return parsed && parsed.valid === true ? true : parsed?.message || _("Invalid WireGuard configuration");
   };
   configureTextareaOption(configuration);
-  const refuse = (input, message) => {
+  const refuse = (input, message2) => {
     failedInput = input;
-    importError = message;
+    importError = message2;
     configuration.triggerValidation("settings");
-    showToast(message, "error");
+    showToast(message2, "error");
     throw new TypeError(importError);
   };
   return renderStackedJsonSettingsModal(
@@ -21559,9 +21209,7 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
             configuration.triggerValidation("settings");
             if (result === true) return save();
             showToast(
-              input ? result : _(
-                "Select the configuration file: .ovpn, .conf, .xml or .nmconnection"
-              ),
+              input ? result : _("Select a .ovpn, .conf, .xml or .nmconnection file"),
               "error"
             );
           })
@@ -21624,16 +21272,9 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   typeOption.default = "wireguard";
   typeOption.rmempty = false;
   let o = itemSection.option(form.Value, "name", _("Tunnel name"));
-  o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return `${value || ""}`.trim() ? validateSectionChildListName(
-      section_id,
-      "tunnel",
-      widget,
-      itemNode,
-      value
-    ) : _("Enter a tunnel name");
-  };
+  o.validate = required(
+    (_itemId, value) => validateSectionChildListName(section_id, "tunnel", widget, itemNode, value)
+  );
   [
     "wireguard",
     "amneziawg",
@@ -21669,7 +21310,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     _("A key from the Tailscale console")
   );
   tailscaleAuthKeyOption.password = true;
-  tailscaleAuthKeyOption.rmempty = false;
+  tailscaleAuthKeyOption.validate = required();
   tailscaleAuthKeyOption.depends("tunnel_type", "tailscale");
   tailscaleAuthKeyOption.retain = true;
   const tailscaleHostnameOption = itemSection.option(
@@ -21678,7 +21319,6 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     _("Device name"),
     _("The name this device appears under in the Tailscale console")
   );
-  tailscaleHostnameOption.rmempty = false;
   tailscaleHostnameOption.validate = function(_itemId, value) {
     return validateTailscaleHostname(value);
   };
@@ -21690,7 +21330,6 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     _("For a server of your own, such as Headscale")
   );
   tailscaleControlUrlOption.default = TAILSCALE_CONTROL_URL;
-  tailscaleControlUrlOption.rmempty = false;
   tailscaleControlUrlOption.depends("tunnel_type", "tailscale");
   tailscaleControlUrlOption.validate = function(_itemId, value) {
     return validateUrlField(value);
@@ -21723,10 +21362,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     tailscale_detour_enabled: "1"
   });
   tailscaleDetourSectionOption.validate = function(_itemId, value) {
-    if (!value) {
-      return _("Select a section");
-    }
-    return value === section_id ? _("Current section cannot be used as its own transit section") : true;
+    return validateSectionChoice(this, value, section_id);
   };
   const tailscaleAcceptRoutesOption = itemSection.option(
     form.Flag,
@@ -21756,26 +21392,25 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   endpointJsonOption.rows = 12;
   endpointJsonOption.wrap = "soft";
   endpointJsonOption.textarea = true;
-  endpointJsonOption.rmempty = false;
   endpointJsonOption.depends("tunnel_type", "json");
-  endpointJsonOption.validate = function(_itemId, value) {
+  endpointJsonOption.validate = required((_itemId, value) => {
     const endpoint = parseOutboundJsonObject(value);
     if (!endpoint) {
-      return _("Enter a valid JSON endpoint object");
+      return message.invalidJson();
     }
-    return typeof endpoint.tag === "string" && endpoint.tag.trim() ? validateSectionChildName(section_id, "tunnel", endpoint.tag) : _("JSON endpoint must contain a non-empty tag");
-  };
+    return typeof endpoint.tag === "string" && endpoint.tag.trim() ? validateSectionChildName(section_id, "tunnel", endpoint.tag) : message.noTag();
+  });
   configureTextareaOption(endpointJsonOption);
   const openvpnOptions = addOpenVPNOptions(itemSection);
   const openconnectOptions = addOpenConnectOptions(itemSection);
   o = itemSection.option(form.Value, "warp_address", _("WARP server address"));
   o.depends("tunnel_type", "warp");
   o.rmempty = true;
-  o.datatype = "host";
+  o.validate = hostField;
   o = itemSection.option(form.Value, "warp_port", _("WARP server port"));
   o.depends("tunnel_type", "warp");
   o.rmempty = true;
-  o.datatype = "port";
+  o.validate = anyPortField;
   const addressOption = itemSection.option(
     form.DynamicList,
     "address",
@@ -21784,35 +21419,32 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   addressOption.rmempty = false;
   addressOption.depends("tunnel_type", "wireguard");
   addressOption.depends("tunnel_type", "amneziawg");
-  addressOption.validate = function(_itemId, value) {
-    return validateWireGuardListInput(value);
-  };
+  addressOption.validate = requiredList(
+    (_itemId, value) => validateWireGuardPrefix(value)
+  );
   const privateKeyOption = itemSection.option(
     form.Value,
     "private_key",
     _("Private key")
   );
   privateKeyOption.password = true;
-  privateKeyOption.rmempty = false;
   privateKeyOption.depends("tunnel_type", "wireguard");
   privateKeyOption.depends("tunnel_type", "amneziawg");
-  privateKeyOption.validate = function(_itemId, value) {
-    const key = `${value || ""}`.trim();
-    if (!key) return _("Enter a private key");
-    return validateWireGuardKey(key) ? true : _("WireGuard keys must be standard base64-encoded 32-byte values");
-  };
+  privateKeyOption.validate = required(
+    (_itemId, value) => validateWireGuardKey(value) ? true : message.invalidKey()
+  );
   const listenPortOption = itemSection.option(
     form.Value,
     "listen_port",
     _("Local port")
   );
-  listenPortOption.datatype = "port";
+  listenPortOption.validate = anyPortField;
   listenPortOption.rmempty = true;
   listenPortOption.depends("tunnel_type", "wireguard");
   listenPortOption.depends("tunnel_type", "amneziawg");
   const mtuOption = itemSection.option(form.Value, "mtu", "MTU");
   mtuOption.placeholder = "1408";
-  mtuOption.datatype = "range(1,65535)";
+  mtuOption.validate = wholeNumberField(1, 65535);
   mtuOption.rmempty = true;
   mtuOption.depends("tunnel_type", "wireguard");
   mtuOption.depends("tunnel_type", "amneziawg");
@@ -21835,13 +21467,9 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   peersOption.validateItemsOnSave = function(_ownerId, values) {
     return validateWireGuardPeers(values, tunnelId, this);
   };
-  peersOption.validate = function(_itemId, value) {
-    if (!`${value || ""}`.trim()) {
-      const current = typeof this.formvalue === "function" ? this.formvalue(_itemId) : [];
-      return normalizeDynamicListItems(current).length > 0 ? true : _("Add at least one WireGuard peer");
-    }
+  peersOption.validate = requiredList(function(_itemId, value) {
     return validateWireGuardPeerValue(value, tunnelId, this);
-  };
+  });
   const amneziaOptions = {};
   importButton.onclick = function() {
     return showTunnelImportModal(
@@ -21877,7 +21505,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     "warp_profile_id",
     _("Profile ID")
   );
-  warpProfileIdOption.rmempty = false;
+  warpProfileIdOption.validate = required();
   warpProfileIdOption.depends("tunnel_type", "warp");
   const warpAuthTokenOption = itemSection.option(
     form.Value,
@@ -21885,7 +21513,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     _("Auth token")
   );
   warpAuthTokenOption.password = true;
-  warpAuthTokenOption.rmempty = false;
+  warpAuthTokenOption.validate = required();
   warpAuthTokenOption.depends("tunnel_type", "warp");
   const warpPrivateKeyOption = itemSection.option(
     form.Value,
@@ -21893,7 +21521,9 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     _("Private key")
   );
   warpPrivateKeyOption.password = true;
-  warpPrivateKeyOption.rmempty = false;
+  warpPrivateKeyOption.validate = required(
+    (_itemId, value) => validateWireGuardKey(value) ? true : message.invalidKey()
+  );
   warpPrivateKeyOption.depends("tunnel_type", "warp");
   const warpLicenseKeyOption = itemSection.option(
     form.Value,
@@ -22043,15 +21673,11 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
 
 // src/forkop/tabs/sections/urltest.ts
 function validateUrlTestTolerance(value) {
-  if (!value || `${value}`.length === 0) {
-    return _("Must be a number in the range of 0 - 10000");
+  const normalized = `${value ?? ""}`.trim();
+  if (!normalized) {
+    return message.required();
   }
-  const normalized = `${value}`;
-  const parsed = parseFloat(normalized);
-  if (/^[0-9]+$/.test(normalized) && !isNaN(parsed) && isFinite(parsed) && parsed >= 0 && parsed <= 1e4) {
-    return true;
-  }
-  return _("Must be a number in the range of 0 - 10000");
+  return /^[0-9]+$/.test(normalized) && Number(normalized) <= 1e4 ? true : message.wholeNumber(0, 1e4);
 }
 function urlTestSettingsKeys() {
   return [
@@ -22087,7 +21713,6 @@ function defaultUrlTestSettings(name) {
 function addUrlTestItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
   let o = itemSection.option(form.Value, "name", _("Group name"));
-  o.rmempty = false;
   o.load = function(itemId) {
     return optionMapValue(this, itemId, "name") || optionMapValue(this, itemId, "display_name") || "";
   };
@@ -22099,7 +21724,6 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     _("Latency measurement for every server")
   );
   o.default = "https://www.gstatic.com/generate_204";
-  o.rmempty = false;
   LATENCY_TEST_URL_OPTIONS.forEach((value) => o.value(value));
   o.validate = function(_itemId, value) {
     return validateUrlField(value);
@@ -22112,7 +21736,6 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     _("How often every server of the group is checked")
   );
   o.default = "3m";
-  o.rmempty = false;
   o.validate = function(_itemId, value) {
     return validateRequiredSingBoxDuration(value);
   };
@@ -22123,11 +21746,10 @@ function addUrlTestItemOptions(itemSection, options = {}) {
     _("Switching threshold in ms at which to move to a faster server")
   );
   o.default = "50";
-  o.rmempty = false;
   o.validate = function(_itemId, value) {
     return validateUrlTestTolerance(value);
   };
-  addGroupHealthCheckTailOptions(itemSection, "30m");
+  addGroupHealthCheckTailOptions(itemSection, "30m", "check_interval");
   addServerFilterOptions(itemSection, parentSectionForItem, {
     groupContext: true,
     modeLabel: _("Server filter"),
@@ -22192,7 +21814,7 @@ function validateUrlTestItemsBeforeSave(section_id, values, option2) {
       name = `${store2[itemId].name || ""}`;
     }
     if (!`${name || ""}`.trim()) {
-      return _("Enter a display name");
+      return message.item(_("URLTest"), message.fixSettings());
     }
   }
   return true;
@@ -22224,25 +21846,21 @@ function createSectionContent(section2) {
   };
   o.width = GRID_KIND_COLUMN_WIDTH;
   o = section2.taboption("settings", form.Value, "label", _("Section name"));
-  o.rmempty = false;
   o.modalonly = true;
   o.load = function(section_id) {
     return uci.get(FORKOP_UCI_PACKAGE, section_id, "label") || section_id;
   };
-  o.validate = function(section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    if (!normalized) return _("Enter a section name");
-    if (normalized.includes("/")) return _("Section name must not contain /");
-    if (RESERVED_RUNTIME_TAGS.has(normalized)) {
-      return _("This section name is reserved by Forkop");
-    }
+  o.validate = required(function(section_id, value) {
+    const normalized = value.trim();
+    if (normalized.includes("/")) return message.slashInName();
+    if (RESERVED_RUNTIME_TAGS.has(normalized)) return message.reservedName();
     return [
       ...uci.sections(FORKOP_UCI_PACKAGE, "section") || [],
       ...uci.sections(FORKOP_UCI_PACKAGE, "server") || []
     ].some(
       (item) => item[".name"] !== section_id && `${item.label || item[".name"] || ""}`.trim() === normalized
-    ) ? _("Section name must be unique") : true;
-  };
+    ) ? message.nameTaken() : true;
+  });
   o = section2.taboption(
     "settings",
     form.ListValue,
@@ -22314,8 +21932,8 @@ function createSectionContent(section2) {
     keepUnavailableSectionChoice(this, value);
     return value;
   };
-  o.validate = function(_section_id, value) {
-    return value ? true : _("Select a section");
+  o.validate = function(section_id, value) {
+    return validateSectionChoice(this, value, section_id);
   };
   const links = section2.taboption(
     "settings",
@@ -22430,8 +22048,10 @@ function createSectionContent(section2) {
   o.depends("action", "connection");
   o.rmempty = true;
   o.modalonly = true;
-  o.datatype = "netdevname";
   o.placeholder = _("Select an interface");
+  o.validate = function(_section_id, value) {
+    return !value || /^[^\s:/%]{1,15}$/.test(value) ? true : _("Invalid interface name");
+  };
   o.childType = "section_interface";
   o.childValueOption = "name";
   o.createId = () => nextSectionId("section_interface");
@@ -22471,16 +22091,9 @@ function createSectionContent(section2) {
     return tunnelListItemLabel(section_id, `${value ?? ""}`);
   };
   o.validateItemsOnSave = validateTunnelItemsBeforeSave;
-  o.validate = function(_section_id, value) {
-    if (!`${value || ""}`.trim()) {
-      return true;
-    }
-    if (!isExistingChildItem(_section_id, `${value || ""}`.trim(), "tunnel")) {
-      return _("Open tunnel settings and complete the configuration");
-    }
-    return validateTunnelSettings(
-      tunnelInitialSettings(`${value || ""}`.trim(), _section_id)
-    );
+  o.validate = function(section_id, value) {
+    const tunnelId = `${value || ""}`.trim();
+    return tunnelId ? validateTunnelItem(section_id, tunnelId) : true;
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   o.afterMaterializeChildItems = orderChildItemsByPosition;
@@ -22507,7 +22120,7 @@ function createSectionContent(section2) {
       return true;
     }
     const validation = validateOutboundJson(value);
-    return validation.valid ? true : validation.message;
+    return validation === true ? true : message.item(outboundJsonDisplayTag(value), validation);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set("outbound_jsons", o);
@@ -22701,12 +22314,11 @@ function configureSectionSection(sectionRef) {
   };
   sectionRef.handleModalSave = function(modalMap, ev) {
     const editedSectionId = modalMap?.section;
-    if (missingConnectionOutbound(modalMap, editedSectionId)) {
-      reportRefusedSave(
-        _(
-          "Add a connection URI, a subscription, a network interface, a tunnel or a JSON outbound"
-        )
-      );
+    const missing = missingConnectionOutbound(modalMap, editedSectionId) ? _(
+      "Add a connection URI, subscription, interface, tunnel or JSON outbound"
+    ) : missingDnsMatcher(modalMap, editedSectionId) ? _("Add a domain, built-in list, rule set or device") : "";
+    if (missing) {
+      reportRefusedSave(missing);
       return Promise.resolve(false);
     }
     return saveSectionModal(this, modalMap, ev);
@@ -23236,7 +22848,7 @@ function isIpv6(value) {
     return false;
   }
 }
-function isHostname2(value) {
+function isHostname(value) {
   const hostname = normalizeHost(value);
   if (hostname.length < 1 || hostname.length > 253 || hostname.endsWith(".")) {
     return false;
@@ -23247,7 +22859,7 @@ function isHostname2(value) {
 }
 function isHost(value) {
   const host = normalizeHost(value);
-  return isIpv4(host) || isIpv6(host) || isHostname2(host);
+  return isIpv4(host) || isIpv6(host) || isHostname(host);
 }
 function formatHostForUri(host) {
   const normalized = normalizeHost(host);
@@ -23786,30 +23398,29 @@ function namesHostAddress(address, bits) {
 function validateTunnelSubnet(value) {
   const subnet = `${value || ""}`.trim();
   if (!isValidCidr(subnet)) {
-    return _("Use an address with a prefix length, such as %s").format(
-      DEFAULT_SUBNET
-    );
+    return _("Format: %s").format(DEFAULT_SUBNET);
   }
   const [address, prefix] = subnet.split("/");
   const bits = Number(prefix);
   if (isIpv4(address) ? bits < 8 || bits > 30 : bits < 64 || bits > 126) {
-    return isIpv4(address) ? _("An IPv4 subnet needs a prefix length from 8 to 30") : _("An IPv6 subnet needs a prefix length from 64 to 126");
+    return isIpv4(address) ? message.prefixRange(8, 30) : message.prefixRange(64, 126);
   }
-  return namesHostAddress(address, bits) ? true : _(
-    "Name the address of the server in the subnet, such as %s rather than the subnet itself"
-  ).format(isIpv4(address) ? DEFAULT_SUBNET : "fd00:8::1/64");
+  return namesHostAddress(address, bits) ? true : _("The server's address in the subnet, such as %s").format(
+    isIpv4(address) ? DEFAULT_SUBNET : "fd00:8::1/64"
+  );
 }
 function validateTunnelSubnets(values) {
   const subnets = valueList(values).map((value) => `${value}`.trim());
   const families = subnets.map(
     (subnet) => isIpv6(subnet.split("/")[0]) ? 6 : 4
   );
-  if (!families.includes(4)) return _("Add an IPv4 subnet");
+  if (!subnets.length) return message.required();
+  if (!families.includes(4)) return _("Needs an IPv4 subnet");
   if (families.filter((family) => family === 4).length > 1) {
-    return _("Add at most one IPv4 subnet");
+    return _("At most one IPv4 subnet");
   }
   if (families.filter((family) => family === 6).length > 1) {
-    return _("Add at most one IPv6 subnet");
+    return _("At most one IPv6 subnet");
   }
   return true;
 }
@@ -23849,7 +23460,7 @@ function addTunnelOptions(section2) {
   o = section2.option(form.DynamicList, "tunnel_routes", _("Routes"));
   o.modalonly = true;
   o.rmempty = true;
-  o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : _("Use a subnet like 192.168.1.0/24");
+  o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : message.invalidSubnet();
   onTunnel(o, { tunnel_all_traffic: "0" });
 }
 
@@ -25027,43 +24638,52 @@ function autofill(option2, loader) {
 
 // src/forkop/tabs/servers/validators.ts
 function validateRequired(_sectionId, value) {
-  return isEmptyValue(value) ? _("This field is required") : true;
+  return isEmptyValue(value) ? message.required() : true;
 }
 function validateRequiredText(_sectionId, value) {
   if (isEmptyValue(value)) {
-    return _("This field is required");
+    return message.required();
   }
-  return hasControlCharacters(`${value}`) ? _("Value must not contain control characters") : true;
+  return hasControlCharacters(`${value}`) ? message.noControlCharacters() : true;
 }
 function validatePort(_sectionId, value) {
   const port2 = parseInt(value, 10);
-  return /^[0-9]+$/.test(`${value}`) && port2 >= 1 && port2 <= 65535 ? true : _("Port must be between 1 and 65535");
+  if (isEmptyValue(value)) {
+    return message.required();
+  }
+  return /^[0-9]+$/.test(`${value}`) && port2 >= 1 && port2 <= 65535 ? true : message.invalidPort();
 }
 function validateUuid(_sectionId, value) {
   return /^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$/.test(
     `${value || ""}`
-  ) ? true : _("Use a valid UUID");
+  ) ? true : message.invalidUuid();
 }
 function validateHost(_sectionId, value) {
-  return isHost(value) ? true : _("Use a domain name or IP address");
+  if (isEmptyValue(value)) {
+    return message.required();
+  }
+  return isHost(value) ? true : message.invalidHost();
 }
 function validateOptionalHost(_sectionId, value) {
-  return isEmptyValue(value) || isHost(value) ? true : _("Use a domain name or IP address");
+  return isEmptyValue(value) || isHost(value) ? true : message.invalidHost();
 }
 function validateListenAddress(_sectionId, value) {
   const address = `${value || ""}`.trim();
-  return !/[[\]]/.test(address) && (address === "0.0.0.0" || address === "::" || isIpv4(address) || isIpv6(address)) ? true : _("Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses");
+  if (!address) {
+    return message.required();
+  }
+  return !/[[\]]/.test(address) && (address === "0.0.0.0" || address === "::" || isIpv4(address) || isIpv6(address)) ? true : message.invalidIp();
 }
 function validateKeyFile(sectionId, value) {
   const key = `${value || ""}`.trim();
-  return isRouterPath(key) && key === liveOption(sectionId, "tls_certificate").trim() ? _("The certificate and the key must be different files") : true;
+  return isRouterPath(key) && key === liveOption(sectionId, "tls_certificate").trim() ? _("Same file as the certificate") : true;
 }
 function validateHttpUrl(_sectionId, value) {
   try {
     const url = new URL(`${value || ""}`);
-    return (url.protocol === "http:" || url.protocol === "https:") && isHost(url.hostname) ? true : _("Use an HTTP or HTTPS URL");
+    return (url.protocol === "http:" || url.protocol === "https:") && isHost(url.hostname) ? true : message.invalidUrl();
   } catch (_error) {
-    return _("Use an HTTP or HTTPS URL");
+    return message.invalidUrl();
   }
 }
 function validateOptionalMasquerade(_sectionId, value) {
@@ -25072,73 +24692,68 @@ function validateOptionalMasquerade(_sectionId, value) {
   }
   const target2 = `${value}`.trim();
   if (target2.startsWith("file://")) {
-    return target2.length > "file://".length ? true : _("Specify a directory after file://");
+    return target2.length > "file://".length ? true : _("Format: file:///www");
   }
-  return validateHttpUrl(null, target2) === true ? true : _("Use an https:// URL to proxy a site or file:// to serve a directory");
+  return validateHttpUrl(null, target2) === true ? true : _("Only https://, http:// or file://");
 }
 function validateInboundJson(_sectionId, value) {
   if (isEmptyValue(value)) {
-    return _("This field is required");
+    return message.required();
   }
   let parsed;
   try {
     parsed = JSON.parse(`${value}`);
   } catch (_error) {
-    return _("Invalid JSON format");
+    return message.invalidJson();
   }
-  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? true : _("Enter a valid JSON object");
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? true : message.invalidJson();
 }
-function validateOptionalPositiveInteger(_sectionId, value) {
-  return isEmptyValue(value) || /^[1-9][0-9]*$/.test(`${value}`) ? true : _("Use a positive integer");
-}
+var validateOptionalPositiveInteger = wholeNumberField(1);
 function validateTransportPath(_sectionId, value) {
-  return isEmptyValue(value) || `${value}`.startsWith("/") ? true : _("The path must start with /");
+  return isEmptyValue(value) || `${value}`.startsWith("/") ? true : _("Path must start with /");
 }
 function validateGrpcServiceName(_sectionId, value) {
-  return isEmptyValue(value) || /^[A-Za-z0-9_.-]+$/.test(`${value}`) ? true : _("Use letters, digits, dots, underscores, or hyphens");
+  return isEmptyValue(value) || /^[A-Za-z0-9_.-]+$/.test(`${value}`) ? true : message.nameCharacters();
 }
 function validateOptionalCidrOrIp(_sectionId, value) {
   if (isEmptyValue(value)) {
     return true;
   }
-  return valueList(value).some((item) => !isValidCidr(normalizeCidrOrIp(item))) ? _("Use a subnet like 192.168.1.0/24 or an address like 192.168.1.10") : true;
+  return valueList(value).some((item) => !isValidCidr(normalizeCidrOrIp(item))) ? message.invalidIpOrSubnet() : true;
 }
 function validateShortId(sectionId, value) {
-  const required = validateRequiredText(sectionId, value);
-  if (required !== true) {
-    return required;
+  const required2 = validateRequiredText(sectionId, value);
+  if (required2 !== true) {
+    return required2;
   }
   const id = `${value}`.trim();
-  if (!/^(?:[0-9a-fA-F]{2})+$/.test(id)) {
-    return _("Use an even number of hex digits, for example 0a1b2c3d");
-  }
-  return id.length > 16 ? _("A short ID holds at most 16 hex digits") : true;
+  return /^(?:[0-9a-fA-F]{2})+$/.test(id) && id.length <= 16 ? true : _("An even number of hex digits, up to 16");
 }
 function validateRealityKey(_sectionId, value) {
   if (isEmptyValue(value)) {
-    return _("Generate a key pair with the button next to the field");
+    return message.required();
   }
-  return /^[A-Za-z0-9_-]{43}$/.test(`${value}`.trim()) ? true : _("A Reality key is 43 base64url characters");
+  return /^[A-Za-z0-9_-]{43}$/.test(`${value}`.trim()) ? true : message.invalidKey();
 }
 function validateSecurity(sectionId, value) {
   const protocol = getProtocol(sectionId);
   const selected = value || defaultSecurity(protocol);
   if (!securitiesFor(protocol).includes(selected)) {
-    return _("This protocol does not support the selected security mode");
+    return _("Not supported by this protocol");
   }
   return validateCoreFeature(securityCoreFeature(selected));
 }
 function validateShadowsocksPassword(sectionId, value) {
-  const required = validateRequiredText(sectionId, value);
-  if (required !== true) {
-    return required;
+  const required2 = validateRequiredText(sectionId, value);
+  if (required2 !== true) {
+    return required2;
   }
   const keyBytes = shadowsocksKeyBytes(getShadowsocksMethod(sectionId));
   if (keyBytes === 0) {
     return true;
   }
   const decoded = decodeBase64(`${value}`.trim());
-  return decoded != null && decoded.length === keyBytes ? true : _("This method needs a base64 key of %d bytes").format(keyBytes);
+  return decoded != null && decoded.length === keyBytes ? true : _("Needs a base64 key of %d bytes").format(keyBytes);
 }
 function validateListenPort(sectionId, value) {
   const result = validatePort(sectionId, value);
@@ -25152,7 +24767,7 @@ function validateListenPort(sectionId, value) {
     protocol,
     network2 ? liveOption(sectionId, network2) : ""
   ).map((transport3) => owners.get(`${transport3}/${Number(`${value}`.trim())}`)).find(Boolean);
-  return owner ? _("Port %s is already used by %s").format(value, owner) : true;
+  return owner ? _("Port taken by %s").format(owner) : true;
 }
 
 // src/forkop/tabs/servers/clients.ts
@@ -25193,21 +24808,19 @@ function clientNameLabel(protocol) {
 function validateClientName(sectionId, value) {
   const name = `${value || ""}`.trim();
   if (!name) {
-    return _("This field is required");
+    return message.required();
   }
   if (name.length > MAX_CLIENT_NAME_LENGTH) {
-    return _("A name holds at most %d characters").format(
-      MAX_CLIENT_NAME_LENGTH
-    );
+    return _("Up to %d characters").format(MAX_CLIENT_NAME_LENGTH);
   }
   if (usesLoginName(getProtocol(sectionId))) {
-    return /^[A-Za-z0-9._-]+$/.test(name) ? true : _("Use letters, digits, dots, underscores, or hyphens");
+    return /^[A-Za-z0-9._-]+$/.test(name) ? true : message.nameCharacters();
   }
-  return hasControlCharacters(name) ? _("Value must not contain control characters") : true;
+  return hasControlCharacters(name) ? message.noControlCharacters() : true;
 }
 function validateClientCredential(sectionId, field, value) {
   if (field === "uuid") {
-    return validateUuid(sectionId, value);
+    return `${value || ""}`.trim() ? validateUuid(sectionId, value) : message.required();
   }
   if (field === "password") {
     return getProtocol(sectionId) === "shadowsocks" ? validateShadowsocksPassword(sectionId, value) : validateRequiredText(sectionId, value);
@@ -25274,7 +24887,7 @@ function listedClientNames(sectionId, listOption) {
 function validateClientsOnSave(sectionId, values, listOption) {
   const items = (Array.isArray(values) ? values : [values]).filter(Boolean);
   if (!items.length) {
-    return _("Add at least one client");
+    return message.required();
   }
   const store2 = childPendingSettingsStore(listOption, sectionId) || {};
   const seen = /* @__PURE__ */ new Set();
@@ -25287,12 +24900,11 @@ function validateClientsOnSave(sectionId, values, listOption) {
     );
     const settings = existing ? readClient(uci.get(FORKOP_UCI_PACKAGE, value) || {}) : Object.assign({ name: value }, store2[value] || {});
     const name = `${settings.name || value || ""}`.trim();
-    const nameResult = validateClientName(sectionId, name);
-    if (nameResult !== true) {
-      return `${name || value}: ${nameResult}`;
+    if (validateClientName(sectionId, name) !== true) {
+      return message.item(name || `${value}`, message.fixSettings());
     }
     if (seen.has(name.toLowerCase())) {
-      return _("Client names must be unique");
+      return message.item(name, message.nameTaken());
     }
     seen.add(name.toLowerCase());
     for (const field of visibleClientFields(sectionId)) {
@@ -25305,7 +24917,7 @@ function validateClientsOnSave(sectionId, values, listOption) {
         `${settings[field] || ""}`
       );
       if (result !== true) {
-        return `${name}: ${result}`;
+        return message.item(name, message.fixSettings());
       }
     }
   }
@@ -25388,7 +25000,9 @@ function addRoutingOptions(section2) {
   o.depends("routing_mode", "section");
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequired;
+  o.validate = function(_sectionId, value) {
+    return validateSectionChoice(this, value);
+  };
   o.cfgvalue = (sectionId) => option(sectionId, "routing_section");
   o.load = function(sectionId) {
     return loadRoutingSectionChoices(this, sectionId);
@@ -25415,7 +25029,6 @@ function addClientCredentialOptions(sectionId, itemSection) {
       field,
       clientCredentialLabel(sectionId, field)
     );
-    credential.rmempty = false;
     credential.password = field !== "uuid";
     credential.validate = (_id, value) => validateClientCredential(sectionId, field, value);
     addGenerateButton(
@@ -25431,7 +25044,6 @@ function addClientOptions(sectionId, itemSection, helpers, listOption) {
     "name",
     clientNameLabel(protocol)
   );
-  name.rmempty = false;
   name.validate = function(_id, value) {
     const result = validateClientName(sectionId, value);
     if (result !== true) {
@@ -25479,7 +25091,9 @@ function addClientRoutingOptions(sectionId, itemSection) {
     return value;
   };
   target2.depends({ routing_override: "1", routing_mode: "section" });
-  target2.validate = (_id, value) => value ? true : _("Select a section");
+  target2.validate = function(_id, value) {
+    return validateSectionChoice(this, value);
+  };
 }
 function showClientSettingsModal(sectionId, itemValue, listOption, widget, itemNode, context = {}) {
   return showChildItemSettingsModal(sectionId, itemValue, listOption, {
@@ -25534,13 +25148,7 @@ function addClientListOption(section2) {
   o.afterMaterializeChildItems = function(sectionId) {
     pruneClientCredentials(sectionId);
   };
-  o.validate = function(sectionId, value) {
-    if (`${value || ""}`.trim()) {
-      return true;
-    }
-    const current = typeof this.formvalue === "function" ? this.formvalue(sectionId) : [];
-    return (Array.isArray(current) ? current : [current]).filter(Boolean).length ? true : _("Add at least one client");
-  };
+  o.validate = requiredList();
   o.validateItemsOnSave = function(sectionId, values) {
     return validateClientsOnSave(sectionId, values, this);
   };
@@ -25564,25 +25172,24 @@ function addIdentityOptions(section2) {
   o.width = GRID_KIND_COLUMN_WIDTH;
   o = section2.option(form.Value, "label", _("Server name"));
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = function(sectionId, value) {
-    const required = validateRequiredText(sectionId, value);
-    if (required !== true) {
-      return required;
+    const required2 = validateRequiredText(sectionId, value);
+    if (required2 !== true) {
+      return required2;
     }
     const name = `${value}`.trim();
     if (name.includes("/")) {
-      return _("The name must not contain /");
+      return message.slashInName();
     }
     if (RESERVED_RUNTIME_TAGS.has(name)) {
-      return _("This name is reserved by Forkop");
+      return message.reservedName();
     }
     return [
       ...uci.sections(FORKOP_UCI_PACKAGE, "server") || [],
       ...uci.sections(FORKOP_UCI_PACKAGE, "section") || []
     ].some(
       (item) => item[".name"] !== sectionId && `${item.label || item[".name"] || ""}`.trim() === name
-    ) ? _("This name is already taken") : true;
+    ) ? message.nameTaken() : true;
   };
   o = section2.option(form.ListValue, "protocol", _("Protocol"));
   o.load = function(sectionId) {
@@ -25606,8 +25213,8 @@ function addIdentityOptions(section2) {
   o.rmempty = false;
   o.modalonly = true;
   o.validate = (sectionId, value) => {
-    const required = validateRequired(sectionId, value);
-    return required === true ? validateCoreFeature(protocolCoreFeature(value)) : required;
+    const required2 = validateRequired(sectionId, value);
+    return required2 === true ? validateCoreFeature(protocolCoreFeature(value)) : required2;
   };
   o.onchange = function(_ev, sectionId, value) {
     syncSecurityChoices(sectionId, value, true);
@@ -25622,7 +25229,6 @@ function addTailscaleOptions(section2) {
     _("Authorization key")
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateRequired;
   onTailscale(o);
@@ -25635,7 +25241,6 @@ function addTailscaleOptions(section2) {
     )
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = (_sectionId, value) => validateTailscaleHostname(value);
   onTailscale(o);
   o = section2.option(
@@ -25665,7 +25270,6 @@ function addTailscaleOptions(section2) {
   );
   o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = (_sectionId, value) => validateUrlField(value);
   onTailscale(o);
   o = section2.option(
@@ -25696,7 +25300,7 @@ function addTailscaleOptions(section2) {
     return value;
   };
   o.validate = function(_sectionId, value) {
-    return routingSectionChoices().some(([name]) => name === value) ? true : _("Select a section");
+    return validateSectionChoice(this, value);
   };
 }
 var JSON_INBOUND_PLACEHOLDER = [
@@ -25714,7 +25318,6 @@ function addJsonInboundOptions(section2) {
   o.wrap = "soft";
   o.textarea = true;
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateInboundJson;
   configureTextareaOption(o);
 }
@@ -25725,12 +25328,10 @@ function addListenerOptions(section2) {
   let o = section2.option(form.Value, "listen", _("Listen address"));
   o.placeholder = "::";
   o.default = "::";
-  o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenAddress;
   listenerProtocols().filter((protocol) => !protocolSpec(protocol)?.anyAddress).forEach((protocol) => o.depends("protocol", protocol));
   o = section2.option(form.Value, "listen_port", _("Listen port"));
-  o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenPort;
   autofill(
@@ -25746,7 +25347,6 @@ function addListenerOptions(section2) {
     _("The address links and profiles point at")
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateHost;
   onListener(o);
   autofill(o, function(sectionId) {
@@ -25778,7 +25378,6 @@ function addShadowsocksOptions(section2) {
   o.depends("protocol", "shadowsocks");
   o = section2.option(form.Value, "shadowsocks_psk", _("Server key"));
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateShadowsocksPassword;
   SHADOWSOCKS_METHODS.filter((method) => method.keyBytes > 0).forEach(
@@ -25833,7 +25432,6 @@ function addHysteria2Options(section2) {
     _("Obfuscation password")
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateRequiredText;
   autofill(
@@ -25962,7 +25560,7 @@ function addSecurityOptions(section2) {
   o.rmempty = true;
   o.validate = function(sectionId, value) {
     if (isEmptyValue(value)) {
-      return getEffectiveSecurity(sectionId) === "reality" ? _("Reality needs an SNI") : true;
+      return getEffectiveSecurity(sectionId) === "reality" ? message.required() : true;
     }
     return validateHost(sectionId, value);
   };
@@ -26019,14 +25617,7 @@ function addSecurityOptions(section2) {
     _("PEM text or the path of a file on the router")
   );
   o.modalonly = true;
-  configureMaterialOption(
-    o,
-    "certificate",
-    (value) => value("protocol") === "naive" ? _(
-      "NaiveProxy clients accept only a certificate a browser trusts. Paste it or load it from a file"
-    ) : _("Paste the certificate or load it from a file"),
-    "tls_key"
-  );
+  configureMaterialOption(o, "certificate", () => true, "tls_key");
   onOwnCertificate(o);
   o = section2.option(
     form.TextValue,
@@ -26035,12 +25626,7 @@ function addSecurityOptions(section2) {
     _("PEM text or the path of a file on the router")
   );
   o.modalonly = true;
-  configureMaterialOption(
-    o,
-    "key",
-    () => _("Paste the private key or load it from a file"),
-    "tls_certificate"
-  );
+  configureMaterialOption(o, "key", () => true, "tls_certificate");
   {
     const validateMaterial = o.validate;
     o.validate = function(sectionId, value) {
@@ -26055,7 +25641,6 @@ function addSecurityOptions(section2) {
     _("Reality private key")
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateRealityKey;
   autofill(
@@ -26068,7 +25653,6 @@ function addSecurityOptions(section2) {
   addRealityKeypairButton(o);
   o = section2.option(form.Value, "reality_public_key", _("Reality public key"));
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateRealityKey;
   autofill(
     o,
@@ -26079,7 +25663,6 @@ function addSecurityOptions(section2) {
   onReality(o);
   o = section2.option(form.Value, "reality_short_id", _("Reality short ID"));
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateShortId;
   autofill(
     o,
@@ -26400,7 +25983,7 @@ function configureDownloadSectionOption(option2, sectionOption) {
     uci.unset(FORKOP_UCI_PACKAGE, section_id, sectionOption);
   };
   option2.validate = function(_section_id, value) {
-    return value ? true : _("Select a section");
+    return validateSectionChoice(this, value);
   };
 }
 function configureDownloadViaProxyFlag(option2, sectionOption) {
@@ -26436,9 +26019,9 @@ function analyzeStaticHosts(text6) {
   const annotations = [];
   const errors = [];
   let offset = 0;
-  const reject = (field, message) => {
-    annotations.push({ start: field.start, end: field.end, message });
-    errors.push(`${field.value}: ${message}`);
+  const reject = (field, reason) => {
+    annotations.push({ start: field.start, end: field.end, message: reason });
+    errors.push(`${field.value}: ${reason}`);
   };
   for (const line of value.split("\n")) {
     const fields = lineFields(line, offset);
@@ -26448,21 +26031,21 @@ function analyzeStaticHosts(text6) {
     }
     const [address, ...domains] = fields;
     if (!isIPv4(address.value) && !isIPv6(address.value)) {
-      reject(address, _("Invalid IP address"));
+      reject(address, message.invalidIp());
     }
     if (!domains.length) {
-      reject(address, _("Add at least one domain"));
+      reject(address, _("No domain"));
       continue;
     }
     for (const domain of domains) {
       const ascii = asciiHostname(domain.value.toLowerCase());
       if (!ascii || !validAsciiDomain(ascii, false)) {
-        reject(domain, _("Invalid domain address"));
+        reject(domain, message.invalidDomain());
       }
     }
   }
   if (!errors.length) {
-    return { valid: true, message: _("Valid"), annotations: [] };
+    return { valid: true, message: "", annotations: [] };
   }
   annotations.sort((left, right) => left.start - right.start);
   return { valid: false, message: errors.join("\n"), annotations };
@@ -26629,13 +26212,7 @@ function addDnsOptions(section2) {
     _("How long DNS records are cached, in seconds")
   );
   o.default = "60";
-  o.rmempty = false;
-  o.validate = function(section_id, value) {
-    if (!value) {
-      return _("TTL value cannot be empty");
-    }
-    return /^[0-9]+$/.test(value) ? true : _("TTL must be a positive number");
-  };
+  o.validate = required(wholeNumberField(0));
   o = section2.option(
     form.ListValue,
     "dns_strategy",
@@ -26670,7 +26247,6 @@ function addDnsOptions(section2) {
     _("Maximum time to wait for a DNS response")
   );
   o.default = "10s";
-  o.rmempty = false;
   o.validate = (_sectionId, value) => validateRequiredSingBoxDuration(value);
   o = section2.option(
     form.ListValue,
@@ -26699,8 +26275,7 @@ function addNetworkOptions(section2) {
     if (!value || value.length === 0 || value === SYSTEM_DEVICE_VALUE) {
       return true;
     }
-    const validation = validateSubnet(value);
-    return validation.valid ? true : validation.message;
+    return validateSubnet(value);
   };
   excludedDevicesOption.renderWidget = function(section_id, _option_index, cfgvalue) {
     return createLocalDeviceDynamicListWidget(this, section_id, cfgvalue);
@@ -26804,42 +26379,24 @@ function addNetworkOptions(section2) {
   o.depends("enable_badwan_interface_monitoring", "1");
   o.retain = true;
   o.default = "2000";
-  o.rmempty = false;
-  o.validate = function(_section_id, value) {
-    if (!value) {
-      return _("Delay value cannot be empty");
-    }
-    return /^[0-9]+$/.test(value) ? true : _("Use a whole number of milliseconds");
-  };
+  o.validate = required(wholeNumberField(0));
 }
 
 // src/validators/validateSingBoxFilePath.ts
 function validateSingBoxFilePath(value, fileName2) {
   const path = validatePath(value);
-  if (!path.valid) {
+  if (path !== true) {
     return path;
   }
   if (!value.endsWith(fileName2)) {
-    return {
-      valid: false,
-      message: _("Path must end with %s").replace("%s", fileName2)
-    };
+    return _("Path must end with %s").format(fileName2);
   }
-  if (value.split("/").filter(Boolean).length < 2) {
-    return {
-      valid: false,
-      message: _(
-        "Path must contain at least one directory (like /tmp/%s)"
-      ).replace("%s", fileName2)
-    };
-  }
-  return { valid: true, message: _("Valid") };
+  return value.split("/").filter(Boolean).length < 2 ? _("Format: %s").format(`/tmp/${fileName2}`) : true;
 }
 
 // src/forkop/tabs/settings/validators.ts
 function validateSingBoxPath(value, fileName2) {
-  const validation = validateSingBoxFilePath(`${value || ""}`, fileName2);
-  return validation.valid ? true : validation.message;
+  return validateSingBoxFilePath(`${value || ""}`, fileName2);
 }
 
 // src/forkop/tabs/settings/form/service.ts
@@ -26848,7 +26405,6 @@ function addServiceOptions(section2) {
   o.value("/etc/sing-box/config.json", "Flash (/etc/sing-box/config.json)");
   o.value("/tmp/sing-box/config.json", "RAM (/tmp/sing-box/config.json)");
   o.default = "/etc/sing-box/config.json";
-  o.rmempty = false;
   o.validate = function(_section_id, value) {
     return validateSingBoxPath(value, "config.json");
   };
@@ -26859,7 +26415,6 @@ function addServiceOptions(section2) {
     "Flash (/usr/share/sing-box/cache.db)"
   );
   o.default = "/tmp/sing-box/cache.db";
-  o.rmempty = false;
   o.validate = function(_section_id, value) {
     return validateSingBoxPath(value, "cache.db");
   };
@@ -26919,7 +26474,7 @@ function addTrafficOptions(section2) {
   );
   o.depends("enable_yacd_wan_access", "1");
   o.retain = true;
-  o.rmempty = false;
+  o.validate = required();
   const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
   o = section2.option(
     form.Flag,
@@ -26937,8 +26492,7 @@ function addTrafficOptions(section2) {
   o.password = true;
   o.depends("enable_native_api", "1");
   o.retain = true;
-  o.rmempty = false;
-  o.validate = (_sectionId, value) => value ? true : _("Enter an API secret");
+  o.validate = required();
   o = section2.option(
     form.Flag,
     "disable_quic",
@@ -26972,7 +26526,6 @@ function addUpdateOptions(section2) {
   o.retain = true;
   o.placeholder = "1d";
   o.default = "1d";
-  o.rmempty = false;
   o.cfgvalue = function(section_id) {
     return uci.get(FORKOP_UCI_PACKAGE, section_id, "update_interval") || "1d";
   };
@@ -27003,7 +26556,6 @@ function addUpdateOptions(section2) {
   );
   LATENCY_TEST_URL_OPTIONS.forEach((value) => o.value(value));
   o.default = DEFAULT_LATENCY_TEST_URL || "https://www.gstatic.com/generate_204";
-  o.rmempty = false;
   o.validate = function(_section_id, value) {
     return validateUrlField(value);
   };

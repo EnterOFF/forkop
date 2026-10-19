@@ -47,7 +47,7 @@ function normalizeLocalDeviceName(name: unknown): string {
 
 function normalizeLocalDeviceIp(ip: unknown): string {
   const normalizedIp = `${ip || ''}`.trim();
-  return validateIP(normalizedIp).valid ? normalizedIp : '';
+  return validateIP(normalizedIp) === true ? normalizedIp : '';
 }
 
 function addLocalDeviceName(
@@ -76,7 +76,7 @@ function addOfferedAddress(
 function addRouterIp(routerIps: Record<string, boolean>, ip: unknown): void {
   const normalizedIp = `${ip || ''}`.trim();
 
-  if (!normalizedIp || !validateIP(normalizedIp).valid) {
+  if (!normalizedIp || validateIP(normalizedIp) !== true) {
     return;
   }
 
@@ -270,7 +270,7 @@ export function loadLocalDevices(): Promise<LocalDevices> {
 // name to, which is the only reason to fetch the host hints.
 function namesALocalDevice(values: unknown): boolean {
   return normalizeOptionValues(values).some(
-    (value) => value === SYSTEM_DEVICE_VALUE || validateIP(value).valid,
+    (value) => value === SYSTEM_DEVICE_VALUE || validateIP(value) === true,
   );
 }
 

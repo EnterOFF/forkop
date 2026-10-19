@@ -1,4 +1,6 @@
 import { validateSubnet } from '../../../../validators/validateSubnet';
+import { required } from '../../../cbi/required';
+import { wholeNumberField } from '../../../../validators/fields';
 import {
   createLocalDeviceDynamicListWidget,
   SYSTEM_DEVICE_VALUE,
@@ -24,8 +26,7 @@ export function addNetworkOptions(section: CBISection) {
       return true;
     }
 
-    const validation = validateSubnet(value);
-    return validation.valid ? true : validation.message;
+    return validateSubnet(value);
   };
   excludedDevicesOption.renderWidget = function (
     section_id,
@@ -181,13 +182,5 @@ export function addNetworkOptions(section: CBISection) {
   o.depends('enable_badwan_interface_monitoring', '1');
   o.retain = true;
   o.default = '2000';
-  o.rmempty = false;
-  o.validate = function (_section_id: string, value: string) {
-    if (!value) {
-      return _('Delay value cannot be empty');
-    }
-    return /^[0-9]+$/.test(value)
-      ? true
-      : _('Use a whole number of milliseconds');
-  };
+  o.validate = required(wholeNumberField(0));
 }

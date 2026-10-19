@@ -6,6 +6,8 @@ import type { OpenConnectImportResult } from '../../../../helpers/parseOpenConne
 import { isEncryptedKey } from '../../../../helpers/material';
 import { setModalOptionValue } from '../../../cbi/modal';
 import { configureMaterialOption } from '../../../cbi/material';
+import { message } from '../../../../validators/messages';
+import { domainField, wholeNumberField } from '../../../../validators/fields';
 import {
   openConnectInitialSettings,
   validateFormEntry,
@@ -71,7 +73,6 @@ export function addOpenConnectOptions(section: CBISection) {
       ),
     ),
   );
-  o.rmempty = false;
   o.validate = (_sectionId: string, value: unknown) =>
     validateOpenConnectServer(value);
 
@@ -128,7 +129,6 @@ export function addOpenConnectOptions(section: CBISection) {
     onKind(o, { openconnect_token_mode: mode }),
   );
   o.password = true;
-  o.rmempty = false;
   o.validate = function (_sectionId: string, value: unknown) {
     return validateTokenSecret(
       formValue(this, 'openconnect_token_mode'),
@@ -191,12 +191,7 @@ export function addOpenConnectOptions(section: CBISection) {
       certificate,
     ),
   );
-  configureMaterialOption(
-    o,
-    'certificate',
-    () => _('Add the client certificate'),
-    'openconnect_key',
-  );
+  configureMaterialOption(o, 'certificate', () => true, 'openconnect_key');
 
   o = add(
     onKind(
@@ -204,12 +199,7 @@ export function addOpenConnectOptions(section: CBISection) {
       certificate,
     ),
   );
-  configureMaterialOption(
-    o,
-    'passphrase-key',
-    () => _('Add the key of the client certificate'),
-    'openconnect_cert',
-  );
+  configureMaterialOption(o, 'passphrase-key', () => true, 'openconnect_cert');
   o.onchange = () =>
     window.setTimeout(
       () => options.openconnect_key_password.triggerValidation('settings'),
@@ -232,7 +222,7 @@ export function addOpenConnectOptions(section: CBISection) {
   o.validate = function (_sectionId: string, value: unknown) {
     return `${value ?? ''}` === '' &&
       isEncryptedKey(formValue(this, 'openconnect_key'))
-      ? _('The client key is protected by a passphrase: enter it')
+      ? message.required()
       : true;
   };
 
@@ -248,7 +238,7 @@ export function addOpenConnectOptions(section: CBISection) {
       ),
     ),
   );
-  configureMaterialOption(o, 'ca', () => '');
+  configureMaterialOption(o, 'ca', () => false);
 
   o = add(
     onKind(
@@ -419,7 +409,7 @@ export function addOpenConnectOptions(section: CBISection) {
       advanced,
     ),
   );
-  o.datatype = 'hostname';
+  o.validate = domainField;
   o.rmempty = true;
 
   o = add(
@@ -498,7 +488,7 @@ export function addOpenConnectOptions(section: CBISection) {
   o = add(
     onKind(section.option(form.Value, 'openconnect_mtu', _('MTU')), advanced),
   );
-  o.datatype = 'range(576,65535)';
+  o.validate = wholeNumberField(576, 65535);
   o.rmempty = true;
 
   o = add(
@@ -514,7 +504,7 @@ export function addOpenConnectOptions(section: CBISection) {
       ['anyconnect', 'gp', 'fortinet', 'f5'],
     ),
   );
-  o.datatype = 'range(1280,65535)';
+  o.validate = wholeNumberField(1280, 65535);
   o.placeholder = '1406';
   o.rmempty = true;
 
@@ -528,7 +518,7 @@ export function addOpenConnectOptions(section: CBISection) {
       advanced,
     ),
   );
-  o.datatype = 'range(2,86400)';
+  o.validate = wholeNumberField(2, 86400);
   o.rmempty = true;
 
   return options;

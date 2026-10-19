@@ -8,6 +8,15 @@ import type { OpenVPNImportResult } from '../../../../helpers/parseOpenVPNConfig
 import { normalizeOptionValues } from '../../../cbi/listValues';
 import { setModalOptionValue } from '../../../cbi/modal';
 import { configureMaterialOption } from '../../../cbi/material';
+import { required, requiredList } from '../../../cbi/required';
+import { message } from '../../../../validators/messages';
+import {
+  ipv4Field,
+  ipv6Field,
+  wholeNumberField,
+} from '../../../../validators/fields';
+import { isIPv4, isIPv6 } from '../../../../validators/validateIp';
+import { currentOptionValue } from '../subscriptions/model';
 import {
   COMPRESSION_LABELS,
   DATA_CIPHERS,
@@ -27,10 +36,26 @@ function secondsOption(
   placeholder: string,
 ) {
   const o = section.option(form.Value, name, title, description ?? undefined);
-  o.datatype = 'uinteger';
+  o.validate = wholeNumberField(0);
   o.placeholder = placeholder;
   o.rmempty = true;
   return o;
+}
+
+// The other end of a static key tunnel, which each address family of the
+// tunnel addresses needs.
+function peerAddressCheck(
+  family: (address: string) => boolean,
+  check: (sectionId: string, value: unknown) => true | string,
+) {
+  return function (this: CBIOption, sectionId: string, value: unknown) {
+    const needed = normalizeOptionValues(
+      currentOptionValue(this, sectionId, 'openvpn_address'),
+    ).some((address) => family(address.split('/')[0]));
+    return needed && !trimmed(value)
+      ? message.required()
+      : check(sectionId, value);
+  };
 }
 
 function onKind(o: CBIOption, extra: Record<string, unknown> = {}) {
@@ -62,16 +87,7 @@ export function addOpenVPNOptions(section: CBISection) {
     ),
   );
   o.rmempty = false;
-  o.validate = function (_sectionId: string, value: unknown) {
-    if (!trimmed(value)) {
-      const current =
-        typeof this.formvalue === 'function' ? this.formvalue('settings') : [];
-      return normalizeOptionValues(current).length
-        ? true
-        : _('Add at least one OpenVPN server');
-    }
-    return validateServerEntry(value);
-  };
+  o.validate = requiredList((_sectionId, value) => validateServerEntry(value));
 
   o = add(
     'openvpn_network',
@@ -108,9 +124,7 @@ export function addOpenVPNOptions(section: CBISection) {
       openvpn_login: '1',
     }),
   );
-  o.rmempty = false;
-  o.validate = (_sectionId: string, value: unknown) =>
-    trimmed(value) ? true : _('Enter the username');
+  o.validate = required();
 
   o = add(
     'openvpn_password',
@@ -129,11 +143,14 @@ export function addOpenVPNOptions(section: CBISection) {
       tls,
     ),
   );
-  configureMaterialOption(o, 'ca', (value) =>
-    value('openvpn_advanced') === '1' &&
-    normalizeOptionValues(value('openvpn_peer_fingerprint')).length
-      ? ''
-      : _('Add the CA certificate the server certificate is checked against'),
+  configureMaterialOption(
+    o,
+    'ca',
+    (value) =>
+      !(
+        value('openvpn_advanced') === '1' &&
+        normalizeOptionValues(value('openvpn_peer_fingerprint')).length
+      ),
   );
 
   o = add(
@@ -146,10 +163,7 @@ export function addOpenVPNOptions(section: CBISection) {
   configureMaterialOption(
     o,
     'certificate',
-    (value) =>
-      trimmed(value('openvpn_key'))
-        ? _('Add the certificate of the client key')
-        : '',
+    (value) => !!trimmed(value('openvpn_key')),
     'openvpn_key',
   );
 
@@ -160,10 +174,7 @@ export function addOpenVPNOptions(section: CBISection) {
   configureMaterialOption(
     o,
     'key',
-    (value) =>
-      trimmed(value('openvpn_cert'))
-        ? _('Add the key of the client certificate')
-        : '',
+    (value) => !!trimmed(value('openvpn_cert')),
     'openvpn_cert',
   );
 
@@ -199,7 +210,7 @@ export function addOpenVPNOptions(section: CBISection) {
     o,
     (value) =>
       value('openvpn_control_wrap') === 'tls_crypt_v2' ? 'crypt-v2' : 'static',
-    () => _('Add the key of the control channel protection'),
+    () => true,
   );
   options.openvpn_control_wrap.onchange = () =>
     window.setTimeout(
@@ -226,7 +237,7 @@ export function addOpenVPNOptions(section: CBISection) {
       staticKey,
     ),
   );
-  configureMaterialOption(o, 'static', () => _('Add the static key'));
+  configureMaterialOption(o, 'static', () => true);
 
   o = add(
     'openvpn_static_cipher',
@@ -252,8 +263,7 @@ export function addOpenVPNOptions(section: CBISection) {
     ),
   );
   o.rmempty = false;
-  o.validate = (_sectionId: string, value: unknown) =>
-    trimmed(value) ? validateAddress(value) : true;
+  o.validate = requiredList((_sectionId, value) => validateAddress(value));
 
   o = add(
     'openvpn_peer_address',
@@ -267,8 +277,7 @@ export function addOpenVPNOptions(section: CBISection) {
       staticKey,
     ),
   );
-  o.datatype = 'ip4addr("nomask")';
-  o.rmempty = true;
+  o.validate = peerAddressCheck(isIPv4, ipv4Field);
 
   o = add(
     'openvpn_peer_address_ipv6',
@@ -282,8 +291,7 @@ export function addOpenVPNOptions(section: CBISection) {
       staticKey,
     ),
   );
-  o.datatype = 'ip6addr("nomask")';
-  o.rmempty = true;
+  o.validate = peerAddressCheck(isIPv6, ipv6Field);
 
   o = add(
     'openvpn_advanced',
@@ -378,7 +386,7 @@ export function addOpenVPNOptions(section: CBISection) {
     !trimmed(value) ||
     /^[0-9a-f]{64}$/.test(trimmed(value).replace(/:/g, '').toLowerCase())
       ? true
-      : _('Enter a SHA-256 fingerprint of 64 hex digits');
+      : _('Invalid SHA-256 fingerprint');
 
   o = add(
     'openvpn_certificate_profile',
@@ -515,7 +523,7 @@ export function addOpenVPNOptions(section: CBISection) {
       advanced,
     ),
   );
-  o.datatype = 'range(576,65535)';
+  o.validate = wholeNumberField(576, 65535);
   o.placeholder = '1500';
   o.rmempty = true;
 
@@ -531,7 +539,7 @@ export function addOpenVPNOptions(section: CBISection) {
       { ...advanced, openvpn_network: 'udp' },
     ),
   );
-  o.datatype = 'range(68,65535)';
+  o.validate = wholeNumberField(68, 65535);
   o.rmempty = true;
 
   o = add(
@@ -546,7 +554,7 @@ export function addOpenVPNOptions(section: CBISection) {
       advanced,
     ),
   );
-  o.datatype = 'range(0,65535)';
+  o.validate = wholeNumberField(0, 65535);
   o.placeholder = '1492';
   o.rmempty = true;
 

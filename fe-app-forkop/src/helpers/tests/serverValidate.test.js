@@ -46,12 +46,12 @@ describe('Reality short ID validation', () => {
   // One value only: a share link carries exactly one, so a second could not reach
   // any client through anything Forkop hands out.
   it('rejects more than eight bytes, non-hex input and a list', () => {
-    expect(validate.validateShortId('srv', 'a'.repeat(18))).toMatch(/16 hex/);
+    expect(validate.validateShortId('srv', 'a'.repeat(18))).toMatch(/up to 16/);
     expect(validate.validateShortId('srv', 'zz')).toMatch(/even number/);
     expect(validate.validateShortId('srv', ['ab', 'cdef'])).toMatch(
       /even number/,
     );
-    expect(validate.validateShortId('srv', '')).toMatch(/required/);
+    expect(validate.validateShortId('srv', '')).toBe('Required');
   });
 });
 
@@ -93,8 +93,8 @@ describe('listen port validation', () => {
     });
 
     expect(validate.validateListenPort('srv', '30000')).toBe(true);
-    expect(validate.validateListenPort('srv', '0')).toMatch(/1 and 65535/);
-    expect(validate.validateListenPort('srv', '70000')).toMatch(/1 and 65535/);
+    expect(validate.validateListenPort('srv', '0')).toBe('Invalid port');
+    expect(validate.validateListenPort('srv', '70000')).toBe('Invalid port');
   });
 });
 
@@ -132,7 +132,7 @@ describe('raw inbound JSON validation', () => {
     expect(validate.validateInboundJson('srv', '"mixed"')).toMatch(
       /JSON object/,
     );
-    expect(validate.validateInboundJson('srv', '')).toMatch(/required/);
+    expect(validate.validateInboundJson('srv', '')).toBe('Required');
   });
 });
 
@@ -192,7 +192,7 @@ describe('Shadowsocks key validation', () => {
     expect(validate.validateShadowsocksPassword('srv', 'plain-password')).toBe(
       true,
     );
-    expect(validate.validateShadowsocksPassword('srv', '')).toMatch(/required/);
+    expect(validate.validateShadowsocksPassword('srv', '')).toBe('Required');
   });
 });
 

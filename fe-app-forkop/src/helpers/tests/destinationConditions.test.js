@@ -14,7 +14,7 @@ installUciStub();
 
 function problems(analyze, text) {
   const analysis = analyze(text);
-  return analysis.valid ? [] : analysis.message.split('\n').slice(1);
+  return analysis.valid ? [] : analysis.message.split('\n');
 }
 
 describe('a routing section', () => {
@@ -30,14 +30,11 @@ describe('a routing section', () => {
   });
 
   it.each([
-    ['192.0.2', 'Invalid format. Use an IP address or CIDR subnet'],
-    ['192.0.2.256', 'Invalid format. Use an IP address or CIDR subnet'],
-    [
-      '192.0.2.0/33',
-      'CIDR must be between 0 and 32 for IPv4 or 0 and 128 for IPv6',
-    ],
-    ['2001:db8:::1', 'Invalid format. Use an IP address or CIDR subnet'],
-    ['dead:beef', 'Invalid format. Use an IP address or CIDR subnet'],
+    ['192.0.2', 'Invalid IP address or subnet'],
+    ['192.0.2.256', 'Invalid IP address or subnet'],
+    ['192.0.2.0/33', 'Prefix length from 0 to 32'],
+    ['2001:db8:::1', 'Invalid IP address or subnet'],
+    ['dead:beef', 'Invalid IP address or subnet'],
   ])('tells a mistyped address %s what an address needs', (entry, message) => {
     expect(problems(analyzeDestinationText, entry)).toEqual([
       `${entry}: ${message}`,
@@ -48,7 +45,7 @@ describe('a routing section', () => {
     'refuses %s, which is neither a domain nor an address',
     (entry) => {
       expect(problems(analyzeDestinationText, entry)).toEqual([
-        `${entry}: Invalid domain address`,
+        `${entry}: Invalid domain`,
       ]);
     },
   );
@@ -81,7 +78,7 @@ describe('a DNS section', () => {
     (entry) => {
       expect(
         problems(analyzeDnsDestinationText, `example.org\n${entry}`),
-      ).toEqual([`${entry}: IP addresses cannot be used in a DNS section`]);
+      ).toEqual([`${entry}: Domains only`]);
     },
   );
 });

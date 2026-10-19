@@ -15,17 +15,17 @@ import { validateTailscaleHostname } from '../../../../validators/validateTailsc
 import { validateUrlField } from '../../../../validators/validateUrl';
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
 import { getChildItemIds, nextSectionId } from '../../../cbi/childItems';
-import { keepUnavailableSectionChoice } from '../../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../../cbi/choices';
 import { ButtonAddSettingsDynamicList } from '../../../cbi/dynamicList';
 import {
   addDynamicListItem,
   setDynamicListItemValue,
   updateDynamicListItemLabel,
 } from '../../../cbi/listItems';
-import {
-  nextDynamicListName,
-  normalizeDynamicListItems,
-} from '../../../cbi/listValues';
+import { nextDynamicListName } from '../../../cbi/listValues';
 import {
   renderStackedJsonSettingsModal,
   setModalOptionValue,
@@ -80,41 +80,38 @@ import {
 import {
   validateAmneziaRange,
   validateTunnelSettings,
-  validateWireGuardListInput,
   validateWireGuardPeerValue,
   validateWireGuardPeers,
+  validateWireGuardPrefix,
 } from './validate';
+import { required, requiredList } from '../../../cbi/required';
+import { message } from '../../../../validators/messages';
+import {
+  hostField,
+  anyPortField,
+  portField,
+  wholeNumberField,
+} from '../../../../validators/fields';
 import { E } from '../../../../helpers/element';
 
 function addWireGuardPeerItemOptions(section: CBISection) {
   let o = section.option(form.Value, 'address', _('Server address'));
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return `${value || ''}`.trim() ? true : _('Enter a server address');
-  };
+  o.validate = required(hostField);
 
   o = section.option(form.Value, 'port', _('Server port'));
-  o.datatype = 'port';
-  o.rmempty = false;
+  o.validate = required(portField);
 
   o = section.option(form.Value, 'public_key', _('Public key'));
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    const key = `${value || ''}`.trim();
-    if (!key) return _('Enter a public key');
-    return validateWireGuardKey(key)
-      ? true
-      : _('WireGuard keys must be standard base64-encoded 32-byte values');
-  };
+  o.validate = required((_itemId, value) =>
+    validateWireGuardKey(value) ? true : message.invalidKey(),
+  );
 
   o = section.option(form.Value, 'pre_shared_key', _('Pre-shared key'));
   o.password = true;
   o.rmempty = true;
   o.validate = function (_itemId: string, value: unknown) {
     const key = `${value || ''}`.trim();
-    return !key || validateWireGuardKey(key)
-      ? true
-      : _('WireGuard keys must be standard base64-encoded 32-byte values');
+    return !key || validateWireGuardKey(key) ? true : message.invalidKey();
   };
 
   o = section.option(
@@ -124,9 +121,7 @@ function addWireGuardPeerItemOptions(section: CBISection) {
     _('The subnets that go through this peer'),
   );
   o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return validateWireGuardListInput(value);
-  };
+  o.validate = requiredList((_itemId, value) => validateWireGuardPrefix(value));
 
   o = section.option(
     form.Value,
@@ -235,11 +230,13 @@ function showTunnelImportModal(
     form.TextValue,
     'configuration',
     _('Configuration'),
+    _(
+      'A WireGuard, OpenVPN or OpenConnect configuration, or a wireguard://, vpn:// or anyconnect:// link',
+    ),
   );
   configuration.rows = 12;
   configuration.wrap = 'off';
   configuration.textarea = true;
-  configuration.rmempty = false;
   let failedInput = '';
   let importError = '';
   configuration.validate = function (_itemId: string, value: unknown) {
@@ -250,9 +247,7 @@ function showTunnelImportModal(
     importError = '';
     failedInput = '';
     if (!input) {
-      return _(
-        'Paste a WireGuard, OpenVPN or OpenConnect configuration, or a wireguard://, vpn:// or anyconnect:// link',
-      );
+      return message.required();
     }
     const format = importedFormat(input);
     if (format === 'openvpn') {
@@ -264,9 +259,7 @@ function showTunnelImportModal(
       return parsed.valid ? true : parsed.message;
     }
     if (!format) {
-      return _(
-        'This is neither a WireGuard, an OpenVPN nor an OpenConnect configuration',
-      );
+      return _('Unknown format');
     }
     // A vpn:// link and an Amnezia profile carry a compressed or nested
     // payload that only the import step decodes; a configuration file and a
@@ -377,9 +370,7 @@ function showTunnelImportModal(
               showToast(
                 input
                   ? result
-                  : _(
-                      'Select the configuration file: .ovpn, .conf, .xml or .nmconnection',
-                    ),
+                  : _('Select a .ovpn, .conf, .xml or .nmconnection file'),
                 'error',
               );
             }),
@@ -462,18 +453,9 @@ export function showTunnelSettingsModal(
   typeOption.rmempty = false;
 
   let o = itemSection.option(form.Value, 'name', _('Tunnel name'));
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return `${value || ''}`.trim()
-      ? validateSectionChildListName(
-          section_id,
-          'tunnel',
-          widget,
-          itemNode,
-          value,
-        )
-      : _('Enter a tunnel name');
-  };
+  o.validate = required((_itemId, value) =>
+    validateSectionChildListName(section_id, 'tunnel', widget, itemNode, value),
+  );
   [
     'wireguard',
     'amneziawg',
@@ -512,7 +494,7 @@ export function showTunnelSettingsModal(
     _('A key from the Tailscale console'),
   );
   tailscaleAuthKeyOption.password = true;
-  tailscaleAuthKeyOption.rmempty = false;
+  tailscaleAuthKeyOption.validate = required();
   tailscaleAuthKeyOption.depends('tunnel_type', 'tailscale');
   tailscaleAuthKeyOption.retain = true;
 
@@ -522,7 +504,6 @@ export function showTunnelSettingsModal(
     _('Device name'),
     _('The name this device appears under in the Tailscale console'),
   );
-  tailscaleHostnameOption.rmempty = false;
   tailscaleHostnameOption.validate = function (
     _itemId: string,
     value: unknown,
@@ -538,7 +519,6 @@ export function showTunnelSettingsModal(
     _('For a server of your own, such as Headscale'),
   );
   tailscaleControlUrlOption.default = TAILSCALE_CONTROL_URL;
-  tailscaleControlUrlOption.rmempty = false;
   tailscaleControlUrlOption.depends('tunnel_type', 'tailscale');
   tailscaleControlUrlOption.validate = function (
     _itemId: string,
@@ -579,12 +559,7 @@ export function showTunnelSettingsModal(
     _itemId: string,
     value: unknown,
   ) {
-    if (!value) {
-      return _('Select a section');
-    }
-    return value === section_id
-      ? _('Current section cannot be used as its own transit section')
-      : true;
+    return validateSectionChoice(this, value, section_id);
   };
 
   const tailscaleAcceptRoutesOption = itemSection.option(
@@ -617,17 +592,16 @@ export function showTunnelSettingsModal(
   endpointJsonOption.rows = 12;
   endpointJsonOption.wrap = 'soft';
   endpointJsonOption.textarea = true;
-  endpointJsonOption.rmempty = false;
   endpointJsonOption.depends('tunnel_type', 'json');
-  endpointJsonOption.validate = function (_itemId: string, value: unknown) {
+  endpointJsonOption.validate = required((_itemId, value) => {
     const endpoint = parseOutboundJsonObject(value);
     if (!endpoint) {
-      return _('Enter a valid JSON endpoint object');
+      return message.invalidJson();
     }
     return typeof endpoint.tag === 'string' && endpoint.tag.trim()
       ? validateSectionChildName(section_id, 'tunnel', endpoint.tag)
-      : _('JSON endpoint must contain a non-empty tag');
-  };
+      : message.noTag();
+  });
   configureTextareaOption(endpointJsonOption);
 
   const openvpnOptions = addOpenVPNOptions(itemSection);
@@ -636,11 +610,11 @@ export function showTunnelSettingsModal(
   o = itemSection.option(form.Value, 'warp_address', _('WARP server address'));
   o.depends('tunnel_type', 'warp');
   o.rmempty = true;
-  o.datatype = 'host';
+  o.validate = hostField;
   o = itemSection.option(form.Value, 'warp_port', _('WARP server port'));
   o.depends('tunnel_type', 'warp');
   o.rmempty = true;
-  o.datatype = 'port';
+  o.validate = anyPortField;
 
   const addressOption = itemSection.option(
     form.DynamicList,
@@ -650,9 +624,9 @@ export function showTunnelSettingsModal(
   addressOption.rmempty = false;
   addressOption.depends('tunnel_type', 'wireguard');
   addressOption.depends('tunnel_type', 'amneziawg');
-  addressOption.validate = function (_itemId: string, value: unknown) {
-    return validateWireGuardListInput(value);
-  };
+  addressOption.validate = requiredList((_itemId, value) =>
+    validateWireGuardPrefix(value),
+  );
 
   const privateKeyOption = itemSection.option(
     form.Value,
@@ -660,23 +634,18 @@ export function showTunnelSettingsModal(
     _('Private key'),
   );
   privateKeyOption.password = true;
-  privateKeyOption.rmempty = false;
   privateKeyOption.depends('tunnel_type', 'wireguard');
   privateKeyOption.depends('tunnel_type', 'amneziawg');
-  privateKeyOption.validate = function (_itemId: string, value: unknown) {
-    const key = `${value || ''}`.trim();
-    if (!key) return _('Enter a private key');
-    return validateWireGuardKey(key)
-      ? true
-      : _('WireGuard keys must be standard base64-encoded 32-byte values');
-  };
+  privateKeyOption.validate = required((_itemId, value) =>
+    validateWireGuardKey(value) ? true : message.invalidKey(),
+  );
 
   const listenPortOption = itemSection.option(
     form.Value,
     'listen_port',
     _('Local port'),
   );
-  listenPortOption.datatype = 'port';
+  listenPortOption.validate = anyPortField;
   listenPortOption.rmempty = true;
   listenPortOption.depends('tunnel_type', 'wireguard');
   listenPortOption.depends('tunnel_type', 'amneziawg');
@@ -685,7 +654,7 @@ export function showTunnelSettingsModal(
   // What transport/wireguard in the core falls back to when the endpoint carries
   // no MTU of its own.
   mtuOption.placeholder = '1408';
-  mtuOption.datatype = 'range(1,65535)';
+  mtuOption.validate = wholeNumberField(1, 65535);
   mtuOption.rmempty = true;
   mtuOption.depends('tunnel_type', 'wireguard');
   mtuOption.depends('tunnel_type', 'amneziawg');
@@ -712,16 +681,9 @@ export function showTunnelSettingsModal(
   ) {
     return validateWireGuardPeers(values, tunnelId, this);
   };
-  peersOption.validate = function (_itemId: string, value: unknown) {
-    if (!`${value || ''}`.trim()) {
-      const current =
-        typeof this.formvalue === 'function' ? this.formvalue(_itemId) : [];
-      return normalizeDynamicListItems(current).length > 0
-        ? true
-        : _('Add at least one WireGuard peer');
-    }
+  peersOption.validate = requiredList(function (_itemId, value) {
     return validateWireGuardPeerValue(value, tunnelId, this);
-  };
+  });
 
   const amneziaOptions: Record<string, CBIOption> = {};
   importButton.onclick = function () {
@@ -760,7 +722,7 @@ export function showTunnelSettingsModal(
     'warp_profile_id',
     _('Profile ID'),
   );
-  warpProfileIdOption.rmempty = false;
+  warpProfileIdOption.validate = required();
   warpProfileIdOption.depends('tunnel_type', 'warp');
 
   const warpAuthTokenOption = itemSection.option(
@@ -769,7 +731,7 @@ export function showTunnelSettingsModal(
     _('Auth token'),
   );
   warpAuthTokenOption.password = true;
-  warpAuthTokenOption.rmempty = false;
+  warpAuthTokenOption.validate = required();
   warpAuthTokenOption.depends('tunnel_type', 'warp');
 
   const warpPrivateKeyOption = itemSection.option(
@@ -778,7 +740,9 @@ export function showTunnelSettingsModal(
     _('Private key'),
   );
   warpPrivateKeyOption.password = true;
-  warpPrivateKeyOption.rmempty = false;
+  warpPrivateKeyOption.validate = required((_itemId, value) =>
+    validateWireGuardKey(value) ? true : message.invalidKey(),
+  );
   warpPrivateKeyOption.depends('tunnel_type', 'warp');
 
   const warpLicenseKeyOption = itemSection.option(

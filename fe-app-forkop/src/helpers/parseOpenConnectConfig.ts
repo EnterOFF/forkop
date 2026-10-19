@@ -16,6 +16,7 @@ import {
   unbracketHost,
 } from '../validators/hostPort';
 import { isIPv6 } from '../validators/validateIp';
+import { message } from '../validators/messages';
 
 export type OpenConnectFiles = Record<string, string>;
 
@@ -79,50 +80,34 @@ export function normalizeOpenConnectServer(
   const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(rest);
   if (scheme) {
     if (scheme[1].toLowerCase() !== 'https') {
-      return {
-        message: _(
-          'The server is reached over HTTPS: use https:// or no scheme',
-        ),
-      };
+      return { message: _('Only https:// or no scheme') };
     }
     rest = rest.slice(scheme[0].length);
   }
-  if (!rest) return { message: _('Enter the server address') };
+  if (!rest) return { message: message.required() };
   if (/[?#]/.test(rest)) {
-    return {
-      message: _(
-        'sing-box does not support a query in the server address, such as the secret of ocserv camouflage after ?',
-      ),
-    };
+    return { message: _('Parameters after ? are not supported') };
   }
   if (/\s/.test(rest)) {
-    return { message: _('The server address cannot contain spaces') };
+    return { message: _('Spaces are not allowed') };
   }
   const slash = rest.indexOf('/');
   const authority = slash < 0 ? rest : rest.slice(0, slash);
   const path = slash < 0 ? '' : rest.slice(slash).replace(/\/+$/, '');
   if (authority.includes('@')) {
-    return {
-      message: _(
-        'Put the username in its own field, not in the server address',
-      ),
-    };
+    return { message: _('The username goes in its own field') };
   }
   let host = authority;
   let port = '';
   const hostPort = parseHostPort(authority);
   if (hostPort) {
     if (!isValidPort(hostPort.port)) {
-      return { message: _('Invalid port %s').format(hostPort.port) };
+      return { message: message.invalidPort() };
     }
     host = hostPort.host;
     port = hostPort.port === '443' ? '' : hostPort.port;
   } else if (!isValidHost(authority)) {
-    return {
-      message: _(
-        'Enter a host name or an IP address, with a port and a group path if the server has them: vpn.example.com:8443/staff',
-      ),
-    };
+    return { message: _('Format: host:port/group') };
   }
   const bare = unbracketHost(host);
   const shown = isIPv6(bare) ? `[${bare}]` : bare;
@@ -131,7 +116,9 @@ export function normalizeOpenConnectServer(
 
 function server(value: unknown) {
   const result = normalizeOpenConnectServer(value);
-  return 'server' in result ? result.server : fail(result.message);
+  return 'server' in result
+    ? result.server
+    : fail(`${_('Server')}: ${result.message}`);
 }
 
 const HEX = /^[0-9a-f]+$/i;
@@ -152,35 +139,29 @@ export function normalizeOpenConnectFingerprint(
     if (prefix === 'pin-sha256') {
       return BASE64.test(body) && body.length >= 4 && body.length <= 44
         ? { fingerprint: `pin-sha256:${body}` }
-        : { message: _('pin-sha256 needs the base64 that openconnect prints') };
+        : { message: _('Invalid pin-sha256') };
     }
     const size = prefix === 'sha256' ? 64 : 40;
     return HEX.test(body) && body.length >= 4 && body.length <= size
       ? { fingerprint: `${prefix}:${body.toLowerCase()}` }
-      : { message: _('%s: needs hexadecimal digits').format(prefix) };
+      : { message: _('Invalid %s').format(prefix) };
   }
   const hex = /^([0-9a-f]{2}:)+[0-9a-f]{2}$/i.test(input)
     ? input.replace(/:/g, '')
     : input;
   if (HEX.test(hex) && hex.length === 64) {
-    return {
-      message: _(
-        'A SHA-256 of the whole certificate is not supported: use pin-sha256 as openconnect prints it',
-      ),
-    };
+    return { message: _('Use pin-sha256 instead of a certificate SHA-256') };
   }
   return HEX.test(hex) && hex.length >= 4 && hex.length <= 40
     ? { fingerprint: hex.toLowerCase() }
-    : {
-        message: _(
-          'Use pin-sha256:… as openconnect prints it, or the SHA-1 of the certificate',
-        ),
-      };
+    : { message: _('Format: pin-sha256:… or a SHA-1') };
 }
 
 function fingerprint(value: unknown) {
   const result = normalizeOpenConnectFingerprint(value);
-  return 'fingerprint' in result ? result.fingerprint : fail(result.message);
+  return 'fingerprint' in result
+    ? result.fingerprint
+    : fail(`${text(value)}: ${result.message}`);
 }
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -227,12 +208,12 @@ export function totpSecret(value: string) {
   if (/^base32:/i.test(secret)) {
     encoded = secret.slice(7).replace(/[\s=]/g, '').toUpperCase();
     if (!/^[A-Z2-7]+$/.test(encoded)) {
-      fail(_('The token secret is not valid base32'));
+      fail(_('Token secret: invalid base32'));
     }
   } else if (secret.startsWith('0x')) {
     const hex = secret.slice(2);
     if (!HEX.test(hex) || hex.length % 2) {
-      fail(_('The token secret is not valid hexadecimal'));
+      fail(_('Token secret: invalid hexadecimal'));
     }
     encoded = base32(
       Uint8Array.from(hex.match(/../g)!, (pair) => parseInt(pair, 16)),
@@ -283,26 +264,20 @@ function draft(files: OpenConnectFiles): Draft {
 // it. A key kept by the operating system or a token cannot reach the router.
 function fileContent(state: Draft, reference: string) {
   if (/^(pkcs11|system):/i.test(reference)) {
-    fail(
-      _(
-        'The key of this configuration is kept by the operating system or a token and cannot be exported to the router',
-      ),
-    );
+    fail(_('The key is kept by the system or a token and cannot be exported'));
   }
   const name = basename(reference);
   if (/\.(p12|pfx)$/i.test(name)) {
     fail(
       _(
-        'The certificate is in the PKCS#12 bundle %s. Export the certificate and the key as PEM: openssl pkcs12 -in %s -out client.pem -nodes',
+        '%s is PKCS#12: export it as PEM with openssl pkcs12 -in %s -out client.pem -nodes',
       ).format(name, name),
     );
   }
   const content = state.files[name];
   if (content == null) {
     fail(
-      _(
-        'The profile refers to the file %s. Select it together with the profile',
-      ).format(name),
+      _('Missing file %s: select it together with the profile').format(name),
     );
   }
   return content.trim();
@@ -311,7 +286,7 @@ function fileContent(state: Draft, reference: string) {
 function material(state: Draft, reference: string, kind: MaterialKind) {
   const content = fileContent(state, reference);
   const check = checkMaterial(kind, content);
-  if (!check.valid) fail(`${basename(reference)}: ${check.message}`);
+  if (check !== true) fail(`${basename(reference)}: ${check}`);
   return lines(content);
 }
 
@@ -320,7 +295,7 @@ function seconds(value: string, option: string) {
 }
 
 function whole(value: string, option: string) {
-  if (!/^\d+$/.test(value)) fail(_('%s needs a whole number').format(option));
+  if (!/^\d+$/.test(value)) fail(_('%s: needs a whole number').format(option));
   return Number(value);
 }
 
@@ -337,7 +312,7 @@ function flavor(value: string) {
 
 function formEntry(value: string) {
   const match = /^([^:=]+):([^=]+)=(.*)$/.exec(value);
-  if (!match) fail(_('form-entry needs FORM:NAME=VALUE'));
+  if (!match) fail(_('form-entry: format FORM:NAME=VALUE'));
   return { form_id: match[1], name: match[2], value: match[3] };
 }
 
@@ -741,7 +716,7 @@ function readCommandLine(state: Draft, input: string) {
       if (arg.length > 2) value = arg.slice(2);
     }
     if (OPTION_ARGUMENTS[name] === 1 && value == null) {
-      if (i + 1 >= args.length) fail(_('Option %s needs a value').format(arg));
+      if (i + 1 >= args.length) fail(_('%s: needs a value').format(arg));
       i += 1;
       value = args[i];
     }
@@ -858,7 +833,7 @@ function readNetworkManager(state: Draft, input: string) {
   const { endpoint, tls } = state;
 
   state.host = text(data.gateway);
-  if (!state.host) fail(_('The connection names no gateway'));
+  if (!state.host) fail(_('No gateway'));
   const xml = secrets.xmlconfig ? decodeBase64(secrets.xmlconfig) : null;
   if (xml && !/[.:/]/.test(state.host)) {
     const entry = hostEntries(new TextDecoder().decode(xml)).find(
@@ -976,7 +951,7 @@ function hostEntries(xml: string): HostEntry[] {
 function readAnyConnectProfile(state: Draft, input: string) {
   const entries = hostEntries(input).filter((entry) => entry.address);
   const usable = entries.filter((entry) => !entry.ipsec);
-  if (!entries.length) fail(_('The profile lists no server'));
+  if (!entries.length) fail(_('No server'));
   if (!usable.length) {
     fail(
       _('The profile connects over IPsec, which OpenConnect does not speak'),
@@ -1006,7 +981,7 @@ function readAnyConnectLink(state: Draft, input: string) {
     fail(_('The link connects over IPsec, which OpenConnect does not speak'));
   }
   state.host = text(query.get('host'));
-  if (!state.host) fail(_('The link names no host'));
+  if (!state.host) fail(_('No host'));
   state.endpoint.flavor = 'anyconnect';
   const username = text(query.get('prefill_username'));
   const password = query.get('prefill_password') ?? '';
@@ -1052,7 +1027,7 @@ function readOpenFortiVPN(state: Draft, input: string) {
   });
   const { endpoint, tls } = state;
   endpoint.flavor = 'fortinet';
-  if (!values.host) fail(_('The configuration names no host'));
+  if (!values.host) fail(_('No host'));
   state.host = values.port ? `${values.host}:${values.port}` : values.host;
   if (values.realm) state.path = values.realm;
   Object.entries(values).forEach(([key, value]) => {
@@ -1097,7 +1072,7 @@ function readJson(state: Draft, input: string) {
   try {
     parsed = JSON.parse(input);
   } catch (_error) {
-    fail(_('This is not valid JSON'));
+    fail(_('Invalid JSON'));
   }
   if (
     !parsed ||
@@ -1157,7 +1132,7 @@ export function looksLikeOpenConnectConfig(input: string) {
 function finishCertificate(state: Draft) {
   if (!state.certificate && !state.key) return;
   if (!state.certificate) {
-    fail(_('The configuration has a client key but no certificate for it'));
+    fail(_('A client key without its certificate'));
   }
   const content = fileContent(state, state.certificate);
   const both = state.key ? null : splitCertificateAndKey(content);
@@ -1165,9 +1140,7 @@ function finishCertificate(state: Draft) {
   const key = both ? both.key : state.key ? fileContent(state, state.key) : '';
   if (!key) {
     fail(
-      _(
-        'The configuration has a client certificate but no key for it. Select the key file together with it',
-      ),
+      _('A client certificate without its key: select the key file with it'),
     );
   }
   for (const [value, kind] of [
@@ -1175,7 +1148,7 @@ function finishCertificate(state: Draft) {
     [key, 'passphrase-key'],
   ] as const) {
     const check = checkMaterial(kind, value);
-    if (!check.valid) fail(check.message);
+    if (check !== true) fail(check);
   }
   state.tls.client_certificate = lines(certificate);
   state.tls.client_key = lines(key);
@@ -1224,7 +1197,7 @@ function buildEndpoint(input: string, files: OpenConnectFiles) {
     default:
       fail(_('This is not an OpenConnect configuration'));
   }
-  if (!state.host) fail(_('The configuration names no server'));
+  if (!state.host) fail(_('No server'));
   const { endpoint } = state;
   const path = state.path.replace(/^\/+/, '');
   endpoint.server = server(

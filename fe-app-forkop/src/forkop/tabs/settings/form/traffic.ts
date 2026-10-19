@@ -4,6 +4,7 @@ import {
   validateCoreFeature,
 } from '../../../services/coreFeatures.service';
 import { getClashUIUrl } from '../../../../helpers/getClashApiUrl';
+import { required } from '../../../cbi/required';
 
 // The dashboard the router serves, and the two kinds of traffic that are
 // better off outside the proxy.
@@ -39,7 +40,7 @@ export function addTrafficOptions(section: CBISection) {
   );
   o.depends('enable_yacd_wan_access', '1');
   o.retain = true;
-  o.rmempty = false;
+  o.validate = required();
 
   const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
   o = section.option(
@@ -64,9 +65,7 @@ export function addTrafficOptions(section: CBISection) {
   o.password = true;
   o.depends('enable_native_api', '1');
   o.retain = true;
-  o.rmempty = false;
-  o.validate = (_sectionId: string, value: string) =>
-    value ? true : _('Enter an API secret');
+  o.validate = required();
 
   o = section.option(
     form.Flag,

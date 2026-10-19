@@ -115,7 +115,7 @@ describe('an OpenConnect configuration imported into a new tunnel', () => {
     );
     expect(imported.saved).toBe(false);
     expect(harness.toasts()).toContain(
-      'The profile refers to the file alice.pem. Select it together with the profile',
+      'Missing file alice.pem: select it together with the profile',
     );
     expect(dialog.value('tunnel_type')).not.toBe('openconnect');
   });

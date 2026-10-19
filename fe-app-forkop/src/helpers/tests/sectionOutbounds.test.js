@@ -98,7 +98,7 @@ describe('server filter selection', () => {
         }),
         'settings',
       ),
-    ).toMatch(/at least one server/);
+    ).toBe('Select a server or set a pattern');
   });
 
   it('accepts a selection made by name, by pattern or by group', () => {

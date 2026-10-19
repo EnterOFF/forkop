@@ -991,9 +991,7 @@ describe('a nested dialog that refuses to save', () => {
     const result = await dialog.save();
 
     expect(result.saved).toBe(false);
-    expect(harness.toasts()).toEqual([
-      'Option "Peers" contains an invalid input value. Add at least one WireGuard peer',
-    ]);
+    expect(harness.toasts()).toEqual(['Peers: Required']);
   });
 });
 
@@ -1030,7 +1028,7 @@ describe('a check behind a switch turned on in the same dialog', () => {
         'settings',
         '',
       ),
-    ).toBe('Select a section for downloading this subscription');
+    ).toBe('Required');
   });
 
   it('checks the DNS servers of an interface resolver', async () => {
@@ -1094,6 +1092,6 @@ describe('a check behind a switch turned on in the same dialog', () => {
         'settings',
         '',
       ),
-    ).toBe('Select a section');
+    ).toBe('Required');
   });
 });

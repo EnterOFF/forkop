@@ -8,23 +8,13 @@
 
 import { validateDNS } from '../../validators/validateDns';
 import { coreHas, validateCoreFeature } from '../services/coreFeatures.service';
-import { normalizeDynamicListItems } from './listValues';
+import { optionListValues, requiredList } from './required';
 
 // LuCI's depends() compares an option to a literal value, and "holds more than
 // one entry" is not a value. So the mode depends on a sentinel no DNS server can
 // ever be, which puts the option on the list's dependency graph, and answers the
 // real question in checkDepends below.
 const MULTIPLE_DNS_SENTINEL = '__forkop_multiple_dns__';
-
-// What an option holds right now: the widget while the dialog is open, and the
-// stored value when it is not mounted - a check that ran before the widget
-// existed would otherwise read an empty list and refuse a list that is full.
-function optionListValues(option: CBIOption, section_id: string): string[] {
-  const formValue = option.formvalue(section_id);
-  return normalizeDynamicListItems(
-    formValue != null ? formValue : option.cfgvalue(section_id),
-  );
-}
 
 // The value of a sibling option of the same section, or an empty list when the
 // dialog has no such field. Two of these dialogs are LuCI modals, and a modal is
@@ -47,9 +37,7 @@ export function dnsServerPrefixes() {
   ].join(', ');
 }
 
-// The list itself. LuCI checks a dynamic list entry by entry and also checks the
-// empty add field at the end, so an empty value is refused only when the list has
-// nothing else in it.
+// The list itself, which a resolver cannot do without.
 export function configureDnsServerList(
   option: CBIOption,
   options: {
@@ -61,27 +49,20 @@ export function configureDnsServerList(
     appliesTo?: (option: CBIOption, section_id: string) => boolean;
   } = {},
 ) {
-  option.rmempty = false;
-  option.validate = function (section_id: string, value: unknown) {
-    if (options.appliesTo && !options.appliesTo(this, section_id)) {
-      return true;
-    }
-
-    const normalized = `${value || ''}`.trim();
-    if (!normalized) {
-      return optionListValues(this, section_id).length
-        ? true
-        : _('Add at least one DNS server');
-    }
-
-    const validation = validateDNS(normalized, options.ipOnly);
-    if (!validation.valid) {
-      return validation.message;
-    }
+  const check = requiredList(function (_section_id, value) {
+    const server = value.trim();
+    const validation = validateDNS(server, options.ipOnly);
     // DNS over QUIC and over HTTP/3 are QUIC, which a core may be built without.
-    return validateCoreFeature(
-      /^(quic|h3):\/\//i.test(normalized) ? 'quic' : '',
-    );
+    return validation === true
+      ? validateCoreFeature(/^(quic|h3):\/\//i.test(server) ? 'quic' : '')
+      : validation;
+  });
+
+  option.rmempty = false;
+  option.validate = function (section_id: string, value: string) {
+    return options.appliesTo && !options.appliesTo(this, section_id)
+      ? true
+      : check.call(this, section_id, value);
   };
 }
 

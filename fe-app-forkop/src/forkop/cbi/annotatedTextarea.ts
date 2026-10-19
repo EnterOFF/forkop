@@ -1,11 +1,7 @@
-import {
-  addAnnotationIssue,
-  finalizeAnnotations,
-  getDuplicateValueText,
-  getValidationHeaderText,
-} from './annotations';
+import { addAnnotationIssue, finalizeAnnotations } from './annotations';
 import type { Annotation, AnnotationMap } from './annotations';
 import { escapeHtml } from '../../helpers/escapeHtml';
+import { message } from '../../validators/messages';
 
 const ANNOTATED_TEXTAREA_STYLE_ID = 'fkp-annotated-textarea-styles';
 
@@ -276,7 +272,7 @@ function attachAnnotatedTextarea(
   controller.update();
 }
 
-function parseCommentAwareListTokens(value: unknown): TextToken[] {
+export function parseCommentAwareListTokens(value: unknown): TextToken[] {
   const text = value ? `${value}` : '';
   const tokens: TextToken[] = [];
   const lines = text.split(/\r\n|\r|\n/);
@@ -317,20 +313,10 @@ function parseCommentAwareListTokens(value: unknown): TextToken[] {
 export function analyzeTextListValue(
   value: unknown,
   validateItem: TextItemValidator | null,
-  emptyMessage: string,
   options: TextListAnalysisOptions = {},
 ): TextAnalysis {
-  const text = value ? `${value}` : '';
-  if (!text.length) {
-    return { valid: true, message: '', annotations: [] };
-  }
-
-  const tokens = parseCommentAwareListTokens(text);
-  if (!tokens.length) {
-    return { valid: false, message: emptyMessage, annotations: [] };
-  }
-
-  const duplicateMessage = options.duplicateMessage || getDuplicateValueText();
+  const tokens = parseCommentAwareListTokens(value ? `${value}` : '');
+  const duplicateMessage = options.duplicateMessage || message.duplicate();
   const annotationMap: AnnotationMap = new Map();
   const errors: string[] = [];
   const seen = new Set<string>();
@@ -338,9 +324,9 @@ export function analyzeTextListValue(
   tokens.forEach((token) => {
     if (typeof validateItem === 'function') {
       const validation = validateItem(token.value);
-      if (!validation.valid) {
-        errors.push(`${token.value}: ${validation.message}`);
-        addAnnotationIssue(annotationMap, token, `${validation.message}`);
+      if (validation !== true) {
+        errors.push(`${token.value}: ${validation}`);
+        addAnnotationIssue(annotationMap, token, validation);
       }
     }
 
@@ -367,7 +353,7 @@ export function analyzeTextListValue(
 
   return {
     valid: false,
-    message: [getValidationHeaderText(), ...errors].join('\n'),
+    message: errors.join('\n'),
     annotations: finalizeAnnotations(annotationMap),
   };
 }

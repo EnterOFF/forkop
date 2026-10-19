@@ -3,7 +3,7 @@ import { loadVisibleTableOptions } from '../../cbi/grid';
 import { reportRefusedSave, saveSectionModal } from '../../cbi/modal';
 import { removeFallbackLevels } from './fallback';
 import { forgetOutboundNameChoices } from './outboundNames';
-import { missingConnectionOutbound } from './references';
+import { missingConnectionOutbound, missingDnsMatcher } from './references';
 import { removeTunnelPeers } from './tunnels/model';
 import { loadDefaultSubscriptionHeaders } from './subscriptions/model';
 
@@ -40,20 +40,24 @@ export function configureSectionSection(sectionRef: CBISection) {
     return renderMoreOptionsModal.call(this, section_id, ev);
   };
 
-  // Which outbounds a section needs is a property of the section, not of any one
-  // of its fields, so the check runs here instead of in an option. Before the
+  // A Connection section needs servers and a DNS section something to match, from
+  // whichever of several fields: a property of the section, not of any one of
+  // its fields, so the check runs here instead of in an option. Before the
   // dialog writes anything: LuCI parses the options one by one, so a check that
   // refuses halfway leaves the fields that already passed behind.
   sectionRef.handleModalSave = function (modalMap: CBIMap, ev: Event) {
     // On the modal map LuCI overwrites section() with the id of the section
     // being edited, so this reads the id and not the method.
     const editedSectionId = modalMap?.section as unknown as string;
-    if (missingConnectionOutbound(modalMap, editedSectionId)) {
-      reportRefusedSave(
-        _(
-          'Add a connection URI, a subscription, a network interface, a tunnel or a JSON outbound',
-        ),
-      );
+    const missing = missingConnectionOutbound(modalMap, editedSectionId)
+      ? _(
+          'Add a connection URI, subscription, interface, tunnel or JSON outbound',
+        )
+      : missingDnsMatcher(modalMap, editedSectionId)
+        ? _('Add a domain, built-in list, rule set or device')
+        : '';
+    if (missing) {
+      reportRefusedSave(missing);
       return Promise.resolve(false);
     }
 

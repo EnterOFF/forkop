@@ -7,6 +7,7 @@ import { checkMaterial, splitCertificateAndKey } from '../../helpers/material';
 import type { MaterialKind } from '../../helpers/material';
 import { isCertificate } from '../../helpers/pem';
 import { configureTextareaOption } from './annotatedTextarea';
+import { message } from '../../validators/messages';
 
 type FormValue = (name: string) => unknown;
 
@@ -116,7 +117,7 @@ export function loadedMaterial(
 export function configureMaterialOption(
   option: CBIOption,
   kind: MaterialKind | ((value: FormValue) => MaterialKind),
-  required: (value: FormValue) => string,
+  required: (value: FormValue) => boolean,
   pair?: string,
 ) {
   option.rows = 4;
@@ -127,12 +128,11 @@ export function configureMaterialOption(
   option.validate = function (sectionId: string, value: unknown) {
     const values = formValueOf(this, sectionId);
     const content = `${value ?? ''}`.trim();
-    if (!content) return required(values) || true;
-    const check = checkMaterial(
+    if (!content) return required(values) ? message.required() : true;
+    return checkMaterial(
       typeof kind === 'function' ? kind(values) : kind,
       content,
     );
-    return check.valid ? true : check.message;
   };
 
   const renderWidget = option.renderWidget;

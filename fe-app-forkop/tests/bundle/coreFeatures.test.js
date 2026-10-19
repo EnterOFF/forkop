@@ -68,7 +68,7 @@ describe('the Servers tab', () => {
       'Hysteria2 (the installed sing-box lacks with_quic)',
     );
     expect(protocol.validate('srv', 'hysteria2')).toBe(
-      'The installed sing-box was built without with_quic',
+      'sing-box is built without with_quic',
     );
     expect(option(servers, '_protocol_display').textvalue('srv')).toBe(
       'Hysteria2 (the installed sing-box lacks with_quic)',
@@ -83,11 +83,11 @@ describe('the Servers tab', () => {
     );
 
     expect(option(servers, 'security').validate('srv', 'reality')).toBe(
-      'The installed sing-box was built without with_utls',
+      'sing-box is built without with_utls',
     );
     expect(option(servers, 'security').validate('srv', 'tls')).toBe(true);
     expect(option(servers, 'naive_network').validate('srv', 'udp')).toBe(
-      'The installed sing-box was built without with_quic',
+      'sing-box is built without with_quic',
     );
     expect(option(servers, 'naive_network').validate('srv', 'tcp')).toBe(true);
   });
@@ -102,7 +102,7 @@ describe('the Servers tab', () => {
     expect(option(servers, 'protocol').validate('srv', 'hysteria2')).toBe(true);
     expect(option(servers, 'security').validate('srv', 'reality')).toBe(true);
     expect(option(servers, 'protocol').validate('srv', 'tailscale')).toBe(
-      'The installed sing-box was built without with_tailscale',
+      'sing-box is built without with_tailscale',
     );
   });
 });
@@ -131,7 +131,7 @@ describe('the Sections tab', () => {
       'Supported URIs: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, mieru, anytls',
     );
     expect(links.validate('sec', 'naive+https://u:p@example.com:443#n')).toBe(
-      'The installed sing-box was built without with_naive_outbound',
+      'sing-box is built without with_naive_outbound',
     );
     expect(links.validate('sec', 'hy2://p@example.com:443#h')).toBe(true);
   });
@@ -197,7 +197,7 @@ describe('the Settings tab', () => {
     dashboard.cfgvalue('settings', '1');
     expect(dashboard.checkDepends('settings')).toBe(true);
     expect(dashboard.validate('settings', '1')).toBe(
-      'The installed sing-box was built without with_api',
+      'sing-box is built without with_api',
     );
     expect(dashboard.validate('settings', '0')).toBe(true);
 
@@ -218,7 +218,7 @@ describe('the Settings tab', () => {
     flag.cfgvalue('settings', '1');
     expect(flag.checkDepends('settings')).toBe(true);
     expect(flag.validate('settings', '1')).toBe(
-      'The installed sing-box was built without with_wireguard',
+      'sing-box is built without with_wireguard',
     );
     expect(flag.validate('settings', '0')).toBe(true);
 
@@ -238,10 +238,10 @@ describe('the Settings tab', () => {
       'Several servers give automatic failover. The protocol is set by a prefix: udp://, tcp://, tls://, https://',
     );
     expect(dns.validate('settings', 'quic://dns.example.com')).toBe(
-      'The installed sing-box was built without with_quic',
+      'sing-box is built without with_quic',
     );
     expect(dns.validate('settings', 'h3://1.1.1.1/dns-query')).toBe(
-      'The installed sing-box was built without with_quic',
+      'sing-box is built without with_quic',
     );
     expect(dns.validate('settings', 'tls://1.1.1.1')).toBe(true);
   });

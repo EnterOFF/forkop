@@ -199,6 +199,6 @@ describe('the address in the subscription dialog', () => {
 
     expect(check('https://example.com/sub')).toBe(true);
     expect(check('https://b.example/sub')).toBe(true);
-    expect(check('')).toBe('Enter a subscription URL or local path');
+    expect(check('')).toBe('Required');
   });
 });

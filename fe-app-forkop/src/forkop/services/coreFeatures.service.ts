@@ -71,7 +71,7 @@ export function missingCoreFeatureNote(feature: string) {
 export function validateCoreFeature(feature: string) {
   return !feature || coreHas(feature)
     ? true
-    : _('The installed sing-box was built without %s').format(
+    : _('sing-box is built without %s').format(
         missingCoreTags(feature).join(', '),
       );
 }

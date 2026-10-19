@@ -540,11 +540,11 @@ AllowedIPs = 0.0.0.0/0`;
     );
     expect(parseWireGuardConfig(config('H1 = 2'))).toEqual({
       valid: false,
-      message: 'H1, H2, H3 and H4 must not overlap',
+      message: 'H1-H4 must not overlap',
     });
     expect(parseWireGuardConfig(config('Jmin = 60\nJmax = 10'))).toEqual({
       valid: false,
-      message: 'Jmin must not be greater than Jmax',
+      message: 'Jmin is greater than Jmax',
     });
   });
 

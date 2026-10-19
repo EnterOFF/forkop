@@ -1,6 +1,7 @@
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
 import { renderStackedJsonSettingsModal } from '../../../cbi/modal';
 import { validateRegex } from '../validators';
+import { message } from '../../../../validators/messages';
 
 export function subscriptionOverrideKeys() {
   return [
@@ -55,7 +56,7 @@ function subscriptionRenameLines(value: unknown) {
 // starts a reference.
 function validateRenameReplacement(replacement: string) {
   return /\$[0-9]+[A-Za-z_]/.test(`${replacement}`.replace(/\$\$/g, ''))
-    ? _('Write ${1} instead of $1 when a letter follows the group number')
+    ? _('Before a letter, write ${1} instead of $1')
     : true;
 }
 
@@ -111,12 +112,9 @@ export function showSubscriptionOverrideModal(
     }
     // The first separator wins, so a replacement may contain one itself.
     const separator = normalized.indexOf('=>');
-    if (separator < 0) {
-      return _('Use the pattern => replacement form');
-    }
-    const pattern = normalized.slice(0, separator).trim();
+    const pattern = separator < 0 ? '' : normalized.slice(0, separator).trim();
     if (!pattern) {
-      return _('Enter a regular expression before =>');
+      return _('Format: pattern => replacement');
     }
     const patternError = validateRegex(pattern);
     if (patternError !== true) {
@@ -148,16 +146,14 @@ export function showSubscriptionOverrideModal(
     try {
       parsed = JSON.parse(normalized);
     } catch (_error) {
-      return _('Enter a valid JSON object');
+      return message.invalidJson();
     }
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return _('Enter a valid JSON object');
+      return message.invalidJson();
     }
     const reserved = reservedOverridePatchPath(parsed);
     if (reserved) {
-      return _(
-        '%s is set by the cascade connection of the subscription',
-      ).format(reserved);
+      return _('%s is set by the cascade connection').format(reserved);
     }
     return true;
   };

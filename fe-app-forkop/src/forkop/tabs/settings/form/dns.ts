@@ -9,6 +9,8 @@ import {
 } from '../sectionChoices';
 import { createStaticHostsOption } from '../staticHosts';
 import { validateRequiredSingBoxDuration } from '../../../../validators/validateSingBoxDuration';
+import { required } from '../../../cbi/required';
+import { wholeNumberField } from '../../../../validators/fields';
 
 // What resolves a domain: the servers, how they are asked, how long an answer
 // is kept, and who answers for a domain no rule matched.
@@ -62,14 +64,7 @@ export function addDnsOptions(section: CBISection) {
     _('How long DNS records are cached, in seconds'),
   );
   o.default = '60';
-  o.rmempty = false;
-  o.validate = function (section_id: string, value: string) {
-    if (!value) {
-      return _('TTL value cannot be empty');
-    }
-
-    return /^[0-9]+$/.test(value) ? true : _('TTL must be a positive number');
-  };
+  o.validate = required(wholeNumberField(0));
 
   o = section.option(
     form.ListValue,
@@ -109,7 +104,6 @@ export function addDnsOptions(section: CBISection) {
     _('Maximum time to wait for a DNS response'),
   );
   o.default = '10s';
-  o.rmempty = false;
   o.validate = (_sectionId: string, value: unknown) =>
     validateRequiredSingBoxDuration(value);
 

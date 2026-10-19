@@ -500,7 +500,7 @@ t.test("DNS rule without domain matchers", () => {
                 "dns_server": "9.9.9.9"
             }
         ]
-    }, "must contain at least one domain condition");
+    }, "needs a domain, a built-in list, a rule set or a device");
 });
 
 t.test("a DNS section names the address it cannot match", () => {
@@ -1402,7 +1402,7 @@ t.test("bad list reference", () => {
                 ]
             }
         ]
-    }, "Unknown rule set reference");
+    }, "is neither an http(s) URL nor an absolute path");
 });
 
 t.test("bad filter regex", () => {

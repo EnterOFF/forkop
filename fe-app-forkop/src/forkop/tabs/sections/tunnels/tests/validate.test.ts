@@ -5,6 +5,7 @@ let endpointFromSettings: typeof import('../model').tunnelEndpointFromSettings;
 beforeAll(async () => {
   vi.stubGlobal('_', (text: string) => text);
   vi.stubGlobal('L', { toArray: (value: unknown) => value || [] });
+  vi.stubGlobal('uci', { sections: () => [] });
   validate = (await import('../validate')).validateTunnelSettings;
   endpointFromSettings = (await import('../model')).tunnelEndpointFromSettings;
 });
@@ -27,10 +28,10 @@ describe('AmneziaWG header protection', () => {
     for (const key of ['s1', 's2', 's3', 's4']) {
       for (const value of ['', '11'])
         expect(validate({ ...settings, [`amnezia_${key}`]: value })).toBe(
-          'Header protection requires S1, S2, S3 and S4 of at least 12 bytes',
+          'HeaderProtectionKey needs S1-S4 of at least 12',
         );
     }
-    expect(validate(settings)).toBe('Add at least one WireGuard peer');
+    expect(validate(settings)).toBe('Fix the settings');
   });
   it('allows zero padding with the disabled all-zero key', () => {
     expect(
@@ -40,7 +41,7 @@ describe('AmneziaWG header protection', () => {
         amnezia_header_protection_key:
           'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
       }),
-    ).toBe('Add at least one WireGuard peer');
+    ).toBe('Fix the settings');
   });
   it('passes AmneziaWG 3.1 flags as booleans to the core', () => {
     expect(
@@ -97,12 +98,12 @@ describe('a Tailscale tunnel', () => {
   });
   it('still refuses a tunnel without an auth key', () => {
     expect(validate({ ...settings, tailscale_auth_key: '' })).toBe(
-      'Enter a Tailscale auth key',
+      'Fix the settings',
     );
   });
   it('refuses a device name Tailscale would register differently', () => {
     expect(validate({ ...settings, tailscale_hostname: 'My Router' })).toBe(
-      'Use lowercase letters, digits and hyphens',
+      'Fix the settings',
     );
   });
 });
@@ -121,11 +122,9 @@ describe('a JSON endpoint', () => {
     expect(validate(json({ tag: 'typeless' }))).toBe(true);
   });
   it('refuses an endpoint without a tag or one that is not an object', () => {
-    expect(validate(json({ type: 'wireguard' }))).toBe(
-      'JSON endpoint must contain a non-empty tag',
-    );
+    expect(validate(json({ type: 'wireguard' }))).toBe('Fix the settings');
     expect(validate({ tunnel_type: 'json', endpoint_json: '[]' })).toBe(
-      'Enter a valid JSON endpoint object',
+      'Fix the settings',
     );
   });
 });
@@ -140,13 +139,13 @@ describe('AmneziaWG parameters that only fail together', () => {
     address: ['10.0.0.2/32'],
     private_key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
   };
-  const PEERLESS = 'Add at least one WireGuard peer';
+  const PEERLESS = 'Fix the settings';
   it('refuses headers that overlap, the device defaults included', () => {
     expect(
       validate({ ...settings, amnezia_h1: '100-200', amnezia_h2: '150' }),
-    ).toBe('H1, H2, H3 and H4 must not overlap');
+    ).toBe('H1-H4 must not overlap');
     expect(validate({ ...settings, amnezia_h1: '2' })).toBe(
-      'H1, H2, H3 and H4 must not overlap',
+      'H1-H4 must not overlap',
     );
     expect(validate({ ...settings, amnezia_h1: '1' })).toBe(PEERLESS);
     expect(
@@ -169,16 +168,17 @@ describe('AmneziaWG parameters that only fail together', () => {
         amnezia_jmin: '60',
       };
       expect(validate({ ...junk, amnezia_jmax: '10' })).toBe(
-        'Jmin must not be greater than Jmax',
+        'Jmin is greater than Jmax',
       );
-      expect(validate(junk)).toBe('Jmin must not be greater than Jmax');
+      expect(validate(junk)).toBe('Jmin is greater than Jmax');
       expect(validate({ ...junk, amnezia_jmax: '60' })).toBe(PEERLESS);
     },
   );
 });
 
-// The fields refuse these by their datatypes as they are typed; a tunnel the
-// dialog did not write is checked by the same rules the router applies.
+// The fields refuse these as they are typed, each saying why; a tunnel the
+// dialog did not write is checked by the same rules the router applies and
+// only told to be fixed.
 describe('a stored tunnel the dialog did not write', () => {
   const wireguard = {
     tunnel_type: 'wireguard',
@@ -193,37 +193,48 @@ describe('a stored tunnel the dialog did not write', () => {
     warp_auth_token: 'token',
     warp_private_key: 'key',
   };
+  // A peer staged in the list the way the dialog leaves one before a save.
+  const peers = {
+    pendingChildSettings: {
+      tunnel: {
+        peer: {
+          address: 'vpn.example.com',
+          port: '51820',
+          public_key: 'AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=',
+          allowed_ips: ['0.0.0.0/0'],
+        },
+      },
+    },
+  } as unknown as CBIOption;
+  const complete = (settings: Record<string, unknown>) =>
+    validate(
+      { ...wireguard, peer_ids: ['peer'], ...settings },
+      'tunnel',
+      peers,
+    );
   it('refuses a listen port or an MTU the core cannot read', () => {
+    expect(complete({})).toBe(true);
+    expect(complete({ listen_port: '0', mtu: '1280' })).toBe(true);
     for (const value of ['65536', 'abc']) {
-      expect(validate({ ...wireguard, listen_port: value })).toBe(
-        'Enter a valid listen port',
-      );
-      expect(validate({ ...wireguard, mtu: value })).toBe(
-        'Enter an MTU from 1 to 65535',
-      );
+      expect(complete({ listen_port: value })).toBe('Fix the settings');
+      expect(complete({ mtu: value })).toBe('Fix the settings');
     }
-    expect(validate({ ...wireguard, mtu: '0' })).toBe(
-      'Enter an MTU from 1 to 65535',
-    );
-    expect(validate({ ...wireguard, listen_port: '0', mtu: '1280' })).toBe(
-      'Add at least one WireGuard peer',
-    );
+    expect(complete({ mtu: '0' })).toBe('Fix the settings');
+    expect(complete({ peer_ids: [] })).toBe('Fix the settings');
   });
   it('refuses a WARP server or keepalive the core cannot use', () => {
     expect(validate(warp)).toBe(true);
     expect(validate({ ...warp, warp_address: 'not a host' })).toBe(
-      'Enter a valid server address',
+      'Fix the settings',
     );
     for (const address of [
       'engage.cloudflareclient.com',
       '2606:4700:d0::a29f:c001',
     ])
       expect(validate({ ...warp, warp_address: address })).toBe(true);
-    expect(validate({ ...warp, warp_port: '70000' })).toBe(
-      'Enter a valid server port',
-    );
+    expect(validate({ ...warp, warp_port: '70000' })).toBe('Fix the settings');
     expect(validate({ ...warp, warp_keepalive: '25-5' })).toBe(
-      'AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end',
+      'Fix the settings',
     );
   });
 });

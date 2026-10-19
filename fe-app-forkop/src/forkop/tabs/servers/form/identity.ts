@@ -6,7 +6,11 @@ import {
 import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrlField } from '../../../../validators/validateUrl';
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
-import { keepUnavailableSectionChoice } from '../../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../../cbi/choices';
+import { message } from '../../../../validators/messages';
 import {
   GRID_KIND_COLUMN_WIDTH,
   GRID_SWITCH_COLUMN_WIDTH,
@@ -66,7 +70,6 @@ export function addIdentityOptions(section: CBISection) {
 
   o = section.option(form.Value, 'label', _('Server name'));
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = function (sectionId: string, value: string) {
     const required = validateRequiredText(sectionId, value);
     if (required !== true) {
@@ -75,10 +78,10 @@ export function addIdentityOptions(section: CBISection) {
 
     const name = `${value}`.trim();
     if (name.includes('/')) {
-      return _('The name must not contain /');
+      return message.slashInName();
     }
     if (RESERVED_RUNTIME_TAGS.has(name)) {
-      return _('This name is reserved by Forkop');
+      return message.reservedName();
     }
 
     return [
@@ -89,7 +92,7 @@ export function addIdentityOptions(section: CBISection) {
         item['.name'] !== sectionId &&
         `${item.label || item['.name'] || ''}`.trim() === name,
     )
-      ? _('This name is already taken')
+      ? message.nameTaken()
       : true;
   };
 
@@ -139,7 +142,6 @@ export function addTailscaleOptions(section: CBISection) {
     _('Authorization key'),
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateRequired;
   onTailscale(o);
@@ -153,7 +155,6 @@ export function addTailscaleOptions(section: CBISection) {
     ),
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = (_sectionId: string, value: string) =>
     validateTailscaleHostname(value);
   onTailscale(o);
@@ -188,7 +189,6 @@ export function addTailscaleOptions(section: CBISection) {
   );
   o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = (_sectionId: string, value: string) => validateUrlField(value);
   onTailscale(o);
 
@@ -221,9 +221,7 @@ export function addTailscaleOptions(section: CBISection) {
     return value;
   };
   o.validate = function (_sectionId: string, value: string) {
-    return routingSectionChoices().some(([name]) => name === value)
-      ? true
-      : _('Select a section');
+    return validateSectionChoice(this, value);
   };
 }
 
@@ -246,7 +244,6 @@ export function addJsonInboundOptions(section: CBISection) {
   o.wrap = 'soft';
   o.textarea = true;
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateInboundJson;
   configureTextareaOption(o);
 }
@@ -260,7 +257,6 @@ export function addListenerOptions(section: CBISection) {
   let o = section.option(form.Value, 'listen', _('Listen address'));
   o.placeholder = '::';
   o.default = '::';
-  o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenAddress;
   listenerProtocols()
@@ -268,7 +264,6 @@ export function addListenerOptions(section: CBISection) {
     .forEach((protocol: string) => o.depends('protocol', protocol));
 
   o = section.option(form.Value, 'listen_port', _('Listen port'));
-  o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenPort;
   autofill(
@@ -285,7 +280,6 @@ export function addListenerOptions(section: CBISection) {
     _('The address links and profiles point at'),
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateHost;
   onListener(o);
   autofill(o, function (sectionId: string) {

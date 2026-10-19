@@ -20,7 +20,7 @@ export function isValidHost(host: string): boolean {
   return (
     isIPv4(normalizedHost) ||
     isIPv6(normalizedHost) ||
-    validateDomain(normalizedHost).valid
+    validateDomain(normalizedHost) === true
   );
 }
 

@@ -10,6 +10,7 @@ import {
   parseHostPort,
   unbracketHost,
 } from '../../../../validators/hostPort';
+import { message } from '../../../../validators/messages';
 import { validateSubnet } from '../../../../validators/validateSubnet';
 import { isIPv4, isIPv6 } from '../../../../validators/validateIp';
 import { isRouterPath } from '../../../../helpers/material';
@@ -477,73 +478,49 @@ export function openVPNEndpoint(settings: ChildSettings): Endpoint {
 }
 
 export function validateServerEntry(value: unknown) {
-  return parseOpenVPNServer(value)
-    ? true
-    : _('Enter a host and a port, such as vpn.example.com:1194');
+  return parseOpenVPNServer(value) ? true : _('Format: host:port');
 }
 
 export function validateAddress(value: unknown) {
   const address = trimmed(value);
-  if (!address.includes('/')) return _('Use an IP address with a CIDR prefix');
-  const validation = validateSubnet(address);
-  return validation.valid ? true : validation.message;
+  return address.includes('/')
+    ? validateSubnet(address)
+    : message.prefixLength();
+}
+
+// What the dialog asks of a tunnel, each field marking itself there; a tunnel
+// whose dialog is closed is only told to be fixed.
+function openVPNSettingsComplete(settings: ChildSettings) {
+  const servers = normalizeOptionValues(settings.openvpn_servers);
+  if (
+    !servers.length ||
+    servers.some((server) => validateServerEntry(server) !== true)
+  ) {
+    return false;
+  }
+  if (settings.openvpn_mode === 'static_key') {
+    const addresses = normalizeOptionValues(settings.openvpn_address);
+    const family = (test: (address: string) => boolean) =>
+      addresses.some((address) => test(address.split('/')[0]));
+    return (
+      !!trimmed(settings.openvpn_static_key) &&
+      addresses.length > 0 &&
+      addresses.every((address) => validateAddress(address) === true) &&
+      (!family(isIPv4) || !!trimmed(settings.openvpn_peer_address)) &&
+      (!family(isIPv6) || !!trimmed(settings.openvpn_peer_address_ipv6))
+    );
+  }
+  return (
+    (!!trimmed(settings.openvpn_ca) ||
+      (settings.openvpn_advanced === '1' &&
+        normalizeOptionValues(settings.openvpn_peer_fingerprint).length > 0)) &&
+    !trimmed(settings.openvpn_cert) === !trimmed(settings.openvpn_key) &&
+    (settings.openvpn_login !== '1' || !!trimmed(settings.openvpn_username)) &&
+    (!trimmed(settings.openvpn_control_wrap) ||
+      !!trimmed(settings.openvpn_control_wrap_key))
+  );
 }
 
 export function validateOpenVPNSettings(settings: ChildSettings) {
-  const servers = normalizeOptionValues(settings.openvpn_servers);
-  if (!servers.length) return _('Add at least one OpenVPN server');
-  for (const server of servers) {
-    const result = validateServerEntry(server);
-    if (result !== true) return `${server}: ${result}`;
-  }
-  if (settings.openvpn_mode === 'static_key') {
-    if (!trimmed(settings.openvpn_static_key)) return _('Add the static key');
-    const addresses = normalizeOptionValues(settings.openvpn_address);
-    if (!addresses.length) {
-      return _('A static key tunnel needs its tunnel addresses');
-    }
-    if (
-      addresses.some((address) => isIPv4(address.split('/')[0])) &&
-      !trimmed(settings.openvpn_peer_address)
-    ) {
-      return _(
-        'A static key tunnel with an IPv4 address needs the IPv4 address of the peer',
-      );
-    }
-    if (
-      addresses.some((address) => isIPv6(address.split('/')[0])) &&
-      !trimmed(settings.openvpn_peer_address_ipv6)
-    ) {
-      return _(
-        'A static key tunnel with an IPv6 address needs the IPv6 address of the peer',
-      );
-    }
-    return true;
-  }
-  if (
-    !trimmed(settings.openvpn_ca) &&
-    !(
-      settings.openvpn_advanced === '1' &&
-      normalizeOptionValues(settings.openvpn_peer_fingerprint).length
-    )
-  ) {
-    return _(
-      'Add the CA certificate the server certificate is checked against',
-    );
-  }
-  if (!trimmed(settings.openvpn_cert) !== !trimmed(settings.openvpn_key)) {
-    return _(
-      'The client certificate and its key go together: add both or neither',
-    );
-  }
-  if (settings.openvpn_login === '1' && !trimmed(settings.openvpn_username)) {
-    return _('Enter the username');
-  }
-  if (
-    trimmed(settings.openvpn_control_wrap) &&
-    !trimmed(settings.openvpn_control_wrap_key)
-  ) {
-    return _('Add the key of the control channel protection');
-  }
-  return true;
+  return openVPNSettingsComplete(settings) ? true : message.fixSettings();
 }

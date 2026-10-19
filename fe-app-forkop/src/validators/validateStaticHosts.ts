@@ -1,4 +1,4 @@
-import { ValidationResult } from './types';
+import { message } from './messages';
 import { asciiHostname, validAsciiDomain } from './validateDomain';
 import { isIPv4, isIPv6 } from './validateIp';
 
@@ -8,7 +8,9 @@ interface TextAnnotation {
   message: string;
 }
 
-interface StaticHostsAnalysis extends ValidationResult {
+interface StaticHostsAnalysis {
+  valid: boolean;
+  message: string;
   annotations: TextAnnotation[];
 }
 
@@ -42,9 +44,9 @@ export function analyzeStaticHosts(text: string): StaticHostsAnalysis {
   const errors: string[] = [];
   let offset = 0;
 
-  const reject = (field: Field, message: string) => {
-    annotations.push({ start: field.start, end: field.end, message });
-    errors.push(`${field.value}: ${message}`);
+  const reject = (field: Field, reason: string) => {
+    annotations.push({ start: field.start, end: field.end, message: reason });
+    errors.push(`${field.value}: ${reason}`);
   };
 
   for (const line of value.split('\n')) {
@@ -58,11 +60,11 @@ export function analyzeStaticHosts(text: string): StaticHostsAnalysis {
     const [address, ...domains] = fields;
 
     if (!isIPv4(address.value) && !isIPv6(address.value)) {
-      reject(address, _('Invalid IP address'));
+      reject(address, message.invalidIp());
     }
 
     if (!domains.length) {
-      reject(address, _('Add at least one domain'));
+      reject(address, _('No domain'));
       continue;
     }
 
@@ -70,13 +72,13 @@ export function analyzeStaticHosts(text: string): StaticHostsAnalysis {
       const ascii = asciiHostname(domain.value.toLowerCase());
 
       if (!ascii || !validAsciiDomain(ascii, false)) {
-        reject(domain, _('Invalid domain address'));
+        reject(domain, message.invalidDomain());
       }
     }
   }
 
   if (!errors.length) {
-    return { valid: true, message: _('Valid'), annotations: [] };
+    return { valid: true, message: '', annotations: [] };
   }
 
   annotations.sort((left, right) => left.start - right.start);

@@ -149,12 +149,10 @@ describe('OpenConnect tunnel form', () => {
     expect(validateOpenConnectSettings(valid)).toBe(true);
     expect(
       validateOpenConnectSettings({ ...valid, openconnect_server: '' }),
-    ).toBe('Enter the server address');
+    ).toBe('Fix the settings');
     expect(
       validateOpenConnectSettings({ ...valid, openconnect_username: '' }),
-    ).toBe(
-      'Add how the router signs in: a username, a client certificate or a session cookie',
-    );
+    ).toBe('Add a username, a client certificate or a session cookie');
     expect(
       validateOpenConnectSettings({
         openconnect_server: 'vpn.example.com',
@@ -169,7 +167,7 @@ describe('OpenConnect tunnel form', () => {
         openconnect_certificate_enabled: '1',
         openconnect_cert: CLIENT_CERT,
       }),
-    ).toBe('The client certificate and its key go together: add both');
+    ).toBe('Fix the settings');
     expect(
       validateOpenConnectSettings({
         ...valid,
@@ -177,19 +175,19 @@ describe('OpenConnect tunnel form', () => {
         openconnect_cert: CLIENT_CERT,
         openconnect_key: ENCRYPTED_KEY,
       }),
-    ).toBe('The client key is protected by a passphrase: enter it');
+    ).toBe('Fix the settings');
     expect(
       validateOpenConnectSettings({
         ...valid,
         openconnect_token_mode: 'totp',
         openconnect_token_secret: 'not base32!',
       }),
-    ).toBe('Enter the base32 secret or the otpauth:// link of the QR code');
+    ).toBe('Fix the settings');
     expect(
       validateOpenConnectSettings({
         ...valid,
         openconnect_fingerprints: ['md5:abcd'],
       }),
-    ).toMatch(/^md5:abcd: /);
+    ).toBe('Fix the settings');
   });
 });

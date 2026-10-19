@@ -5,6 +5,7 @@ import {
   TRANSPORTS,
 } from '../constants';
 import { configureMaterialOption } from '../../../cbi/material';
+import { message } from '../../../../validators/messages';
 import {
   addGenerateButton,
   addRealityKeypairButton,
@@ -79,7 +80,7 @@ export function addSecurityOptions(section: CBISection) {
   o.validate = function (sectionId: string, value: string) {
     if (isEmptyValue(value)) {
       return getEffectiveSecurity(sectionId) === 'reality'
-        ? _('Reality needs an SNI')
+        ? message.required()
         : true;
     }
     return validateHost(sectionId, value);
@@ -153,17 +154,7 @@ export function addSecurityOptions(section: CBISection) {
     _('PEM text or the path of a file on the router'),
   );
   o.modalonly = true;
-  configureMaterialOption(
-    o,
-    'certificate',
-    (value) =>
-      value('protocol') === 'naive'
-        ? _(
-            'NaiveProxy clients accept only a certificate a browser trusts. Paste it or load it from a file',
-          )
-        : _('Paste the certificate or load it from a file'),
-    'tls_key',
-  );
+  configureMaterialOption(o, 'certificate', () => true, 'tls_key');
   onOwnCertificate(o);
 
   o = section.option(
@@ -173,12 +164,7 @@ export function addSecurityOptions(section: CBISection) {
     _('PEM text or the path of a file on the router'),
   );
   o.modalonly = true;
-  configureMaterialOption(
-    o,
-    'key',
-    () => _('Paste the private key or load it from a file'),
-    'tls_certificate',
-  );
+  configureMaterialOption(o, 'key', () => true, 'tls_certificate');
   {
     const validateMaterial = o.validate;
     o.validate = function (sectionId: string, value: string) {
@@ -194,7 +180,6 @@ export function addSecurityOptions(section: CBISection) {
     _('Reality private key'),
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateRealityKey;
   autofill(
@@ -211,7 +196,6 @@ export function addSecurityOptions(section: CBISection) {
 
   o = section.option(form.Value, 'reality_public_key', _('Reality public key'));
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateRealityKey;
   autofill(
     o,
@@ -226,7 +210,6 @@ export function addSecurityOptions(section: CBISection) {
 
   o = section.option(form.Value, 'reality_short_id', _('Reality short ID'));
   o.modalonly = true;
-  o.rmempty = false;
   o.validate = validateShortId;
   autofill(
     o,

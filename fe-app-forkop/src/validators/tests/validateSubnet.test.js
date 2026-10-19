@@ -37,16 +37,16 @@ const invalidSubnets = [
 
 describe('validateSubnet', () => {
   describe.each(validSubnets)('Valid subnet: %s', (_desc, subnet) => {
-    it(`returns {valid:true} for "${subnet}"`, () => {
+    it(`returns true for "${subnet}"`, () => {
       const res = validateSubnet(subnet);
-      expect(res.valid).toBe(true);
+      expect(res).toBe(true);
     });
   });
 
   describe.each(invalidSubnets)('Invalid subnet: %s', (_desc, subnet) => {
-    it(`returns {valid:false} for "${subnet}"`, () => {
+    it(`returns a reason for "${subnet}"`, () => {
       const res = validateSubnet(subnet);
-      expect(res.valid).toBe(false);
+      expect(res).not.toBe(true);
     });
   });
 });

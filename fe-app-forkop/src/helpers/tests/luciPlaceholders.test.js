@@ -99,10 +99,7 @@ describe('JSON placeholders', () => {
   const section = loadSection();
 
   it('offers a JSON outbound the outbound validator accepts', () => {
-    expect(validateOutboundJson(section.JSON_OUTBOUND_PLACEHOLDER)).toEqual({
-      valid: true,
-      message: 'Valid',
-    });
+    expect(validateOutboundJson(section.JSON_OUTBOUND_PLACEHOLDER)).toBe(true);
   });
 
   it('offers a JSON endpoint the tunnel validator accepts', () => {
@@ -142,7 +139,7 @@ describe('static DNS records placeholder', () => {
     const settings = loadSettings();
     const analysis = analyzeStaticHosts(settings.STATIC_HOSTS_PLACEHOLDER);
 
-    expect(analysis.message).toBe('Valid');
+    expect(analysis.message).toBe('');
     expect(analysis.valid).toBe(true);
   });
 });

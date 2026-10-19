@@ -4,6 +4,7 @@
 // and whether a peer speaking plain WireGuard can ignore it. The tunnel dialog,
 // the configuration import and the server profiles all read this one table, and
 // singbox/amnezia.uc is held to it through tests/fixtures/page_contract.json.
+import { message } from '../validators/messages';
 
 export type AmneziaKind =
   | 'count'
@@ -200,6 +201,16 @@ export function parseRange(
   return parts.length === 2 ? value : from;
 }
 
+// The same as a field check, saying which of the two is wrong.
+export function validateRange(value: string) {
+  if (parseRange(value) !== undefined) return true;
+  const parts = value.split('-');
+  return parts.length === 2 &&
+    parts.every((part) => parseUnsigned(part, UINT32_MAX) !== undefined)
+    ? message.rangeReversed()
+    : message.numberOrRange();
+}
+
 /** WireGuard keys are standard padded base64 encodings of exactly 32 bytes. */
 export function validateWireGuardKey(value: string): boolean {
   const normalized = value.trim();
@@ -239,10 +250,6 @@ export function validateAmneziaSignature(value: string): boolean {
   return tags > 0;
 }
 
-function keyMessage() {
-  return _('WireGuard keys must be standard base64-encoded 32-byte values');
-}
-
 // Whether a value of the parameter, as the dialog and UCI hold it, is one the
 // core accepts; an empty value leaves the parameter out and always is.
 export function validateAmneziaValue(key: string, value: unknown) {
@@ -253,27 +260,21 @@ export function validateAmneziaValue(key: string, value: unknown) {
     case 'count':
       return parseUnsigned(text, UINT32_MAX) !== undefined
         ? true
-        : _('Use a whole number from 0 to 4294967295');
+        : message.wholeNumber(0, UINT32_MAX);
     case 'padding':
       return parseUnsigned(text, UINT16_MAX) !== undefined
         ? true
-        : _('Use a whole number from 0 to 65535');
+        : message.wholeNumber(0, UINT16_MAX);
     case 'range':
-      return parseRange(text) !== undefined
-        ? true
-        : _(
-            'AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end',
-          );
+      return validateRange(text);
     case 'signature':
       return validateAmneziaSignature(text)
         ? true
-        : _(
-            'AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>',
-          );
+        : _('Format: <b 0xdeadbeef><r 4>');
     case 'key':
-      return validateWireGuardKey(text) ? true : keyMessage();
+      return validateWireGuardKey(text) ? true : message.invalidKey();
     default:
-      return text === '0' || text === '1' ? true : _('Use 0 or 1');
+      return text === '0' || text === '1' ? true : _('Only 0 or 1');
   }
 }
 
@@ -297,9 +298,7 @@ export function validateAmneziaSet(values: Record<string, unknown>) {
     !/^A{43}=$/u.test(protectionKey) &&
     ['s1', 's2', 's3', 's4'].some((key) => Number(text(key) || 0) < 12)
   ) {
-    return _(
-      'Header protection requires S1, S2, S3 and S4 of at least 12 bytes',
-    );
+    return _('HeaderProtectionKey needs S1-S4 of at least 12');
   }
 
   const headers = ['h1', 'h2', 'h3', 'h4'];
@@ -312,11 +311,11 @@ export function validateAmneziaSet(values: Record<string, unknown>) {
         .slice(index + 1)
         .some(([otherFrom, otherTo]) => from <= otherTo && otherFrom <= to),
     );
-    if (overlap) return _('H1, H2, H3 and H4 must not overlap');
+    if (overlap) return _('H1-H4 must not overlap');
   }
 
   if (Number(text('jmin') || 0) > Number(text('jmax') || 0)) {
-    return _('Jmin must not be greater than Jmax');
+    return _('Jmin is greater than Jmax');
   }
   return true;
 }

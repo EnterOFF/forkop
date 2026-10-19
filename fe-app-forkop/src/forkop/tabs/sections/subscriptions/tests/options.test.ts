@@ -99,6 +99,6 @@ describe('validateSubscriptionUrlEntry', () => {
   it('refuses a relative path, saying why', () => {
     expect(
       validateSubscriptionUrlEntry('settings', 'relative/subscription.txt'),
-    ).toMatch(/absolute local path/);
+    ).toBe('URL or absolute path only');
   });
 });

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // whether it ran at all and what the user was told.
 const cleanupCalls: unknown[][] = [];
 let outboundMissing = false;
+let matcherMissing = false;
 let missingLookup: unknown[] = [];
 const saves: unknown[][] = [];
 const refusals: unknown[] = [];
@@ -44,6 +45,7 @@ vi.mock('../references', () => ({
     missingLookup = args;
     return outboundMissing;
   },
+  missingDnsMatcher: () => matcherMissing,
 }));
 
 import { configureSectionSection } from '../table';
@@ -60,6 +62,7 @@ beforeEach(() => {
   refusals.length = 0;
   dialogCalls.length = 0;
   outboundMissing = false;
+  matcherMissing = false;
 });
 
 function configured() {
@@ -133,7 +136,21 @@ describe('saving a section the runtime graph would drop', () => {
     expect(missingLookup).toEqual([modalMap, 'parent']);
     expect(saves).toEqual([]);
     expect(refusals).toEqual([
-      'Add a connection URI, a subscription, a network interface, a tunnel or a JSON outbound',
+      'Add a connection URI, subscription, interface, tunnel or JSON outbound',
+    ]);
+  });
+
+  // The backend refuses a DNS section that names no domain and takes no device
+  // whole: it would answer nothing.
+  it('refuses a DNS section with nothing to answer', () => {
+    const sectionRef = configured();
+    matcherMissing = true;
+
+    sectionRef.handleModalSave({ section: 'parent' }, {} as Event);
+
+    expect(saves).toEqual([]);
+    expect(refusals).toEqual([
+      'Add a domain, built-in list, rule set or device',
     ]);
   });
 

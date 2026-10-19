@@ -84,13 +84,13 @@ describe('an openconnect command line', () => {
 
   it('asks for a file it names and refuses what cannot reach the router', () => {
     expect(refused('openconnect -c user.pem vpn.example.com')).toBe(
-      'The profile refers to the file user.pem. Select it together with the profile',
+      'Missing file user.pem: select it together with the profile',
     );
     expect(refused('openconnect -c client.p12 vpn.example.com')).toMatch(
       /PKCS#12/,
     );
     expect(refused("openconnect -c 'pkcs11:token=x' vpn.example.com")).toMatch(
-      /operating system or a token/,
+      /kept by the system or a token/,
     );
     expect(refused('openconnect --protocol=array vpn.example.com')).toMatch(
       /Array Networks/,
@@ -373,8 +373,7 @@ describe('a server certificate fingerprint', () => {
       ),
     ).toEqual({ fingerprint: 'abcdef0123456789abcdef0123456789abcdef01' });
     expect(fingerprint('a'.repeat(64))).toEqual({
-      message:
-        'A SHA-256 of the whole certificate is not supported: use pin-sha256 as openconnect prints it',
+      message: 'Use pin-sha256 instead of a certificate SHA-256',
     });
     expect(fingerprint('md5:abcd')).toHaveProperty('message');
   });

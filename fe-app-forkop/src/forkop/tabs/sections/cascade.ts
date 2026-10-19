@@ -1,4 +1,7 @@
-import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../cbi/choices';
 import { refreshOutboundDetourSectionOptionValues } from './references';
 import { currentOptionValue, optionMapValue } from './subscriptions/model';
 
@@ -50,14 +53,8 @@ export function addCascadeOptions(
     return value;
   };
   target.validate = function (itemId: string, value: unknown) {
-    if (currentOptionValue(this, itemId, '_cascade') !== '1') {
-      return true;
-    }
-    if (!value) {
-      return _('Select a section');
-    }
-    return value === parentSectionForItem(itemId)
-      ? _('Current section cannot be used as its own transit section')
+    return currentOptionValue(this, itemId, '_cascade') === '1'
+      ? validateSectionChoice(this, value, parentSectionForItem(itemId))
       : true;
   };
 }

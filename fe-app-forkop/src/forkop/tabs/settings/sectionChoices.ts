@@ -1,5 +1,8 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
-import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../cbi/choices';
 
 function isDownloadSectionAction(action: unknown) {
   switch (action) {
@@ -59,7 +62,7 @@ export function configureDownloadSectionOption(
     uci.unset(FORKOP_UCI_PACKAGE, section_id, sectionOption);
   };
   option.validate = function (_section_id: string, value: string) {
-    return value ? true : _('Select a section');
+    return validateSectionChoice(this, value);
   };
 }
 

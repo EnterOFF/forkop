@@ -27,11 +27,9 @@ declare global {
 
   type TextAnalyzer = (value: string) => TextAnalysis;
 
-  // A single entry of such a list, checked on its own.
-  type TextItemValidator = (value: string) => {
-    valid: boolean;
-    message?: string;
-  };
+  // A single entry of such a list, checked on its own: true, or the reason it
+  // is refused.
+  type TextItemValidator = (value: string) => true | string;
 
   interface TextListAnalysisOptions {
     duplicateMessage?: string;
@@ -90,6 +88,10 @@ declare global {
   }
 
   interface CBIOption {
+    // A stored section name the choices no longer offer, kept so the save does
+    // not replace it with another section: see keepUnavailableSectionChoice.
+    unavailableChoice?: string;
+
     // ------------------------------------------------ the child item list
     //
     // A dynamic list whose entries stand for uci sections of their own. The

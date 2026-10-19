@@ -28,7 +28,6 @@ export function addShadowsocksOptions(section: CBISection) {
 
   o = section.option(form.Value, 'shadowsocks_psk', _('Server key'));
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateShadowsocksPassword;
   SHADOWSOCKS_METHODS.filter((method) => method.keyBytes > 0).forEach(
@@ -93,7 +92,6 @@ export function addHysteria2Options(section: CBISection) {
     _('Obfuscation password'),
   );
   o.modalonly = true;
-  o.rmempty = false;
   o.password = true;
   o.validate = validateRequiredText;
   autofill(

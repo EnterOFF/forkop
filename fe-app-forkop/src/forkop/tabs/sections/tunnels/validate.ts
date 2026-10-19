@@ -1,21 +1,21 @@
 import { validateCoreFeature } from '../../../services/coreFeatures.service';
 import { tunnelKindCoreFeature } from '../coreSupport';
+import { message } from '../../../../validators/messages';
+import { hostField, portField } from '../../../../validators/fields';
 import { validateSubnet } from '../../../../validators/validateSubnet';
-import { isIPv4, isIPv6 } from '../../../../validators/validateIp';
 import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrl } from '../../../../validators/validateUrl';
 import { isExistingChildItem } from '../../../cbi/childItems';
 import { validateOpenVPNSettings } from './openvpn';
 import { validateOpenConnectSettings } from './openconnect';
 import { normalizeDynamicListItems } from '../../../cbi/listValues';
-import { normalizeOptionValues } from '../../../cbi/listValues';
 import {
   AMNEZIA_KEYS,
   ONE_SIDED_AMNEZIA_KEYS,
-  parseRange,
   parseUnsigned,
   validateAmneziaSet,
   validateAmneziaValue,
+  validateRange,
   validateWireGuardKey,
 } from '../../../../helpers/wireguard';
 import {
@@ -25,80 +25,60 @@ import {
   tunnelEndpointFromSettings,
   tunnelInitialSettings,
   tunnelPeerForValue,
+  wireGuardPeerDisplayNameFromObject,
 } from './model';
 
-function validateWireGuardPeer(peer: WireGuardPeerObject | null) {
-  if (
-    !peer ||
-    typeof peer !== 'object' ||
-    Array.isArray(peer) ||
-    typeof peer.address !== 'string' ||
-    !peer.address.trim() ||
-    typeof peer.public_key !== 'string' ||
-    !peer.public_key.trim() ||
-    typeof peer.port !== 'number' ||
-    !Number.isInteger(peer.port) ||
-    peer.port < 1 ||
-    peer.port > 65535
-  ) {
-    return _(
-      'Every WireGuard peer needs string address/public key and a numeric port',
-    );
-  }
+// The checks here judge a tunnel or a peer whose dialog is closed. Inside the
+// dialog every field marks itself and says what is wrong with it; outside, the
+// entry is only told to be fixed, and a rule that spans several fields is the
+// one thing said in full.
 
-  if (!validateWireGuardKey(peer.public_key)) {
-    return _('WireGuard keys must be standard base64-encoded 32-byte values');
-  }
+export function validateWireGuardPrefix(value: unknown) {
+  const address = typeof value === 'string' ? value.trim() : '';
+  return address.includes('/')
+    ? validateSubnet(address)
+    : message.prefixLength();
+}
 
-  if (
-    Object.keys(peer).some((key: string) => !WIREGUARD_PEER_FIELDS.has(key))
-  ) {
-    return _('WireGuard peer contains unsupported fields');
-  }
+export function validateAmneziaRange(value: unknown) {
+  const normalized = `${value || ''}`.trim();
+  return !normalized || validateRange(normalized);
+}
 
-  if (
-    peer.pre_shared_key != null &&
-    (typeof peer.pre_shared_key !== 'string' || !peer.pre_shared_key.trim())
-  ) {
-    return _('WireGuard peer fields must use native sing-box JSON types');
-  }
+function isKeepalive(value: unknown) {
+  return typeof value === 'string'
+    ? validateAmneziaRange(value) === true
+    : typeof value === 'number' &&
+        Number.isInteger(value) &&
+        value >= 0 &&
+        value <= 0xffffffff;
+}
 
-  if (
-    typeof peer.pre_shared_key === 'string' &&
-    peer.pre_shared_key.trim() &&
-    !validateWireGuardKey(peer.pre_shared_key)
-  ) {
-    return _('WireGuard keys must be standard base64-encoded 32-byte values');
-  }
-
+function wireGuardPeerComplete(peer: WireGuardPeerObject) {
   const allowedIps = Array.isArray(peer.allowed_ips)
     ? peer.allowed_ips
     : peer.allowed_ips != null
       ? [peer.allowed_ips]
       : [];
-  if (allowedIps.length === 0) {
-    return _('Every WireGuard peer needs at least one AllowedIPs subnet');
-  }
-  if (
-    allowedIps.some(
-      (allowedIp: string) => validateWireGuardPrefix(allowedIp) !== true,
-    )
-  ) {
-    return _('WireGuard peer allowed_ips must contain valid CIDR subnets');
-  }
-
-  if (
-    peer.persistent_keepalive_interval != null &&
-    (typeof peer.persistent_keepalive_interval === 'string'
-      ? validateAmneziaRange(peer.persistent_keepalive_interval) !== true
-      : typeof peer.persistent_keepalive_interval !== 'number' ||
-        !Number.isInteger(peer.persistent_keepalive_interval) ||
-        peer.persistent_keepalive_interval < 0 ||
-        peer.persistent_keepalive_interval > 0xffffffff)
-  ) {
-    return _('WireGuard peer fields must use native sing-box JSON types');
-  }
-  return true;
+  return (
+    typeof peer.address === 'string' &&
+    hostField('', peer.address) === true &&
+    !!peer.address.trim() &&
+    typeof peer.port === 'number' &&
+    portField('', peer.port) === true &&
+    typeof peer.public_key === 'string' &&
+    validateWireGuardKey(peer.public_key) &&
+    Object.keys(peer).every((key: string) => WIREGUARD_PEER_FIELDS.has(key)) &&
+    (peer.pre_shared_key == null ||
+      (typeof peer.pre_shared_key === 'string' &&
+        validateWireGuardKey(peer.pre_shared_key))) &&
+    allowedIps.length > 0 &&
+    allowedIps.every(
+      (allowedIp: string) => validateWireGuardPrefix(allowedIp) === true,
+    ) &&
+    (peer.persistent_keepalive_interval == null ||
+      isKeepalive(peer.persistent_keepalive_interval))
+  );
 }
 
 export function validateWireGuardPeerValue(
@@ -107,9 +87,12 @@ export function validateWireGuardPeerValue(
   option: CBIOption,
 ) {
   const peer = tunnelPeerForValue(tunnelId, value, option);
-  return peer
-    ? validateWireGuardPeer(peer)
-    : _('Open peer settings and complete the configuration');
+  return peer && wireGuardPeerComplete(peer)
+    ? true
+    : message.item(
+        peer ? wireGuardPeerDisplayNameFromObject(peer) : '',
+        message.fixSettings(),
+      );
 }
 
 export function validateWireGuardPeers(
@@ -121,7 +104,7 @@ export function validateWireGuardPeers(
     `${value || ''}`.trim(),
   );
   if (peers.length === 0) {
-    return _('Add at least one WireGuard peer');
+    return message.required();
   }
   for (const value of peers) {
     const validation = validateWireGuardPeerValue(
@@ -134,55 +117,42 @@ export function validateWireGuardPeers(
   return true;
 }
 
-function validateWireGuardPrefix(value: unknown) {
-  if (typeof value !== 'string') {
-    return _('Use an IP address with a CIDR prefix');
-  }
-  const address = `${value || ''}`.trim();
-  if (!address.includes('/')) {
-    return _('Use an IP address with a CIDR prefix');
-  }
-  const validation = validateSubnet(address);
-  return validation.valid ? true : validation.message;
-}
-
-export function validateWireGuardListInput(value: unknown) {
-  if (Array.isArray(value)) {
-    const values = normalizeOptionValues(value);
-    return values.every((item) => validateWireGuardPrefix(item) === true)
-      ? true
-      : validateWireGuardPrefix(
-          values.find((item) => validateWireGuardPrefix(item) !== true) || '',
-        );
-  }
-  return `${value || ''}`.trim() ? validateWireGuardPrefix(value) : true;
-}
-
-// Empty, or a whole number from minimum to 65535, as LuCI's port and range
-// datatypes on the dialog's fields take it.
+// Empty, or a whole number from minimum to 65535.
 function isOptionalUint16(value: unknown, minimum: number) {
   const text = `${value ?? ''}`.trim();
   const parsed = parseUnsigned(text, 65535);
   return !text || (parsed !== undefined && parsed >= minimum);
 }
 
-// What LuCI's host datatype takes besides an address.
-function isHostname(value: string) {
-  return (
-    value.length <= 253 &&
-    /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/u.test(
-      value,
-    )
-  );
+function amneziaProblem(kind: string, settings: ChildSettings) {
+  if (kind !== 'amneziawg' && !oneSidedAmneziaEnabled(kind, settings)) {
+    return true;
+  }
+  const keys = kind === 'amneziawg' ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS;
+  const values: Record<string, unknown> = {};
+  for (const key of keys) {
+    values[key] = settings[`amnezia_${key}`];
+    if (validateAmneziaValue(key, values[key]) !== true) {
+      return message.fixSettings();
+    }
+  }
+  return validateAmneziaSet(values);
 }
 
-export function validateAmneziaRange(value: unknown) {
-  const normalized = `${value || ''}`.trim();
-  return !normalized || parseRange(normalized) !== undefined
-    ? true
-    : _(
-        'AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end',
-      );
+function warpComplete(
+  settings: ChildSettings,
+  endpoint: NonNullable<ReturnType<typeof tunnelEndpointFromSettings>>,
+) {
+  return (
+    hostField('', settings.warp_address) === true &&
+    isOptionalUint16(settings.warp_port, 0) &&
+    validateAmneziaRange(settings.warp_keepalive) === true &&
+    [
+      endpoint.profile?.id,
+      endpoint.profile?.auth_token,
+      endpoint.profile?.private_key,
+    ].every(Boolean)
+  );
 }
 
 export function validateTunnelSettings(
@@ -195,9 +165,8 @@ export function validateTunnelSettings(
   if (core !== true) {
     return core;
   }
-  const name = `${settings.name || ''}`.trim();
-  if (kind !== 'json' && !name) {
-    return _('Enter a tunnel name');
+  if (kind !== 'json' && !`${settings.name || ''}`.trim()) {
+    return message.fixSettings();
   }
   if (kind === 'openvpn-client') {
     return validateOpenVPNSettings(settings);
@@ -207,100 +176,62 @@ export function validateTunnelSettings(
   }
   const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (!endpoint) {
-    return kind === 'json'
-      ? _('Enter a valid JSON endpoint object')
-      : _('Open peer settings and complete the configuration');
+    return message.fixSettings();
   }
   if (kind === 'json') {
-    if (typeof endpoint.tag !== 'string' || !endpoint.tag.trim()) {
-      return _('JSON endpoint must contain a non-empty tag');
-    }
-    return true;
+    return typeof endpoint.tag === 'string' && endpoint.tag.trim()
+      ? true
+      : message.fixSettings();
   }
   if (endpoint.type === 'tailscale') {
-    if (!endpoint.auth_key) return _('Enter a Tailscale auth key');
-    if (!endpoint.hostname) return _('Enter a Tailscale hostname');
-    const hostname = validateTailscaleHostname(endpoint.hostname);
-    if (hostname !== true) return hostname;
-    if (!validateUrl(endpoint.control_url || '').valid) {
-      return _('Enter a valid Tailscale control URL');
-    }
-    if (
-      `${settings.tailscale_detour_enabled || ''}` === '1' &&
-      !endpoint.detour
-    ) {
-      return _('Select a section');
-    }
-    return true;
+    return endpoint.auth_key &&
+      validateTailscaleHostname(endpoint.hostname) === true &&
+      validateUrl(endpoint.control_url || '') === true &&
+      (`${settings.tailscale_detour_enabled || ''}` !== '1' || endpoint.detour)
+      ? true
+      : message.fixSettings();
   }
-  if (kind === 'amneziawg' || oneSidedAmneziaEnabled(kind, settings)) {
-    const keys = kind === 'amneziawg' ? AMNEZIA_KEYS : ONE_SIDED_AMNEZIA_KEYS;
-    const values: Record<string, unknown> = {};
-    for (const key of keys) {
-      const value = settings[`amnezia_${key}`];
-      const validation = validateAmneziaValue(key, value);
-      if (validation !== true) return validation;
-      values[key] = value;
-    }
-    const combination = validateAmneziaSet(values);
-    if (combination !== true) return combination;
+  const amnezia = amneziaProblem(kind, settings);
+  if (amnezia !== true) {
+    return amnezia;
   }
   if (endpoint.type === 'warp') {
-    const address = `${settings.warp_address || ''}`.trim();
-    if (address && !isIPv4(address) && !isIPv6(address) && !isHostname(address))
-      return _('Enter a valid server address');
-    if (!isOptionalUint16(settings.warp_port, 0))
-      return _('Enter a valid server port');
-    const keepalive = validateAmneziaRange(settings.warp_keepalive);
-    if (keepalive !== true) return keepalive;
-    const profileValues = [
-      endpoint.profile?.id,
-      endpoint.profile?.auth_token,
-      endpoint.profile?.private_key,
-    ].filter(Boolean);
-    if (profileValues.length !== 3) {
-      return _(
-        'Register a Cloudflare WARP device and fill the profile fields.',
-      );
-    }
-    return true;
-  }
-  if (!isOptionalUint16(settings.listen_port, 0)) {
-    return _('Enter a valid listen port');
-  }
-  if (!isOptionalUint16(settings.mtu, 1)) {
-    return _('Enter an MTU from 1 to 65535');
-  }
-  if (!endpoint.private_key || endpoint.address.length === 0) {
-    return _('WireGuard address and private key are required');
-  }
-  if (!validateWireGuardKey(endpoint.private_key)) {
-    return _('WireGuard keys must be standard base64-encoded 32-byte values');
-  }
-  for (const address of endpoint.address) {
-    const addressValidation = validateWireGuardPrefix(address);
-    if (addressValidation !== true) {
-      return addressValidation;
-    }
-  }
-  if (endpoint.peers.length === 0) {
-    return _('Add at least one WireGuard peer');
-  }
-  const peersValidation = validateWireGuardPeers(
-    settings.peer_ids,
-    tunnelId,
-    peerOption,
-  );
-  if (peersValidation !== true) {
-    return peersValidation;
+    return warpComplete(settings, endpoint) ? true : message.fixSettings();
   }
   if (
-    `${settings.tunnel_type || ''}` === 'amneziawg' &&
+    !isOptionalUint16(settings.listen_port, 0) ||
+    !isOptionalUint16(settings.mtu, 1) ||
+    !endpoint.private_key ||
+    !validateWireGuardKey(endpoint.private_key) ||
+    endpoint.address.length === 0 ||
+    endpoint.address.some(
+      (address: string) => validateWireGuardPrefix(address) !== true,
+    ) ||
+    endpoint.peers.length === 0 ||
+    validateWireGuardPeers(settings.peer_ids, tunnelId, peerOption) !== true
+  ) {
+    return message.fixSettings();
+  }
+  if (
+    kind === 'amneziawg' &&
     Object.keys(endpoint.amnezia || {}).length === 0
   ) {
-    return _('Enter at least one AmneziaWG parameter');
+    return _('Add at least one AmneziaWG parameter');
   }
   return true;
+}
+
+// One tunnel of a section's list, named where the list stands.
+export function validateTunnelItem(section_id: string, tunnelId: string) {
+  const validation = isExistingChildItem(section_id, tunnelId, 'tunnel')
+    ? validateTunnelSettings(tunnelInitialSettings(tunnelId, section_id))
+    : message.fixSettings();
+  return validation === true
+    ? true
+    : message.item(
+        tunnelDisplayName(section_id, tunnelId) || _('Tunnel'),
+        validation,
+      );
 }
 
 export function validateTunnelItemsBeforeSave(
@@ -308,15 +239,9 @@ export function validateTunnelItemsBeforeSave(
   values: unknown,
 ) {
   for (const value of normalizeDynamicListItems(values)) {
-    const tunnelId = `${value || ''}`.trim();
-    if (!isExistingChildItem(section_id, tunnelId, 'tunnel')) {
-      return _('Open tunnel settings and complete the configuration');
-    }
-    const validation = validateTunnelSettings(
-      tunnelInitialSettings(tunnelId, section_id),
-    );
+    const validation = validateTunnelItem(section_id, `${value || ''}`.trim());
     if (validation !== true) {
-      return `${tunnelDisplayName(section_id, tunnelId) || _('Tunnel')}: ${validation}`;
+      return validation;
     }
   }
   return true;

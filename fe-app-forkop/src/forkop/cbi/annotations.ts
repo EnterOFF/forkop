@@ -21,14 +21,6 @@ interface PendingAnnotation extends AnnotationSpan {
 
 export type AnnotationMap = Map<string, PendingAnnotation>;
 
-export function getValidationHeaderText(): string {
-  return _('Validation errors:');
-}
-
-export function getDuplicateValueText(): string {
-  return _('Duplicate value');
-}
-
 function createAnnotationKey(annotation: AnnotationSpan): string {
   return `${annotation.start}:${annotation.end}`;
 }

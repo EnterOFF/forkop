@@ -4,6 +4,7 @@ import { validateProxyUrl } from '../../../validators/validateProxyUrl';
 import { getChildItemIds, isExistingChildItem } from '../../cbi/childItems';
 import { updateDynamicListItemLabel } from '../../cbi/listItems';
 import { showChildItemSettingsModal } from '../../cbi/modal';
+import { required } from '../../cbi/required';
 import { E } from '../../../helpers/element';
 import { addCascadeOptions } from './cascade';
 import { validateConnectionUriCore } from './coreSupport';
@@ -20,9 +21,7 @@ export function validateConnectionLink(value: unknown) {
   }
 
   const validation = validateProxyUrl(link);
-  return validation.valid
-    ? validateConnectionUriCore(link)
-    : validation.message;
+  return validation === true ? validateConnectionUriCore(link) : validation;
 }
 
 // The entries of the section's link list as its dialog holds them now, or the
@@ -113,30 +112,22 @@ export function showConnectionLinkSettingsModal(
     defaults: (inputValue: string) => ({ uri: inputValue, name }),
     addOptions: (itemSection: CBISection) => {
       let o = itemSection.option(form.Value, 'name', _('Server name'));
-      o.rmempty = false;
       o.write = writeTrimmed;
-      o.validate = function (_itemId: string, value: unknown) {
-        return `${value || ''}`.trim()
-          ? validateSectionChildListName(
-              sectionId,
-              'link',
-              widget,
-              itemNode,
-              value,
-            )
-          : _('Enter a display name');
-      };
+      o.validate = required(function (_itemId, value) {
+        return validateSectionChildListName(
+          sectionId,
+          'link',
+          widget,
+          itemNode,
+          value,
+        );
+      });
 
       o = itemSection.option(form.Value, 'uri', _('Connection URI'));
       // A link carries the credentials of its server.
       o.password = true;
-      o.rmempty = false;
       o.write = writeTrimmed;
-      o.validate = function (_itemId: string, value: unknown) {
-        return `${value || ''}`.trim()
-          ? validateConnectionLink(value)
-          : _('Paste a connection URI');
-      };
+      o.validate = required((_itemId, value) => validateConnectionLink(value));
 
       addCascadeOptions(
         itemSection,

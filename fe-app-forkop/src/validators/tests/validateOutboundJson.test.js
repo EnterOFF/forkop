@@ -3,9 +3,7 @@ import { validateOutboundJson } from '../validateOutboundJson';
 
 describe('validateOutboundJson', () => {
   it('accepts a direct outbound with type and tag', () => {
-    expect(validateOutboundJson('{"type":"direct","tag":"direct"}').valid).toBe(
-      true,
-    );
+    expect(validateOutboundJson('{"type":"direct","tag":"direct"}')).toBe(true);
   });
 
   it('accepts a server outbound with server and numeric server_port', () => {
@@ -13,7 +11,7 @@ describe('validateOutboundJson', () => {
       '{"type":"socks","tag":"proxy","server":"127.0.0.1","server_port":1080}',
     );
 
-    expect(result.valid).toBe(true);
+    expect(result).toBe(true);
   });
 
   // What an outbound holds is sing-box's to judge, so a type Forkop has never
@@ -26,28 +24,25 @@ describe('validateOutboundJson', () => {
     '{"type":"socks","tag":"proxy","server_port":"1080","detour":""}',
     '{"tag":"typeless"}',
   ])('leaves the contents of %s to sing-box', (value) => {
-    expect(validateOutboundJson(value).valid).toBe(true);
+    expect(validateOutboundJson(value)).toBe(true);
   });
 
   it('rejects empty input', () => {
     const result = validateOutboundJson('');
 
-    expect(result.valid).toBe(false);
-    expect(result.message).toBe('JSON outbound cannot be empty');
+    expect(result).toBe('Required');
   });
 
   it('rejects text that is not JSON', () => {
     const result = validateOutboundJson('{"type":"direct",');
 
-    expect(result.valid).toBe(false);
-    expect(result.message).toBe('Invalid JSON format');
+    expect(result).toBe('Invalid JSON object');
   });
 
   it('rejects arrays', () => {
     const result = validateOutboundJson('[{"type":"direct","tag":"direct"}]');
 
-    expect(result.valid).toBe(false);
-    expect(result.message).toBe('JSON outbound must be a JSON object');
+    expect(result).toBe('Invalid JSON object');
   });
 
   it.each(['{"type":"direct"}', '{"type":"direct","tag":"  "}', '{"tag":1}'])(
@@ -55,10 +50,7 @@ describe('validateOutboundJson', () => {
     (value) => {
       const result = validateOutboundJson(value);
 
-      expect(result.valid).toBe(false);
-      expect(result.message).toBe(
-        'JSON outbound must contain a non-empty tag field',
-      );
+      expect(result).toBe('No tag field');
     },
   );
 
@@ -68,7 +60,6 @@ describe('validateOutboundJson', () => {
       'duplicate',
     ]);
 
-    expect(result.valid).toBe(false);
-    expect(result.message).toBe('Duplicate JSON outbound tag');
+    expect(result).toBe('Name already taken');
   });
 });

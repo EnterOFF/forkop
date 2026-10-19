@@ -19,6 +19,7 @@ import {
   normalizeDynamicListItems,
 } from '../../cbi/listValues';
 import { showChildItemSettingsModal } from '../../cbi/modal';
+import { message } from '../../../validators/messages';
 import {
   addExpectedStatusOption,
   addGroupHealthCheckTailOptions,
@@ -32,23 +33,13 @@ import { optionMapValue } from './subscriptions/model';
 import { validateRequiredSingBoxDuration } from '../../../validators/validateSingBoxDuration';
 
 function validateUrlTestTolerance(value: unknown) {
-  if (!value || `${value}`.length === 0) {
-    return _('Must be a number in the range of 0 - 10000');
+  const normalized = `${value ?? ''}`.trim();
+  if (!normalized) {
+    return message.required();
   }
-
-  const normalized = `${value}`;
-  const parsed = parseFloat(normalized);
-  if (
-    /^[0-9]+$/.test(normalized) &&
-    !isNaN(parsed) &&
-    isFinite(parsed) &&
-    parsed >= 0 &&
-    parsed <= 10000
-  ) {
-    return true;
-  }
-
-  return _('Must be a number in the range of 0 - 10000');
+  return /^[0-9]+$/.test(normalized) && Number(normalized) <= 10000
+    ? true
+    : message.wholeNumber(0, 10000);
 }
 
 function urlTestSettingsKeys() {
@@ -95,7 +86,6 @@ function addUrlTestItemOptions(
       : parentSectionIdForItem;
 
   let o = itemSection.option(form.Value, 'name', _('Group name'));
-  o.rmempty = false;
   o.load = function (itemId: string) {
     return (
       optionMapValue(this, itemId, 'name') ||
@@ -112,7 +102,6 @@ function addUrlTestItemOptions(
     _('Latency measurement for every server'),
   );
   o.default = 'https://www.gstatic.com/generate_204';
-  o.rmempty = false;
   LATENCY_TEST_URL_OPTIONS.forEach((value: string) => o.value(value));
   o.validate = function (_itemId: string, value: unknown) {
     return validateUrlField(value);
@@ -127,7 +116,6 @@ function addUrlTestItemOptions(
     _('How often every server of the group is checked'),
   );
   o.default = '3m';
-  o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return validateRequiredSingBoxDuration(value);
   };
@@ -139,12 +127,11 @@ function addUrlTestItemOptions(
     _('Switching threshold in ms at which to move to a faster server'),
   );
   o.default = '50';
-  o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return validateUrlTestTolerance(value);
   };
 
-  addGroupHealthCheckTailOptions(itemSection, '30m');
+  addGroupHealthCheckTailOptions(itemSection, '30m', 'check_interval');
 
   addServerFilterOptions(itemSection, parentSectionForItem, {
     groupContext: true,
@@ -242,7 +229,7 @@ export function validateUrlTestItemsBeforeSave(
     }
 
     if (!`${name || ''}`.trim()) {
-      return _('Enter a display name');
+      return message.item(_('URLTest'), message.fixSettings());
     }
   }
 

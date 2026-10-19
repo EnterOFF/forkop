@@ -119,7 +119,7 @@ function normalizePrefixes(values: string[]): string[] | null {
         : isIPv6(value)
           ? `${value}/128`
           : value;
-    if (!normalized.includes('/') || !validateSubnet(normalized).valid)
+    if (!normalized.includes('/') || validateSubnet(normalized) !== true)
       return null;
     result.push(normalized);
   }
@@ -216,11 +216,7 @@ function readConfigFile(input: string): WireGuardSource | { message: string } {
   const iface = sections.find((section) => section.name === 'interface');
   const peers = sections.filter((section) => section.name === 'peer');
   if (!iface || peers.length === 0)
-    return {
-      message: _(
-        'WireGuard configuration must contain Interface and Peer sections',
-      ),
-    };
+    return { message: _('No [Interface] or [Peer] section') };
 
   return {
     iface: iface.values,
@@ -307,9 +303,7 @@ function rejectUnsupportedFields(source: WireGuardSource): string {
   for (const values of [source.iface, ...source.peers]) {
     const reserved = splitValues(values.reserved);
     if (reserved.some((byte) => parseUnsigned(byte, 255) !== 0))
-      return _(
-        'Cloudflare WARP reserved bytes are not supported here. Add a Cloudflare WARP tunnel instead',
-      );
+      return _('Reserved is not supported: add a Cloudflare WARP tunnel');
   }
 
   return '';
@@ -326,7 +320,8 @@ function parseAmnezia(iface: FieldValues): AmneziaResult {
     if (text === null)
       return { valid: false, message: _('Invalid AmneziaWG parameters') };
     const validation = validateAmneziaValue(key, text);
-    if (validation !== true) return { valid: false, message: validation };
+    if (validation !== true)
+      return { valid: false, message: `${conf}: ${validation}` };
     texts[key] = text;
     if (kind !== 'flag' || text === '1')
       amnezia[key] = amneziaJsonValue(key, text);
@@ -351,24 +346,11 @@ function buildEndpoint(source: WireGuardSource): WireGuardConfigResult {
   const address = normalizePrefixes(addressValues);
   const privateKey = firstValue(iface, 'privatekey');
   if (addressValues.length === 0 || !privateKey)
-    return {
-      valid: false,
-      message: _('WireGuard address and private key are required'),
-    };
+    return { valid: false, message: _('No Address or PrivateKey') };
   if (!validateWireGuardKey(privateKey))
-    return {
-      valid: false,
-      message: _(
-        'WireGuard keys must be standard base64-encoded 32-byte values',
-      ),
-    };
+    return { valid: false, message: _('Invalid %s').format('PrivateKey') };
   if (!address)
-    return {
-      valid: false,
-      message: _(
-        'WireGuard addresses and AllowedIPs must use valid CIDR subnets',
-      ),
-    };
+    return { valid: false, message: _('Invalid %s').format('Address') };
 
   const peers: NativeWireGuardEndpoint['peers'] = [];
   for (const values of source.peers) {
@@ -377,15 +359,10 @@ function buildEndpoint(source: WireGuardSource): WireGuardConfigResult {
     if (!publicKey || !remote)
       return {
         valid: false,
-        message: _('Every WireGuard peer needs a public key and endpoint'),
+        message: _('[Peer] without PublicKey or Endpoint'),
       };
     if (!validateWireGuardKey(publicKey))
-      return {
-        valid: false,
-        message: _(
-          'WireGuard keys must be standard base64-encoded 32-byte values',
-        ),
-      };
+      return { valid: false, message: _('Invalid %s').format('PublicKey') };
 
     const peer: NativeWireGuardEndpoint['peers'][number] = {
       address: remote.address,
@@ -395,19 +372,14 @@ function buildEndpoint(source: WireGuardSource): WireGuardConfigResult {
     };
     const preSharedKey = firstValue(values, 'presharedkey');
     if (preSharedKey && !validateWireGuardKey(preSharedKey))
-      return {
-        valid: false,
-        message: _(
-          'WireGuard keys must be standard base64-encoded 32-byte values',
-        ),
-      };
+      return { valid: false, message: _('Invalid %s').format('PresharedKey') };
     const allowedIps = normalizePrefixes(splitValues(values.allowedips));
     if (!allowedIps || allowedIps.length === 0)
       return {
         valid: false,
         message: allowedIps
-          ? _('Every WireGuard peer needs at least one AllowedIPs subnet')
-          : _('WireGuard addresses and AllowedIPs must use valid CIDR subnets'),
+          ? _('[Peer] without AllowedIPs')
+          : _('Invalid %s').format('AllowedIPs'),
       };
     const keepaliveValue = firstValue(values, 'persistentkeepalive');
     if (preSharedKey) peer.pre_shared_key = preSharedKey;
@@ -417,7 +389,7 @@ function buildEndpoint(source: WireGuardSource): WireGuardConfigResult {
       if (keepalive === undefined)
         return {
           valid: false,
-          message: _('Invalid WireGuard persistent keepalive'),
+          message: _('Invalid %s').format('PersistentKeepalive'),
         };
       peer.persistent_keepalive_interval = keepalive;
     }
@@ -435,13 +407,13 @@ function buildEndpoint(source: WireGuardSource): WireGuardConfigResult {
   if (listenPortValue) {
     const listenPort = parseUnsigned(listenPortValue, 65535);
     if (listenPort === undefined || listenPort === 0)
-      return { valid: false, message: _('Invalid WireGuard listen port') };
+      return { valid: false, message: _('Invalid %s').format('ListenPort') };
     endpoint.listen_port = listenPort;
   }
   if (mtuValue) {
     const mtu = parseUnsigned(mtuValue, 65535);
     if (mtu === undefined || mtu === 0)
-      return { valid: false, message: _('Invalid WireGuard MTU') };
+      return { valid: false, message: _('Invalid %s').format('MTU') };
     endpoint.mtu = mtu;
   }
 

@@ -26,32 +26,28 @@ const invalidPaths = [
 
 describe('validateSingBoxFilePath', () => {
   describe.each(validPaths)('Valid: %s', (_desc, path, fileName) => {
-    it(`returns valid=true for "${path}" and "${fileName}"`, () => {
-      expect(validateSingBoxFilePath(path, fileName).valid).toBe(true);
+    it(`returns true for "${path}" and "${fileName}"`, () => {
+      expect(validateSingBoxFilePath(path, fileName)).toBe(true);
     });
   });
 
   describe.each(invalidPaths)('Invalid: %s', (_desc, path, fileName) => {
-    it(`returns valid=false for "${path}" and "${fileName}"`, () => {
+    it(`returns a reason for "${path}" and "${fileName}"`, () => {
       const result = validateSingBoxFilePath(path, fileName);
-      expect(result.valid).toBe(false);
-      expect(result.message).toBeTruthy();
+      expect(result).not.toBe(true);
+      expect(result).toEqual(expect.any(String));
     });
   });
 
   it('names the expected file in the message', () => {
     expect(
       validateSingBoxFilePath('/etc/sing-box/config.yaml', 'config.json'),
-    ).toEqual({
-      valid: false,
-      message: 'Path must end with config.json',
-    });
+    ).toBe('Path must end with config.json');
   });
 
   it('asks for a directory above the file', () => {
-    expect(validateSingBoxFilePath('/cache.db', 'cache.db')).toEqual({
-      valid: false,
-      message: 'Path must contain at least one directory (like /tmp/cache.db)',
-    });
+    expect(validateSingBoxFilePath('/cache.db', 'cache.db')).toBe(
+      'Format: /tmp/cache.db',
+    );
   });
 });

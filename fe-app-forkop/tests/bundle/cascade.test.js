@@ -109,10 +109,10 @@ describe.each(ITEMS)('the cascade of %s', (_label, type, listName, values) => {
     expect(dialog.field('detour_section').keylist).toEqual(['hop']);
     dialog.set('_cascade', '1');
     expect(dialog.field('detour_section').validate('settings', 'sec')).toBe(
-      'Current section cannot be used as its own transit section',
+      'Cannot be this section',
     );
     expect(dialog.field('detour_section').validate('settings', '')).toBe(
-      'Select a section',
+      'Required',
     );
   });
 });

@@ -10,6 +10,7 @@ import {
 } from '../../../../helpers/parseOpenConnectConfig';
 import { isEncryptedKey, isRouterPath } from '../../../../helpers/material';
 import { normalizeOptionValues } from '../../../cbi/listValues';
+import { message } from '../../../../validators/messages';
 
 type Endpoint = Record<string, unknown>;
 type Tls = Record<string, unknown>;
@@ -414,64 +415,48 @@ export function validateOpenConnectFingerprint(value: unknown) {
 export function validateTokenSecret(mode: unknown, value: unknown) {
   const secret = trimmed(value);
   if (!secret) {
-    return mode === 'oidc'
-      ? _('Enter the access token')
-      : _('Enter the secret of the token');
+    return message.required();
   }
   if (mode !== 'totp') return true;
   if (/^otpauth:\/\//i.test(secret)) {
     return /^otpauth:\/\/totp\//i.test(secret) && /[?&]secret=/i.test(secret)
       ? true
-      : _('The otpauth:// link must be of the totp type and carry a secret');
+      : _('Invalid otpauth:// link');
   }
-  return isBase32Secret(secret)
-    ? true
-    : _('Enter the base32 secret or the otpauth:// link of the QR code');
+  return isBase32Secret(secret) ? true : _('Invalid base32 secret');
 }
 
 export function validateFormEntry(value: unknown) {
   return !trimmed(value) || parseFormEntry(value)
     ? true
-    : _('Write it as FORM:NAME=VALUE, as openconnect --form-entry takes it');
+    : _('Format: FORM:NAME=VALUE');
 }
 
+// What the dialog asks of each field, each marking itself there; a tunnel
+// whose dialog is closed is only told to be fixed. How the router signs in is
+// a choice among several fields, so it is the one rule said in full.
 export function validateOpenConnectSettings(settings: ChildSettings) {
-  const server = validateOpenConnectServer(settings.openconnect_server);
-  if (server !== true) return server;
   const mode = trimmed(settings.openconnect_token_mode);
-  if (mode) {
-    const secret = validateTokenSecret(mode, settings.openconnect_token_secret);
-    if (secret !== true) return secret;
-  }
   const certificate = settings.openconnect_certificate_enabled === '1';
-  if (certificate) {
-    if (
-      !trimmed(settings.openconnect_cert) ||
-      !trimmed(settings.openconnect_key)
-    ) {
-      return _('The client certificate and its key go together: add both');
-    }
-    if (
-      isEncryptedKey(settings.openconnect_key) &&
-      !text(settings.openconnect_key_password)
-    ) {
-      return _('The client key is protected by a passphrase: enter it');
-    }
-  }
-  for (const value of normalizeOptionValues(
-    settings.openconnect_fingerprints,
-  )) {
-    const result = validateOpenConnectFingerprint(value);
-    if (result !== true) return `${value}: ${result}`;
-  }
   const advanced = settings.openconnect_advanced === '1';
-  if (advanced) {
-    for (const value of normalizeOptionValues(
-      settings.openconnect_form_entries,
-    )) {
-      const result = validateFormEntry(value);
-      if (result !== true) return `${value}: ${result}`;
-    }
+  const complete =
+    validateOpenConnectServer(settings.openconnect_server) === true &&
+    (!mode ||
+      validateTokenSecret(mode, settings.openconnect_token_secret) === true) &&
+    (!certificate ||
+      (!!trimmed(settings.openconnect_cert) &&
+        !!trimmed(settings.openconnect_key) &&
+        (!isEncryptedKey(settings.openconnect_key) ||
+          !!text(settings.openconnect_key_password)))) &&
+    normalizeOptionValues(settings.openconnect_fingerprints).every(
+      (value) => validateOpenConnectFingerprint(value) === true,
+    ) &&
+    (!advanced ||
+      normalizeOptionValues(settings.openconnect_form_entries).every(
+        (value) => validateFormEntry(value) === true,
+      ));
+  if (!complete) {
+    return message.fixSettings();
   }
   if (
     !trimmed(settings.openconnect_username) &&
@@ -480,9 +465,7 @@ export function validateOpenConnectSettings(settings: ChildSettings) {
     !(advanced && trimmed(settings.openconnect_cookie)) &&
     !(advanced && settings.openconnect_browser === '1')
   ) {
-    return _(
-      'Add how the router signs in: a username, a client certificate or a session cookie',
-    );
+    return _('Add a username, a client certificate or a session cookie');
   }
   return true;
 }

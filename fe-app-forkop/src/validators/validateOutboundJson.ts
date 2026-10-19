@@ -1,8 +1,5 @@
-import { ValidationResult } from './types';
-
-function invalid(message: string): ValidationResult {
-  return { valid: false, message };
-}
+import { message } from './messages';
+import { Check } from './types';
 
 // The field hands sing-box an outbound as written: whatever sing-box accepts is
 // its business, and it says what it refuses in the log. Forkop itself needs only
@@ -10,11 +7,11 @@ function invalid(message: string): ValidationResult {
 export function validateOutboundJson(
   value: string,
   usedTags: string[] = [],
-): ValidationResult {
+): Check {
   const normalized = `${value || ''}`.trim();
 
   if (!normalized.length) {
-    return invalid(_('JSON outbound cannot be empty'));
+    return message.required();
   }
 
   let parsed: unknown;
@@ -22,21 +19,19 @@ export function validateOutboundJson(
   try {
     parsed = JSON.parse(normalized);
   } catch {
-    return invalid(_('Invalid JSON format'));
+    return message.invalidJson();
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return invalid(_('JSON outbound must be a JSON object'));
+    return message.invalidJson();
   }
 
   const tag = (parsed as { tag?: unknown }).tag;
   if (typeof tag !== 'string' || !tag.trim()) {
-    return invalid(_('JSON outbound must contain a non-empty tag field'));
+    return message.noTag();
   }
 
-  if (usedTags.some((usedTag) => `${usedTag || ''}`.trim() === tag.trim())) {
-    return invalid(_('Duplicate JSON outbound tag'));
-  }
-
-  return { valid: true, message: _('Valid') };
+  return usedTags.some((usedTag) => `${usedTag || ''}`.trim() === tag.trim())
+    ? message.nameTaken()
+    : true;
 }

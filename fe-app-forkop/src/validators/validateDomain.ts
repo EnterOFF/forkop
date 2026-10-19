@@ -1,4 +1,5 @@
-import { ValidationResult } from './types';
+import { message } from './messages';
+import { Check } from './types';
 
 export function asciiHostname(hostname: string): string | null {
   if (
@@ -44,17 +45,14 @@ export function validAsciiDomain(hostname: string, requireDot = true): boolean {
   return /^(?:[a-z]{2,}|xn--[a-z0-9-]{2,59})$/.test(tld);
 }
 
-export function validateDomain(
-  domain: string,
-  allowDotTLD = false,
-): ValidationResult {
+export function validateDomain(domain: string, allowDotTLD = false): Check {
   const normalized = `${domain || ''}`.trim();
 
   if (allowDotTLD) {
     const dotTld = normalized.startsWith('.') ? normalized.slice(1) : '';
     const ascii = asciiHostname(dotTld);
     if (ascii && !ascii.includes('.') && validAsciiDomain(ascii, false)) {
-      return { valid: true, message: _('Valid') };
+      return true;
     }
   }
 
@@ -62,16 +60,9 @@ export function validateDomain(
   const hostname =
     slashIndex >= 0 ? normalized.slice(0, slashIndex) : normalized;
   const path = slashIndex >= 0 ? normalized.slice(slashIndex) : '';
-
-  if (path && /\s/.test(path)) {
-    return { valid: false, message: _('Invalid domain address') };
-  }
-
   const ascii = asciiHostname(hostname);
 
-  if (!ascii || !validAsciiDomain(ascii)) {
-    return { valid: false, message: _('Invalid domain address') };
-  }
-
-  return { valid: true, message: _('Valid') };
+  return (path && /\s/.test(path)) || !ascii || !validAsciiDomain(ascii)
+    ? message.invalidDomain()
+    : true;
 }

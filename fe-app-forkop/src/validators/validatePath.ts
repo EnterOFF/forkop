@@ -1,26 +1,10 @@
-import { ValidationResult } from './types';
+import { message } from './messages';
+import { Check } from './types';
 
-export function validatePath(value: string): ValidationResult {
+export function validatePath(value: string): Check {
   if (!value) {
-    return {
-      valid: false,
-      message: _('Path cannot be empty'),
-    };
+    return message.required();
   }
 
-  const pathRegex = /^\/[a-zA-Z0-9_\-/.]+$/;
-
-  if (pathRegex.test(value)) {
-    return {
-      valid: true,
-      message: _('Valid'),
-    };
-  }
-
-  return {
-    valid: false,
-    message: _(
-      'Invalid path format. Path must start with "/" and contain valid characters',
-    ),
-  };
+  return /^\/[a-zA-Z0-9_\-/.]+$/.test(value) ? true : message.invalidPath();
 }

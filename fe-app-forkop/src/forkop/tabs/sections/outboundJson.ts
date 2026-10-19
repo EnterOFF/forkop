@@ -1,4 +1,5 @@
 import { validateOutboundJson } from '../../../validators/validateOutboundJson';
+import { message } from '../../../validators/messages';
 import { configureTextareaOption } from '../../cbi/annotatedTextarea';
 import {
   addDynamicListItem,
@@ -75,7 +76,6 @@ export function showOutboundJsonSettingsModal(
   jsonOption.wrap = 'soft';
   jsonOption.textarea = true;
   jsonOption.modalonly = true;
-  jsonOption.rmempty = false;
   jsonOption.validate = function (_itemId: string, value: unknown) {
     const usedTags =
       widget && widget.node
@@ -87,13 +87,13 @@ export function showOutboundJsonSettingsModal(
             .filter(Boolean)
         : [];
     const validation = validateOutboundJson(`${value || ''}`, usedTags);
-    return validation.valid
+    return validation === true
       ? validateSectionChildName(
           section_id,
           'json',
           outboundJsonDisplayTag(value),
         )
-      : validation.message;
+      : validation;
   };
   configureTextareaOption(jsonOption);
 
@@ -127,9 +127,8 @@ export function validateOutboundJsonItemsBeforeSave(
 
   for (const value of items) {
     const validation = validateOutboundJson(`${value || ''}`, tags);
-    if (!validation.valid) {
-      const tag = outboundJsonDisplayTag(value);
-      return tag ? `${tag}: ${validation.message}` : validation.message;
+    if (validation !== true) {
+      return message.item(outboundJsonDisplayTag(value), validation);
     }
 
     const tag = outboundJsonDisplayTag(value);

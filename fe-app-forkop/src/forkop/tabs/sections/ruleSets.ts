@@ -1,4 +1,5 @@
 import { DOMAIN_LIST_OPTIONS, FORKOP_UCI_PACKAGE } from '../../../constants';
+import { message } from '../../../validators/messages';
 import { validatePath } from '../../../validators/validatePath';
 import { validateUrl } from '../../../validators/validateUrl';
 import { itemSettingsFlag, readItemSettingsMap } from '../../cbi/itemSettings';
@@ -113,20 +114,20 @@ function isBuiltinRulesetValue(value: string) {
   return Object.prototype.hasOwnProperty.call(DOMAIN_LIST_OPTIONS, value);
 }
 
+// A remote list or a file on the router, in the binary or JSON format sing-box
+// reads: the backend refuses a YAML list by its extension.
 export function validateCustomRulesetReference(value: string) {
-  const errorMessage = _(
-    'Rule set must be an HTTP(S) URL or an absolute local path',
-  );
   if (!value) {
     return true;
   }
-  if (value.startsWith('http://') || value.startsWith('https://')) {
-    return validateUrl(value).valid ? true : errorMessage;
+  if (/\.ya?ml$/i.test(value.replace(/[?#].*$/, ''))) {
+    return _('YAML is not supported');
   }
-  if (value.startsWith('/')) {
-    return validatePath(value).valid ? true : errorMessage;
-  }
-  return errorMessage;
+  const valid =
+    value.startsWith('http://') || value.startsWith('https://')
+      ? validateUrl(value) === true
+      : value.startsWith('/') && validatePath(value) === true;
+  return valid ? true : message.urlOrPath();
 }
 
 function getRulesetReferences(section_id: string) {

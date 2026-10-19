@@ -60,47 +60,37 @@ const validUrls = [
 
 describe('validateProxyUrl', () => {
   describe.each(validUrls)('Valid proxy URL: %s', (_desc, url) => {
-    it(`returns valid=true for "${url}"`, () => {
+    it(`returns true for "${url}"`, () => {
       const res = validateProxyUrl(url);
-      expect(res.valid).toBe(true);
+      expect(res).toBe(true);
     });
   });
 
   it('trims surrounding whitespace before dispatching', () => {
     const res = validateProxyUrl('  socks5://user:pass@example.com:1080  ');
 
-    expect(res.valid).toBe(true);
+    expect(res).toBe(true);
   });
 
   it('returns a clear error for unsupported protocols', () => {
     const res = validateProxyUrl('wireguard://example.com');
 
-    expect(res.valid).toBe(false);
-    expect(res.message).toBe(
-      'The pasted link is not supported. Try JSON outbound.',
-    );
+    expect(res).toBe('Unsupported link');
   });
 
-  // A subscription pasted into the link field is the usual way to get here, and
-  // an HTTP proxy, which carries no UDP, goes into a JSON outbound instead.
   it.each([
     'https://sub.example.com/api/sub/token',
     'http://user:password@example.com:8080',
-  ])('refuses the web address %s and says where it belongs', (url) => {
-    const res = validateProxyUrl(url);
-
-    expect(res.valid).toBe(false);
-    expect(res.message).toBe(
-      'This is a web address: add a subscription under Subscription, and an HTTP proxy as a JSON outbound',
-    );
+  ])('refuses the web address %s like any other unsupported link', (url) => {
+    expect(validateProxyUrl(url)).toBe('Unsupported link');
   });
 
   it('leaves protocol-specific validation to sing-box-forkop', () => {
-    expect(validateProxyUrl('vmess://opaque-native-payload').valid).toBe(true);
+    expect(validateProxyUrl('vmess://opaque-native-payload')).toBe(true);
   });
 
   it('rejects whitespace and empty payloads before they reach the core', () => {
-    expect(validateProxyUrl('vless://').valid).toBe(false);
-    expect(validateProxyUrl('vless://uuid @example.com:443').valid).toBe(false);
+    expect(validateProxyUrl('vless://')).not.toBe(true);
+    expect(validateProxyUrl('vless://uuid @example.com:443')).not.toBe(true);
   });
 });

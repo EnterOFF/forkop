@@ -304,7 +304,7 @@ describe('a name in a section', () => {
     outboundNameSourceOptions.set('urltest', listed(['fastest']));
     outboundNameSourceOptions.set('fallback_group', listed([]));
   }
-  const TAKEN = 'Another server or group of the section has this name';
+  const TAKEN = 'Name already taken';
 
   it('belongs to one server or group of whatever kind', () => {
     section();
@@ -336,7 +336,7 @@ describe('a name in a section', () => {
     section();
 
     expect(validateSectionChildName('main', 'link', 'US/LA')).toBe(
-      'The name must not contain /',
+      'The / character is not allowed',
     );
   });
 });

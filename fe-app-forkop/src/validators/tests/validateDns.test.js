@@ -40,26 +40,23 @@ const invalidDns = [
 
 describe('validateDns', () => {
   describe.each(validDns)('Valid dns: %s', (_desc, domain) => {
-    it(`returns valid=true for "${domain}"`, () => {
+    it(`returns true for "${domain}"`, () => {
       const res = validateDNS(domain);
-      expect(res.valid).toBe(true);
+      expect(res).toBe(true);
     });
   });
 
   describe.each(invalidDns)('Invalid dns: %s', (_desc, domain) => {
-    it(`returns valid=false for "${domain}"`, () => {
+    it(`returns a reason for "${domain}"`, () => {
       const res = validateDNS(domain);
-      expect(res.valid).toBe(false);
+      expect(res).not.toBe(true);
     });
   });
 
   it('requires an IP address for Bootstrap DNS', () => {
-    expect(validateDNS('https://1.1.1.1/dns-query', true).valid).toBe(true);
-    expect(
-      validateDNS('https://dns.example.com/dns-query', true),
-    ).toMatchObject({
-      valid: false,
-      message: 'Bootstrap DNS server must use an IP address',
-    });
+    expect(validateDNS('https://1.1.1.1/dns-query', true)).toBe(true);
+    expect(validateDNS('https://dns.example.com/dns-query', true)).toBe(
+      'IP address only',
+    );
   });
 });

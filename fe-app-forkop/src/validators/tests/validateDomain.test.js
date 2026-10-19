@@ -44,16 +44,16 @@ const dotTLDTests = [
 
 describe('validateDomain', () => {
   describe.each(validDomains)('Valid domain: %s', (_desc, domain) => {
-    it(`returns valid=true for "${domain}"`, () => {
+    it(`returns true for "${domain}"`, () => {
       const res = validateDomain(domain);
-      expect(res.valid).toBe(true);
+      expect(res).toBe(true);
     });
   });
 
   describe.each(invalidDomains)('Invalid domain: %s', (_desc, domain) => {
-    it(`returns valid=false for "${domain}"`, () => {
+    it(`returns a reason for "${domain}"`, () => {
       const res = validateDomain(domain);
-      expect(res.valid).toBe(false);
+      expect(res).not.toBe(true);
     });
   });
 
@@ -62,7 +62,7 @@ describe('validateDomain', () => {
     (_desc, domain, allowDotTLD, expected) => {
       it(`"${domain}" with allowDotTLD=${allowDotTLD} → valid=${expected}`, () => {
         const res = validateDomain(domain, allowDotTLD);
-        expect(res.valid).toBe(expected);
+        expect(res === true).toBe(expected);
       });
     },
   );

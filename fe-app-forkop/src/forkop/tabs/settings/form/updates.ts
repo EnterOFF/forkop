@@ -31,7 +31,6 @@ export function addUpdateOptions(section: CBISection) {
   o.retain = true;
   o.placeholder = '1d';
   o.default = '1d';
-  o.rmempty = false;
   o.cfgvalue = function (section_id: string) {
     return uci.get(FORKOP_UCI_PACKAGE, section_id, 'update_interval') || '1d';
   };
@@ -66,7 +65,6 @@ export function addUpdateOptions(section: CBISection) {
   LATENCY_TEST_URL_OPTIONS.forEach((value: string) => o.value(value));
   o.default =
     DEFAULT_LATENCY_TEST_URL || 'https://www.gstatic.com/generate_204';
-  o.rmempty = false;
   o.validate = function (_section_id: string, value: string) {
     return validateUrlField(value);
   };

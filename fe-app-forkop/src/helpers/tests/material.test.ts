@@ -33,37 +33,32 @@ describe('certificate structure', () => {
 
 describe('OpenVPN material', () => {
   it('takes certificates, a chain and every unencrypted key format the core reads', () => {
-    expect(checkMaterial('certificate', CLIENT_CERT).valid).toBe(true);
-    expect(checkMaterial('ca', `${CA}\n${CLIENT_CERT}`).valid).toBe(true);
+    expect(checkMaterial('certificate', CLIENT_CERT)).toBe(true);
+    expect(checkMaterial('ca', `${CA}\n${CLIENT_CERT}`)).toBe(true);
     for (const key of [CLIENT_KEY, CLIENT_KEY_PKCS1, EC_KEY])
-      expect(checkMaterial('key', key).valid).toBe(true);
+      expect(checkMaterial('key', key)).toBe(true);
   });
 
   it('refuses a key behind a passphrase and the wrong kind of block', () => {
-    expect(checkMaterial('key', ENCRYPTED_KEY)).toEqual({
-      valid: false,
-      message: expect.stringContaining('passphrase'),
-    });
-    expect(checkMaterial('key', CA).valid).toBe(false);
-    expect(checkMaterial('ca', CLIENT_KEY).valid).toBe(false);
-    expect(checkMaterial('static', CA).valid).toBe(false);
+    expect(checkMaterial('key', ENCRYPTED_KEY)).toMatch(/passphrase/);
+    expect(checkMaterial('key', CA)).not.toBe(true);
+    expect(checkMaterial('ca', CLIENT_KEY)).not.toBe(true);
+    expect(checkMaterial('static', CA)).not.toBe(true);
     const damaged = CA.replace(/^(-----BEGIN CERTIFICATE-----\n)MII/, '$1MIJ');
-    expect(checkMaterial('ca', damaged).message).toBe(
-      'The certificate is damaged',
-    );
+    expect(checkMaterial('ca', damaged)).toBe('Invalid PEM certificate');
   });
 
   it('checks a static key by its length', () => {
-    expect(checkMaterial('static', STATIC_KEY).valid).toBe(true);
+    expect(checkMaterial('static', STATIC_KEY)).toBe(true);
     const short = STATIC_KEY.split('\n')
       .filter((_line, index) => index !== 3)
       .join('\n');
-    expect(checkMaterial('static', short).valid).toBe(false);
+    expect(checkMaterial('static', short)).not.toBe(true);
   });
 
   it('keeps a path on the router as it is and treats empty as unset', () => {
-    expect(checkMaterial('ca', '/etc/openvpn/ca.crt').valid).toBe(true);
-    expect(checkMaterial('key', '  ').valid).toBe(true);
+    expect(checkMaterial('ca', '/etc/openvpn/ca.crt')).toBe(true);
+    expect(checkMaterial('key', '  ')).toBe(true);
   });
 });
 

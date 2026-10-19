@@ -152,7 +152,7 @@ ${STATIC_KEY}
     expect(validateOpenVPNSettings(settings)).toBe(true);
     expect(
       validateOpenVPNSettings({ ...settings, openvpn_peer_address: '' }),
-    ).toContain('IPv4 address of the peer');
+    ).toBe('Fix the settings');
   });
 
   it('shows a stored duration in the seconds the fields ask for', () => {
@@ -193,21 +193,21 @@ ${STATIC_KEY}
   it('asks for what a TLS tunnel cannot connect without', () => {
     const base = { openvpn_servers: ['vpn.example.com:1194'], openvpn_ca: CA };
     expect(validateOpenVPNSettings(base)).toBe(true);
-    expect(validateOpenVPNSettings({ ...base, openvpn_servers: [] })).toContain(
-      'server',
+    expect(validateOpenVPNSettings({ ...base, openvpn_servers: [] })).toBe(
+      'Fix the settings',
     );
-    expect(validateOpenVPNSettings({ ...base, openvpn_ca: '' })).toContain(
-      'CA certificate',
+    expect(validateOpenVPNSettings({ ...base, openvpn_ca: '' })).toBe(
+      'Fix the settings',
     );
     expect(
       validateOpenVPNSettings({ ...base, openvpn_cert: CLIENT_CERT }),
-    ).toContain('both or neither');
-    expect(validateOpenVPNSettings({ ...base, openvpn_login: '1' })).toContain(
-      'username',
+    ).toBe('Fix the settings');
+    expect(validateOpenVPNSettings({ ...base, openvpn_login: '1' })).toBe(
+      'Fix the settings',
     );
     expect(
       validateOpenVPNSettings({ ...base, openvpn_control_wrap: 'tls_crypt' }),
-    ).toContain('control channel');
+    ).toBe('Fix the settings');
     expect(
       validateOpenVPNSettings({
         openvpn_servers: ['vpn.example.com:1194'],

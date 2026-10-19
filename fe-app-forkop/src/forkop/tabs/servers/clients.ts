@@ -3,6 +3,7 @@
 // credentials. The list is edited with the same child item widget the Sections tab
 // uses for interfaces, URLTests and tunnels.
 
+import { message } from '../../../validators/messages';
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import {
   cleanupRemovedChildItems,
@@ -84,23 +85,17 @@ export function validateClientName(sectionId: string, value: unknown) {
   const name = `${value || ''}`.trim();
 
   if (!name) {
-    return _('This field is required');
+    return message.required();
   }
   if (name.length > MAX_CLIENT_NAME_LENGTH) {
-    return _('A name holds at most %d characters').format(
-      MAX_CLIENT_NAME_LENGTH,
-    );
+    return _('Up to %d characters').format(MAX_CLIENT_NAME_LENGTH);
   }
 
   if (usesLoginName(getProtocol(sectionId))) {
-    return /^[A-Za-z0-9._-]+$/.test(name)
-      ? true
-      : _('Use letters, digits, dots, underscores, or hyphens');
+    return /^[A-Za-z0-9._-]+$/.test(name) ? true : message.nameCharacters();
   }
 
-  return hasControlCharacters(name)
-    ? _('Value must not contain control characters')
-    : true;
+  return hasControlCharacters(name) ? message.noControlCharacters() : true;
 }
 
 export function validateClientCredential(
@@ -109,7 +104,9 @@ export function validateClientCredential(
   value: string,
 ) {
   if (field === 'uuid') {
-    return validateUuid(sectionId, value);
+    return `${value || ''}`.trim()
+      ? validateUuid(sectionId, value)
+      : message.required();
   }
   if (field === 'password') {
     return getProtocol(sectionId) === 'shadowsocks'
@@ -220,7 +217,7 @@ export function validateClientsOnSave(
   const items = (Array.isArray(values) ? values : [values]).filter(Boolean);
 
   if (!items.length) {
-    return _('Add at least one client');
+    return message.required();
   }
 
   const store = childPendingSettingsStore(listOption, sectionId) || {};
@@ -237,13 +234,12 @@ export function validateClientsOnSave(
       : Object.assign({ name: value }, store[value] || {});
     const name = `${settings.name || value || ''}`.trim();
 
-    const nameResult = validateClientName(sectionId, name);
-    if (nameResult !== true) {
-      return `${name || value}: ${nameResult}`;
+    if (validateClientName(sectionId, name) !== true) {
+      return message.item(name || `${value}`, message.fixSettings());
     }
 
     if (seen.has(name.toLowerCase())) {
-      return _('Client names must be unique');
+      return message.item(name, message.nameTaken());
     }
     seen.add(name.toLowerCase());
 
@@ -257,7 +253,7 @@ export function validateClientsOnSave(
         `${settings[field] || ''}`,
       );
       if (result !== true) {
-        return `${name}: ${result}`;
+        return message.item(name, message.fixSettings());
       }
     }
   }

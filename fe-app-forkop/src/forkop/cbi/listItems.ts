@@ -10,6 +10,7 @@
 // is not an entry.
 
 import { E } from '../../helpers/element';
+import { message } from '../../validators/messages';
 function itemValueInput(
   item: Element | null | undefined,
 ): HTMLInputElement | null {
@@ -172,6 +173,6 @@ export function validateUniqueDynamicListItemName(
       label !== currentLabel &&
       `${label.textContent || ''}`.trim() === `${value || ''}`.trim(),
   )
-    ? _('Name must be unique')
+    ? message.nameTaken()
     : true;
 }

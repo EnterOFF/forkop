@@ -1,4 +1,5 @@
 import { FORKOP_UCI_PACKAGE } from '../../../../constants';
+import { message } from '../../../../validators/messages';
 import { validatePath } from '../../../../validators/validatePath';
 import { validateUrl } from '../../../../validators/validateUrl';
 import {
@@ -232,7 +233,7 @@ function parseSubscriptionUrlEntry(
   if (normalized.includes('|')) {
     return {
       valid: false,
-      message: _('Configure User-Agent in the item settings'),
+      message: _('Set the User-Agent under Headers'),
     };
   }
 
@@ -260,7 +261,5 @@ export function validateSubscriptionUrlEntry(
   const validation = isRemoteSubscriptionSource(parsed.url)
     ? validateUrl(`${parsed.url}`)
     : validatePath(`${parsed.url}`);
-  return validation.valid
-    ? true
-    : _('Subscription must be an HTTP(S) URL or an absolute local path');
+  return validation === true ? true : message.urlOrPath();
 }

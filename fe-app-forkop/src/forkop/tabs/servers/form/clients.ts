@@ -1,5 +1,6 @@
 import { nextSectionId } from '../../../cbi/childItems';
 import { ButtonAddSettingsDynamicList } from '../../../cbi/dynamicList';
+import { requiredList } from '../../../cbi/required';
 
 import { showClientSettingsModal } from '../clientDialog';
 import { pruneClientCredentials, validateClientsOnSave } from '../clients';
@@ -39,17 +40,7 @@ export function addClientListOption(section: CBISection) {
   };
   // An empty list is reported by the option's own check, the way the Sections tab
   // asks for at least one server group; the per client checks run on save.
-  o.validate = function (sectionId: string, value: string) {
-    if (`${value || ''}`.trim()) {
-      return true;
-    }
-
-    const current =
-      typeof this.formvalue === 'function' ? this.formvalue(sectionId) : [];
-    return (Array.isArray(current) ? current : [current]).filter(Boolean).length
-      ? true
-      : _('Add at least one client');
-  };
+  o.validate = requiredList();
   o.validateItemsOnSave = function (sectionId: string, values: unknown) {
     return validateClientsOnSave(sectionId, values, this);
   };

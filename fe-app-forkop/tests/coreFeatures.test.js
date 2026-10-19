@@ -70,7 +70,7 @@ describe('the base build', () => {
       'the installed sing-box lacks with_tailscale',
     );
     expect(validateCoreFeature('api')).toBe(
-      'The installed sing-box was built without with_api',
+      'sing-box is built without with_api',
     );
     expect(validateCoreFeature('quic')).toBe(true);
     expect(validateCoreFeature('')).toBe(true);

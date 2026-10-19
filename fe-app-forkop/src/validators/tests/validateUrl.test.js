@@ -28,21 +28,21 @@ const invalidUrls = [
 
 describe('validateUrl', () => {
   describe.each(validUrls)('Valid URL: %s', (_desc, url) => {
-    it(`returns valid=true for "${url}"`, () => {
+    it(`returns true for "${url}"`, () => {
       const res = validateUrl(url);
-      expect(res.valid).toBe(true);
+      expect(res).toBe(true);
     });
   });
 
   describe.each(invalidUrls)('Invalid URL: %s', (_desc, url) => {
-    it(`returns valid=false for "${url}"`, () => {
+    it(`returns a reason for "${url}"`, () => {
       const res = validateUrl(url);
-      expect(res.valid).toBe(false);
+      expect(res).not.toBe(true);
     });
   });
 
   it('allows custom protocol list (ftp)', () => {
     const res = validateUrl('ftp://example.com', ['ftp:']);
-    expect(res.valid).toBe(true);
+    expect(res).toBe(true);
   });
 });

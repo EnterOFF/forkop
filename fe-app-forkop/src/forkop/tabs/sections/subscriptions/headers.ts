@@ -1,4 +1,5 @@
 import { renderStackedJsonSettingsModal } from '../../../cbi/modal';
+import { required } from '../../../cbi/required';
 
 function subscriptionHeaderValues(value: unknown) {
   if (Array.isArray(value)) {
@@ -26,19 +27,15 @@ export function subscriptionHeaderRows(value: unknown) {
   }));
 }
 
-function validateSubscriptionHeaderName(_sectionId: string, value: unknown) {
-  const name = `${value || ''}`.trim();
-  if (!name) {
-    return _('Enter a header name');
-  }
-  return /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(name)
+const validateSubscriptionHeaderName = required((_sectionId, value) =>
+  /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/.test(value.trim())
     ? true
-    : _('Header name contains invalid characters');
-}
+    : _('Invalid header name'),
+);
 
 function validateSubscriptionHeaderValue(_sectionId: string, value: unknown) {
   return /[\r\n\0]/.test(`${value || ''}`)
-    ? _('Header value must stay on one line')
+    ? _('Line breaks are not allowed')
     : true;
 }
 
@@ -132,7 +129,6 @@ export function showSubscriptionHeadersModal(
 
   let o = headers.option(form.Value, 'name', _('Header name'));
   o.editable = true;
-  o.rmempty = false;
   o.validate = validateSubscriptionHeaderName;
 
   o = headers.option(form.Value, 'value', _('Header value'));

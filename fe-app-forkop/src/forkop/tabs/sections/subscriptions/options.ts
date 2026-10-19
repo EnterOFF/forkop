@@ -5,9 +5,12 @@ import {
 } from '../../../cbi/childItems';
 import {
   keepUnavailableSectionChoice,
+  validateSectionChoice,
   refreshOptionChoices,
 } from '../../../cbi/choices';
 import { updateDynamicListItemLabel } from '../../../cbi/listItems';
+import { required } from '../../../cbi/required';
+import { message } from '../../../../validators/messages';
 import { showChildItemSettingsModal } from '../../../cbi/modal';
 import { addCascadeOptions } from '../cascade';
 import { subscriptionDownloadTargetChoices } from '../references';
@@ -50,12 +53,10 @@ export function addSubscriptionUrlItemOptions(
       : parentSectionIdForItem;
 
   let o = itemSection.option(form.Value, 'tag', _('Subscription name'));
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    const normalized = `${value || ''}`.trim();
-    if (!normalized) return _('Enter a subscription name');
+  o.validate = required(function (_itemId, value) {
+    const normalized = value.trim();
     if (normalized.includes('/')) {
-      return _('Subscription name must not contain /');
+      return message.slashInName();
     }
     const sectionId = parentSectionForItem(_itemId);
     const ownerId =
@@ -66,9 +67,9 @@ export function addSubscriptionUrlItemOptions(
       ownerId === sectionId ? '' : ownerId,
       inputValue,
     ]).includes(normalized)
-      ? _('Subscription name must be unique within the section')
+      ? message.nameTaken()
       : true;
-  };
+  });
 
   o = itemSection.option(
     form.Value,
@@ -78,13 +79,9 @@ export function addSubscriptionUrlItemOptions(
   );
   // A subscription URL carries the token of its account.
   o.password = true;
-  o.rmempty = false;
-  o.validate = function (itemId: string, value: unknown) {
-    const source = `${value || ''}`.trim();
-    return source
-      ? validateSubscriptionUrlEntry(itemId, source)
-      : _('Enter a subscription URL or local path');
-  };
+  o.validate = required((itemId, value) =>
+    validateSubscriptionUrlEntry(itemId, value.trim()),
+  );
 
   addCascadeOptions(
     itemSection,
@@ -142,19 +139,10 @@ export function addSubscriptionUrlItemOptions(
     return value;
   };
   o.validate = function (itemId: string, value: unknown) {
-    const sectionId = parentSectionForItem(itemId);
-    if (
-      currentOptionValue(this, itemId, 'download_via_proxy_enabled') !== '1'
-    ) {
-      return true;
-    }
-    if (!value) {
-      return _('Select a section for downloading this subscription');
-    }
-    if (value === sectionId) {
-      return _('Current section cannot download its own subscription');
-    }
-    return true;
+    return currentOptionValue(this, itemId, 'download_via_proxy_enabled') ===
+      '1'
+      ? validateSectionChoice(this, value, parentSectionForItem(itemId))
+      : true;
   };
 
   o = itemSection.option(

@@ -191,8 +191,8 @@ describe('typing a tag by hand', () => {
     installUciStub(sections);
     const option = listOption(['sub_first', 'sub_second']);
 
-    expect(tagValidator(option, 'sub_second')('settings', 'sub1')).toMatch(
-      /unique/,
+    expect(tagValidator(option, 'sub_second')('settings', 'sub1')).toBe(
+      'Name already taken',
     );
   });
 
@@ -219,8 +219,8 @@ describe('typing a tag by hand', () => {
     installUciStub({});
     const option = listOption([]);
 
-    expect(tagValidator(option, SECTION)('settings', 'a/b')).toMatch(
-      /must not contain/,
+    expect(tagValidator(option, SECTION)('settings', 'a/b')).toBe(
+      'The / character is not allowed',
     );
   });
 });

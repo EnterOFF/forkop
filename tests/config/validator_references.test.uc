@@ -119,14 +119,14 @@ function with_rule_sets(key, values) {
 
 t.test("community lists name a known service", () => {
     v.accepts(with_rule_sets("community_lists", [ "twitter", "telegram" ]));
-    v.refuses(with_rule_sets("community_lists", [ "unknown" ]), "Invalid service in community lists: unknown");
+    v.refuses(with_rule_sets("community_lists", [ "unknown" ]), "names an unknown built-in list 'unknown'");
 });
 
 t.test("rule sets are community names, http(s) URLs or absolute paths, never YAML", () => {
     for (let reference in [ "telegram", "https://example.com/rule.srs", "/tmp/rule.srs", "/tmp/rule.json", "/tmp/rule.lst", "/tmp/rule" ])
         v.accepts(with_rule_sets("rule_set", [ reference ]));
     for (let reference in [ "/tmp/rule.yaml", "https://example.com/rule.yml?token=secret", "relative/rule.srs", "ftp://example.com/rule.srs" ])
-        v.refuses(with_rule_sets("rule_set", [ reference ]), "Unknown rule set reference");
+        v.refuses(with_rule_sets("rule_set", [ reference ]), "is neither an http(s) URL nor an absolute path");
 });
 
 t.done();

@@ -1,5 +1,8 @@
 import { DETOUR_TARGET_ACTIONS, FORKOP_UCI_PACKAGE } from '../../../constants';
-import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../cbi/choices';
 import { option } from './formValues';
 import { validateRequired } from './validators';
 
@@ -52,7 +55,9 @@ export function addRoutingOptions(section: CBISection) {
   o.depends('routing_mode', 'section');
   o.modalonly = true;
   o.rmempty = false;
-  o.validate = validateRequired;
+  o.validate = function (_sectionId: string, value: string) {
+    return validateSectionChoice(this, value);
+  };
   o.cfgvalue = (sectionId: string) => option(sectionId, 'routing_section');
   o.load = function (sectionId: string) {
     return loadRoutingSectionChoices(this, sectionId);

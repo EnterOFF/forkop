@@ -256,13 +256,13 @@ describe('a stored link', () => {
       fields.find((option) => option.option === name).validate('link1', value);
 
     expect(check('uri', 'hy2://p@b.example:443#H')).toBe(
-      'The installed sing-box was built without with_quic',
+      'sing-box is built without with_quic',
     );
-    expect(check('uri', ' ')).toBe('Paste a connection URI');
+    expect(check('uri', ' ')).toBe('Required');
     expect(check('uri', 'https://sub.example.com/api/sub/token')).toBe(
-      'This is a web address: add a subscription under Subscription, and an HTTP proxy as a JSON outbound',
+      'Unsupported link',
     );
     expect(check('uri', 'vless://a@a.example:443#USA')).toBe(true);
-    expect(check('name', '')).toBe('Enter a display name');
+    expect(check('name', '')).toBe('Required');
   });
 });

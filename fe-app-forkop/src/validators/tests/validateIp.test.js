@@ -23,16 +23,16 @@ export const invalidIPs = [
 
 describe('validateIP IPv4', () => {
   describe.each(validIPs)('Valid IP: %s', (_desc, ip) => {
-    it(`returns {valid:true} for "${ip}"`, () => {
+    it(`returns true for "${ip}"`, () => {
       const res = validateIP(ip);
-      expect(res.valid).toBe(true);
+      expect(res).toBe(true);
     });
   });
 
   describe.each(invalidIPs)('Invalid IP: %s', (_desc, ip) => {
-    it(`returns {valid:false} for "${ip}"`, () => {
+    it(`returns a reason for "${ip}"`, () => {
       const res = validateIP(ip);
-      expect(res.valid).toBe(false);
+      expect(res).not.toBe(true);
     });
   });
 });
@@ -52,14 +52,14 @@ describe('validateIP IPv6', () => {
   ];
 
   describe.each(validIPv6Addresses)('Valid IPv6: %s', (_desc, ip) => {
-    it(`returns {valid:true} for "${ip}"`, () => {
-      expect(validateIP(ip).valid).toBe(true);
+    it(`returns true for "${ip}"`, () => {
+      expect(validateIP(ip)).toBe(true);
     });
   });
 
   describe.each(invalidIPv6Addresses)('Invalid IPv6: %s', (_desc, ip) => {
-    it(`returns {valid:false} for "${ip}"`, () => {
-      expect(validateIP(ip).valid).toBe(false);
+    it(`returns a reason for "${ip}"`, () => {
+      expect(validateIP(ip)).not.toBe(true);
     });
   });
 });

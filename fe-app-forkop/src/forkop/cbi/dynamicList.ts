@@ -532,12 +532,8 @@ export const SettingsDynamicList = form.DynamicList.extend({
         section_id,
       );
       if (result !== true) {
-        const title = this.stripTags(this.title).trim();
-        return Promise.reject(
-          new TypeError(
-            `${_('Option "%s" contains an invalid input value.').format(title || this.option)} ${result}`,
-          ),
-        );
+        const title = this.stripTags(this.title).trim() || this.option;
+        return Promise.reject(new TypeError(`${title}: ${result}`));
       }
     }
 

@@ -1,6 +1,7 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import { parseValueList } from '../../../helpers/parseValueList';
-import type { ValidationResult } from '../../../validators/types';
+import { message } from '../../../validators/messages';
+import type { Check } from '../../../validators/types';
 import { validateDomain } from '../../../validators/validateDomain';
 import { validateSubnet } from '../../../validators/validateSubnet';
 import {
@@ -17,7 +18,7 @@ import {
   stringArraysEqual,
   writeListOption,
 } from '../../cbi/uci';
-import { validateKeyword, validateRegex } from './validators';
+import { validateRegex } from './validators';
 
 export function makeDeviceOptionsExclusive(
   firstOption: CBIOption,
@@ -113,91 +114,47 @@ export const DESTINATION_CONDITION_PLACEHOLDER = [
 // and a mistyped one is told what an address needs.
 const ADDRESS_SHAPE = /^[\d.]+(?:\/.*)?$|^[\da-f]*:[\da-f:.]*(?:\/.*)?$/i;
 
-function validateDomainName(domain: string): ValidationResult {
-  const normalized = `${domain || ''}`.trim();
-  if (normalized.includes('/')) {
-    return { valid: false, message: _('Invalid domain address') };
-  }
-
-  return validateDomain(normalized, true);
-}
-
-function validateDomainCondition(item: string): ValidationResult {
+function validateDomainCondition(item: string): Check {
   const colonIndex = item.indexOf(':');
   const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : '';
   const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
 
-  if (!prefix) {
-    return validateDomainName(body);
+  if (prefix && !['full', 'keyword', 'regex'].includes(prefix)) {
+    return _('Prefixes: full:, keyword:, regex:');
   }
-
-  if (!['full', 'keyword', 'regex'].includes(prefix)) {
-    return {
-      valid: false,
-      message: _('Allowed domain prefixes are full:, keyword:, and regex:'),
-    };
+  if (prefix && !body.length) {
+    return _('Nothing after %s').format(`${prefix}:`);
   }
-
-  if (!body.length) {
-    return { valid: false, message: _('Value cannot be empty') };
-  }
-
-  if (prefix === 'full') {
-    return validateDomainName(body);
-  }
-
   if (prefix === 'keyword') {
-    const validation = validateKeyword(body);
-    return validation === true
-      ? { valid: true, message: _('Valid') }
-      : { valid: false, message: validation };
+    return true;
   }
-
-  if (/[,\s]/.test(body)) {
-    return {
-      valid: false,
-      message: _('Regular expression must not contain spaces or commas'),
-    };
+  if (prefix === 'regex') {
+    return validateRegex(body);
   }
-
-  const validation = validateRegex(body);
-  return validation === true
-    ? { valid: true, message: _('Valid') }
-    : { valid: false, message: validation };
+  return body.includes('/')
+    ? message.invalidDomain()
+    : validateDomain(body, true);
 }
 
-function analyzeConditionText(
-  value: unknown,
-  validateItem: TextItemValidator,
-  emptyMessage: string,
-) {
-  return analyzeTextListValue(value, validateItem, emptyMessage, {
+function analyzeConditionText(value: unknown, validateItem: TextItemValidator) {
+  return analyzeTextListValue(value, validateItem, {
     normalizeDuplicateValue: (item) => `${item}`.toLowerCase(),
   });
 }
 
 export function analyzeDestinationText(value: unknown) {
-  return analyzeConditionText(
-    value,
-    (item) =>
-      ADDRESS_SHAPE.test(item)
-        ? validateSubnet(item)
-        : validateDomainCondition(item),
-    _('At least one valid domain, IP or subnet must be specified.'),
+  return analyzeConditionText(value, (item) =>
+    ADDRESS_SHAPE.test(item)
+      ? validateSubnet(item)
+      : validateDomainCondition(item),
   );
 }
 
 export function analyzeDnsDestinationText(value: unknown) {
-  return analyzeConditionText(
-    value,
-    (item) =>
-      validateSubnet(item).valid
-        ? {
-            valid: false,
-            message: _('IP addresses cannot be used in a DNS section'),
-          }
-        : validateDomainCondition(item),
-    _('At least one valid domain must be specified.'),
+  return analyzeConditionText(value, (item) =>
+    validateSubnet(item) === true
+      ? _('Domains only')
+      : validateDomainCondition(item),
   );
 }
 
@@ -210,21 +167,17 @@ export function validatePortCondition(_section_id: string, value: unknown) {
 
   const match = normalized.match(/^(\d+)(?:-(\d+))?$/);
   if (!match) {
-    return _('Invalid port or range. Use 80 or 1000-2000');
+    return _('Format: 80 or 1000-2000');
   }
 
   const start = Number.parseInt(match[1], 10);
   const end = match[2] ? Number.parseInt(match[2], 10) : start;
 
   if (start < 1 || start > 65535 || end < 1 || end > 65535) {
-    return _('Port must be between 1 and 65535');
+    return message.invalidPort();
   }
 
-  if (start > end) {
-    return _('Port range start must be less than or equal to end');
-  }
-
-  return true;
+  return start > end ? message.rangeReversed() : true;
 }
 
 // One list field of the Conditions tab: the uci option it writes and its wording.
@@ -304,8 +257,7 @@ export function addLocalDeviceSubnetDynamicField(
       return true;
     }
 
-    const validation = validateSubnet(value);
-    return validation.valid ? true : validation.message;
+    return validateSubnet(value);
   };
   configureConditionListStorage(o, config.key);
   o.renderWidget = function (

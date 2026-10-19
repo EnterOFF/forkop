@@ -6,8 +6,14 @@
 // checks stop, and what happens to open connections when the choice changes are
 // the same question in both, and were written out twice.
 
-import { validateRequiredSingBoxDuration } from '../../../validators/validateSingBoxDuration';
+import {
+  singBoxDurationSeconds,
+  validateRequiredSingBoxDuration,
+} from '../../../validators/validateSingBoxDuration';
+import { currentOptionValue } from './subscriptions/model';
 
+// What the backend takes: HTTP status codes from 100 to 599 and ranges of them
+// in order, at most 28 in all.
 export function validateExpectedStatus(value: unknown) {
   const normalized = `${value || ''}`.trim();
   if (!normalized || normalized === '*') {
@@ -15,25 +21,25 @@ export function validateExpectedStatus(value: unknown) {
   }
 
   const parts = normalized.replaceAll(',', '/').split('/');
-  if (parts.length > 28) {
-    return _('Use *, status codes, or ranges such as 204/200-299');
-  }
-  for (const part of parts) {
-    if (!part.trim()) {
-      continue;
-    }
-    const bounds = part.split('-');
-    if (
-      bounds.length > 2 ||
-      bounds.some((bound) => {
-        const code = bound.trim().replace(/[[\] ]/g, '');
-        return !/^[0-9]+$/.test(code) || Number(code) > 65535;
-      })
-    ) {
-      return _('Use *, status codes, or ranges such as 204/200-299');
-    }
-  }
-  return true;
+  const valid =
+    parts.length <= 28 &&
+    parts.every((part) => {
+      if (!part.trim()) {
+        return true;
+      }
+      const codes = part
+        .split('-')
+        .map((bound) => bound.trim().replace(/[[\] ]/g, ''));
+      return (
+        codes.length <= 2 &&
+        codes.every(
+          (code) =>
+            /^[0-9]+$/.test(code) && Number(code) >= 100 && Number(code) <= 599,
+        ) &&
+        (codes.length === 1 || Number(codes[0]) <= Number(codes[1]))
+      );
+    });
+  return valid ? true : _('Format: *, 204, 200-299');
 }
 
 // Which replies count as the server having answered. Sits directly under the
@@ -48,7 +54,6 @@ export function addExpectedStatusOption(itemSection: CBISection) {
     ),
   );
   o.default = '*';
-  o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return validateExpectedStatus(value);
   };
@@ -59,10 +64,13 @@ export function addExpectedStatusOption(itemSection: CBISection) {
 // whether the servers behind the group are listed on the dashboard.
 //
 // Only the idle timeout differs - a URLTest measures latency and can afford to
-// wait longer than a Fallback, which is deciding whether anything answers.
+// wait longer than a Fallback, which is deciding whether anything answers. A
+// timeout shorter than the check interval would stop the checks before the
+// next one is due, which the backend refuses.
 export function addGroupHealthCheckTailOptions(
   itemSection: CBISection,
   idleTimeoutDefault: string,
+  intervalOption: string,
 ) {
   let o = itemSection.option(
     form.Value,
@@ -71,9 +79,17 @@ export function addGroupHealthCheckTailOptions(
     _('How long until health checks stop when the group is unused'),
   );
   o.default = idleTimeoutDefault;
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return validateRequiredSingBoxDuration(value);
+  o.validate = function (itemId: string, value: unknown) {
+    const duration = validateRequiredSingBoxDuration(value);
+    if (duration !== true) {
+      return duration;
+    }
+    const interval = singBoxDurationSeconds(
+      currentOptionValue(this, itemId, intervalOption),
+    );
+    return interval != null && interval > singBoxDurationSeconds(value)!
+      ? _('Shorter than the check interval')
+      : true;
   };
 
   o = itemSection.option(

@@ -24,16 +24,16 @@ export const invalidPaths = [
 
 describe('validatePath', () => {
   describe.each(validPaths)('Valid path: %s', (_desc, path) => {
-    it(`returns valid=true for "${path}"`, () => {
+    it(`returns true for "${path}"`, () => {
       const res = validatePath(path);
-      expect(res.valid).toBe(true);
+      expect(res).toBe(true);
     });
   });
 
   describe.each(invalidPaths)('Invalid path: %s', (_desc, path) => {
-    it(`returns valid=false for "${path}"`, () => {
+    it(`returns a reason for "${path}"`, () => {
       const res = validatePath(path);
-      expect(res.valid).toBe(false);
+      expect(res).not.toBe(true);
     });
   });
 });

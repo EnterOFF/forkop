@@ -2,6 +2,7 @@
 // subnet those addresses come from, and whether all of the clients' traffic
 // goes through it or only the routes it names.
 
+import { message } from '../../../../validators/messages';
 import { FORKOP_UCI_PACKAGE } from '../../../../constants';
 import { autofill } from '../controls';
 import { asList, isEmptyValue, optionList, valueList } from '../formValues';
@@ -91,22 +92,20 @@ function namesHostAddress(address: string, bits: number) {
 export function validateTunnelSubnet(value: string) {
   const subnet = `${value || ''}`.trim();
   if (!isValidCidr(subnet)) {
-    return _('Use an address with a prefix length, such as %s').format(
-      DEFAULT_SUBNET,
-    );
+    return _('Format: %s').format(DEFAULT_SUBNET);
   }
   const [address, prefix] = subnet.split('/');
   const bits = Number(prefix);
   if (isIpv4(address) ? bits < 8 || bits > 30 : bits < 64 || bits > 126) {
     return isIpv4(address)
-      ? _('An IPv4 subnet needs a prefix length from 8 to 30')
-      : _('An IPv6 subnet needs a prefix length from 64 to 126');
+      ? message.prefixRange(8, 30)
+      : message.prefixRange(64, 126);
   }
   return namesHostAddress(address, bits)
     ? true
-    : _(
-        'Name the address of the server in the subnet, such as %s rather than the subnet itself',
-      ).format(isIpv4(address) ? DEFAULT_SUBNET : 'fd00:8::1/64');
+    : _("The server's address in the subnet, such as %s").format(
+        isIpv4(address) ? DEFAULT_SUBNET : 'fd00:8::1/64',
+      );
 }
 
 export function validateTunnelSubnets(values: unknown) {
@@ -114,12 +113,13 @@ export function validateTunnelSubnets(values: unknown) {
   const families = subnets.map((subnet) =>
     isIpv6(subnet.split('/')[0]) ? 6 : 4,
   );
-  if (!families.includes(4)) return _('Add an IPv4 subnet');
+  if (!subnets.length) return message.required();
+  if (!families.includes(4)) return _('Needs an IPv4 subnet');
   if (families.filter((family) => family === 4).length > 1) {
-    return _('Add at most one IPv4 subnet');
+    return _('At most one IPv4 subnet');
   }
   if (families.filter((family) => family === 6).length > 1) {
-    return _('Add at most one IPv6 subnet');
+    return _('At most one IPv6 subnet');
   }
   return true;
 }
@@ -168,6 +168,6 @@ export function addTunnelOptions(section: CBISection) {
   o.validate = (_sectionId: string, value: string) =>
     isEmptyValue(value) || isValidCidr(`${value}`.trim())
       ? true
-      : _('Use a subnet like 192.168.1.0/24');
+      : message.invalidSubnet();
   onTunnel(o, { tunnel_all_traffic: '0' });
 }

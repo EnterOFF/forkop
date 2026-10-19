@@ -1,13 +1,18 @@
 import { renderChildItemLabel } from '../../cbi/listItems';
 import { FORKOP_UCI_PACKAGE, RESERVED_RUNTIME_TAGS } from '../../../constants';
 import { validateOutboundJson } from '../../../validators/validateOutboundJson';
+import { message } from '../../../validators/messages';
 import {
   childItemInputValue,
   isExistingChildItem,
   nextSectionId,
   orderChildItemsByPosition,
 } from '../../cbi/childItems';
-import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../cbi/choices';
+import { required } from '../../cbi/required';
 import {
   configureDnsQueryMode,
   configureDnsServerList,
@@ -59,6 +64,7 @@ import {
   validateConnectionLink,
 } from './links';
 import {
+  outboundJsonDisplayTag,
   outboundJsonListItemLabel,
   showOutboundJsonSettingsModal,
   validateOutboundJsonItemsBeforeSave,
@@ -96,14 +102,10 @@ import {
   showTunnelSettingsModal,
   tunnelKindsDescription,
 } from './tunnels/dialog';
+import { removeTunnelPeers, tunnelListItemLabel } from './tunnels/model';
 import {
-  removeTunnelPeers,
-  tunnelInitialSettings,
-  tunnelListItemLabel,
-} from './tunnels/model';
-import {
+  validateTunnelItem,
   validateTunnelItemsBeforeSave,
-  validateTunnelSettings,
 } from './tunnels/validate';
 import {
   showUrlTestSettingsModal,
@@ -140,18 +142,14 @@ export function createSectionContent(section: CBISection) {
   o.width = GRID_KIND_COLUMN_WIDTH;
 
   o = section.taboption('settings', form.Value, 'label', _('Section name'));
-  o.rmempty = false;
   o.modalonly = true;
   o.load = function (section_id: string) {
     return uci.get(FORKOP_UCI_PACKAGE, section_id, 'label') || section_id;
   };
-  o.validate = function (section_id: string, value: unknown) {
-    const normalized = `${value || ''}`.trim();
-    if (!normalized) return _('Enter a section name');
-    if (normalized.includes('/')) return _('Section name must not contain /');
-    if (RESERVED_RUNTIME_TAGS.has(normalized)) {
-      return _('This section name is reserved by Forkop');
-    }
+  o.validate = required(function (section_id, value) {
+    const normalized = value.trim();
+    if (normalized.includes('/')) return message.slashInName();
+    if (RESERVED_RUNTIME_TAGS.has(normalized)) return message.reservedName();
     return [
       ...(uci.sections(FORKOP_UCI_PACKAGE, 'section') || []),
       ...(uci.sections(FORKOP_UCI_PACKAGE, 'server') || []),
@@ -160,9 +158,9 @@ export function createSectionContent(section: CBISection) {
         item['.name'] !== section_id &&
         `${item.label || item['.name'] || ''}`.trim() === normalized,
     )
-      ? _('Section name must be unique')
+      ? message.nameTaken()
       : true;
-  };
+  });
 
   o = section.taboption(
     'settings',
@@ -240,8 +238,8 @@ export function createSectionContent(section: CBISection) {
     keepUnavailableSectionChoice(this, value);
     return value;
   };
-  o.validate = function (_section_id: string, value: unknown) {
-    return value ? true : _('Select a section');
+  o.validate = function (section_id: string, value: unknown) {
+    return validateSectionChoice(this, value, section_id);
   };
 
   // Named rather than held in `o`, for the same reason as the subscriptions below.
@@ -385,8 +383,13 @@ export function createSectionContent(section: CBISection) {
   o.depends('action', 'connection');
   o.rmempty = true;
   o.modalonly = true;
-  o.datatype = 'netdevname';
   o.placeholder = _('Select an interface');
+  // The name rule of LuCI's netdevname, said in the page's words.
+  o.validate = function (_section_id: string, value: string) {
+    return !value || /^[^\s:/%]{1,15}$/.test(value)
+      ? true
+      : _('Invalid interface name');
+  };
   o.childType = 'section_interface';
   o.childValueOption = 'name';
   o.createId = () => nextSectionId('section_interface');
@@ -428,16 +431,9 @@ export function createSectionContent(section: CBISection) {
     return tunnelListItemLabel(section_id, `${value ?? ''}`);
   };
   o.validateItemsOnSave = validateTunnelItemsBeforeSave;
-  o.validate = function (_section_id: string, value: unknown) {
-    if (!`${value || ''}`.trim()) {
-      return true;
-    }
-    if (!isExistingChildItem(_section_id, `${value || ''}`.trim(), 'tunnel')) {
-      return _('Open tunnel settings and complete the configuration');
-    }
-    return validateTunnelSettings(
-      tunnelInitialSettings(`${value || ''}`.trim(), _section_id),
-    );
+  o.validate = function (section_id: string, value: unknown) {
+    const tunnelId = `${value || ''}`.trim();
+    return tunnelId ? validateTunnelItem(section_id, tunnelId) : true;
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   o.afterMaterializeChildItems = orderChildItemsByPosition;
@@ -468,7 +464,9 @@ export function createSectionContent(section: CBISection) {
     }
 
     const validation = validateOutboundJson(value);
-    return validation.valid ? true : validation.message;
+    return validation === true
+      ? true
+      : message.item(outboundJsonDisplayTag(value), validation);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set('outbound_jsons', o);

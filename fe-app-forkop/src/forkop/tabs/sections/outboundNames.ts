@@ -1,5 +1,6 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
+import { message } from '../../../validators/messages';
 import {
   childItemInputValue,
   getChildItemIds,
@@ -568,14 +569,14 @@ export function validateSectionChildName(
 ): true | string {
   const name = `${value || ''}`.trim();
   if (name.includes('/')) {
-    return _('The name must not contain /');
+    return message.slashInName();
   }
   return sectionChildNames(section_id).some(
     (child) =>
       child.name === name &&
       (child.kind !== kind || (own !== undefined && child.value !== own)),
   )
-    ? _('Another server or group of the section has this name')
+    ? message.nameTaken()
     : true;
 }
 

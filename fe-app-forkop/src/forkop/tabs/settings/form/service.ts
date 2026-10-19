@@ -7,7 +7,6 @@ export function addServiceOptions(section: CBISection) {
   o.value('/etc/sing-box/config.json', 'Flash (/etc/sing-box/config.json)');
   o.value('/tmp/sing-box/config.json', 'RAM (/tmp/sing-box/config.json)');
   o.default = '/etc/sing-box/config.json';
-  o.rmempty = false;
   o.validate = function (_section_id: string, value: string) {
     return validateSingBoxPath(value, 'config.json');
   };
@@ -19,7 +18,6 @@ export function addServiceOptions(section: CBISection) {
     'Flash (/usr/share/sing-box/cache.db)',
   );
   o.default = '/tmp/sing-box/cache.db';
-  o.rmempty = false;
   o.validate = function (_section_id: string, value: string) {
     return validateSingBoxPath(value, 'cache.db');
   };

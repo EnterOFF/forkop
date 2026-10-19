@@ -132,10 +132,12 @@ describe('the tunnel subnet of a server', () => {
   it('holds one IPv4 subnet and at most one IPv6 subnet', () => {
     expect(validateTunnelSubnets(['10.8.0.1/24'])).toBe(true);
     expect(validateTunnelSubnets(['10.8.0.1/24', 'fd00:8::1/64'])).toBe(true);
-    expect(validateTunnelSubnets([])).toBe('Add an IPv4 subnet');
-    expect(validateTunnelSubnets(['fd00:8::1/64'])).toBe('Add an IPv4 subnet');
+    expect(validateTunnelSubnets([])).toBe('Required');
+    expect(validateTunnelSubnets(['fd00:8::1/64'])).toBe(
+      'Needs an IPv4 subnet',
+    );
     expect(validateTunnelSubnets(['10.8.0.1/24', '10.9.0.1/24'])).toBe(
-      'Add at most one IPv4 subnet',
+      'At most one IPv4 subnet',
     );
   });
 });

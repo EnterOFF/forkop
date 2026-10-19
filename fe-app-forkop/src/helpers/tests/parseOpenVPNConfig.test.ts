@@ -321,7 +321,7 @@ ${CA}
       'CA certificate',
     );
     expect(refused(`client\ndev tun\n<ca>\n${CA}\n</ca>\n`)).toContain(
-      'no remote',
+      'No remote directive',
     );
     expect(refused(`client\ndev tun\nremote a 1194\n<ca>\n${CA}\n`)).toContain(
       'not closed',

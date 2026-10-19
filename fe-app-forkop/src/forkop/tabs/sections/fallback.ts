@@ -1,3 +1,4 @@
+import { message } from '../../../validators/messages';
 import { validateUrlField } from '../../../validators/validateUrl';
 import {
   FORKOP_UCI_PACKAGE,
@@ -29,6 +30,7 @@ import {
   normalizeDynamicListItems,
 } from '../../cbi/listValues';
 import { showChildItemSettingsModal } from '../../cbi/modal';
+import { requiredList } from '../../cbi/required';
 import {
   addUrlTestMemberOption,
   validateSectionChildListName,
@@ -124,7 +126,7 @@ function validateFallbackLevelItemsBeforeSave(
 ) {
   const normalizedValues = normalizeDynamicListItems(values);
   if (!normalizedValues.length) {
-    return _('Add at least one server group');
+    return message.required();
   }
 
   const names = new Set();
@@ -136,11 +138,9 @@ function validateFallbackLevelItemsBeforeSave(
       option,
     );
 
-    if (!`${settings.name || ''}`.trim()) {
-      return _('Enter a server group name');
-    }
-    const name = `${settings.name}`.trim();
-    if (names.has(name)) return _('Server group names must be unique');
+    const name = `${settings.name || ''}`.trim();
+    if (!name) return message.fixSettings();
+    if (names.has(name)) return message.item(name, message.nameTaken());
     names.add(name);
   }
 
@@ -157,13 +157,7 @@ function addFallbackLevelItemOptions(
       : parentSectionIdForItem;
 
   const o = itemSection.option(form.Value, 'name', _('Group name'));
-  o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    if (!`${value || ''}`.trim()) return _('Enter a server group name');
-    return typeof options.validateName === 'function'
-      ? options.validateName!(value)
-      : true;
-  };
+  o.validate = childItemNameCheck(options);
 
   const fallbackLevelModes = [
     { value: 'all', label: _('All remaining') },
@@ -195,7 +189,6 @@ function addFallbackGroupItemOptions(
     typeof options.ownerId === 'function' ? options.ownerId : () => '';
 
   let o = itemSection.option(form.Value, 'name', _('Group name'));
-  o.rmempty = false;
   o.validate = childItemNameCheck(options);
 
   o = itemSection.option(
@@ -205,7 +198,6 @@ function addFallbackGroupItemOptions(
     _('Availability check for every server'),
   );
   o.default = 'https://www.gstatic.com/generate_204';
-  o.rmempty = false;
   LATENCY_TEST_URL_OPTIONS.forEach((value: string) => o.value(value));
   o.validate = function (_itemId: string, value: unknown) {
     return validateUrlField(value);
@@ -220,7 +212,6 @@ function addFallbackGroupItemOptions(
     _('How often every server of the group is checked'),
   );
   o.default = '5m';
-  o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return validateRequiredSingBoxDuration(value);
   };
@@ -232,7 +223,6 @@ function addFallbackGroupItemOptions(
     _('How long to wait for a server to answer'),
   );
   o.default = '5s';
-  o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return validateRequiredSingBoxDuration(value);
   };
@@ -244,18 +234,17 @@ function addFallbackGroupItemOptions(
     _('How long to wait for a connection before moving to the next server'),
   );
   o.default = '5s';
-  o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return validateRequiredSingBoxDuration(value);
   };
 
-  addGroupHealthCheckTailOptions(itemSection, '5m');
+  addGroupHealthCheckTailOptions(itemSection, '5m', 'health_check_interval');
 
   o = itemSection.option(
     ButtonAddSettingsDynamicList,
     'fallback_level',
     _('Server groups'),
-    _('Required. Checked from top to bottom until the first working server'),
+    _('Checked from top to bottom until the first working server'),
   );
   o.rmempty = false;
   o.modalonly = true;
@@ -271,16 +260,7 @@ function addFallbackGroupItemOptions(
   o.validateItemsOnSave = function (groupId: string, values: unknown) {
     return validateFallbackLevelItemsBeforeSave(groupId, values, this);
   };
-  o.validate = function (groupId: string, value: unknown) {
-    if (!`${value || ''}`.trim()) {
-      const current =
-        typeof this.formvalue === 'function' ? this.formvalue(groupId) : [];
-      return normalizeDynamicListItems(current).length
-        ? true
-        : _('Add at least one server group');
-    }
-    return true;
-  };
+  o.validate = requiredList();
   o.afterMaterializeChildItems = orderChildItemsByPosition;
   o.renderListItemLabel = function (groupId: string, itemId: string) {
     return renderChildItemLabel(this, groupId, itemId);
@@ -447,12 +427,11 @@ export function validateFallbackGroupItemsBeforeSave(
   for (const value of normalizeDynamicListItems(values)) {
     const groupId = `${value || ''}`.trim();
 
-    if (!isExistingChildItem(section_id, groupId, 'fallback_group')) {
-      return _('Open Fallback settings and enter a display name');
-    }
-
-    if (!`${uci.get(FORKOP_UCI_PACKAGE, groupId, 'name') || ''}`.trim()) {
-      return _('Enter a display name');
+    if (
+      !isExistingChildItem(section_id, groupId, 'fallback_group') ||
+      !`${uci.get(FORKOP_UCI_PACKAGE, groupId, 'name') || ''}`.trim()
+    ) {
+      return message.item(_('Fallback'), message.fixSettings());
     }
   }
 

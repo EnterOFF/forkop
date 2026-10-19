@@ -3,7 +3,10 @@ import {
   updateDynamicListItemLabel,
   validateUniqueDynamicListItemName,
 } from '../../cbi/listItems';
-import { keepUnavailableSectionChoice } from '../../cbi/choices';
+import {
+  keepUnavailableSectionChoice,
+  validateSectionChoice,
+} from '../../cbi/choices';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import {
   clientCredentialLabel,
@@ -49,7 +52,6 @@ export function addClientCredentialOptions(
       field,
       clientCredentialLabel(sectionId, field),
     );
-    credential.rmempty = false;
     credential.password = field !== 'uuid';
     credential.validate = (_id, value: string) =>
       validateClientCredential(sectionId, field, value);
@@ -72,7 +74,6 @@ export function addClientOptions(
     'name',
     clientNameLabel(protocol),
   );
-  name.rmempty = false;
   name.validate = function (_id, value: string) {
     const result = validateClientName(sectionId, value);
     if (result !== true) {
@@ -132,8 +133,9 @@ export function addClientRoutingOptions(
     return value;
   };
   target.depends({ routing_override: '1', routing_mode: 'section' });
-  target.validate = (_id, value: string) =>
-    value ? true : _('Select a section');
+  target.validate = function (_id: string, value: string) {
+    return validateSectionChoice(this, value);
+  };
 }
 
 export function showClientSettingsModal(
