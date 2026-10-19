@@ -34,7 +34,7 @@ import {
   ONE_SIDED_AMNEZIA_KEYS,
   amneziaJsonValue,
   amneziaParameter,
-  ONE_SIDED_AMNEZIA_DEFAULTS,
+  generateAmneziaParameters,
 } from '../../../../helpers/wireguard';
 
 // Every field a WireGuard peer has, with what an empty one holds. The dialog
@@ -288,19 +288,16 @@ export function hasOneSidedAmneziaValues(
   );
 }
 
-// Asking for obfuscation fills the fields that are still empty, so an imported
-// configuration and anything typed by hand are never overwritten.
-export function fillOneSidedAmneziaDefaults(
+// The generate button draws a fresh set and puts in every parameter the tunnel
+// sends, replacing what the fields held.
+export function fillGeneratedOneSidedAmnezia(
   map: CBIMap,
   amneziaOptions: Record<string, CBIOption>,
 ) {
-  Object.keys(ONE_SIDED_AMNEZIA_DEFAULTS).forEach((key: string) => {
-    const option = amneziaOptions[key];
-    if (!option) {
-      return;
-    }
-    if (!dialogValue(map, option)) {
-      setModalOptionValue(map, option, ONE_SIDED_AMNEZIA_DEFAULTS[key]);
+  const generated = generateAmneziaParameters();
+  ONE_SIDED_AMNEZIA_KEYS.forEach((key: string) => {
+    if (amneziaOptions[key]) {
+      setModalOptionValue(map, amneziaOptions[key], generated[key]);
     }
   });
 }

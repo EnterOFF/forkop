@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 15:37+0300\n"
-"PO-Revision-Date: 2026-10-19 15:37+0300\n"
+"POT-Creation-Date: 2026-10-19 15:46+0300\n"
+"PO-Revision-Date: 2026-10-19 15:46+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1067,6 +1067,9 @@ msgstr "Сгенерировать пару ключей"
 msgid "Generate a key pair with the button next to the field"
 msgstr "Сгенерируйте пару ключей кнопкой рядом с полем"
 
+msgid "Generate parameters"
+msgstr "Сгенерировать параметры"
+
 msgid "Generate profile"
 msgstr "Сгенерировать профиль"
 
@@ -1300,12 +1303,6 @@ msgstr "JSON outbound должен содержать непустое поле 
 
 msgid "JSON outbound: %s"
 msgstr "JSON outbound: %s"
-
-msgid "Junk bytes at the start of packets: S1 to S3 of the handshake, S4 of data"
-msgstr "Байты мусора в начале пакетов: S1–S3 у рукопожатия, S4 у данных"
-
-msgid "Junk packets before every handshake, Jmin to Jmax bytes each"
-msgstr "Мусорные пакеты перед каждым рукопожатием, по Jmin–Jmax байт"
 
 msgid "Key"
 msgstr "Ключ"
@@ -1559,6 +1556,9 @@ msgstr "Не запущено"
 msgid "Obfuscation"
 msgstr "Обфускация"
 
+msgid "Obfuscation parameters"
+msgstr "Параметры обфускации"
+
 msgid "Obfuscation password"
 msgstr "Пароль обфускации"
 
@@ -1639,9 +1639,6 @@ msgstr "Переопределить маршрутизацию"
 
 msgid "Packet authentication"
 msgstr "Аутентификация пакетов"
-
-msgid "Packet headers: a number or a range, each its own"
-msgstr "Заголовки пакетов: число или диапазон, у каждого свой"
 
 msgid "Padding"
 msgstr "Padding"
@@ -2137,9 +2134,6 @@ msgstr "Отображать блок метаданных в дашборде"
 
 msgid "Sign in with a certificate, alone or together with the login"
 msgstr "Вход по сертификату, отдельно или вместе с логином"
-
-msgid "Signature packets before every handshake, I1 first"
-msgstr "Сигнатурные пакеты перед каждым рукопожатием, начиная с I1"
 
 msgid "sing-box API"
 msgstr "API sing-box"

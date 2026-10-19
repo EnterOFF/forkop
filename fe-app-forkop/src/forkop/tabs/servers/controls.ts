@@ -235,7 +235,11 @@ export function camouflageSite(sectionId: string, reroll?: boolean) {
 // Puts a value into another field of the open dialog. The widget wins over the
 // stored value while the dialog is open, so the value goes there and is checked
 // right away; without a mounted widget the write goes to the configuration.
-function applyFieldValue(sectionId: string, name: string, value: UciValue) {
+export function applyFieldValue(
+  sectionId: string,
+  name: string,
+  value: UciValue,
+) {
   const node = widgetNode(sectionId, name);
   const element = node ? widgetElement(node) : null;
 

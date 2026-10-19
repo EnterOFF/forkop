@@ -62,25 +62,6 @@ export const AMNEZIA_PARAMETERS: AmneziaParameter[] = [
 
 export const AMNEZIA_KEYS = AMNEZIA_PARAMETERS.map(({ key }) => key);
 
-// What the first field of a parameter family says under it; every other
-// parameter is known by its name.
-export function amneziaDescription(key: string) {
-  switch (key) {
-    case 'jc':
-      return _('Junk packets before every handshake, Jmin to Jmax bytes each');
-    case 's1':
-      return _(
-        'Junk bytes at the start of packets: S1 to S3 of the handshake, S4 of data',
-      );
-    case 'h1':
-      return _('Packet headers: a number or a range, each its own');
-    case 'i1':
-      return _('Signature packets before every handshake, I1 first');
-    default:
-      return undefined;
-  }
-}
-
 export const ONE_SIDED_AMNEZIA_KEYS = AMNEZIA_PARAMETERS.filter(
   ({ oneSided }) => oneSided,
 ).map(({ key }) => key);
@@ -91,34 +72,65 @@ export function amneziaParameter(key: string) {
   return BY_KEY.get(key);
 }
 
-// What the Amnezia client writes for a fresh AmneziaWG 3.1 server, kept to the
-// parameters a peer never has to know about: the junk counts and sizes come from
-// its installer, the timings, the content padding and the signature packet from
-// its constants. Jc is fixed at 5, the middle of the 4 to 6 the installer draws
-// from -- the junk is random content of a random size in every handshake, so
-// rolling the count over three values changed nothing anyone could observe.
-//
-// I1 is Amnezia's own packet: a byte-correct DNS answer for icloud.com whose
-// first two bytes stay random. A signature packet has to look like a protocol,
-// which a random payload does not, so it is used verbatim rather than generated.
-//
-// A tunnel gets them with its obfuscation switch, which exists only where there
-// is nothing to transcribe: every field of an AmneziaWG tunnel is copied from
-// the server's configuration, junk and signature packets included, and a
-// filled-in transcription target is how a field gets skipped. A new AmneziaWG
-// server starts from them as well.
-export const ONE_SIDED_AMNEZIA_DEFAULTS: Record<string, string> = {
-  jc: '5',
-  jmin: '10',
-  jmax: '50',
-  i1: '<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>',
-  content_padding_addition: '10-100',
-  rekey_after_time: '100-120',
-  rekey_timeout: '3-7',
-  reject_after_time: '150-180',
-  keepalive_timeout: '5-15',
-  max_handshake_attempts: '15-20',
-};
+function randomInt(min: number, max: number) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+// A fresh AmneziaWG 3.1 parameter set, drawn the way 3x-ui draws one for every
+// inbound, so that no two servers share the fingerprint a fixed set would give
+// them all. The paddings start at the 12 bytes header protection needs, and S1
+// and S2 never differ by the 56 bytes that would give the two handshake
+// packets one size. Each header comes from a quarter of its own above the
+// WireGuard message types and below what Amnezia's Windows client accepts.
+// The timings stay around WireGuard's own, every rekey 30 seconds before the
+// earliest rejection, and the content padding stays within 64 bytes, as the
+// junk on a full data packet has to.
+export function generateAmneziaParameters(): Record<string, string> {
+  const jmin = randomInt(40, 89);
+  const s1 = randomInt(15, 150);
+  let s2 = randomInt(15, 150);
+  while (s1 + 56 === s2) s2 = randomInt(15, 150);
+  const band = Math.floor((2147483647 - 5 + 1) / 4);
+  const [h1, h2, h3, h4] = [0, 1, 2, 3].map(
+    (index) => `${randomInt(5 + index * band, 4 + (index + 1) * band)}`,
+  );
+  const padding = randomInt(8, 24);
+  const rekey = randomInt(100, 120);
+  const lastRekey = rekey + randomInt(10, 40);
+  const reject = lastRekey + randomInt(30, 60);
+  const retry = randomInt(3, 6);
+  const keepalive = randomInt(8, 12);
+  const attempts = randomInt(15, 25);
+  const key = new Uint8Array(32);
+  crypto.getRandomValues(key);
+  return {
+    jc: `${randomInt(3, 6)}`,
+    jmin: `${jmin}`,
+    jmax: `${jmin + randomInt(50, 250)}`,
+    s1: `${s1}`,
+    s2: `${s2}`,
+    s3: `${randomInt(12, 55)}`,
+    s4: `${randomInt(12, 27)}`,
+    h1,
+    h2,
+    h3,
+    h4,
+    i1: `<r ${randomInt(32, 256)}>`,
+    i2: '',
+    i3: '',
+    i4: '',
+    i5: '',
+    header_protection_key: btoa(String.fromCharCode(...key)),
+    content_padding_addition: `${padding}-${padding + randomInt(8, 40)}`,
+    rekey_after_time: `${rekey}-${lastRekey}`,
+    rekey_timeout: `${retry}-${retry + randomInt(1, 4)}`,
+    reject_after_time: `${reject}-${reject + randomInt(30, 90)}`,
+    keepalive_timeout: `${keepalive}-${keepalive + randomInt(2, 8)}`,
+    max_handshake_attempts: `${attempts}-${attempts + randomInt(5, 25)}`,
+    random_trailers: '1',
+    disable_cookies: '1',
+  };
+}
 
 const UINT16_MAX = 0xffff;
 const UINT32_MAX = 0xffffffff;

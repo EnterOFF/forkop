@@ -182,6 +182,14 @@ const cases = [
         server(without(without(amneziawg, "amnezia_header_protection_key"), "amnezia_random_trailers")),
         [ client("w", wireguard_client) ] ],
     [ "amneziawg without a parameter", null, server({ ...wireguard, protocol: "amneziawg" }), [ client("w", wireguard_client) ] ],
+    [ "amneziawg at the edges of the generator", null, server({
+        ...amneziawg, amnezia_jc: "6", amnezia_jmin: "89", amnezia_jmax: "339",
+        amnezia_s1: "150", amnezia_s2: "15", amnezia_s3: "55", amnezia_s4: "27",
+        amnezia_h1: "5", amnezia_h2: "536870910", amnezia_h3: "1073741826", amnezia_h4: "2147483647",
+        amnezia_i1: "<r 256>", amnezia_content_padding_addition: "24-64",
+        amnezia_rekey_after_time: "120-160", amnezia_rekey_timeout: "6-10", amnezia_reject_after_time: "220-310",
+        amnezia_keepalive_timeout: "12-20", amnezia_max_handshake_attempts: "25-50"
+    }), [ client("w", wireguard_client) ] ],
     [ "wireguard routes", null, server({ ...wireguard, tunnel_all_traffic: "0", tunnel_routes: [ "192.168.1.0/24" ] }),
         [ client("w", wireguard_client) ] ],
     [ "wireguard without a subnet", "needs an IPv4 tunnel subnet", server(without(wireguard, "tunnel_address")),

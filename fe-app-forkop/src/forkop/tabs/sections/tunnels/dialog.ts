@@ -8,7 +8,6 @@ import {
 } from '../../../../helpers/parseWireGuardConfig';
 import {
   AMNEZIA_PARAMETERS,
-  amneziaDescription,
   validateAmneziaValue,
   validateWireGuardKey,
 } from '../../../../helpers/wireguard';
@@ -65,7 +64,7 @@ import {
   applyImportedTunnelEndpoint,
   createTunnelItem,
   defaultWireGuardPeerSettings,
-  fillOneSidedAmneziaDefaults,
+  fillGeneratedOneSidedAmnezia,
   hasOneSidedAmneziaValues,
   materializeTunnelPeers,
   tunnelDisplayName,
@@ -847,22 +846,27 @@ export function showTunnelSettingsModal(
   amneziaEnabledOption.rmempty = false;
   amneziaEnabledOption.depends('tunnel_type', 'wireguard');
   amneziaEnabledOption.depends('tunnel_type', 'warp');
-  amneziaEnabledOption.onchange = function (
-    _event: Event,
-    _sectionId: string,
-    value: unknown,
-  ) {
-    if (value === '1') {
-      fillOneSidedAmneziaDefaults(map, amneziaOptions);
-    }
-  };
+
+  const amneziaGenerateButton = itemSection.option(
+    form.Button,
+    '_generate_amnezia',
+    _('Obfuscation parameters'),
+  );
+  amneziaGenerateButton.inputtitle = _('Generate parameters');
+  amneziaGenerateButton.inputstyle = 'apply';
+  amneziaGenerateButton.depends({
+    tunnel_type: 'wireguard',
+    amnezia_enabled: '1',
+  });
+  amneziaGenerateButton.depends({ tunnel_type: 'warp', amnezia_enabled: '1' });
+  amneziaGenerateButton.onclick = () =>
+    fillGeneratedOneSidedAmnezia(map, amneziaOptions);
 
   AMNEZIA_PARAMETERS.forEach(({ key, conf, kind, oneSided }) => {
     const option = itemSection.option(
       kind === 'flag' ? form.Flag : form.Value,
       `amnezia_${key}`,
       conf,
-      amneziaDescription(key),
     );
     if (kind === 'flag') {
       option.default = '0';

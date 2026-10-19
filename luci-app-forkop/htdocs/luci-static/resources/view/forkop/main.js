@@ -17153,22 +17153,6 @@ var AMNEZIA_PARAMETERS = [
   row("disable_cookies", "DisableCookies", "flag", false)
 ];
 var AMNEZIA_KEYS = AMNEZIA_PARAMETERS.map(({ key }) => key);
-function amneziaDescription(key) {
-  switch (key) {
-    case "jc":
-      return _("Junk packets before every handshake, Jmin to Jmax bytes each");
-    case "s1":
-      return _(
-        "Junk bytes at the start of packets: S1 to S3 of the handshake, S4 of data"
-      );
-    case "h1":
-      return _("Packet headers: a number or a range, each its own");
-    case "i1":
-      return _("Signature packets before every handshake, I1 first");
-    default:
-      return void 0;
-  }
-}
 var ONE_SIDED_AMNEZIA_KEYS = AMNEZIA_PARAMETERS.filter(
   ({ oneSided }) => oneSided
 ).map(({ key }) => key);
@@ -17176,18 +17160,55 @@ var BY_KEY = new Map(AMNEZIA_PARAMETERS.map((entry) => [entry.key, entry]));
 function amneziaParameter(key) {
   return BY_KEY.get(key);
 }
-var ONE_SIDED_AMNEZIA_DEFAULTS = {
-  jc: "5",
-  jmin: "10",
-  jmax: "50",
-  i1: "<r 2><b 0x858000010001000000000669636c6f756403636f6d0000010001c00c000100010000105a00044d583737>",
-  content_padding_addition: "10-100",
-  rekey_after_time: "100-120",
-  rekey_timeout: "3-7",
-  reject_after_time: "150-180",
-  keepalive_timeout: "5-15",
-  max_handshake_attempts: "15-20"
-};
+function randomInt(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+function generateAmneziaParameters() {
+  const jmin = randomInt(40, 89);
+  const s1 = randomInt(15, 150);
+  let s2 = randomInt(15, 150);
+  while (s1 + 56 === s2) s2 = randomInt(15, 150);
+  const band = Math.floor((2147483647 - 5 + 1) / 4);
+  const [h1, h2, h3, h4] = [0, 1, 2, 3].map(
+    (index) => `${randomInt(5 + index * band, 4 + (index + 1) * band)}`
+  );
+  const padding = randomInt(8, 24);
+  const rekey = randomInt(100, 120);
+  const lastRekey = rekey + randomInt(10, 40);
+  const reject = lastRekey + randomInt(30, 60);
+  const retry = randomInt(3, 6);
+  const keepalive = randomInt(8, 12);
+  const attempts = randomInt(15, 25);
+  const key = new Uint8Array(32);
+  crypto.getRandomValues(key);
+  return {
+    jc: `${randomInt(3, 6)}`,
+    jmin: `${jmin}`,
+    jmax: `${jmin + randomInt(50, 250)}`,
+    s1: `${s1}`,
+    s2: `${s2}`,
+    s3: `${randomInt(12, 55)}`,
+    s4: `${randomInt(12, 27)}`,
+    h1,
+    h2,
+    h3,
+    h4,
+    i1: `<r ${randomInt(32, 256)}>`,
+    i2: "",
+    i3: "",
+    i4: "",
+    i5: "",
+    header_protection_key: btoa(String.fromCharCode(...key)),
+    content_padding_addition: `${padding}-${padding + randomInt(8, 40)}`,
+    rekey_after_time: `${rekey}-${lastRekey}`,
+    rekey_timeout: `${retry}-${retry + randomInt(1, 4)}`,
+    reject_after_time: `${reject}-${reject + randomInt(30, 90)}`,
+    keepalive_timeout: `${keepalive}-${keepalive + randomInt(2, 8)}`,
+    max_handshake_attempts: `${attempts}-${attempts + randomInt(5, 25)}`,
+    random_trailers: "1",
+    disable_cookies: "1"
+  };
+}
 var UINT16_MAX = 65535;
 var UINT32_MAX = 4294967295;
 var SIGNATURE_TAGS = ["b", "c", "t", "r", "rc", "rd", "d", "ds", "dz"];
@@ -17261,8 +17282,8 @@ function rangeBounds(value) {
 }
 function validateAmneziaSet(values) {
   const text6 = (key) => `${values[key] ?? ""}`.trim();
-  const protectionKey2 = text6("header_protection_key");
-  if (protectionKey2 && !/^A{43}=$/u.test(protectionKey2) && ["s1", "s2", "s3", "s4"].some((key) => Number(text6(key) || 0) < 12)) {
+  const protectionKey = text6("header_protection_key");
+  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text6(key) || 0) < 12)) {
     return _(
       "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
     );
@@ -17474,14 +17495,11 @@ function hasOneSidedAmneziaValues(map, amneziaOptions) {
     (key) => !!amneziaOptions[key] && setsAmneziaParameter(key, dialogValue(map, amneziaOptions[key]))
   );
 }
-function fillOneSidedAmneziaDefaults(map, amneziaOptions) {
-  Object.keys(ONE_SIDED_AMNEZIA_DEFAULTS).forEach((key) => {
-    const option2 = amneziaOptions[key];
-    if (!option2) {
-      return;
-    }
-    if (!dialogValue(map, option2)) {
-      setModalOptionValue(map, option2, ONE_SIDED_AMNEZIA_DEFAULTS[key]);
+function fillGeneratedOneSidedAmnezia(map, amneziaOptions) {
+  const generated = generateAmneziaParameters();
+  ONE_SIDED_AMNEZIA_KEYS.forEach((key) => {
+    if (amneziaOptions[key]) {
+      setModalOptionValue(map, amneziaOptions[key], generated[key]);
     }
   });
 }
@@ -22036,17 +22054,24 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   amneziaEnabledOption.rmempty = false;
   amneziaEnabledOption.depends("tunnel_type", "wireguard");
   amneziaEnabledOption.depends("tunnel_type", "warp");
-  amneziaEnabledOption.onchange = function(_event, _sectionId, value) {
-    if (value === "1") {
-      fillOneSidedAmneziaDefaults(map, amneziaOptions);
-    }
-  };
+  const amneziaGenerateButton = itemSection.option(
+    form.Button,
+    "_generate_amnezia",
+    _("Obfuscation parameters")
+  );
+  amneziaGenerateButton.inputtitle = _("Generate parameters");
+  amneziaGenerateButton.inputstyle = "apply";
+  amneziaGenerateButton.depends({
+    tunnel_type: "wireguard",
+    amnezia_enabled: "1"
+  });
+  amneziaGenerateButton.depends({ tunnel_type: "warp", amnezia_enabled: "1" });
+  amneziaGenerateButton.onclick = () => fillGeneratedOneSidedAmnezia(map, amneziaOptions);
   AMNEZIA_PARAMETERS.forEach(({ key, conf, kind, oneSided }) => {
     const option3 = itemSection.option(
       kind === "flag" ? form.Flag : form.Value,
       `amnezia_${key}`,
-      conf,
-      amneziaDescription(key)
+      conf
     );
     if (kind === "flag") {
       option3.default = "0";
@@ -26232,34 +26257,11 @@ function addOpenVPNServerOptions(section) {
 }
 
 // src/forkop/tabs/servers/form/amnezia.ts
-var SERVER_DEFAULTS = {
-  ...ONE_SIDED_AMNEZIA_DEFAULTS,
-  s1: "12",
-  s2: "12",
-  s3: "12",
-  s4: "12",
-  h1: "1",
-  h2: "2",
-  h3: "3",
-  h4: "4",
-  content_padding_addition: "",
-  random_trailers: "1",
-  disable_cookies: "1"
-};
 var GROUPS = [
   ["jmin", "jmax"],
   ["s1", "s2", "s3", "s4", "header_protection_key"],
   ["h1", "h2", "h3", "h4"]
 ];
-function protectionKey() {
-  return generatePresharedKey(32);
-}
-function initialValue(sectionId, key) {
-  if (option(sectionId, "protocol") === "amneziawg") {
-    return option(sectionId, `amnezia_${key}`);
-  }
-  return key === "header_protection_key" ? protectionKey() : SERVER_DEFAULTS[key] || "";
-}
 function revalidate(sectionId, keys) {
   window.setTimeout(
     () => keys.forEach((key) => {
@@ -26270,18 +26272,29 @@ function revalidate(sectionId, keys) {
   );
 }
 function addAmneziaServerOptions(section) {
+  const button = section.option(
+    form.Button,
+    "_generate_amnezia",
+    _("Obfuscation parameters")
+  );
+  button.inputtitle = _("Generate parameters");
+  button.inputstyle = "apply";
+  button.modalonly = true;
+  button.depends("protocol", "amneziawg");
+  button.onclick = (_ev, sectionId) => Object.entries(generateAmneziaParameters()).forEach(
+    ([key, value]) => applyFieldValue(`${sectionId}`, `amnezia_${key}`, value)
+  );
   AMNEZIA_PARAMETERS.forEach(({ key, conf, kind }) => {
     const o = section.option(
       kind === "flag" ? form.Flag : form.Value,
       `amnezia_${key}`,
-      conf,
-      amneziaDescription(key)
+      conf
     );
     o.modalonly = true;
     o.rmempty = true;
     o.depends("protocol", "amneziawg");
-    autofill(o, (sectionId) => initialValue(sectionId, key));
     if (kind === "flag") return;
+    o.password = kind === "key";
     const group = GROUPS.find((keys) => keys.includes(key));
     o.validate = (sectionId, value) => {
       const valid = validateAmneziaValue(key, value);
@@ -26300,10 +26313,6 @@ function addAmneziaServerOptions(section) {
         sectionId,
         group.filter((other) => other !== key)
       );
-    }
-    if (kind === "key") {
-      o.password = true;
-      addGenerateButton(o, () => protectionKey());
     }
   });
 }

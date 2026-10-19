@@ -34,6 +34,26 @@ function build(server = {}) {
 }
 
 describe('server form', () => {
+  it('leaves a server that becomes AmneziaWG empty until its parameters are generated', () => {
+    const { section, uci } = build({ protocol: 'wireguard' });
+    const button = section.options.find(
+      (option) => option.name === '_generate_amnezia',
+    );
+    expect(
+      section.options
+        .filter((option) => option.name.startsWith('amnezia_'))
+        .map((option) => option.load?.('srv'))
+        .filter(Boolean),
+    ).toEqual([]);
+
+    button.onclick(null, 'srv');
+    expect(uci.get('forkop', 'srv', 'amnezia_jc')).toMatch(/^[3-6]$/u);
+    expect(uci.get('forkop', 'srv', 'amnezia_header_protection_key')).toMatch(
+      /^[A-Za-z0-9+/]{43}=$/u,
+    );
+    expect(uci.get('forkop', 'srv', 'amnezia_random_trailers')).toBe('1');
+  });
+
   it('declares the whole tab without throwing', () => {
     const { section } = build();
 

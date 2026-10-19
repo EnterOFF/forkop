@@ -124,7 +124,7 @@ describe("the switch for the server's DNS", () => {
   });
 });
 
-describe('turning obfuscation on', () => {
+describe('the obfuscation generate button', () => {
   function dialog(values: Record<string, string>) {
     const data: Record<string, unknown> = {};
     const map = {
@@ -150,15 +150,17 @@ describe('turning obfuscation on', () => {
     return { map, options, data };
   }
 
-  it('fills the parameters it may choose and leaves what is already there', () => {
-    const { map, options, data } = dialog({ jc: '7' });
-    model.fillOneSidedAmneziaDefaults(
+  it('replaces every parameter the tunnel sends and nothing else', () => {
+    const { map, options, data } = dialog({ jc: '7', i2: '<r 4>' });
+    model.fillGeneratedOneSidedAmnezia(
       map as unknown as CBIMap,
       options as unknown as Record<string, CBIOption>,
     );
-    expect(data.amnezia_jc).toBeUndefined();
-    expect(data.amnezia_jmin).toBe('10');
-    expect(data.amnezia_rekey_timeout).toBe('3-7');
-    expect(Object.keys(data)).not.toContain('amnezia_s1');
+    expect(Object.keys(data).sort()).toEqual(
+      ONE_SIDED_AMNEZIA_KEYS.map((key) => `amnezia_${key}`).sort(),
+    );
+    expect(data.amnezia_jc).toMatch(/^[3-6]$/u);
+    expect(data.amnezia_i1).toMatch(/^<r \d+>$/u);
+    expect(data.amnezia_i2).toBe('');
   });
 });
