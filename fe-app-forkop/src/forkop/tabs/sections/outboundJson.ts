@@ -90,8 +90,9 @@ export function showOutboundJsonSettingsModal(
   };
   configureTextareaOption(jsonOption);
 
+  const tag = context.adding ? '' : outboundJsonDisplayTag(itemValue);
   return renderStackedJsonSettingsModal(
-    _('JSON outbound'),
+    tag ? _('JSON outbound: %s').format(tag) : _('JSON outbound'),
     map,
     (settings: ChildSettings) => {
       const value = `${settings.outbound_json || ''}`.trim();

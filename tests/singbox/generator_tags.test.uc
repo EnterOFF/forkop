@@ -105,7 +105,6 @@ t.test("manual link names follow the core parser", () => {
         connection_link: fixture.links("links", [
             "anytls://secret@example.com:443#AnyTLS%20Node",
             "naive+https://user:pass@example.com:443#Naive+Node",
-            "https://user:pass@example.com:443#HTTP%20Node",
             "hysteria://example.com:443#Hysteria%20Node",
             "hy2://secret@example.com:443#Hysteria2%20Node",
             "mierus://user:pass@example.com?profile=default#Mieru+Node",
@@ -120,10 +119,10 @@ t.test("manual link names follow the core parser", () => {
         ])
     });
     t.eq(q.tags(filter(config.outbounds, (o) => o.type == "parser")), [
-        "Links/AnyTLS Node", "Links/Naive+Node", "Links/HTTP Node",
+        "Links/AnyTLS Node", "Links/Naive+Node",
         "Links/Hysteria Node", "Links/Hysteria2 Node", "Links/Mieru+Node",
         "Links/SOCKS Node", "Links/SS Node", "Links/Trojan Node",
-        "Links/TUIC Node", "Links/VLESS Node", "Links/VMess WS", "Links/Raw VMess", "Links/Node #14"
+        "Links/TUIC Node", "Links/VLESS Node", "Links/VMess WS", "Links/Raw VMess", "Links/Node #13"
     ]);
 });
 

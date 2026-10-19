@@ -321,7 +321,7 @@ function showFallbackLevelSettingsModal(
     title: (name: string) => {
       const normalized = `${name || ''}`.trim();
       return normalized
-        ? `${_('Server group settings')}: ${normalized}`
+        ? _('Server group: %s').format(normalized)
         : _('Server group settings');
     },
     afterSave: (
@@ -408,7 +408,7 @@ export function showFallbackGroupSettingsModal(
 
       const normalized = `${name || ''}`.trim();
       return normalized
-        ? `${_('Fallback settings')}: ${normalized}`
+        ? _('Fallback: %s').format(normalized)
         : _('Fallback settings');
     },
     afterSave: (

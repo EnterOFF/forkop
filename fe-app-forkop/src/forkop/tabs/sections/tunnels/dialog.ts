@@ -57,6 +57,7 @@ import {
   materializeTunnelPeers,
   tunnelDisplayName,
   tunnelInitialSettings,
+  tunnelPeerForValue,
   tunnelStorageSettings,
   wireGuardPeerDisplayNameFromObject,
   wireGuardPeerFromSettings,
@@ -160,13 +161,22 @@ function showWireGuardPeerSettingsModal(
   const peerId = context.adding
     ? nextSectionId('tunnel_peer')
     : `${itemValue || ''}`;
+  const peer = context.adding
+    ? null
+    : tunnelPeerForValue(tunnelId, peerId, option);
+  const peerName = peer?.address
+    ? wireGuardPeerDisplayNameFromObject(peer)
+    : '';
   return showChildItemSettingsModal(tunnelId, peerId, option, {
     typeName: 'tunnel_peer',
     ownerOption: 'tunnel',
     keys: wireGuardPeerSettingsKeys(),
     defaults: defaultWireGuardPeerSettings(),
     addOptions: addWireGuardPeerItemOptions,
-    title: () => _('WireGuard peer settings'),
+    title: () =>
+      peerName
+        ? _('WireGuard peer: %s').format(peerName)
+        : _('WireGuard peer settings'),
     afterSave: (
       itemId: string,
       _inputValue: unknown,
@@ -848,8 +858,11 @@ export function showTunnelSettingsModal(
     map.checkDepends();
   };
 
+  const tunnelName = context.adding
+    ? ''
+    : tunnelDisplayName(section_id, tunnelId);
   return renderStackedJsonSettingsModal(
-    _('Tunnel settings'),
+    tunnelName ? _('Tunnel: %s').format(tunnelName) : _('Tunnel settings'),
     map,
     (settings: ChildSettings) => {
       const validation = validateTunnelSettings(

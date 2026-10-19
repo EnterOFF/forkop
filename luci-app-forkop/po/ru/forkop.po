@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 05:00+0300\n"
-"PO-Revision-Date: 2026-10-19 05:00+0300\n"
+"POT-Creation-Date: 2026-10-19 05:38+0300\n"
+"PO-Revision-Date: 2026-10-19 05:38+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -118,6 +118,9 @@ msgstr "Туннелю со статическим ключом и IPv6-адре
 
 msgid "A URL or local path. The format is detected automatically"
 msgstr "URL или локальный путь. Формат определяется автоматически"
+
+msgid "A URL, or the absolute path of a file on the router"
+msgstr "URL или абсолютный путь к файлу на роутере"
 
 msgid "A WireGuard or AmneziaWG configuration, a wireguard:// or vpn:// link, or an OpenVPN profile"
 msgstr "Конфигурация WireGuard или AmneziaWG, ссылка wireguard:// или vpn:// либо профиль OpenVPN"
@@ -271,6 +274,9 @@ msgstr "Длина префикса подсети IPv4 — от 8 до 30"
 
 msgid "An IPv6 subnet needs a prefix length from 64 to 126"
 msgstr "Длина префикса подсети IPv6 — от 64 до 126"
+
+msgid "An OpenWrt network interface"
+msgstr "Сетевой интерфейс OpenWrt"
 
 msgid "Any"
 msgstr "Любой"
@@ -497,14 +503,14 @@ msgstr "Управление перегрузкой"
 msgid "Connect through"
 msgstr "Подключаться через"
 
-msgid "Connect to the servers of this subscription through another section"
-msgstr "Подключаться к серверам подписки через другую секцию"
+msgid "Connect to every server of this subscription through another section"
+msgstr "Подключаться ко всем серверам подписки через другую секцию"
+
+msgid "Connect to the server through another section"
+msgstr "Подключаться к серверу через другую секцию"
 
 msgid "Connect to the tunnel server through another section"
 msgstr "Подключаться к серверу туннеля через другую секцию"
-
-msgid "Connect to this server through another section"
-msgstr "Подключаться к этому серверу через другую секцию"
 
 msgid "Connection timeout"
 msgstr "Таймаут подключения"
@@ -707,6 +713,9 @@ msgstr "Скачать найденное"
 msgid "Download the profile"
 msgstr "Скачать профиль"
 
+msgid "Download the subscription through another section instead of directly"
+msgstr "Загружать подписку через другую секцию, а не напрямую"
+
 msgid "Downloaded"
 msgstr "Загружено"
 
@@ -782,8 +791,8 @@ msgstr "Введите название группы серверов"
 msgid "Enter a SHA-256 fingerprint of 64 hex digits"
 msgstr "Укажите отпечаток SHA-256 из 64 шестнадцатеричных цифр"
 
-msgid "Enter a subscription tag"
-msgstr "Введите тег подписки"
+msgid "Enter a subscription name"
+msgstr "Введите имя подписки"
 
 msgid "Enter a subscription URL or local path"
 msgstr "Введите URL подписки или локальный путь"
@@ -932,6 +941,9 @@ msgstr "Детали Fallback недоступны"
 msgid "Fallback settings"
 msgstr "Настройки Fallback"
 
+msgid "Fallback: %s"
+msgstr "Fallback: %s"
+
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
 
@@ -943,6 +955,9 @@ msgstr "Постоянные адреса для доменов в формат�
 
 msgid "Flow"
 msgstr "Flow"
+
+msgid "For example 30m, 12h or 1d"
+msgstr "Например: 30m, 12h или 1d"
 
 msgid "Forkop configuration"
 msgstr "Конфигурация Forkop"
@@ -1202,6 +1217,9 @@ msgstr "JSON outbound должен быть JSON-объектом"
 msgid "JSON outbound must contain a non-empty tag field"
 msgstr "JSON outbound должен содержать непустое поле tag"
 
+msgid "JSON outbound: %s"
+msgstr "JSON outbound: %s"
+
 msgid "Junk packets clients send before every handshake, Jmin to Jmax bytes each"
 msgstr "Мусорные пакеты, которые клиенты шлют перед каждым рукопожатием, по Jmin–Jmax байт"
 
@@ -1240,9 +1258,6 @@ msgstr "Лицензионный ключ"
 
 msgid "Link"
 msgstr "Ссылка"
-
-msgid "Link settings"
-msgstr "Настройки ссылки"
 
 msgid "List update interval"
 msgstr "Период обновления списков"
@@ -1375,6 +1390,9 @@ msgstr "Сетевой интерфейс"
 
 msgid "Network interface settings"
 msgstr "Настройки сетевого интерфейса"
+
+msgid "Network interface: %s"
+msgstr "Сетевой интерфейс: %s"
 
 msgid "No"
 msgstr "Нет"
@@ -1649,6 +1667,9 @@ msgstr "Случайные хвосты пакетов"
 msgid "Reach the coordination server through a section instead of the WAN"
 msgstr "Подключаться к серверу координации через секцию, а не напрямую"
 
+msgid "Ready-made lists of services from the community"
+msgstr "Готовые списки сервисов от сообщества"
+
 msgid "Reality needs an SNI"
 msgstr "Для Reality нужен SNI"
 
@@ -1697,11 +1718,11 @@ msgstr "Убрать серверы, чьи имена совпадают с р�
 msgid "Rename servers"
 msgstr "Переименование серверов"
 
-msgid "Request the subscription through a section"
-msgstr "Запрашивать подписку через секцию"
-
 msgid "Request through"
 msgstr "Запрашивать через"
+
+msgid "Request through a section"
+msgstr "Запрашивать через секцию"
 
 msgid "Request WARP profiles through"
 msgstr "Запрашивать профили WARP через"
@@ -1768,6 +1789,9 @@ msgstr "Набор правил должен быть HTTP(S)-ссылкой и�
 
 msgid "Rule set settings"
 msgstr "Настройки набора правил"
+
+msgid "Rule set: %s"
+msgstr "Набор правил: %s"
 
 msgid "Rule sets"
 msgstr "Наборы правил"
@@ -1901,6 +1925,9 @@ msgstr "Названия групп серверов должны быть ун�
 msgid "Server group settings"
 msgstr "Настройки группы серверов"
 
+msgid "Server group: %s"
+msgstr "Группа серверов: %s"
+
 msgid "Server groups"
 msgstr "Группы серверов"
 
@@ -1915,6 +1942,12 @@ msgstr "Параметры серверов"
 
 msgid "Server port"
 msgstr "Порт сервера"
+
+msgid "Server settings"
+msgstr "Настройки сервера"
+
+msgid "Server: %s"
+msgstr "Сервер: %s"
 
 msgid "Servers"
 msgstr "Серверы"
@@ -2036,17 +2069,26 @@ msgstr "Автообновление подписки"
 msgid "Subscription must be an HTTP(S) URL or an absolute local path"
 msgstr "Подписка должна быть HTTP(S)-ссылкой или абсолютным локальным путём"
 
+msgid "Subscription name"
+msgstr "Имя подписки"
+
+msgid "Subscription name must be unique within the section"
+msgstr "Имя подписки должно быть уникальным внутри секции"
+
+msgid "Subscription name must not contain /"
+msgstr "Имя подписки не должно содержать /"
+
 msgid "Subscription settings"
 msgstr "Настройки подписки"
 
-msgid "Subscription tag must be unique within the section"
-msgstr "Тег подписки должен быть уникальным внутри секции"
-
-msgid "Subscription tag must not contain /"
-msgstr "Тег подписки не должен содержать /"
+msgid "Subscription URL"
+msgstr "URL подписки"
 
 msgid "Subscription URL or local path"
 msgstr "URL подписки или локальный путь"
+
+msgid "Subscription: %s"
+msgstr "Подписка: %s"
 
 msgid "Subscriptions updated"
 msgstr "Подписки успешно обновлены"
@@ -2071,9 +2113,6 @@ msgstr "Системная информация"
 
 msgid "Table exist"
 msgstr "Таблица существует"
-
-msgid "Tag"
-msgstr "Тег"
 
 msgid "Tailscale endpoint"
 msgstr "Tailscale endpoint"
@@ -2195,14 +2234,14 @@ msgstr "Допустимые алгоритмы подписи и размеры
 msgid "The subnets that go through this peer"
 msgstr "Подсети, которые пойдут через этого пира"
 
-msgid "The tag of this subscription's nodes shown on the dashboard"
-msgstr "Тег узлов подписки, отображаемый в дашборде"
-
 msgid "This field is required"
 msgstr "Заполните это поле"
 
 msgid "This is a server configuration, not a client profile"
 msgstr "Это конфигурация сервера, а не профиль клиента"
+
+msgid "This is a web address: add a subscription under Subscription, and an HTTP proxy as a JSON outbound"
+msgstr "Это веб-адрес: подписку добавьте в «Подписку», а HTTP-прокси — как JSON outbound"
 
 msgid "This is neither a WireGuard nor an OpenVPN configuration"
 msgstr "Это не конфигурация WireGuard или OpenVPN"
@@ -2291,6 +2330,9 @@ msgstr "Подсеть туннеля"
 msgid "Tunnel type"
 msgstr "Тип туннеля"
 
+msgid "Tunnel: %s"
+msgstr "Туннель: %s"
+
 msgid "Type"
 msgstr "Тип"
 
@@ -2318,6 +2360,9 @@ msgstr "Обновлять удалённые списки и наборы пр�
 msgid "Update subscriptions"
 msgstr "Обновить подписки"
 
+msgid "Update the subscription automatically at a set interval"
+msgstr "Автоматически обновлять подписку через заданный интервал"
+
 msgid "Uplink"
 msgstr "Исходящий"
 
@@ -2341,6 +2386,9 @@ msgstr "Детали URLTest недоступны"
 
 msgid "URLTest settings"
 msgstr "Настройки URLTest"
+
+msgid "URLTest: %s"
+msgstr "URLTest: %s"
 
 msgid "Use *, status codes, or ranges such as 204/200-299"
 msgstr "Укажите *, HTTP-коды или диапазоны, например 204/200-299"
@@ -2503,6 +2551,9 @@ msgstr "Поля пира WireGuard должны использовать нат
 
 msgid "WireGuard peer settings"
 msgstr "Настройки пира WireGuard"
+
+msgid "WireGuard peer: %s"
+msgstr "Пир WireGuard: %s"
 
 msgid "With fingerprints the CA certificate is not needed (peer-fingerprint in the profile)"
 msgstr "С отпечатками сертификат CA не нужен (peer-fingerprint в профиле)"

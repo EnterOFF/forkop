@@ -144,6 +144,7 @@ describe('a stored link', () => {
       'vless://a@a.example:443#USA',
     );
     expect(field('uri').password, 'the link is shown masked').toBe(true);
+    expect(dialog.title).toBe('Server: USA');
     field('uri').formvalue = () => 'trojan://p@b.example:443#Other';
     field('name').formvalue = () => 'Chicago';
 
@@ -171,6 +172,9 @@ describe('a stored link', () => {
       'The installed sing-box was built without with_quic',
     );
     expect(check('uri', ' ')).toBe('Paste a connection URI');
+    expect(check('uri', 'https://sub.example.com/api/sub/token')).toBe(
+      'This is a web address: add a subscription under Subscription, and an HTTP proxy as a JSON outbound',
+    );
     expect(check('uri', 'vless://a@a.example:443#USA')).toBe(true);
     expect(check('name', '')).toBe('Enter a display name');
   });

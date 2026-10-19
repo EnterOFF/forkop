@@ -397,6 +397,7 @@ export function createSectionContent(section: CBISection) {
     InterfaceSettingsDynamicList,
     'interfaces',
     _('Network Interface'),
+    _('An OpenWrt network interface'),
   );
   o.depends('action', 'connection');
   o.rmempty = true;
@@ -560,6 +561,7 @@ export function createSectionContent(section: CBISection) {
     form.DynamicList,
     'community_lists',
     _('Built-in lists'),
+    _('Ready-made lists of services from the community'),
   );
   builtInRulesetOption.modalonly = true;
   builtInRulesetOption.placeholder = _('Service list');

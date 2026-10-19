@@ -33,7 +33,7 @@ t.test("untagged-subscription", () => {
                 "tag": "sub2"
             }
         ]
-    }, "A subscription in section 'Main' has no tag");
+    }, "A subscription in section 'Main' has no name");
 });
 
 t.test("every link of a section has a link and a name of its own", () => {
@@ -43,6 +43,9 @@ t.test("every link of a section has a link and a name of its own", () => {
     v.refuses({ section: main, connection_link: [ links[0], { ...links[1], name: "A" } ] }, "Section 'Main' has more than one link named 'A'");
     v.refuses({ section: main, connection_link: [ links[0], { ...links[1], name: " " } ] }, "A link in section 'Main' has no name");
     v.refuses({ section: main, connection_link: [ links[0], { ...links[1], uri: "" } ] }, "A link in section 'Main' is empty");
+    for (let address in [ "https://sub.example.com/api/sub/token", "http://user:pass@proxy.example.com:8080" ])
+        v.refuses({ section: main, connection_link: [ links[0], { ...links[1], uri: address } ] },
+            "Link 'B' in section 'Main' is a web address. Add a subscription under Subscription, and an HTTP proxy as a JSON outbound");
     v.accepts({ section: [ ...main, { ".name": "other", enabled: "1", action: "connection" } ],
         connection_link: [ ...links, { ...links[1], ".name": "other_link1", name: "A", section: "other" } ] });
 });
@@ -150,7 +153,7 @@ t.test("duplicate-subscription-tags", () => {
                 "tag": "premium"
             }
         ]
-    }, "Duplicate subscription tag 'premium'");
+    }, "Duplicate subscription name 'premium'");
 });
 
 t.test("cross-namespace-display-name", () => {

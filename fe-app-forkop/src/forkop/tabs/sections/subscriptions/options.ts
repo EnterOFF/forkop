@@ -28,6 +28,7 @@ import {
   isRemoteSubscriptionSource,
   currentOptionValue,
   listedSubscriptionSources,
+  listedSubscriptionTag,
   loadDefaultSubscriptionHeaders,
   nextSubscriptionTag,
   optionMapValue,
@@ -49,18 +50,13 @@ export function addSubscriptionUrlItemOptions(
       ? options.parentSectionId
       : parentSectionIdForItem;
 
-  let o = itemSection.option(
-    form.Value,
-    'tag',
-    _('Tag'),
-    _("The tag of this subscription's nodes shown on the dashboard"),
-  );
+  let o = itemSection.option(form.Value, 'tag', _('Subscription name'));
   o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     const normalized = `${value || ''}`.trim();
-    if (!normalized) return _('Enter a subscription tag');
+    if (!normalized) return _('Enter a subscription name');
     if (normalized.includes('/')) {
-      return _('Subscription tag must not contain /');
+      return _('Subscription name must not contain /');
     }
     const sectionId = parentSectionForItem(_itemId);
     const ownerId =
@@ -71,15 +67,15 @@ export function addSubscriptionUrlItemOptions(
       ownerId === sectionId ? '' : ownerId,
       inputValue,
     ]).includes(normalized)
-      ? _('Subscription tag must be unique within the section')
+      ? _('Subscription name must be unique within the section')
       : true;
   };
 
   o = itemSection.option(
     form.Value,
     'url',
-    _('Subscription'),
-    _('Subscription URL or local path'),
+    _('Subscription URL'),
+    _('A URL, or the absolute path of a file on the router'),
   );
   // A subscription URL carries the token of its account.
   o.password = true;
@@ -105,13 +101,14 @@ export function addSubscriptionUrlItemOptions(
   addCascadeOptions(
     itemSection,
     parentSectionForItem,
-    _('Connect to the servers of this subscription through another section'),
+    _('Connect to every server of this subscription through another section'),
   );
 
   o = itemSection.option(
     form.Flag,
     'subscription_update_enabled',
     _('Subscription auto update'),
+    _('Update the subscription automatically at a set interval'),
   );
   o.depends('url', REMOTE_SOURCE);
   o.default = '1';
@@ -121,6 +118,7 @@ export function addSubscriptionUrlItemOptions(
     form.Value,
     'subscription_update_interval',
     _('Update interval'),
+    _('For example 30m, 12h or 1d'),
   );
   o.depends({ url: REMOTE_SOURCE, subscription_update_enabled: '1' });
   o.placeholder = '1h';
@@ -134,7 +132,8 @@ export function addSubscriptionUrlItemOptions(
   o = itemSection.option(
     form.Flag,
     'download_via_proxy_enabled',
-    _('Request the subscription through a section'),
+    _('Request through a section'),
+    _('Download the subscription through another section instead of directly'),
   );
   o.depends('url', REMOTE_SOURCE);
   o.default = '0';
@@ -226,6 +225,7 @@ export function showSubscriptionUrlSettingsModal(
   itemNode: Element | null,
 ) {
   const value = `${itemValue ?? ''}`;
+  const tag = listedSubscriptionTag(sectionId, option, value);
   const storedRemote =
     isExistingChildItem(sectionId, value, 'subscription_url') &&
     isRemoteSubscriptionSource(
@@ -251,7 +251,8 @@ export function showSubscriptionUrlSettingsModal(
             { url: inputValue },
           ),
         addOptions: addSubscriptionUrlItemOptions,
-        title: () => _('Subscription settings'),
+        title: () =>
+          tag ? _('Subscription: %s').format(tag) : _('Subscription settings'),
         afterSave: (
           itemId: string,
           _inputValue: string,

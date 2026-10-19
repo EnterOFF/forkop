@@ -128,7 +128,7 @@ describe('the Sections tab', () => {
     const links = option(sections(), 'connection_link');
 
     expect(links.description).toBe(
-      'Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, mieru, anytls',
+      'Supported URIs: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, mieru, anytls',
     );
     expect(links.validate('sec', 'naive+https://u:p@example.com:443#n')).toBe(
       'The installed sing-box was built without with_naive_outbound',

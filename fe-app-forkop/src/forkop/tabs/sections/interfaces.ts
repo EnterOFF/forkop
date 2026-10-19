@@ -251,7 +251,10 @@ export function showInterfaceSettingsModal(
     keys: interfaceSettingsKeys(),
     defaults: (inputValue: string) => defaultInterfaceSettings(inputValue),
     addOptions: addInterfaceItemOptions,
-    title: () => _('Network interface settings'),
+    title: (name: string) =>
+      name
+        ? _('Network interface: %s').format(name)
+        : _('Network interface settings'),
     afterSave: () => refreshDashboardFilterChoiceWidgets(_section_id),
   });
 }

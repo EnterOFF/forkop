@@ -36,8 +36,6 @@ const validUrls = [
   ['hysteria', 'hysteria://example.com:443?auth=secret'],
   ['hysteria2', 'hysteria2://password@example.com:443'],
   ['hy2', 'hy2://password@example.com:443'],
-  ['HTTP proxy', 'http://user:password@example.com:8080'],
-  ['HTTPS proxy', 'https://user:password@example.com:443'],
   [
     'Shadowrocket Naive HTTP2',
     'http2://dXNlcjpwYXNzd29yZEBleGFtcGxlLmNvbTo0NDM=',
@@ -80,6 +78,20 @@ describe('validateProxyUrl', () => {
     expect(res.valid).toBe(false);
     expect(res.message).toBe(
       'The pasted link is not supported. Try JSON outbound.',
+    );
+  });
+
+  // A subscription pasted into the link field is the usual way to get here, and
+  // an HTTP proxy, which carries no UDP, goes into a JSON outbound instead.
+  it.each([
+    'https://sub.example.com/api/sub/token',
+    'http://user:password@example.com:8080',
+  ])('refuses the web address %s and says where it belongs', (url) => {
+    const res = validateProxyUrl(url);
+
+    expect(res.valid).toBe(false);
+    expect(res.message).toBe(
+      'This is a web address: add a subscription under Subscription, and an HTTP proxy as a JSON outbound',
     );
   });
 

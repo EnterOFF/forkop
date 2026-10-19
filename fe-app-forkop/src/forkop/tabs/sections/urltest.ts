@@ -191,7 +191,7 @@ export function showUrlTestSettingsModal(
       const normalized = `${name || ''}`.trim();
       return !normalized || /^urltest-[a-z0-9]+-\d+$/.test(normalized)
         ? _('URLTest settings')
-        : `${_('URLTest settings')}: ${normalized}`;
+        : _('URLTest: %s').format(normalized);
     },
     afterSave: (
       itemId: string,

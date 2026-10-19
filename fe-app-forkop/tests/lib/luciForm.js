@@ -851,8 +851,11 @@ export function createHarness(packageName = 'forkop') {
     // Each open dialog hangs its own title next to the heading and takes it away
     // again when it closes, so the count says whether this one is still up.
     const openTitles = heading.childNodes.length;
+    // The heading carries each open dialog's title after the one it is stacked on.
+    const title = heading.childNodes[heading.childNodes.length - 1];
     return {
       map: dialogMaps[first],
+      title: `${title?.textContent ?? ''}`.replace(/^ » /, ''),
       save: async () => {
         await saveButton.attrs.click();
         return { saved: heading.childNodes.length < openTitles };

@@ -88,8 +88,6 @@ const LINK_SCHEME_OUTBOUND_TYPES = {
     "naive+quic": "naive",
     "http2": "naive",
     "http3": "naive",
-    "http": "http",
-    "https": "http",
     "socks": "socks",
     "socks4": "socks",
     "socks4a": "socks",

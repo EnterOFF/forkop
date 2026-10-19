@@ -175,7 +175,7 @@ function liveListValues(option: CBIOption, sectionId: string) {
 // The tag one entry carries: what its section stores, or - while the entry is
 // still a draft the section has never been saved with - what the list is holding
 // for it.
-function listedSubscriptionTag(
+export function listedSubscriptionTag(
   sectionId: string,
   option: CBIOption,
   value: string,

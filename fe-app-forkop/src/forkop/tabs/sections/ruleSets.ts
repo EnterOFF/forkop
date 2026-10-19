@@ -28,6 +28,13 @@ function ruleSetIncludesSubnets(section_id: string, value: string) {
   );
 }
 
+// A rule set is a URL or a path, too long for a dialog title; its file name is
+// what tells one from another.
+function ruleSetFileName(reference: string) {
+  const path = reference.trim().split(/[?#]/u, 1)[0].replace(/\/+$/u, '');
+  return path.slice(path.lastIndexOf('/') + 1);
+}
+
 export function showRuleSetSettingsModal(
   section_id: string,
   itemValue: unknown,
@@ -57,8 +64,9 @@ export function showRuleSetSettingsModal(
   includeSubnets.default = '0';
   includeSubnets.rmempty = false;
 
+  const name = ruleSetFileName(`${itemValue ?? ''}`);
   return renderStackedJsonSettingsModal(
-    _('Rule set settings'),
+    name ? _('Rule set: %s').format(name) : _('Rule set settings'),
     map,
     (settings: ChildSettings) => {
       const value = settings.include_subnets === '1';

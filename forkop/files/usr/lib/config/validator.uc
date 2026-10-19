@@ -174,23 +174,29 @@ function validate_subscription_tags(section) {
     let seen = {};
     for (let tag_name in connections.subscription_tags(section)) {
         if (trim(tag_name) == "")
-            fail_validation("A subscription in section '" + section_label(section) + "' has no tag. Set one in its settings");
+            fail_validation("A subscription in section '" + section_label(section) + "' has no name. Set one in its settings");
         if (index(tag_name, "/") >= 0)
-            fail_validation("Subscription tag '" + tag_name + "' in section '" + section_label(section) + "' contains '/'. Use another character");
+            fail_validation("Subscription name '" + tag_name + "' in section '" + section_label(section) + "' contains '/'. Use another character");
         if (seen[tag_name])
-            fail_validation("Duplicate subscription tag '" + tag_name + "' in section '" + section_label(section) + "'");
+            fail_validation("Duplicate subscription name '" + tag_name + "' in section '" + section_label(section) + "'");
         seen[tag_name] = true;
     }
 }
 
 // A link's server runs under the name the link stores, which groups and filters
-// refer to, so every link has one and no two links of a section share it.
+// refer to, so every link has one and no two links of a section share it. An
+// http:// or https:// address is refused: it is almost always a subscription in
+// the wrong field, and an HTTP proxy, which carries no UDP, is a JSON outbound.
 function validate_connection_links(section) {
     let seen = {};
     for (let link in connections.connection_link_items(section)) {
         let link_name = option(link, "name", "");
+        let scheme = core_url.scheme(trim(option(link, "uri", "")));
         if (trim(option(link, "uri", "")) == "")
             fail_validation("A link in section '" + section_label(section) + "' is empty. Paste the link in its settings");
+        if (scheme == "http" || scheme == "https")
+            fail_validation("Link '" + link_name + "' in section '" + section_label(section) + "' is a web address. " +
+                "Add a subscription under Subscription, and an HTTP proxy as a JSON outbound");
         if (trim(link_name) == "")
             fail_validation("A link in section '" + section_label(section) + "' has no name. Set one in its settings");
         if (seen[link_name])

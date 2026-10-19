@@ -16,7 +16,6 @@ const CONNECTION_URI_TYPES = [
   ['shadowsocks', 'shadowsocks'],
   ['trojan', 'trojan'],
   ['socks', 'socks'],
-  ['http', 'http'],
   ['tuic', 'tuic'],
   ['hysteria', 'hysteria2'],
   ['naiveproxy', 'naive'],

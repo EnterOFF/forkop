@@ -12727,7 +12727,6 @@ var CONNECTION_URI_TYPES = [
   ["shadowsocks", "shadowsocks"],
   ["trojan", "trojan"],
   ["socks", "socks"],
-  ["http", "http"],
   ["tuic", "tuic"],
   ["hysteria", "hysteria2"],
   ["naiveproxy", "naive"],
@@ -13848,8 +13847,9 @@ function showOutboundJsonSettingsModal(_section_id, itemValue, _option, widget, 
     return validation.valid ? true : validation.message;
   };
   configureTextareaOption(jsonOption);
+  const tag = context.adding ? "" : outboundJsonDisplayTag(itemValue);
   return renderStackedJsonSettingsModal(
-    _("JSON outbound"),
+    tag ? _("JSON outbound: %s").format(tag) : _("JSON outbound"),
     map,
     (settings) => {
       const value = `${settings.outbound_json || ""}`.trim();
@@ -17195,7 +17195,7 @@ function showFallbackLevelSettingsModal(groupId, itemValue, option2, widget, ite
     }),
     title: (name) => {
       const normalized = `${name || ""}`.trim();
-      return normalized ? `${_("Server group settings")}: ${normalized}` : _("Server group settings");
+      return normalized ? _("Server group: %s").format(normalized) : _("Server group settings");
     },
     afterSave: (itemId, inputValue, settings, existing) => {
       const displayName = `${settings.name || inputValue || ""}`.trim();
@@ -17249,7 +17249,7 @@ function showFallbackGroupSettingsModal(section_id, itemValue, option2, widget, 
         return _("Fallback settings");
       }
       const normalized = `${name || ""}`.trim();
-      return normalized ? `${_("Fallback settings")}: ${normalized}` : _("Fallback settings");
+      return normalized ? _("Fallback: %s").format(normalized) : _("Fallback settings");
     },
     afterSave: (itemId, inputValue, settings, existing) => {
       const displayName = `${settings.name || inputValue || ""}`.trim();
@@ -17454,7 +17454,7 @@ function showInterfaceSettingsModal(_section_id, itemValue, option2) {
     keys: interfaceSettingsKeys(),
     defaults: (inputValue) => defaultInterfaceSettings(inputValue),
     addOptions: addInterfaceItemOptions,
-    title: () => _("Network interface settings"),
+    title: (name) => name ? _("Network interface: %s").format(name) : _("Network interface settings"),
     afterSave: () => refreshDashboardFilterChoiceWidgets(_section_id)
   });
 }
@@ -17465,10 +17465,8 @@ var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
   "hysteria",
   "hysteria2",
   "hy2",
-  "http",
   "http2",
   "http3",
-  "https",
   "mieru",
   "mierus",
   "naive+https",
@@ -17488,6 +17486,13 @@ function validateProxyUrl(url) {
   const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(trimmedUrl);
   if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
     return { valid: true, message: _("Valid") };
+  if (match && (match[1] === "http" || match[1] === "https"))
+    return {
+      valid: false,
+      message: _(
+        "This is a web address: add a subscription under Subscription, and an HTTP proxy as a JSON outbound"
+      )
+    };
   return {
     valid: false,
     message: _("The pasted link is not supported. Try JSON outbound.")
@@ -17624,15 +17629,13 @@ function writeTrimmed(itemId, value) {
   return form.Value.prototype.write.call(this, itemId, `${value ?? ""}`.trim());
 }
 function showConnectionLinkSettingsModal(sectionId, itemValue, option2, widget, itemNode) {
+  const name = connectionLinkName(sectionId, option2, `${itemValue ?? ""}`);
   return showChildItemSettingsModal(sectionId, itemValue, option2, {
     typeName: "connection_link",
     valueOption: "uri",
     keys: connectionLinkSettingsKeys(),
     itemNode,
-    defaults: (inputValue) => ({
-      uri: inputValue,
-      name: connectionLinkName(sectionId, option2, `${itemValue ?? ""}`)
-    }),
+    defaults: (inputValue) => ({ uri: inputValue, name }),
     addOptions: (itemSection) => {
       let o = itemSection.option(form.Value, "name", _("Server name"));
       o.rmempty = false;
@@ -17650,10 +17653,10 @@ function showConnectionLinkSettingsModal(sectionId, itemValue, option2, widget, 
       addCascadeOptions(
         itemSection,
         () => sectionId,
-        _("Connect to this server through another section")
+        _("Connect to the server through another section")
       );
     },
-    title: () => _("Link settings"),
+    title: () => name ? _("Server: %s").format(name) : _("Server settings"),
     afterSave: (_itemId, _inputValue, settings) => {
       updateDynamicListItemLabel(itemNode, `${settings.name || ""}`.trim());
       refreshDashboardFilterChoiceWidgets(sectionId);
@@ -17671,6 +17674,10 @@ function ruleSetIncludesSubnets(section_id, value) {
   return getConfigListValues(section_id, "rule_set_with_subnets").includes(
     value
   );
+}
+function ruleSetFileName(reference) {
+  const path = reference.trim().split(/[?#]/u, 1)[0].replace(/\/+$/u, "");
+  return path.slice(path.lastIndexOf("/") + 1);
 }
 function showRuleSetSettingsModal(section_id, itemValue, option2, widget) {
   const data = {
@@ -17692,8 +17699,9 @@ function showRuleSetSettingsModal(section_id, itemValue, option2, widget) {
   );
   includeSubnets.default = "0";
   includeSubnets.rmempty = false;
+  const name = ruleSetFileName(`${itemValue ?? ""}`);
   return renderStackedJsonSettingsModal(
-    _("Rule set settings"),
+    name ? _("Rule set: %s").format(name) : _("Rule set settings"),
     map,
     (settings) => {
       const value = settings.include_subnets === "1";
@@ -17925,18 +17933,13 @@ function showSubscriptionHeadersModal(parentMap, itemId) {
 var REMOTE_SOURCE = /^https?:\/\//;
 function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
-  let o = itemSection.option(
-    form.Value,
-    "tag",
-    _("Tag"),
-    _("The tag of this subscription's nodes shown on the dashboard")
-  );
+  let o = itemSection.option(form.Value, "tag", _("Subscription name"));
   o.rmempty = false;
   o.validate = function(_itemId, value) {
     const normalized = `${value || ""}`.trim();
-    if (!normalized) return _("Enter a subscription tag");
+    if (!normalized) return _("Enter a subscription name");
     if (normalized.includes("/")) {
-      return _("Subscription tag must not contain /");
+      return _("Subscription name must not contain /");
     }
     const sectionId = parentSectionForItem(_itemId);
     const ownerId = typeof options.ownerId === "function" ? options.ownerId() : "";
@@ -17944,13 +17947,13 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     return configuredSubscriptionTags(sectionId, options.listOption, [
       ownerId === sectionId ? "" : ownerId,
       inputValue
-    ]).includes(normalized) ? _("Subscription tag must be unique within the section") : true;
+    ]).includes(normalized) ? _("Subscription name must be unique within the section") : true;
   };
   o = itemSection.option(
     form.Value,
     "url",
-    _("Subscription"),
-    _("Subscription URL or local path")
+    _("Subscription URL"),
+    _("A URL, or the absolute path of a file on the router")
   );
   o.password = true;
   o.rmempty = false;
@@ -17970,12 +17973,13 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   addCascadeOptions(
     itemSection,
     parentSectionForItem,
-    _("Connect to the servers of this subscription through another section")
+    _("Connect to every server of this subscription through another section")
   );
   o = itemSection.option(
     form.Flag,
     "subscription_update_enabled",
-    _("Subscription auto update")
+    _("Subscription auto update"),
+    _("Update the subscription automatically at a set interval")
   );
   o.depends("url", REMOTE_SOURCE);
   o.default = "1";
@@ -17983,7 +17987,8 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Value,
     "subscription_update_interval",
-    _("Update interval")
+    _("Update interval"),
+    _("For example 30m, 12h or 1d")
   );
   o.depends({ url: REMOTE_SOURCE, subscription_update_enabled: "1" });
   o.placeholder = "1h";
@@ -17993,7 +17998,8 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o = itemSection.option(
     form.Flag,
     "download_via_proxy_enabled",
-    _("Request the subscription through a section")
+    _("Request through a section"),
+    _("Download the subscription through another section instead of directly")
   );
   o.depends("url", REMOTE_SOURCE);
   o.default = "0";
@@ -18070,6 +18076,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
 }
 function showSubscriptionUrlSettingsModal(sectionId, itemValue, option2, _widget, itemNode) {
   const value = `${itemValue ?? ""}`;
+  const tag = listedSubscriptionTag(sectionId, option2, value);
   const storedRemote = isExistingChildItem(sectionId, value, "subscription_url") && isRemoteSubscriptionSource(
     childItemInputValue(sectionId, value, "subscription_url", "url")
   );
@@ -18087,7 +18094,7 @@ function showSubscriptionUrlSettingsModal(sectionId, itemValue, option2, _widget
         { url: inputValue }
       ),
       addOptions: addSubscriptionUrlItemOptions,
-      title: () => _("Subscription settings"),
+      title: () => tag ? _("Subscription: %s").format(tag) : _("Subscription settings"),
       afterSave: (itemId, _inputValue, settings, existing) => {
         if (existing && !isRemoteSubscriptionSource(settings.url)) {
           cleanupRemoteSubscriptionUrlSettings(itemId);
@@ -19465,13 +19472,15 @@ function addWireGuardPeerItemOptions(section) {
 }
 function showWireGuardPeerSettingsModal(tunnelId, itemValue, option2, widget, itemNode, context = {}) {
   const peerId = context.adding ? nextSectionId("tunnel_peer") : `${itemValue || ""}`;
+  const peer = context.adding ? null : tunnelPeerForValue(tunnelId, peerId, option2);
+  const peerName = peer?.address ? wireGuardPeerDisplayNameFromObject(peer) : "";
   return showChildItemSettingsModal(tunnelId, peerId, option2, {
     typeName: "tunnel_peer",
     ownerOption: "tunnel",
     keys: wireGuardPeerSettingsKeys(),
     defaults: defaultWireGuardPeerSettings(),
     addOptions: addWireGuardPeerItemOptions,
-    title: () => _("WireGuard peer settings"),
+    title: () => peerName ? _("WireGuard peer: %s").format(peerName) : _("WireGuard peer settings"),
     afterSave: (itemId, _inputValue, settings, existing) => {
       const displayName = wireGuardPeerDisplayNameFromObject(
         wireGuardPeerFromSettings(settings)
@@ -20024,8 +20033,9 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     previousTunnelType = `${value ?? ""}`;
     map.checkDepends();
   };
+  const tunnelName2 = context.adding ? "" : tunnelDisplayName(section_id, tunnelId);
   return renderStackedJsonSettingsModal(
-    _("Tunnel settings"),
+    tunnelName2 ? _("Tunnel: %s").format(tunnelName2) : _("Tunnel settings"),
     map,
     (settings) => {
       const validation = validateTunnelSettings(
@@ -20185,7 +20195,7 @@ function showUrlTestSettingsModal(_section_id, itemValue, option2, widget, itemN
     ),
     title: (name) => {
       const normalized = `${name || ""}`.trim();
-      return !normalized || /^urltest-[a-z0-9]+-\d+$/.test(normalized) ? _("URLTest settings") : `${_("URLTest settings")}: ${normalized}`;
+      return !normalized || /^urltest-[a-z0-9]+-\d+$/.test(normalized) ? _("URLTest settings") : _("URLTest: %s").format(normalized);
     },
     afterSave: (itemId, inputValue, settings, existing) => {
       const displayName = `${settings.name || inputValue || ""}`.trim();
@@ -20455,7 +20465,8 @@ function createSectionContent(section) {
     "settings",
     InterfaceSettingsDynamicList,
     "interfaces",
-    _("Network Interface")
+    _("Network Interface"),
+    _("An OpenWrt network interface")
   );
   o.depends("action", "connection");
   o.rmempty = true;
@@ -20607,7 +20618,8 @@ function createSectionContent(section) {
     "conditions",
     form.DynamicList,
     "community_lists",
-    _("Built-in lists")
+    _("Built-in lists"),
+    _("Ready-made lists of services from the community")
   );
   builtInRulesetOption.modalonly = true;
   builtInRulesetOption.placeholder = _("Service list");

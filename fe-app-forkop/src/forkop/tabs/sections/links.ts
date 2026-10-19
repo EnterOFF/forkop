@@ -155,15 +155,13 @@ export function showConnectionLinkSettingsModal(
   widget: CBIWidget,
   itemNode: Element | null,
 ) {
+  const name = connectionLinkName(sectionId, option, `${itemValue ?? ''}`);
   return showChildItemSettingsModal(sectionId, itemValue, option, {
     typeName: 'connection_link',
     valueOption: 'uri',
     keys: connectionLinkSettingsKeys(),
     itemNode,
-    defaults: (inputValue: string) => ({
-      uri: inputValue,
-      name: connectionLinkName(sectionId, option, `${itemValue ?? ''}`),
-    }),
+    defaults: (inputValue: string) => ({ uri: inputValue, name }),
     addOptions: (itemSection: CBISection) => {
       let o = itemSection.option(form.Value, 'name', _('Server name'));
       o.rmempty = false;
@@ -188,10 +186,10 @@ export function showConnectionLinkSettingsModal(
       addCascadeOptions(
         itemSection,
         () => sectionId,
-        _('Connect to this server through another section'),
+        _('Connect to the server through another section'),
       );
     },
-    title: () => _('Link settings'),
+    title: () => (name ? _('Server: %s').format(name) : _('Server settings')),
     afterSave: (
       _itemId: string,
       _inputValue: string,

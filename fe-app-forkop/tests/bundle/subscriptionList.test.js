@@ -44,6 +44,7 @@ async function openSubscription(id, listed) {
   const dialog = await harness.openDialog(list, 'sec', id);
   const fields = dialog.map.children[0].children;
   return {
+    title: dialog.title,
     field: (name) => fields.find((option) => option.option === name),
     set(name, value) {
       this.field(name).formvalue = () => value;
@@ -94,6 +95,7 @@ describe('the address in the subscription dialog', () => {
     storeSubscription('sub_a', REMOTE);
     const dialog = await openSubscription('sub_a');
     expect(dialog.field('url').password, 'the URL is shown masked').toBe(true);
+    expect(dialog.title).toBe('Subscription: sub1');
     dialog.set('url', 'https://other.example/sub');
 
     expect((await dialog.save()).saved).toBe(true);
