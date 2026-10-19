@@ -17,7 +17,6 @@ t.test("a single DNS server is used directly", () => {
     t.eq(q.dns_server_tag(single, "dns-server").server, "77.88.8.8");
     t.eq(q.dns_server_tag(single, "bootstrap-dns-server").server, "77.88.8.8");
     t.eq(length(single.inbounds), 7);
-    t.eq(q.inbound(single, "service-mixed-in"), null, "a bypass-only configuration needs no proxy diagnostic inbound");
 });
 
 t.test("several DNS servers become native fallback groups with their own query modes", () => {
@@ -34,8 +33,7 @@ t.test("several DNS servers become native fallback groups with their own query m
         } ]
     });
     t.eq(length(multi.dns.servers), 8, "four candidates, two groups, the local resolver and FakeIP");
-    t.eq(length(multi.inbounds), 8);
-    t.ok(q.inbound(multi, "service-mixed-in") != null);
+    t.eq(length(multi.inbounds), 7);
     let bootstrap = q.dns_server_tag(multi, "bootstrap-dns-server");
     let main = q.dns_server_tag(multi, "dns-server");
     t.eq([ bootstrap.type, bootstrap.strategy, bootstrap.servers ], [ "fallback", "parallel", [ "bootstrap-dns-server-1", "bootstrap-dns-server-2" ] ]);

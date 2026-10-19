@@ -26,6 +26,10 @@ return {
     NFT_PAUSE_CHAIN_NAME: "capture_pause",
     NFT_FAKEIP_MARK: "0x04000000",
     NFT_OUTBOUND_MARK: "0x08000000",
+    // The hooks of the DNS capture, clients' and the router's own. A redirect of
+    // another program hooked earlier takes a query before Forkop sees it.
+    NFT_DNS_REDIRECT_PRIORITY: -101,
+    NFT_SYSTEM_DNS_REDIRECT_PRIORITY: -100,
 
     SB_REQUIRED_VERSION: "1.13.18-extended-2.6.5-f39"
 };

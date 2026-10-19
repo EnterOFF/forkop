@@ -62,17 +62,15 @@ export namespace Forkop {
   // Subset of the Forkop CLI this app drives. `forkop` without arguments
   // prints the authoritative command list, so it is not duplicated here.
   export enum AvailableMethods {
-    CHECK_DNS_AVAILABLE = 'check_dns_available',
-    CHECK_FAKEIP = 'check_fakeip',
-    CHECK_NFT_RULES = 'check_nft_rules',
-    CHECK_INBOUNDS_CONFIG = 'check_inbounds_config',
-    CHECK_SING_BOX = 'check_sing_box',
-    CHECK_INBOUNDS = 'check_inbounds',
+    CHECK_SERVICE = 'check_service',
+    CHECK_DNS = 'check_dns',
+    CHECK_TRAFFIC = 'check_traffic',
+    CHECK_SERVERS = 'check_servers',
+    REPORT = 'report',
     CLASH_API = 'clash_api',
     CLASH_SUMMARY = 'clash_summary',
     ENABLE = 'enable',
     DISABLE = 'disable',
-    GLOBAL_CHECK = 'global_check',
     SHOW_CONFIG = 'show_config',
     SHOW_SING_BOX_CONFIG = 'show_sing_box_config',
     CHECK_LOGS = 'check_logs',
@@ -317,76 +315,81 @@ export namespace Forkop {
     | MethodSuccessResponse<T>
     | MethodFailureResponse;
 
+  // What `forkop check_service` found: whether Forkop runs and what on the
+  // router could keep it from working whatever its configuration says.
+  export interface ServiceCheckResult {
+    running: boolean;
+    // Seconds the core has run, -1 when it does not.
+    uptime: number;
+    // The error logged since the last start or stop that went through.
+    last_error: string;
+    foreign_sing_box: number[];
+    conflicts: Array<{ table: string; kind: 'tproxy' | 'dns' }>;
+    memory: { total_kb: number; available_kb: number };
+    oom: Array<{ process: string; seconds_ago: number }>;
+    router_uptime: number;
+    // The router's clock, in seconds since the epoch.
+    time: number;
+  }
+
+  export interface DnsQueryResult {
+    answered: boolean;
+    status: string;
+    ms: number;
+  }
+
   export interface DnsCheckResult {
-    dns_server: string;
-    dns_status: 0 | 1;
-    dns_on_router: 0 | 1;
-    bootstrap_dns_server: string;
-    bootstrap_dns_status: 0 | 1;
-    local_dns_server: string;
-    local_dns_status: 0 | 1;
-    dns_capture_status: 0 | 1;
+    main: DnsQueryResult & { servers: string };
+    bootstrap: {
+      servers: string;
+      host: string;
+      answered: boolean;
+      ms: number;
+    } | null;
+    local: DnsQueryResult;
   }
 
-  export interface NftRulesCheckResult {
-    table_exist: 0 | 1;
-    rules_mangle_exist: 0 | 1;
-    rules_mangle_counters: 0 | 1;
-    rules_mangle_output_exist: 0 | 1;
-    rules_mangle_output_counters: 0 | 1;
-    rules_proxy_exist: 0 | 1;
-    rules_proxy_counters: 0 | 1;
-    rules_other_mark_exist: 0 | 1;
+  export interface TrafficCheckResult {
+    router: {
+      dns_fakeip: boolean;
+      answered: boolean;
+      fakeip: boolean;
+      ip: string;
+    };
+    exit: { section: string; answered: boolean; ip: string } | null;
   }
 
-  export interface SingBoxCheckResult {
-    sing_box_installed: 0 | 1;
-    sing_box_version_ok: 0 | 1;
-    sing_box_clash_api: 0 | 1;
-    sing_box_service_exist: 0 | 1;
-    sing_box_autostart_disabled: 0 | 1;
-    sing_box_process_running: 0 | 1;
-    sing_box_ports_listening: 0 | 1;
-  }
-
-  export interface InboundCheckItem {
-    section: string;
+  export interface ServerCheckItem {
     label: string;
     protocol: string;
-    routing_mode: string;
-    tag: string;
-    listen: string;
-    listen_port: number;
+    port: number;
+    transports: string;
+    runtime: boolean;
+    listening: boolean;
+    owners: string;
+    exposed: boolean;
+    firewall_open: boolean;
     public_host: string;
-    public_host_ips: string;
-    expected_type: string;
-    required_proto: string;
-    runtime_exists: 0 | 1;
-    runtime_type: string;
-    runtime_listen: string;
-    runtime_port: number;
-    runtime_ok: 0 | 1;
-    listening: -1 | 0 | 1;
-    firewall_required: 0 | 1;
-    firewall_open: -1 | 0 | 1;
-    port_conflict: 0 | 1;
-    port_conflict_owners: string;
-    routes_configured: 0 | 1;
-    public_host_resolved: -1 | 0 | 1;
-    public_host_public: -1 | 0 | 1;
-    public_host_matches_wan: -1 | 0 | 1;
+    public_ips: string;
+    resolved: -1 | 0 | 1;
+    public: -1 | 0 | 1;
+    matches_wan: -1 | 0 | 1;
   }
 
-  export interface InboundsCheckResult {
-    enabled_count: number;
-    config_path: string;
-    wan_ip: string;
-    wan_public: 0 | 1;
-    items: InboundCheckItem[];
+  export interface ServersCheckResult {
+    wan: string;
+    items: ServerCheckItem[];
   }
 
-  export interface InboundsConfigCheckResult {
-    enabled_count: number;
+  // What a diagnostic report carries beside the system facts: the checks the
+  // page sent, masked by the router's rules when asked, and what the router adds.
+  export interface ReportAttachments {
+    checks: string;
+    log: string;
+    forkop_config: string;
+    sing_box_config: string;
+    nftables: string;
+    ip_rules: string;
   }
 
   export interface FakeIPCheckResult {

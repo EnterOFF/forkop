@@ -77,7 +77,7 @@ describe('listen port validation', () => {
   it('rejects the ports Forkop binds itself', () => {
     const { validate } = load();
 
-    for (const port of ['53', '1602', '4534', '9090']) {
+    for (const port of ['53', '1602', '4536', '9090']) {
       expect(validate.validateListenPort('srv', port), port).not.toBe(true);
     }
   });

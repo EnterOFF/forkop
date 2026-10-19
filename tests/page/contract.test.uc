@@ -45,9 +45,8 @@ t.test("the reserved override paths are the ones the validator refuses", () => {
     t.eq(constants.RESERVED_OVERRIDE_PATCH_PATHS, contract.reserved_override_patch_paths);
 });
 
-t.test("the diagnostics check the domains the generated configuration answers for", () => {
+t.test("the page checks the domain the generated configuration answers with FakeIP", () => {
     t.eq(constants.FAKEIP_TEST_DOMAIN, contract.check_domains.fakeip);
-    t.eq(constants.CHECK_PROXY_IP_DOMAIN, contract.check_domains.ip);
 });
 
 // The dashboard describes a group from the same UCI options the generator

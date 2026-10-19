@@ -23,9 +23,7 @@ describe('callBaseMethod', () => {
       code: 1,
     });
 
-    const response = await callBaseMethod(
-      Forkop.AvailableMethods.CHECK_DNS_AVAILABLE,
-    );
+    const response = await callBaseMethod(Forkop.AvailableMethods.CHECK_DNS);
 
     expect(response).toEqual({
       success: false,
@@ -41,7 +39,7 @@ describe('callBaseMethod', () => {
     });
 
     await callBaseMethod(
-      Forkop.AvailableMethods.GLOBAL_CHECK,
+      Forkop.AvailableMethods.REPORT,
       [],
       '/usr/bin/forkop',
       { timeout: 60000 },
@@ -49,7 +47,7 @@ describe('callBaseMethod', () => {
 
     expect(mocks.executeShellCommand).toHaveBeenCalledWith({
       command: '/usr/bin/forkop',
-      args: ['global_check'],
+      args: ['report'],
       timeout: 60000,
     });
   });

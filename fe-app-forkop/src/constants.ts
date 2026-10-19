@@ -1,7 +1,6 @@
 export const FORKOP_UCI_PACKAGE = 'forkop';
 export const FORKOP_LUCI_APP_VERSION = '__COMPILED_VERSION_VARIABLE__';
 export const FAKEIP_CHECK_DOMAIN = 'fakeip.podkop.fyi';
-export const IP_CHECK_DOMAIN = 'ip.podkop.fyi';
 // Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS
 // servers. A section or server display name becomes a tag verbatim, so these
 // names are refused by both dialogs, and by the runtime check, which reads
@@ -22,7 +21,6 @@ export const RESERVED_RUNTIME_TAGS = new Set([
   'system-in',
   'system6-in',
   'system-dns-in',
-  'service-mixed-in',
   'service-warp-in',
   'direct-out',
 ]);

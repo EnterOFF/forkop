@@ -1252,7 +1252,6 @@ function validate_server_listen_ports() {
         as_string(singbox_constants.SYSTEM_TPROXY_INBOUND_PORT),
         as_string(singbox_constants.SYSTEM_DNS_INBOUND_PORT),
         as_string(singbox_constants.DNS_INBOUND_PORT),
-        as_string(singbox_constants.SERVICE_MIXED_INBOUND_PORT),
         as_string(singbox_constants.WARP_PROFILES_MIXED_INBOUND_PORT),
         as_string(singbox_constants.CLASH_API_CONTROLLER_PORT)
     ])

@@ -19,21 +19,6 @@ t.test("the masked Forkop configuration keeps its shape and loses every secret",
         t.contains(masked, kept);
 });
 
-t.test("the masked WAN configuration hides the WireGuard key of the WAN", () => {
-    let masked = mask.wan_config("config interface 'wan'\n        option proto 'wireguard'\n        option private_key 'wireguard-private-secret'\n" +
-        "        option addresses '192.0.2.2/32'\nconfig interface 'lan'\n        option private_key 'not-in-wan'\n");
-    t.excludes(masked, "wireguard-private-secret");
-    t.contains(masked, "option private_key '******'");
-});
-
-t.test("a proxy check answer is reduced to the masked address", () => {
-    t.eq(mask.proxy_response_ip("{\"fakeip\": false, \"IP\": \"194.76.146.236\"}\n"), "X.X.X.236");
-    t.eq(mask.proxy_response_ip("198.51.100.9\n"), "X.X.X.9");
-    t.eq(mask.proxy_response_ip("2001:db8::1\n"), "2001:db8:0:XXXX:XXXX:XXXX:XXXX:XXXX", "a compressed IPv6 address");
-    t.eq(mask.proxy_response_ip("{\"IP\": \"2a02:6b8:c0e:500:1:2:3:4\"}"), "2a02:6b8:c0e:XXXX:XXXX:XXXX:XXXX:XXXX", "an IPv6 exit in JSON");
-    t.eq(mask.proxy_response_ip("<html>blocked</html>"), null);
-});
-
 t.test("hand-written outbounds are masked, however many lines they take", () => {
     let masked = mask.forkop_config("config section 'main'\n        list outbound_jsons '{\"type\":\"vless\",\"server\":\"secret.example\"}'\n" +
         "        list outbound_jsons '{\n            \"type\": \"trojan\",\n            \"password\": \"trojan-secret\"\n        }'\n        option label 'Main'\n");
@@ -70,16 +55,6 @@ t.test("a private resolver's account is masked in its host or its path, a public
     ])
         t.eq(mask.dns_server(pair[0]), pair[1], pair[0]);
 });
-
-t.test("the WAN keeps its protocol and loses what identifies the line, whatever the protocol", () => {
-    let masked = mask.wan_config("config interface 'wan'\n        option proto 'l2tp'\n        option server 'lns.isp.example'\n" +
-        "        option username 'l2tp-user'\n        option password 'l2tp-secret'\n        option macaddr '02:00:00:12:34:56'\n" +
-        "        option ip6addr '2001:db8::2/64'\n        option pincode '1234'\n        list ipaddr '192.0.2.2/24'\n");
-    for (let secret in [ "lns.isp.example", "l2tp-user", "l2tp-secret", "02:00:00:12:34:56", "2001:db8::2", "1234", "192.0.2.2" ])
-        t.excludes(masked, secret);
-    t.contains(masked, "option proto 'l2tp'");
-});
-
 
 const TUNNELS_AND_SERVERS = join("\n", [
     "config tunnel 'tun_warp'",
@@ -185,6 +160,44 @@ t.test("the credentials of a native endpoint are masked in the sing-box dump wit
         t.eq(mask.sing_box_config(config).endpoints[0].tls[key], "MASKED", key);
         t.eq(config.endpoints[0].tls[key], [ "sensitive" ], key + " in the input");
     }
+});
+
+t.test("a public address keeps what tells it apart, and a local one stays as it is", () => {
+    t.eq(map([ "194.76.146.236", "2a02:6b8:c0e:500:1:2:3:4", "2a00:1450::1", "192.168.1.1", "127.0.0.42", "198.18.0.7", "fc00::7", "::1" ], mask.address),
+        [ "X.X.X.236", "2a02:6b8:c0e:XXXX:XXXX:XXXX:XXXX:XXXX", "2a00:1450:0:XXXX:XXXX:XXXX:XXXX:XXXX", "192.168.1.1", "127.0.0.42", "198.18.0.7", "fc00::7", "::1" ]);
+});
+
+t.test("the server addresses come from every place the generated configuration dials", () => {
+    let hosts = mask.hosts({
+        outbounds: [ { type: "parser", tag: "a", link: "vless://uuid@link.example:443?sni=front.example#name" },
+            { type: "vless", tag: "b", server: "plain.example", tls: { server_name: "sni.example" } }, { type: "direct", tag: "direct-out" } ],
+        endpoints: [ { type: "wireguard", peers: [ { address: "peer.example", allowed_ips: [ "0.0.0.0/0" ] } ], address: [ "10.0.0.2/32" ] } ],
+        providers: [ { tag: "sub", url: "https://panel.example/sub?token=1" } ],
+        dns: { servers: [ { type: "https", server: "dns.example" }, { type: "udp", server: "77.88.8.8" } ] },
+        route: { rule_set: [ { url: "https://github.com/lists/list.srs" } ] }
+    });
+    t.eq(sort(hosts), [ "dns.example", "link.example", "panel.example", "peer.example", "plain.example", "sni.example" ]);
+    t.eq(mask.hosts(null), []);
+});
+
+t.test("a host name is masked as a name, with its subdomains, never inside another word", () => {
+    t.eq(mask.names("t.me and api.t.me, but.message, t.mesh, t.me.", [ "t.me" ]), "MASKED and api.MASKED, but.message, t.mesh, MASKED.");
+    t.eq(mask.names("Main/Vless node.example #2", [ "node.example" ]), "Main/Vless MASKED #2");
+});
+
+t.test("free text loses URL paths and credentials, the given hosts and public addresses, and keeps the rest readable", () => {
+    let log = join("\n", [
+        "Mon Oct 19 17:05:01 2026 user.err forkop: [error] Failed to download https://user:pw@panel.example/sub?token=secret for 'Main'",
+        "Mon Oct 19 17:05:02 2026 daemon.err sing-box[42]: ERROR[0330] outbound/vless[Main/node.example]: dial tcp 185.199.108.9:443: i/o timeout",
+        "Mon Oct 19 17:05:03 2026 daemon.err sing-box[42]: ERROR[0331] dial [2a00:1450::1]:443 from 192.168.1.140 via 127.0.0.42:53",
+        "Mon Oct 19 17:05:04 2026 user.info forkop: [info] Loaded 1.14.1 rule sets from https://github.com/"
+    ]);
+    let masked = mask.text(log, [ "panel.example", "node.example" ]);
+    for (let secret in [ "secret", "user:pw", "panel.example", "node.example", "185.199.108.9", "2a00:1450::1" ])
+        t.excludes(masked, secret);
+    for (let kept in [ "https://MASKED@MASKED/MASKED for 'Main'", "Main/MASKED", "X.X.X.9:443", "[2a00:1450:0:XXXX:XXXX:XXXX:XXXX:XXXX]:443",
+        "192.168.1.140", "127.0.0.42:53", "17:05:04", "1.14.1", "https://github.com/" ])
+        t.contains(masked, kept);
 });
 
 t.done();

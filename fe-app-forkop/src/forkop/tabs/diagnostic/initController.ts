@@ -1,19 +1,20 @@
 import { onMount } from '../../../helpers/onMount';
 import { preserveScrollForPage } from '../../../helpers/preserveScrollForPage';
-import { runDnsCheck } from './checks/runDnsCheck';
-import { runSingBoxCheck } from './checks/runSingBoxCheck';
-import { runInboundsCheck } from './checks/runInboundsCheck';
-import { runNftCheck } from './checks/runNftCheck';
-import { runFakeIPCheck } from './checks/runFakeIPCheck';
+import { runServiceCheck } from './checks/service';
+import { runDnsCheck } from './checks/dns';
+import { runTrafficCheck } from './checks/traffic';
+import { runSectionsCheck } from './checks/sections';
+import { runServersCheck } from './checks/servers';
+import { CheckOutcome, skipped } from './checks/present';
+import { DIAGNOSTICS_CHECKS } from './checks/groups';
 import {
-  DIAGNOSTICS_CHECKS,
-  DIAGNOSTICS_CHECKS_MAP,
-} from './checks/contstants';
-import {
+  createDiagnosticCheck,
   DiagnosticsCheckOptions,
+  diagnosticsCheckCodes,
   getDiagnosticsChecks,
   getLoadingDiagnosticsChecks,
 } from './diagnostic.store';
+import { checksText, reportText } from './report';
 import {
   logger,
   getCachedRuntimeUiState,
@@ -36,7 +37,6 @@ import { ForkopShellMethods } from '../../methods';
 import { normalizeCompiledVersion } from '../../../helpers/normalizeCompiledVersion';
 import { renderModal } from '../../../partials';
 import { FORKOP_LUCI_APP_VERSION } from '../../../constants';
-import { runSectionsCheck } from './checks/runSectionsCheck';
 import { Forkop } from '../../types';
 import {
   getAutostartControlsPresentation,
@@ -68,11 +68,14 @@ const handledServiceActionJobs = new Set<string>();
 // lays the list out again: a check with a problem opens, one that passed stays
 // a single line.
 const checkFolding = new Map<string, boolean>();
+// What the service check of the run in flight found.
+let forkopRunningInRun = true;
+let runServiceData: Forkop.ServiceCheckResult | undefined;
 
 type ServiceRuntimeAction = 'restart' | 'start' | 'stop';
 type DiagnosticRunner = {
   code: DIAGNOSTICS_CHECKS;
-  run: () => Promise<void>;
+  run: () => Promise<CheckOutcome>;
 };
 
 function getDiagnosticsCheckOptions(
@@ -82,7 +85,7 @@ function getDiagnosticsCheckOptions(
   > = store.get().diagnosticsSystemInfo,
 ): DiagnosticsCheckOptions {
   return {
-    includeInbounds: systemInfo.server_inbounds_enabled_count > 0,
+    includeServers: systemInfo.server_inbounds_enabled_count > 0,
   };
 }
 
@@ -116,6 +119,7 @@ function releaseDiagnosticsChecks() {
   }
 
   diagnosticsChecksOwnedByRun = false;
+  store.set({ diagnosticsRunAction: { loading: false, finished: null } });
   rebuildIdleDiagnosticsChecks();
 }
 
@@ -226,28 +230,13 @@ async function fetchDiagnosticsCapabilities({
       return;
     }
 
-    const inboundsConfig = await ForkopShellMethods.checkInboundsConfig();
-
-    if (requestId !== latestCapabilitiesRequestId) {
-      return;
-    }
-
-    const currentSystemInfo = store.get().diagnosticsSystemInfo;
+    // Without the runtime feed the number of servers is unknown, and the
+    // servers check says for itself whether there is anything to check.
     const nextSystemInfo = {
-      ...currentSystemInfo,
+      ...store.get().diagnosticsSystemInfo,
       capabilitiesLoaded: true,
-      server_inbounds_enabled_count: inboundsConfig.success
-        ? inboundsConfig.data.enabled_count
-        : -1,
+      server_inbounds_enabled_count: -1,
     };
-
-    if (!inboundsConfig.success) {
-      logger.error(
-        '[DIAGNOSTIC]',
-        'fetchInboundsConfig failed',
-        inboundsConfig,
-      );
-    }
 
     applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
   } catch (error) {
@@ -295,15 +284,32 @@ function renderDiagnosticsChecks() {
 function renderDiagnosticRunActionWidget() {
   logger.debug('[DIAGNOSTIC]', 'renderDiagnosticRunActionWidget');
 
-  const { loading } = store.get().diagnosticsRunAction;
+  const { loading, finished } = store.get().diagnosticsRunAction;
+  const { diagnosticsActions, servicesInfoWidget } = store.get();
   const capabilitiesLoaded =
     store.get().diagnosticsSystemInfo.capabilitiesLoaded;
   const container = document.getElementById('fkp_diagnostic-page-run-check');
+  const disabled = shouldDisableDiagnosticRunAction({
+    capabilitiesLoaded,
+    operation: getServiceOperation({
+      busy: servicesInfoWidget.data.forkopBusy,
+      localPending: getLocalPendingServiceOperation(diagnosticsActions),
+    }),
+  });
 
   const renderedAction = renderRunAction({
     loading,
-    disabled: shouldDisableDiagnosticRunAction({ capabilitiesLoaded }),
+    disabled,
     click: () => runChecks(),
+    // The report is the result of a run, so it is offered once one finished.
+    report:
+      finished && !loading
+        ? {
+            loading: diagnosticsActions.report.loading,
+            disabled: diagnosticsActions.report.loading,
+            click: () => handleReport(),
+          }
+        : null,
   });
 
   return preserveScrollForPage(() => {
@@ -403,7 +409,7 @@ function diagnosticText(
 // A diagnostic shown in a dialog. The backend masks what it shows, and a read
 // that fails is said rather than only logged.
 async function showDiagnosticModal(
-  action: 'globalCheck' | 'showConfig' | 'showSingBoxConfig',
+  action: 'showConfig' | 'showSingBoxConfig',
   title: string,
   name: string,
   load: (
@@ -420,7 +426,6 @@ async function showDiagnosticModal(
       title,
       renderModal(text, name, {
         getText,
-        initialAutoRefresh: false,
         showMaskValuesToggle: true,
       }),
     );
@@ -432,13 +437,50 @@ async function showDiagnosticModal(
   }
 }
 
-function handleShowGlobalCheck() {
-  return showDiagnosticModal(
-    'globalCheck',
-    _('Global check'),
-    'global_check',
-    ForkopShellMethods.globalCheck,
+// The report is the checks of the finished run as the page shows them, and
+// what the router adds to them. Masked, the router hides the same values in the
+// checks as in the rest.
+async function buildReport(masked: boolean) {
+  const run = store.get().diagnosticsRunAction.finished;
+  const attachments = await ForkopShellMethods.report(
+    masked,
+    checksText(store.get().diagnosticsChecks),
   );
+  if (!attachments.success) {
+    throw new Error(attachments.error || 'Failed to collect the report');
+  }
+  return reportText(
+    {
+      generatedAt: new Date(),
+      systemInfo: store.get().diagnosticsSystemInfo,
+      luciVersion: normalizeCompiledVersion(FORKOP_LUCI_APP_VERSION),
+      service: run?.service,
+    },
+    attachments.data,
+  );
+}
+
+async function handleReport() {
+  setDiagnosticActionLoading('report', true);
+
+  try {
+    const getText = ({ maskValues }: { maskValues: boolean }) =>
+      buildReport(maskValues);
+    const text = await getText({ maskValues: true });
+
+    ui.showModal(
+      _('Diagnostic report'),
+      renderModal(text, 'forkop-report', {
+        getText,
+        showMaskValuesToggle: true,
+      }),
+    );
+  } catch (error) {
+    logger.error('[DIAGNOSTIC]', 'report', error);
+    showToast(_('Failed to load diagnostics'), 'error');
+  } finally {
+    setDiagnosticActionLoading('report', false);
+  }
 }
 
 function handleShowForkopConfig() {
@@ -496,12 +538,6 @@ function renderDiagnosticAvailableActionsWidget() {
     // Read-only actions are never gated by service state or by another action:
     // they answer questions, and the questions matter most when something is
     // wrong. Each one still blocks its own double submit while it runs.
-    globalCheck: {
-      loading: diagnosticsActions.globalCheck.loading,
-      visible: true,
-      onClick: handleShowGlobalCheck,
-      disabled: diagnosticsActions.globalCheck.loading,
-    },
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,
       visible: true,
@@ -564,7 +600,12 @@ async function onStoreUpdate(
     renderDiagnosticsChecks();
   }
 
-  if (diff.diagnosticsRunAction || diff.diagnosticsSystemInfo) {
+  if (
+    diff.diagnosticsRunAction ||
+    diff.diagnosticsSystemInfo ||
+    diff.diagnosticsActions ||
+    diff.servicesInfoWidget
+  ) {
     renderDiagnosticRunActionWidget();
   }
 
@@ -577,39 +618,44 @@ async function onStoreUpdate(
   }
 }
 
-function setDiagnosticCheckLoading(code: DIAGNOSTICS_CHECKS) {
-  const meta = DIAGNOSTICS_CHECKS_MAP[code];
-  const diagnosticsChecks = store.get().diagnosticsChecks;
-  const other = diagnosticsChecks.filter((item) => item.code !== code);
+function setDiagnosticCheck(code: DIAGNOSTICS_CHECKS, result: CheckOutcome) {
+  const other = store
+    .get()
+    .diagnosticsChecks.filter((item) => item.code !== code);
 
   store.set({
     diagnosticsChecks: [
       ...other,
-      {
-        order: meta.order,
-        code: meta.code,
-        title: meta.title,
-        description: _('Checking, please wait'),
-        state: 'loading',
-        items: [],
-      },
+      { ...createDiagnosticCheck(code, result.description), ...result },
     ],
   });
 }
 
+// Everything after the service check needs the runtime; with Forkop down they
+// would only repeat that it is down, each in its own words.
 function getDiagnosticRunners(
   checkOptions: DiagnosticsCheckOptions,
 ): DiagnosticRunner[] {
-  return [
-    { code: DIAGNOSTICS_CHECKS.DNS, run: runDnsCheck },
-    { code: DIAGNOSTICS_CHECKS.SINGBOX, run: runSingBoxCheck },
-    { code: DIAGNOSTICS_CHECKS.NFT, run: runNftCheck },
-    { code: DIAGNOSTICS_CHECKS.OUTBOUNDS, run: runSectionsCheck },
-    ...(checkOptions.includeInbounds
-      ? [{ code: DIAGNOSTICS_CHECKS.INBOUNDS, run: runInboundsCheck }]
-      : []),
-    { code: DIAGNOSTICS_CHECKS.FAKEIP, run: runFakeIPCheck },
-  ];
+  const runners: Record<DIAGNOSTICS_CHECKS, () => Promise<CheckOutcome>> = {
+    [DIAGNOSTICS_CHECKS.SERVICE]: async () => {
+      const service = await runServiceCheck();
+      runServiceData = service.data;
+      forkopRunningInRun = service.running;
+      return service.result;
+    },
+    [DIAGNOSTICS_CHECKS.DNS]: runDnsCheck,
+    [DIAGNOSTICS_CHECKS.TRAFFIC]: runTrafficCheck,
+    [DIAGNOSTICS_CHECKS.SECTIONS]: runSectionsCheck,
+    [DIAGNOSTICS_CHECKS.SERVERS]: runServersCheck,
+  };
+
+  return diagnosticsCheckCodes(checkOptions).map((code) => ({
+    code,
+    run: () =>
+      code === DIAGNOSTICS_CHECKS.SERVICE || forkopRunningInRun
+        ? runners[code]()
+        : Promise.resolve(skipped(_('Skipped: Forkop is not running'))),
+  }));
 }
 
 // One pass, one page session. The run outlives the tab that started it: a LuCI tab
@@ -622,10 +668,11 @@ async function runChecks() {
     return;
   }
 
+  let finished: StoreType['diagnosticsRunAction']['finished'] = null;
   diagnosticsChecksOwnedByRun = true;
   checkFolding.clear();
   store.set({
-    diagnosticsRunAction: { loading: true },
+    diagnosticsRunAction: { loading: true, finished: null },
     diagnosticsChecks: getLoadingDiagnosticsChecks(getDiagnosticsCheckOptions())
       .diagnosticsChecks,
   });
@@ -633,30 +680,44 @@ async function runChecks() {
   try {
     await fetchDiagnosticsCapabilities({ resetChecks: false });
 
-    const checkOptions = getDiagnosticsCheckOptions();
+    // A run checks the servers unless it knows there are none.
+    const checkOptions = {
+      includeServers:
+        store.get().diagnosticsSystemInfo.server_inbounds_enabled_count !== 0,
+    };
 
     store.set({
       diagnosticsChecks:
         getLoadingDiagnosticsChecks(checkOptions).diagnosticsChecks,
     });
 
+    forkopRunningInRun = true;
+    runServiceData = undefined;
+
     for (const runner of getDiagnosticRunners(checkOptions)) {
-      setDiagnosticCheckLoading(runner.code);
+      setDiagnosticCheck(runner.code, {
+        state: 'loading',
+        description: _('Checking, please wait'),
+        items: [],
+      });
 
       try {
-        await runner.run();
+        setDiagnosticCheck(runner.code, await runner.run());
       } catch (e) {
-        logger.error(
-          '[DIAGNOSTIC]',
-          `runChecks - ${runner.run.name} failed`,
-          e,
-        );
+        logger.error('[DIAGNOSTIC]', `runChecks - ${runner.code} failed`, e);
+        setDiagnosticCheck(runner.code, {
+          state: 'error',
+          description: _('Cannot receive checks result'),
+          items: [],
+        });
       }
     }
+
+    finished = { service: runServiceData };
   } catch (e) {
     logger.error('[DIAGNOSTIC]', 'runChecks - e', e);
   } finally {
-    store.set({ diagnosticsRunAction: { loading: false } });
+    store.set({ diagnosticsRunAction: { loading: false, finished } });
   }
 }
 

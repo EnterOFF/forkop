@@ -379,12 +379,7 @@ t.test("inbounds, DNS servers and base routing of a matcher-heavy configuration"
     t.ok(q.route_rule(m, (r) => r.action == "reject" && r.inbound == "system-dns-in") != null);
     t.ok(q.dns_server(m, (r) => r.tag == "dnsmasq-server" && r.type == "udp" && r.server == "127.0.0.1" && r.server_port == 53) != null);
 
-    let check_inbound = q.inbound(m, "service-mixed-in");
-    t.eq([ check_inbound.listen, check_inbound.listen_port ], [ "127.0.0.1", 4534 ],
-        "proxy diagnostics reach the running core through a loopback mixed inbound");
-    let check_route = q.route_rule(m, (r) => r.inbound == "service-mixed-in");
-    let check_domain_route = q.route_rule(m, (r) => r.domain == "ip.podkop.fyi" && r.outbound != null);
-    t.eq(check_route.outbound, check_domain_route.outbound, "the diagnostic inbound measures the outbound its route rule uses");
+    t.eq(q.inbound(m, "service-mixed-in"), null, "nothing outside the core measures the first section");
 });
 
 t.test("device-scoped sections keep FakeIP and their priority in DNS rules", () => {
@@ -684,20 +679,7 @@ t.test("downloads through a section get service inbounds and rule-set detours", 
             }
         ]
     });
-    t.ok(q.inbound(d, "service-mixed-in") != null);
-    t.ok(q.route_rule(d, (r) => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null);
     t.eq(filter(d.inbounds, (inbound) => index(inbound.tag, "service-subscription") == 0), [], "a subscription downloads through its detour, not a port");
-
-    let lists_elsewhere = build({
-        settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "lists_proxy" }),
-        section: [
-            { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"a\"}" ], destinations: "example.org" },
-            { ".name": "lists_proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"b\"}" ], destinations: "lists.example" }
-        ],
-        subscription_url: [ { ".name": "sub_list", section: "lists_proxy", url: "https://sub.example/list", tag: "sub1" } ]
-    });
-    t.ok(q.route_rule(lists_elsewhere, (r) => r.inbound == "service-mixed-in" && r.outbound == "proxy") != null,
-        "the proxy diagnostic measures the first section, as the transparent proxy check does, wherever lists download");
     t.eq(q.ruleset(d, "proxy-discord-community-ruleset").http_client.detour, "proxy");
     t.eq(q.ruleset_url(d, "https://example.com/rules.srs").http_client.detour, "proxy");
     let text_ruleset = q.ruleset_url(d, "https://example.com/mixed.txt");

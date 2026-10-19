@@ -54,14 +54,14 @@ function find(
 function check(
   state: IDiagnosticsChecksStoreItem['state'],
   items: IDiagnosticsChecksStoreItem['items'] = [
-    { state: 'success', key: 'Table exists', value: '' },
+    { state: 'success', key: 'Main DNS', value: '77.88.8.8 · 12 ms' },
   ],
 ): IDiagnosticsChecksStoreItem {
   return {
-    code: 'NFT',
-    order: 3,
-    title: 'nftables',
-    description: 'Checks passed',
+    code: 'DNS',
+    order: 1,
+    title: 'DNS',
+    description: 'OK',
     state,
     items,
   };

@@ -163,6 +163,9 @@ export interface StoreType {
   };
   diagnosticsRunAction: {
     loading: boolean;
+    // What the last finished run found, which a report is built from, until
+    // the result goes stale.
+    finished: { service?: Forkop.ServiceCheckResult } | null;
   };
   diagnosticsChecks: Array<IDiagnosticsChecksStoreItem>;
   diagnosticsActions: {
@@ -171,7 +174,7 @@ export interface StoreType {
     stop: { loading: boolean };
     enable: { loading: boolean };
     disable: { loading: boolean };
-    globalCheck: { loading: boolean };
+    report: { loading: boolean };
     showConfig: { loading: boolean };
     showSingBoxConfig: { loading: boolean };
   };

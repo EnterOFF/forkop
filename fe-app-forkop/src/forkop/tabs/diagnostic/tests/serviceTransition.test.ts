@@ -225,15 +225,32 @@ describe('autostart controls', () => {
 
 describe('diagnostics run action', () => {
   it('runs while the service is stopped, which is when it is most useful', () => {
-    expect(shouldDisableDiagnosticRunAction({ capabilitiesLoaded: true })).toBe(
-      false,
-    );
+    expect(
+      shouldDisableDiagnosticRunAction({
+        capabilitiesLoaded: true,
+        operation: null,
+      }),
+    ).toBe(false);
   });
 
-  it('waits only until the page knows what to check', () => {
+  it('waits until the page knows what to check', () => {
     expect(
-      shouldDisableDiagnosticRunAction({ capabilitiesLoaded: false }),
+      shouldDisableDiagnosticRunAction({
+        capabilitiesLoaded: false,
+        operation: null,
+      }),
     ).toBe(true);
+  });
+
+  it('waits out a start, stop or apply, which would replace what it checks', () => {
+    for (const operation of ['start', 'stop', 'restart', 'apply'] as const) {
+      expect(
+        shouldDisableDiagnosticRunAction({
+          capabilitiesLoaded: true,
+          operation,
+        }),
+      ).toBe(true);
+    }
   });
 });
 

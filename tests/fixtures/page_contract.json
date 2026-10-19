@@ -1,5 +1,5 @@
 {
-  "reserved_ports": [53, 1602, 1603, 1604, 1605, 4534, 4536, 9090],
+  "reserved_ports": [53, 1602, 1603, 1604, 1605, 4536, 9090],
   "reserved_tags": [
     "bootstrap-dns-server",
     "direct-out",
@@ -11,7 +11,6 @@
     "fakeip-server",
     "hosts-server",
     "service-fakeip-dns-rule-tag",
-    "service-mixed-in",
     "service-warp-in",
     "source-dns-in",
     "system-dns-in",
@@ -100,8 +99,7 @@
   ],
   "reserved_override_patch_paths": ["detour"],
   "check_domains": {
-    "fakeip": "fakeip.podkop.fyi",
-    "ip": "ip.podkop.fyi"
+    "fakeip": "fakeip.podkop.fyi"
   },
   "urltest_defaults": {
     "testing_url": "https://www.gstatic.com/generate_204",

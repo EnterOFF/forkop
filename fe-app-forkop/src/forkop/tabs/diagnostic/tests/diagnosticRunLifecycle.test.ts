@@ -11,12 +11,13 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Forkop } from '../../../types';
 import type { StoreService, StoreType } from '../../../services/store.service';
 
-const CHECK_ORDER = ['DNS', 'SINGBOX', 'NFT', 'OUTBOUNDS', 'FAKEIP'];
+const CHECK_ORDER = ['SERVICE', 'DNS', 'TRAFFIC', 'SECTIONS'];
 
 const mocks = vi.hoisted(() => {
   const runnerCalls: string[] = [];
   let releaseRunningCheck: (() => void) | null = null;
   let runActionClick: (() => void) | null = null;
+  let reportOffered = false;
 
   return {
     runnerCalls,
@@ -28,6 +29,9 @@ const mocks = vi.hoisted(() => {
       await new Promise<void>((resolve) => {
         releaseRunningCheck = resolve;
       });
+
+      const result = { state: 'success', description: 'OK', items: [] };
+      return code === 'SERVICE' ? { result, running: true } : result;
     },
     reset() {
       runnerCalls.length = 0;
@@ -41,8 +45,10 @@ const mocks = vi.hoisted(() => {
     },
     isCheckRunning: () => releaseRunningCheck !== null,
     clickRunAction: () => runActionClick?.(),
-    renderRunAction: (props: { click: () => void }) => {
+    isReportOffered: () => reportOffered,
+    renderRunAction: (props: { click: () => void; report: unknown }) => {
       runActionClick = props.click;
+      reportOffered = props.report !== null;
       return {};
     },
     renderStub: () => ({}),
@@ -90,20 +96,20 @@ vi.mock('../partials', () => ({
   renderSystemInfo: mocks.renderStub,
 }));
 
-vi.mock('../checks/runDnsCheck', () => ({
+vi.mock('../checks/service', () => ({
+  runServiceCheck: mocks.createCheckRunner('SERVICE'),
+}));
+vi.mock('../checks/dns', () => ({
   runDnsCheck: mocks.createCheckRunner('DNS'),
 }));
-vi.mock('../checks/runSingBoxCheck', () => ({
-  runSingBoxCheck: mocks.createCheckRunner('SINGBOX'),
+vi.mock('../checks/traffic', () => ({
+  runTrafficCheck: mocks.createCheckRunner('TRAFFIC'),
 }));
-vi.mock('../checks/runNftCheck', () => ({
-  runNftCheck: mocks.createCheckRunner('NFT'),
+vi.mock('../checks/sections', () => ({
+  runSectionsCheck: mocks.createCheckRunner('SECTIONS'),
 }));
-vi.mock('../checks/runSectionsCheck', () => ({
-  runSectionsCheck: mocks.createCheckRunner('OUTBOUNDS'),
-}));
-vi.mock('../checks/runFakeIPCheck', () => ({
-  runFakeIPCheck: mocks.createCheckRunner('FAKEIP'),
+vi.mock('../checks/servers', () => ({
+  runServersCheck: mocks.createCheckRunner('SERVERS'),
 }));
 
 let store: StoreService<StoreType>;
@@ -162,18 +168,18 @@ describe('diagnostic run lifecycle', () => {
     mocks.clickRunAction();
     await flush();
 
-    expect(mocks.runnerCalls).toEqual(['DNS']);
+    expect(mocks.runnerCalls).toEqual(['SERVICE']);
 
-    // Leaving and coming back while DNS is still on the router: the pass belongs
-    // to the page session, not to the mounted page.
+    // Leaving and coming back while a check is still on the router: the pass
+    // belongs to the page session, not to the mounted page.
     for (let switches = 0; switches < 3; switches += 1) {
       await showTab('dashboard');
       await showTab('diagnostic');
     }
 
-    expect(mocks.runnerCalls).toEqual(['DNS']);
+    expect(mocks.runnerCalls).toEqual(['SERVICE']);
     expect(store.get().diagnosticsRunAction.loading).toBe(true);
-    expect(getCheckState('DNS')).toBe('loading');
+    expect(getCheckState('SERVICE')).toBe('loading');
 
     for (let index = 0; index < CHECK_ORDER.length; index += 1) {
       expect(mocks.runnerCalls[index]).toBe(CHECK_ORDER[index]);
@@ -203,12 +209,32 @@ describe('diagnostic run lifecycle', () => {
     // rebuild the list on top of the result waiting on it.
     await showTab('diagnostic');
 
-    expect(getCheckState('FAKEIP')).toBe('loading');
+    expect(getCheckState('SECTIONS')).toBe('success');
     expect(mocks.runnerCalls).toEqual(CHECK_ORDER);
 
     // The result belonged to that visit; leaving hands the list back.
     await showTab('dashboard');
 
-    expect(getCheckStates()).toBe('skipped,skipped,skipped,skipped,skipped');
+    expect(getCheckStates()).toBe('skipped,skipped,skipped,skipped');
+  });
+
+  it('offers the report of a run once the run finished, and only while its result stands', async () => {
+    await showTab('diagnostic');
+    expect(mocks.isReportOffered()).toBe(false);
+
+    mocks.clickRunAction();
+    await flush();
+    expect(mocks.isReportOffered()).toBe(false);
+
+    while (mocks.isCheckRunning()) {
+      mocks.finishRunningCheck();
+      await flush();
+      expect(mocks.isReportOffered()).toBe(!mocks.isCheckRunning());
+    }
+    expect(mocks.isReportOffered()).toBe(true);
+
+    await showTab('dashboard');
+    await showTab('diagnostic');
+    expect(mocks.isReportOffered()).toBe(false);
   });
 });

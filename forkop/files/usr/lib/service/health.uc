@@ -225,6 +225,7 @@ return {
     sing_box_service_pid_runtime,
     pid_is_sing_box,
     start_ticks,
+    process_age_seconds,
     process_age_seconds_from_ticks,
     sing_box_service_running,
     sing_box_service_stable,

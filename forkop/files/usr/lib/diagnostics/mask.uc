@@ -4,6 +4,7 @@
 // every value that identifies a subscriber or a credential is hidden here
 // before it can be printed.
 
+let core_ip = require("core.ip");
 let core_url = require("core.url");
 
 function as_string(value) {
@@ -173,35 +174,6 @@ function forkop_config(data) {
     return lines_text(result);
 }
 
-// What identifies the subscriber or opens the uplink, whatever the protocol:
-// PPPoE, L2TP and PPTP accounts, a modem's PIN, a WireGuard key, and the
-// addresses and hardware address of the line.
-const WAN_MASKED_OPTIONS = {
-    username: true, password: true, pincode: true, private_key: true, macaddr: true,
-    ipaddr: true, netmask: true, gateway: true, ip6addr: true, ip6gw: true, ip6prefix: true,
-    peeraddr: true, server: true
-};
-
-// Only the WAN interface is reported, and only the fields that identify the
-// subscriber are hidden; the rest is needed to judge the routing setup.
-function wan_config(data) {
-    let result = [];
-    let in_wan = false;
-
-    for (let line in config_lines(data)) {
-        let fields = split(trim(as_string(line)), /[ \t\r\n]+/);
-        if (length(fields) > 0 && fields[0] == "config")
-            in_wan = length(fields) >= 3 && fields[1] == "interface" && fields[2] == "'wan'";
-
-        if (in_wan && length(fields) >= 2 && (fields[0] == "option" || fields[0] == "list") && WAN_MASKED_OPTIONS[fields[1]])
-            push(result, "        " + fields[0] + " " + fields[1] + " '******'");
-        else if (in_wan)
-            push(result, line);
-    }
-
-    return lines_text(result);
-}
-
 const SING_BOX_MASKED_KEYS = {
     auth_key: true,
     control_url: true,
@@ -335,37 +307,90 @@ function masked_ipv6(address) {
     return sprintf("%x:%x:%x:XXXX:XXXX:XXXX:XXXX:XXXX", bytes[0] << 8 | bytes[1], bytes[2] << 8 | bytes[3], bytes[4] << 8 | bytes[5]);
 }
 
-// The proxy check has to prove the exit address changed without publishing it,
-// so only the last IPv4 octet or the first three IPv6 hextets survive. The
-// public endpoint answers with JSON, a plain address service with a bare
-// address. Returns null when the response carries no address at all.
-function proxy_response_ip(response) {
-    let result = [];
-    for (let line in split(as_string(response), "\n")) {
-        let address = match(line, /"IP"[[:space:]]*:[[:space:]]*"([^"]+)"/)?.[1] ?? trim(line);
-        let v4 = match(address, /^[0-9]+\.[0-9]+\.[0-9]+\.([0-9]+)$/);
-        let v6 = index(address, ":") >= 0 ? masked_ipv6(address) : null;
-        if (v4 != null)
-            push(result, "X.X.X." + v4[1]);
-        else if (v6 != null)
-            push(result, v6);
-    }
-    return length(result) > 0 ? join("\n", result) : null;
+// Only the last octet of a public IPv4 address, or the first three hextets of a
+// public IPv6 one, is kept: enough to tell two addresses apart, not to find
+// either. Loopback, LAN and FakeIP addresses say nothing about anybody.
+function address(value) {
+    if (!core_ip.valid_public_ip(value))
+        return value;
+    return core_ip.valid_ipv4(value) ? "X.X.X." + split(value, ".")[3] : masked_ipv6(value);
 }
 
-// A proxy that answers with an HTML error page or a bare 403 has not failed
-// permanently; the check retries instead of reporting the page as an address.
-function proxy_response_is_retryable_error(response) {
-    response = as_string(response);
-    return index(response, "<html") == 0 || index(response, "403 Forbidden") >= 0;
+// Where the configuration says a server is: the host names of the outbounds,
+// endpoints, providers and DNS servers it dials, and of the servers it runs. An
+// outbound made from a share link carries its server inside the link.
+const HOST_KEYS = { server: true, server_name: true, address: true, host: true, hostname: true };
+
+function add_host(result, value) {
+    if (type(value) == "array") {
+        for (let item in value)
+            add_host(result, item);
+        return;
+    }
+    value = lc(trim(as_string(value)));
+    if (match(value, /^[a-z0-9-]+(\.[a-z0-9-]+)+$/) != null && match(value, /[a-z]/) != null && !core_ip.valid_ip(value))
+        result[value] = true;
+}
+
+function collect_hosts(value, result) {
+    if (type(value) == "array") {
+        for (let item in value)
+            collect_hosts(item, result);
+        return;
+    }
+    if (type(value) != "object")
+        return;
+    for (let key, item in value) {
+        if (HOST_KEYS[key])
+            add_host(result, item);
+        else if (key == "link")
+            add_host(result, core_url.host(item));
+        else
+            collect_hosts(item, result);
+    }
+}
+
+function hosts(config) {
+    let result = {};
+    if (type(config) != "object")
+        return [];
+    for (let key in [ "outbounds", "endpoints", "inbounds", "providers" ])
+        collect_hosts(config[key], result);
+    collect_hosts(config.dns?.servers, result);
+    for (let provider in (type(config.providers) == "array" ? config.providers : []))
+        add_host(result, core_url.host(provider?.url));
+    return sort(keys(result), (a, b) => length(b) - length(a));
+}
+
+// The given host names, wherever they stand - in a tag, a label or a message -
+// and their subdomains with them, but never the middle of a longer word.
+function names(value, host_names) {
+    value = as_string(value);
+    for (let host in host_names ?? [])
+        value = replace(value, regexp("(^|[^A-Za-z0-9-])" + replace(host, /\./g, "\\.") + "([^A-Za-z0-9-]|$)", "g"),
+            (all, before, after) => before + "MASKED" + after);
+    return value;
+}
+
+// Free text such as a log: the path and credentials of every URL, the given
+// host names, and public addresses other than the kept ones.
+function text(value, host_names, kept) {
+    let mask_address = (token) => index(kept ?? [], token) >= 0 ? token : address(token);
+    value = replace(as_string(value), /([a-z][a-z0-9+.-]*):\/\/([^\/ \t'"<>]+)([^ \t'"<>]*)/g, (all, scheme, authority, rest) => {
+        let at = rindex(authority, "@");
+        return scheme + "://" + (at >= 0 ? "MASKED@" + substr(authority, at + 1) : authority) + (rest == "" || rest == "/" ? rest : "/MASKED");
+    });
+    value = names(value, host_names);
+    value = replace(value, /[0-9][0-9.]*[0-9]/g, mask_address);
+    return replace(value, /[0-9A-Fa-f.]*:[0-9A-Fa-f:.]*/g, mask_address);
 }
 
 return {
     forkop_config,
-    wan_config,
-    config_lines,
     sing_box_config,
     dns_server,
-    proxy_response_ip,
-    proxy_response_is_retryable_error
+    address,
+    hosts,
+    names,
+    text
 };

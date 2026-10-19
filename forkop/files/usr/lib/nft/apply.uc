@@ -174,7 +174,7 @@ function add_base(settings, excluded_router, excluded) {
     // Client DNS capture: whatever resolver a client was configured with, its
     // queries land on the sing-box client DNS inbound. An excluded device keeps
     // its own resolver.
-    add_chain("dns_redirect", "{ type nat hook prerouting priority -101; policy accept; }");
+    add_chain("dns_redirect", "{ type nat hook prerouting priority " + constants.NFT_DNS_REDIRECT_PRIORITY + "; policy accept; }");
     add_rule("dns_redirect", [ "jump", PAUSE_CHAIN ]);
     add_excluded_returns("dns_redirect", excluded);
     for (let proto in [ "tcp", "udp" ])
@@ -336,7 +336,7 @@ function add_fakeip_output() {
 // uncaptured, so sing-box can hand it what no rule claims without a circle.
 // sing-box marks its own sockets, so its own questions to the resolver pass.
 function add_router_dns(excluded_router) {
-    add_chain("system_dns_redirect", "{ type nat hook output priority -100; policy accept; }");
+    add_chain("system_dns_redirect", "{ type nat hook output priority " + constants.NFT_SYSTEM_DNS_REDIRECT_PRIORITY + "; policy accept; }");
     add_rule("system_dns_redirect", [ "jump", PAUSE_CHAIN ]);
     if (excluded_router)
         add_rule("system_dns_redirect", [ "counter", "return" ]);

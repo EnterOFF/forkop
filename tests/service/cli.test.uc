@@ -68,7 +68,8 @@ t.test("an unknown or retired command prints the help and fails without running 
     for (let name in [ "", "main", "get_sing_box_status", "service_action_status", "check_sing_box_logs", "check_nft",
         "generate_server_certificate", "get_tls_certificate_sha256", "generate_ssh_host_key",
         "component_action", "component_action_async", "component_action_status", "component_updates_if_due",
-        "component_update_check_cache" ]) {
+        "component_update_check_cache", "global_check", "check_proxy", "check_nft_rules", "check_fakeip", "check_sing_box",
+        "check_dns_available", "check_inbounds", "check_inbounds_config" ]) {
         let result = run([ name ]);
         t.eq(result.result, 1, name);
         t.eq(result.commands, [], name);

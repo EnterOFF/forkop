@@ -1,6 +1,5 @@
 import { renderButton } from '../../../../partials';
 import {
-  renderCircleCheckBigIcon24,
   renderCirclePlayIcon24,
   renderCircleStopIcon24,
   renderCogIcon24,
@@ -41,7 +40,6 @@ interface IRenderAvailableActionsProps {
   stop: ActionProps;
   enable: ActionProps;
   disable: ActionProps;
-  globalCheck: ActionProps;
   showConfig: ActionProps;
   showSingBoxConfig: ActionProps;
 }
@@ -52,7 +50,6 @@ export function renderAvailableActions({
   stop,
   enable,
   disable,
-  globalCheck,
   showConfig,
   showSingBoxConfig,
 }: IRenderAvailableActionsProps) {
@@ -106,15 +103,6 @@ export function renderAvailableActions({
         text: _('Enable autostart'),
         loading: enable.loading,
         disabled: enable.disabled,
-      }),
-    ]),
-    ...insertIf(globalCheck.visible, [
-      renderButton({
-        onClick: globalCheck.onClick,
-        icon: renderCircleCheckBigIcon24,
-        text: _('Global check'),
-        loading: globalCheck.loading,
-        disabled: globalCheck.disabled,
       }),
     ]),
     ...insertIf(showConfig.visible, [

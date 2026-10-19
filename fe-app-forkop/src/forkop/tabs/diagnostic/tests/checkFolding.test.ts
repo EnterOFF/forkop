@@ -66,15 +66,20 @@ vi.mock('../partials', () => ({
   renderRunAction: mocks.renderRunAction,
   renderSystemInfo: mocks.renderStub,
 }));
-for (const runner of [
-  'runDnsCheck',
-  'runSingBoxCheck',
-  'runNftCheck',
-  'runSectionsCheck',
-  'runInboundsCheck',
-  'runFakeIPCheck',
+vi.mock('../checks/service', () => ({
+  runServiceCheck: async () => ({
+    result: { state: 'success', description: 'OK', items: [] },
+    running: true,
+  }),
+}));
+const passed = { state: 'success', description: 'OK', items: [] };
+for (const [module, runner] of [
+  ['dns', 'runDnsCheck'],
+  ['traffic', 'runTrafficCheck'],
+  ['sections', 'runSectionsCheck'],
+  ['servers', 'runServersCheck'],
 ]) {
-  vi.doMock(`../checks/${runner}`, () => ({ [runner]: async () => {} }));
+  vi.doMock(`../checks/${module}`, () => ({ [runner]: async () => passed }));
 }
 
 let store: StoreService<StoreType>;
@@ -86,9 +91,9 @@ function flush() {
 // The list a finished run leaves, one check in each state that matters.
 function publishResult() {
   const states: Record<string, IDiagnosticsChecksStoreItem['state']> = {
-    DNS: 'success',
-    SINGBOX: 'error',
-    NFT: 'warning',
+    SERVICE: 'success',
+    DNS: 'error',
+    TRAFFIC: 'warning',
   };
   store.set({
     diagnosticsChecks: store.get().diagnosticsChecks.map((check) => ({
@@ -126,26 +131,26 @@ describe('which checks show their details', () => {
   });
 
   it('opens a check with a problem and keeps one that passed to a line', () => {
-    expect(mocks.drawn.get('SINGBOX')?.expanded).toBe(true);
-    expect(mocks.drawn.get('NFT')?.expanded).toBe(true);
-    expect(mocks.drawn.get('DNS')?.expanded).toBe(false);
+    expect(mocks.drawn.get('DNS')?.expanded).toBe(true);
+    expect(mocks.drawn.get('TRAFFIC')?.expanded).toBe(true);
+    expect(mocks.drawn.get('SERVICE')?.expanded).toBe(false);
   });
 
   it('keeps what the reader folded by hand until the next run', async () => {
-    mocks.drawn.get('DNS')?.onToggle?.();
-    mocks.drawn.get('NFT')?.onToggle?.();
-    expect(mocks.drawn.get('DNS')?.expanded).toBe(true);
-    expect(mocks.drawn.get('NFT')?.expanded).toBe(false);
+    mocks.drawn.get('SERVICE')?.onToggle?.();
+    mocks.drawn.get('TRAFFIC')?.onToggle?.();
+    expect(mocks.drawn.get('SERVICE')?.expanded).toBe(true);
+    expect(mocks.drawn.get('TRAFFIC')?.expanded).toBe(false);
 
     publishResult();
     await flush();
-    expect(mocks.drawn.get('DNS')?.expanded).toBe(true);
+    expect(mocks.drawn.get('SERVICE')?.expanded).toBe(true);
 
     mocks.clickRunAction();
     await flush();
     publishResult();
     await flush();
-    expect(mocks.drawn.get('DNS')?.expanded).toBe(false);
-    expect(mocks.drawn.get('NFT')?.expanded).toBe(true);
+    expect(mocks.drawn.get('SERVICE')?.expanded).toBe(false);
+    expect(mocks.drawn.get('TRAFFIC')?.expanded).toBe(true);
   });
 });

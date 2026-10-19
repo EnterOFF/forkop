@@ -19,7 +19,6 @@ if (typeof structuredClone !== "function") {
 var FORKOP_UCI_PACKAGE = "forkop";
 var FORKOP_LUCI_APP_VERSION = "__COMPILED_VERSION_VARIABLE__";
 var FAKEIP_CHECK_DOMAIN = "fakeip.podkop.fyi";
-var IP_CHECK_DOMAIN = "ip.podkop.fyi";
 var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "dns-server",
   "fakeip-server",
@@ -36,7 +35,6 @@ var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "system-in",
   "system6-in",
   "system-dns-in",
-  "service-mixed-in",
   "service-warp-in",
   "direct-out"
 ]);
@@ -113,11 +111,11 @@ function latencyClassName(latency) {
 }
 
 // src/forkop/tabs/dashboard/sectionLatencyTarget.ts
-function sectionLatencyTarget(section) {
-  if (section.withTagSelect) {
-    return { type: "group", tag: section.code };
+function sectionLatencyTarget(section2) {
+  if (section2.withTagSelect) {
+    return { type: "group", tag: section2.code };
   }
-  const outbound = section.outbounds[0];
+  const outbound = section2.outbounds[0];
   return outbound ? { type: "proxy", tag: outbound.code } : void 0;
 }
 
@@ -510,32 +508,6 @@ function renderCirclePlayIcon24() {
         cx: "12",
         cy: "12",
         r: "10"
-      })
-    ]
-  );
-}
-
-// src/icons/renderCircleCheckBigIcon24.ts
-function renderCircleCheckBigIcon24() {
-  const NS = "http://www.w3.org/2000/svg";
-  return svgEl(
-    "svg",
-    {
-      xmlns: NS,
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      "stroke-width": "2",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      class: "lucide lucide-circle-check-big-icon lucide-circle-check-big"
-    },
-    [
-      svgEl("path", {
-        d: "M21.801 10A10 10 0 1 1 17 3.335"
-      }),
-      svgEl("path", {
-        d: "m9 11 3 3L22 4"
       })
     ]
   );
@@ -1010,7 +982,7 @@ function renderSubscriptionMetadata(metadata) {
   ]);
 }
 function renderDefaultState({
-  section,
+  section: section2,
   onChooseOutbound,
   onCopyOutbound,
   onShowUrlTestInfo,
@@ -1026,16 +998,16 @@ function renderDefaultState({
   collapsed
 }) {
   function testLatency() {
-    const target = sectionLatencyTarget(section);
-    if (target) {
-      onTestLatency(target.tag);
+    const target2 = sectionLatencyTarget(section2);
+    if (target2) {
+      onTestLatency(target2.tag);
     }
   }
   function renderOutbound(outbound) {
     const canCopyLink = Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
     const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
     const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
-    const canChooseOutbound = section.withTagSelect && outbound.runtimeAvailable !== false && hasGroupMembers && !outbound.selected;
+    const canChooseOutbound = section2.withTagSelect && outbound.runtimeAvailable !== false && hasGroupMembers && !outbound.selected;
     const showLatency = hasGroupMembers;
     const latencyType = groupInfo ? "group" : "proxy";
     const latencyTarget = outbound.code;
@@ -1045,7 +1017,7 @@ function renderDefaultState({
       "fkp_dashboard-page__outbound-grid__item",
       outbound.selected ? "fkp_dashboard-page__outbound-grid__item--active" : "",
       canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--selectable" : "",
-      section.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : ""
+      section2.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : ""
     ].filter(Boolean).join(" ");
     const latencyClass = latencyClassName(outbound.latency);
     const latencyValue = outbound.latency ? `${outbound.latency}ms` : _("N/A");
@@ -1081,8 +1053,8 @@ function renderDefaultState({
       "div",
       {
         class: className,
-        "aria-disabled": section.withTagSelect && !canChooseOutbound ? "true" : void 0,
-        click: () => canChooseOutbound && window.getSelection()?.isCollapsed !== false && onChooseOutbound(section.sectionName, section.code, outbound.code)
+        "aria-disabled": section2.withTagSelect && !canChooseOutbound ? "true" : void 0,
+        click: () => canChooseOutbound && window.getSelection()?.isCollapsed !== false && onChooseOutbound(section2.sectionName, section2.code, outbound.code)
       },
       [
         textE("div", { class: "fkp_dashboard-page__outbound-grid__item__header" }, [
@@ -1108,7 +1080,7 @@ function renderDefaultState({
                 "aria-label": _("Copy proxy link"),
                 click: (event) => {
                   event.stopPropagation();
-                  onCopyOutbound(section, outbound);
+                  onCopyOutbound(section2, outbound);
                 }
               },
               renderCopyIcon24()
@@ -1160,11 +1132,11 @@ function renderDefaultState({
       ]
     );
   }
-  const metadataNodes = (section.subscriptionMetadata || []).map((metadata) => renderSubscriptionMetadata(metadata)).filter(Boolean);
-  const outbounds = sortByLatency ? [...section.outbounds].sort(
+  const metadataNodes = (section2.subscriptionMetadata || []).map((metadata) => renderSubscriptionMetadata(metadata)).filter(Boolean);
+  const outbounds = sortByLatency ? [...section2.outbounds].sort(
     (left, right) => getLatencySortValue(left) - getLatencySortValue(right)
-  ) : section.outbounds;
-  const latencySortAction = section.outbounds.length > 1 ? textE(
+  ) : section2.outbounds;
+  const latencySortAction = section2.outbounds.length > 1 ? textE(
     "button",
     {
       type: "button",
@@ -1178,7 +1150,7 @@ function renderDefaultState({
       click: (event) => {
         event.preventDefault();
         event.stopPropagation();
-        onSortByLatencyChange?.(section.sectionName, !sortByLatency);
+        onSortByLatencyChange?.(section2.sectionName, !sortByLatency);
       }
     },
     renderListFilterIcon24()
@@ -1198,12 +1170,12 @@ function renderDefaultState({
       click: (event) => {
         event.preventDefault();
         event.stopPropagation();
-        onCollapsedChange?.(section.sectionName, !collapsed);
+        onCollapsedChange?.(section2.sectionName, !collapsed);
       }
     },
     renderChevronUpIcon24()
   ) : void 0;
-  const selected = section.withTagSelect && (collapsed || section.outbounds.length > 1) ? section.outbounds.find((outbound) => outbound.selected) : void 0;
+  const selected = section2.withTagSelect && (collapsed || section2.outbounds.length > 1) ? section2.outbounds.find((outbound) => outbound.selected) : void 0;
   const current = selected ? textE("span", { class: "fkp_dashboard-page__outbound-section__current" }, [
     textE(
       "span",
@@ -1222,7 +1194,7 @@ function renderDefaultState({
     class: "fkp_dashboard-page__outbound-section__title-section fkp_dashboard-page__outbound-section__title-section--foldable",
     click: () => {
       if (window.getSelection()?.isCollapsed !== false) {
-        onCollapsedChange?.(section.sectionName, !collapsed);
+        onCollapsedChange?.(section2.sectionName, !collapsed);
       }
     }
   } : { class: "fkp_dashboard-page__outbound-section__title-section" };
@@ -1235,7 +1207,7 @@ function renderDefaultState({
           {
             class: "fkp_dashboard-page__outbound-section__title-section__title"
           },
-          section.displayName
+          section2.displayName
         ),
         ...current ? [current] : []
       ]),
@@ -1547,157 +1519,14 @@ function downloadAsTxt(text6, filename) {
 
 // src/partials/modal/renderModal.ts
 function renderModal(text6, name, options) {
-  let currentText = "";
-  let refreshInFlight = false;
-  let pendingRefresh = false;
-  let pendingForcedRefresh = false;
-  let refreshSessionId = 0;
-  let timer;
-  let observer;
-  let autoRefreshEnabled = options?.initialAutoRefresh ?? Boolean(options?.getText);
-  let maskValuesEnabled = options?.initialMaskValues ?? true;
-  let shouldScrollToBottomOnMount = Boolean(options?.startAtEnd);
-  let autoRefreshInput;
-  let maskValuesInput;
-  const codeEl = textE("code", {}, "");
+  let currentText = text6 ?? "";
+  let latestRequest = 0;
+  const codeEl = textE("code", {}, currentText);
   const contentEl = textE(
     "pre",
     { class: "fkp-partial-modal__content" },
     codeEl
   );
-  const stopRefreshTimer = () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = void 0;
-    }
-  };
-  const destroyLiveRefresh = () => {
-    refreshSessionId += 1;
-    pendingRefresh = false;
-    pendingForcedRefresh = false;
-    stopRefreshTimer();
-    observer?.disconnect();
-    observer = void 0;
-  };
-  const scrollToBottom = () => {
-    contentEl.scrollTop = contentEl.scrollHeight;
-  };
-  const scheduleInitialScrollToBottom = () => {
-    if (!shouldScrollToBottomOnMount || !body.isConnected) {
-      return;
-    }
-    shouldScrollToBottomOnMount = false;
-    requestAnimationFrame(() => {
-      scrollToBottom();
-    });
-  };
-  const updateText = (nextText) => {
-    const normalizedText = nextText ?? "";
-    const shouldStickToBottom = shouldScrollToBottomOnMount || contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight - 16;
-    if (normalizedText === currentText) {
-      if (shouldStickToBottom) {
-        requestAnimationFrame(() => {
-          scrollToBottom();
-        });
-      }
-      return;
-    }
-    currentText = normalizedText;
-    codeEl.textContent = currentText;
-    if (shouldStickToBottom) {
-      requestAnimationFrame(() => {
-        scrollToBottom();
-      });
-    }
-  };
-  const refreshText = async (force = false) => {
-    if (!options?.getText || !force && !autoRefreshEnabled || refreshInFlight) {
-      return;
-    }
-    if (!body.isConnected) {
-      return;
-    }
-    refreshInFlight = true;
-    const sessionId = refreshSessionId;
-    try {
-      const nextText = await options.getText({
-        maskValues: maskValuesEnabled
-      });
-      if (!body.isConnected || !force && !autoRefreshEnabled) {
-        return;
-      }
-      if (sessionId !== refreshSessionId) {
-        return;
-      }
-      updateText(nextText ?? "");
-    } catch (error) {
-      console.warn("[renderModal] failed to refresh modal content", error);
-    } finally {
-      refreshInFlight = false;
-      if (pendingRefresh) {
-        const shouldForceRefresh = pendingForcedRefresh;
-        pendingRefresh = false;
-        pendingForcedRefresh = false;
-        if ((shouldForceRefresh || autoRefreshEnabled) && body.isConnected) {
-          void refreshText(shouldForceRefresh);
-        }
-      }
-    }
-  };
-  const requestRefresh = () => {
-    if (!options?.getText || !autoRefreshEnabled) {
-      return;
-    }
-    if (refreshInFlight) {
-      pendingRefresh = true;
-      return;
-    }
-    void refreshText();
-  };
-  const requestForcedRefresh = () => {
-    if (!options?.getText) {
-      return;
-    }
-    if (refreshInFlight) {
-      pendingRefresh = true;
-      pendingForcedRefresh = true;
-      return;
-    }
-    void refreshText(true);
-  };
-  const startRefreshTimer = () => {
-    if (!options?.getText || !autoRefreshEnabled || timer || typeof document === "undefined") {
-      return;
-    }
-    timer = setInterval(() => {
-      requestRefresh();
-    }, options.refreshMs ?? 3e3);
-  };
-  const setAutoRefreshEnabled = (nextValue) => {
-    autoRefreshEnabled = nextValue;
-    refreshSessionId += 1;
-    pendingRefresh = false;
-    pendingForcedRefresh = false;
-    if (autoRefreshInput) {
-      autoRefreshInput.checked = nextValue;
-    }
-    if (nextValue) {
-      startRefreshTimer();
-      requestRefresh();
-      return;
-    }
-    stopRefreshTimer();
-  };
-  const setMaskValuesEnabled = (nextValue) => {
-    maskValuesEnabled = nextValue;
-    refreshSessionId += 1;
-    pendingRefresh = false;
-    pendingForcedRefresh = false;
-    if (maskValuesInput) {
-      maskValuesInput.checked = nextValue;
-    }
-    requestForcedRefresh();
-  };
   const footerChildren = [
     renderButton({
       classNames: ["cbi-button-apply"],
@@ -1714,38 +1543,31 @@ ${currentText}
     renderButton({
       classNames: ["cbi-button-remove"],
       text: _("Close"),
-      onClick: () => {
-        destroyLiveRefresh();
-        ui.hideModal();
-      }
+      onClick: () => ui.hideModal()
     })
   ];
-  if (options?.getText && options?.showAutoRefreshToggle) {
-    autoRefreshInput = document.createElement("input");
-    autoRefreshInput.type = "checkbox";
-    autoRefreshInput.className = "cbi-input-checkbox";
-    autoRefreshInput.checked = autoRefreshEnabled;
-    autoRefreshInput.addEventListener("change", () => {
-      setAutoRefreshEnabled(autoRefreshInput.checked);
-    });
-    footerChildren.unshift(
-      textE("label", { class: "fkp-partial-modal__checkbox" }, [
-        autoRefreshInput,
-        textE(
-          "span",
-          { class: "fkp-partial-modal__checkbox-text" },
-          options.autoRefreshLabel ?? _("Auto refresh")
-        )
-      ])
-    );
-  }
-  if (options?.getText && options?.showMaskValuesToggle) {
-    maskValuesInput = document.createElement("input");
+  const getText = options?.getText;
+  if (getText && options?.showMaskValuesToggle) {
+    const maskValuesInput = document.createElement("input");
     maskValuesInput.type = "checkbox";
     maskValuesInput.className = "cbi-input-checkbox";
-    maskValuesInput.checked = maskValuesEnabled;
-    maskValuesInput.addEventListener("change", () => {
-      setMaskValuesEnabled(maskValuesInput.checked);
+    maskValuesInput.checked = true;
+    maskValuesInput.addEventListener("change", async () => {
+      const request = ++latestRequest;
+      const maskValues = maskValuesInput.checked;
+      try {
+        const nextText = await getText({ maskValues });
+        if (request === latestRequest) {
+          currentText = nextText ?? "";
+          codeEl.textContent = currentText;
+        }
+      } catch (error) {
+        console.warn("[renderModal] failed to load the text", error);
+        if (request === latestRequest) {
+          maskValuesInput.checked = !maskValues;
+          showToast(_("Failed to load diagnostics"), "error");
+        }
+      }
     });
     footerChildren.unshift(
       textE("label", { class: "fkp-partial-modal__checkbox" }, [
@@ -1753,37 +1575,17 @@ ${currentText}
         textE(
           "span",
           { class: "fkp-partial-modal__checkbox-text" },
-          options.maskValuesLabel ?? _("Hide values")
+          _("Hide values")
         )
       ])
     );
   }
-  const body = textE("div", { class: "fkp-partial-modal__body" }, [
+  return textE("div", { class: "fkp-partial-modal__body" }, [
     textE("div", {}, [
       contentEl,
       textE("div", { class: "fkp-partial-modal__footer" }, footerChildren)
     ])
   ]);
-  if ((options?.getText || options?.startAtEnd) && typeof document !== "undefined") {
-    observer = new MutationObserver(() => {
-      if (!body.isConnected) {
-        destroyLiveRefresh();
-        return;
-      }
-      scheduleInitialScrollToBottom();
-    });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-    scheduleInitialScrollToBottom();
-  }
-  if (options?.getText && typeof document !== "undefined") {
-    startRefreshTimer();
-    requestRefresh();
-  }
-  updateText(text6 ?? "");
-  return body;
 }
 
 // src/partials/index.ts
@@ -1914,17 +1716,17 @@ function getClashUIUrl() {
 }
 
 // src/helpers/onMount.ts
-function getTarget(target) {
-  if (typeof target === "string") {
-    return document.getElementById(target);
+function getTarget(target2) {
+  if (typeof target2 === "string") {
+    return document.getElementById(target2);
   }
-  return target;
+  return target2;
 }
-async function onMount(target) {
+async function onMount(target2) {
   return new Promise((resolve) => {
     let observer = null;
     const resolveIfMountedAndVisible = () => {
-      const mountedTarget = getTarget(target);
+      const mountedTarget = getTarget(target2);
       if (mountedTarget && mountedTarget.isConnected && mountedTarget.offsetParent !== null) {
         observer?.disconnect();
         resolve(mountedTarget);
@@ -2068,17 +1870,15 @@ var Forkop;
 ((Forkop2) => {
   let AvailableMethods;
   ((AvailableMethods2) => {
-    AvailableMethods2["CHECK_DNS_AVAILABLE"] = "check_dns_available";
-    AvailableMethods2["CHECK_FAKEIP"] = "check_fakeip";
-    AvailableMethods2["CHECK_NFT_RULES"] = "check_nft_rules";
-    AvailableMethods2["CHECK_INBOUNDS_CONFIG"] = "check_inbounds_config";
-    AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
-    AvailableMethods2["CHECK_INBOUNDS"] = "check_inbounds";
+    AvailableMethods2["CHECK_SERVICE"] = "check_service";
+    AvailableMethods2["CHECK_DNS"] = "check_dns";
+    AvailableMethods2["CHECK_TRAFFIC"] = "check_traffic";
+    AvailableMethods2["CHECK_SERVERS"] = "check_servers";
+    AvailableMethods2["REPORT"] = "report";
     AvailableMethods2["CLASH_API"] = "clash_api";
     AvailableMethods2["CLASH_SUMMARY"] = "clash_summary";
     AvailableMethods2["ENABLE"] = "enable";
     AvailableMethods2["DISABLE"] = "disable";
-    AvailableMethods2["GLOBAL_CHECK"] = "global_check";
     AvailableMethods2["SHOW_CONFIG"] = "show_config";
     AvailableMethods2["SHOW_SING_BOX_CONFIG"] = "show_sing_box_config";
     AvailableMethods2["CHECK_LOGS"] = "check_logs";
@@ -2214,24 +2014,22 @@ function diagnosticCheck(method, args = []) {
   });
 }
 var ForkopShellMethods = {
-  checkDNSAvailable: async () => diagnosticCheck(
-    Forkop.AvailableMethods.CHECK_DNS_AVAILABLE
+  checkService: async () => diagnosticCheck(
+    Forkop.AvailableMethods.CHECK_SERVICE
   ),
-  checkFakeIP: async () => diagnosticCheck(
-    Forkop.AvailableMethods.CHECK_FAKEIP
+  checkDns: async () => diagnosticCheck(Forkop.AvailableMethods.CHECK_DNS),
+  checkTraffic: async () => diagnosticCheck(
+    Forkop.AvailableMethods.CHECK_TRAFFIC
   ),
-  checkNftRules: async () => diagnosticCheck(
-    Forkop.AvailableMethods.CHECK_NFT_RULES
+  checkServers: async () => diagnosticCheck(
+    Forkop.AvailableMethods.CHECK_SERVERS
   ),
-  checkInboundsConfig: async () => diagnosticCheck(
-    Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG
-  ),
-  checkSingBox: async () => diagnosticCheck(
-    Forkop.AvailableMethods.CHECK_SING_BOX
-  ),
-  checkInbounds: async () => diagnosticCheck(
-    Forkop.AvailableMethods.CHECK_INBOUNDS
-  ),
+  // The checks the page ran go along, so the router masks them by the same
+  // rules as the rest of the report.
+  report: async (masked, checks) => diagnosticCheck(Forkop.AvailableMethods.REPORT, [
+    masked ? "masked" : "raw",
+    checks
+  ]),
   clashApi: async (method, path, body = "") => callBaseMethod(
     Forkop.AvailableMethods.CLASH_API,
     [method, path, body],
@@ -2250,9 +2048,6 @@ var ForkopShellMethods = {
   // procd's per-service lock, and the CLI writes the rc.d symlink at once.
   enable: async () => callBaseMethod(Forkop.AvailableMethods.ENABLE),
   disable: async () => callBaseMethod(Forkop.AvailableMethods.DISABLE),
-  globalCheck: async (masked = true) => diagnosticCheck(Forkop.AvailableMethods.GLOBAL_CHECK, [
-    masked ? "masked" : "raw"
-  ]),
   showConfig: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.SHOW_CONFIG, [
     masked ? "masked" : "raw"
   ]),
@@ -2339,7 +2134,7 @@ function setClashApiConfigSections(sections) {
   clashApiConfigSections = sections;
 }
 function getSettingsSection(configSections) {
-  return configSections.find((section) => section[".type"] === "settings");
+  return configSections.find((section2) => section2[".type"] === "settings");
 }
 function getClashApiSecret(configSections) {
   return getSettingsSection(configSections)?.yacd_secret_key || "";
@@ -2450,8 +2245,8 @@ function probeDirectClashApi() {
       void 0,
       DIRECT_CLASH_API_PROBE_TIMEOUT_MS
     )
-  ).then((outcome) => {
-    if (outcome.kind === "response") {
+  ).then((outcome2) => {
+    if (outcome2.kind === "response") {
       directClashApiSuspended = false;
       directClashApiReachable = true;
       directClashApiProbeAt = 0;
@@ -2471,17 +2266,17 @@ async function requestClashApi(path, init, timeout, options) {
     await probeDirectClashApi();
   }
   if (canFetchClashApiDirectly()) {
-    const outcome = await fetchClashApiDirectly(
+    const outcome2 = await fetchClashApiDirectly(
       await ensureClashApiConfigSections(),
       path,
       init,
       timeout
     );
-    if (outcome.kind === "response") {
+    if (outcome2.kind === "response") {
       directClashApiSuspended = false;
       directClashApiReachable = true;
       directClashApiProbeAt = 0;
-      const response = parseClashApiPayload(outcome.status, outcome.body);
+      const response = parseClashApiPayload(outcome2.status, outcome2.body);
       return options?.summary && response.success ? {
         success: true,
         data: summarizeConnections(
@@ -2493,7 +2288,7 @@ async function requestClashApi(path, init, timeout, options) {
     if (keepsRunning) {
       return {
         success: false,
-        error: outcome.kind === "timeout" ? _("Clash API request timed out after it was sent") : _("Clash API response was lost after the request was sent")
+        error: outcome2.kind === "timeout" ? _("Clash API request timed out after it was sent") : _("Clash API response was lost after the request was sent")
       };
     }
   } else if (canReachClashApiFromBrowser()) {
@@ -2638,8 +2433,8 @@ var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
   "vless",
   "vmess"
 ]);
-function getDisplayName(section) {
-  return section.label || section[".name"];
+function getDisplayName(section2) {
+  return section2.label || section2[".name"];
 }
 function getListValues(value) {
   if (!value) {
@@ -2651,15 +2446,15 @@ function getListValues(value) {
   return `${value}`.split(/\s+/).map((item) => item.trim()).filter(Boolean);
 }
 function childSections(configSections, type) {
-  return configSections.filter((section) => section[".type"] === type);
+  return configSections.filter((section2) => section2[".type"] === type);
 }
 function ownedChildSections(parent, children2) {
   return children2.filter(
-    (section) => section.section === parent[".name"]
+    (section2) => section2.section === parent[".name"]
   );
 }
 function childSectionsByOwner(children2, ownerKey, ownerValue) {
-  return children2.filter((section) => section[ownerKey] === ownerValue);
+  return children2.filter((section2) => section2[ownerKey] === ownerValue);
 }
 function compactSettingsMap(settings) {
   return Object.keys(settings).length ? JSON.stringify(settings) : void 0;
@@ -2672,11 +2467,11 @@ function hydrateConfigSections(configSections) {
   const fallbackLevels = childSections(configSections, "fallback_level");
   const tunnels = childSections(configSections, "tunnel");
   const links = childSections(configSections, "connection_link");
-  return configSections.map((section) => {
-    if (section[".type"] !== "section") {
-      return section;
+  return configSections.map((section2) => {
+    if (section2[".type"] !== "section") {
+      return section2;
     }
-    const next = { ...section };
+    const next = { ...section2 };
     const subscriptionUrlItems = ownedChildSections(next, subscriptionUrls);
     const interfaceItems = ownedChildSections(next, interfaces);
     const urltestItems = ownedChildSections(next, urltests);
@@ -2756,90 +2551,90 @@ function hydrateConfigSections(configSections) {
     return next;
   });
 }
-function getManualProxyLinks(section) {
-  return section.connection_links || [];
+function getManualProxyLinks(section2) {
+  return section2.connection_links || [];
 }
-function getConnectionInterfaces(section) {
-  const values = getListValues(section.interfaces);
-  return values.length ? values : getListValues(section.interface);
+function getConnectionInterfaces(section2) {
+  const values = getListValues(section2.interfaces);
+  return values.length ? values : getListValues(section2.interface);
 }
-function getConnectionTunnels(section) {
-  return getListValues(section.tunnels);
+function getConnectionTunnels(section2) {
+  return getListValues(section2.tunnels);
 }
-function getJsonOutbounds(section) {
-  const values = getListValues(section.outbound_jsons);
-  return values.length ? values : getListValues(section.outbound_json);
+function getJsonOutbounds(section2) {
+  const values = getListValues(section2.outbound_jsons);
+  return values.length ? values : getListValues(section2.outbound_json);
 }
 function isConnectionAction(action) {
   return Boolean(
     action && ["connection", "proxy", "outbound", "vpn"].includes(action)
   );
 }
-function hasRemoteLists(section) {
-  return section[".type"] === "section" && section.enabled !== "0" && (getListValues(section.community_lists).length > 0 || [
-    ...getListValues(section.rule_set),
-    ...getListValues(section.rule_set_with_subnets)
+function hasRemoteLists(section2) {
+  return section2[".type"] === "section" && section2.enabled !== "0" && (getListValues(section2.community_lists).length > 0 || [
+    ...getListValues(section2.rule_set),
+    ...getListValues(section2.rule_set_with_subnets)
   ].some((reference) => !reference.startsWith("/")));
 }
-function hasSubscriptionSources(section) {
-  return getSubscriptionSourceCount(section) > 0;
+function hasSubscriptionSources(section2) {
+  return getSubscriptionSourceCount(section2) > 0;
 }
-function getSubscriptionSourceCount(section) {
-  return (section.subscriptions || []).length;
+function getSubscriptionSourceCount(section2) {
+  return (section2.subscriptions || []).length;
 }
-function hasConfiguredUrlTestList(section) {
-  return getListValues(section.urltests).length > 0;
+function hasConfiguredUrlTestList(section2) {
+  return getListValues(section2.urltests).length > 0;
 }
-function hasConfiguredFallbackList(section) {
-  return getListValues(section.fallback_groups).length > 0;
+function hasConfiguredFallbackList(section2) {
+  return getListValues(section2.fallback_groups).length > 0;
 }
-function getUrlTestIds(section) {
-  const values = getListValues(section.urltests);
-  return values.length ? values : section.urltest_enabled === "1" ? ["urltest"] : [];
+function getUrlTestIds(section2) {
+  const values = getListValues(section2.urltests);
+  return values.length ? values : section2.urltest_enabled === "1" ? ["urltest"] : [];
 }
-function isUrlTestEnabled(section) {
-  return getUrlTestIds(section).length > 0;
+function isUrlTestEnabled(section2) {
+  return getUrlTestIds(section2).length > 0;
 }
-function shouldUseProxyGroup(section) {
-  return getManualProxyLinks(section).length > 0 || hasSubscriptionSources(section) || getConnectionInterfaces(section).length > 0 || getConnectionTunnels(section).length > 0 || getJsonOutbounds(section).length > 0;
+function shouldUseProxyGroup(section2) {
+  return getManualProxyLinks(section2).length > 0 || hasSubscriptionSources(section2) || getConnectionInterfaces(section2).length > 0 || getConnectionTunnels(section2).length > 0 || getJsonOutbounds(section2).length > 0;
 }
-function getSectionProxyConfigType(section) {
-  if (hasSubscriptionSources(section)) {
+function getSectionProxyConfigType(section2) {
+  if (hasSubscriptionSources(section2)) {
     return "subscription";
   }
-  if (isUrlTestEnabled(section) && shouldUseProxyGroup(section)) {
+  if (isUrlTestEnabled(section2) && shouldUseProxyGroup(section2)) {
     return "urltest";
   }
-  if (getManualProxyLinks(section).length > 0) {
+  if (getManualProxyLinks(section2).length > 0) {
     return "selector";
   }
-  if (getConnectionTunnels(section).length > 0) {
+  if (getConnectionTunnels(section2).length > 0) {
     return "selector";
   }
-  if (getJsonOutbounds(section).length > 0) {
+  if (getJsonOutbounds(section2).length > 0) {
     return "outbound";
   }
-  if (getConnectionInterfaces(section).length > 0) {
+  if (getConnectionInterfaces(section2).length > 0) {
     return "interface";
   }
-  if (hasConfiguredFallbackList(section)) {
+  if (hasConfiguredFallbackList(section2)) {
     return "selector";
   }
   return void 0;
 }
-function getJsonOutboundDisplayName(section) {
+function getJsonOutboundDisplayName(section2) {
   try {
-    const parsedOutbound = JSON.parse(section.outbound_json || "{}");
+    const parsedOutbound = JSON.parse(section2.outbound_json || "{}");
     return parsedOutbound?.tag ? decodeURIComponent(parsedOutbound.tag) : "";
   } catch (_error) {
     return "";
   }
 }
-function buildManualLinkByCode(section, selectorCodes) {
+function buildManualLinkByCode(section2, selectorCodes) {
   const available = new Set(selectorCodes);
-  const sectionPrefix = `${getDisplayName(section)}/`;
+  const sectionPrefix = `${getDisplayName(section2)}/`;
   return new Map(
-    getManualProxyLinks(section).flatMap(({ name, uri }) => {
+    getManualProxyLinks(section2).flatMap(({ name, uri }) => {
       const code = `${sectionPrefix}${name}`;
       return available.has(code) && isCopyableProxyLink(uri) ? [[code, uri]] : [];
     })
@@ -2910,14 +2705,14 @@ function itemSettingNumber(settings, key, fallback) {
   const value = Number(raw);
   return Number.isFinite(value) ? value : fallback;
 }
-function getChildTag(section, displayName) {
-  return `${getDisplayName(section)}/${displayName}`;
+function getChildTag(section2, displayName) {
+  return `${getDisplayName(section2)}/${displayName}`;
 }
-function getUrlTestDisplayName(section, id, settings) {
+function getUrlTestDisplayName(section2, id, settings) {
   return itemSettingString(
     settings,
     "display_name",
-    id === "urltest" && !hasConfiguredUrlTestList(section) ? "Fastest" : id
+    id === "urltest" && !hasConfiguredUrlTestList(section2) ? "Fastest" : id
   );
 }
 var URLTEST_DEFAULTS = {
@@ -2938,14 +2733,14 @@ var FALLBACK_DEFAULTS = {
   idle_timeout: "5m",
   interrupt_exist_connections: false
 };
-function getUrlTestConfigs(section) {
-  const settingsMap = itemSettingsMap(section.urltest_settings);
-  return getUrlTestIds(section).map((id) => {
+function getUrlTestConfigs(section2) {
+  const settingsMap = itemSettingsMap(section2.urltest_settings);
+  return getUrlTestIds(section2).map((id) => {
     const settings = settingsMap[id] || {};
-    const displayName = getUrlTestDisplayName(section, id, settings);
+    const displayName = getUrlTestDisplayName(section2, id, settings);
     return {
       id,
-      code: getChildTag(section, displayName),
+      code: getChildTag(section2, displayName),
       displayName,
       testingUrl: itemSettingString(
         settings,
@@ -3006,20 +2801,20 @@ function fallbackLevelConfigsFromSettings(settings) {
     (left, right) => left.order === right.order ? left.id.localeCompare(right.id) : left.order - right.order
   );
 }
-function getFallbackGroupIds(section) {
-  return getListValues(section.fallback_groups);
+function getFallbackGroupIds(section2) {
+  return getListValues(section2.fallback_groups);
 }
-function getFallbackConfigs(section) {
-  const settingsMap = itemSettingsMap(section.fallback_group_settings);
-  const sectionName = section[".name"];
-  return getFallbackGroupIds(section).map((id) => {
+function getFallbackConfigs(section2) {
+  const settingsMap = itemSettingsMap(section2.fallback_group_settings);
+  const sectionName = section2[".name"];
+  return getFallbackGroupIds(section2).map((id) => {
     const settings = settingsMap[id] || {};
     const levels = fallbackLevelConfigsFromSettings(settings);
     const displayName = itemSettingString(settings, "name", id);
     return {
       id,
       sectionName,
-      code: getChildTag(section, displayName),
+      code: getChildTag(section2, displayName),
       displayName,
       healthCheckUrl: itemSettingString(
         settings,
@@ -3197,8 +2992,8 @@ function buildFallbackInfo({
     outbounds
   };
 }
-function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
-  const sectionDisplayName = getDisplayName(section);
+function buildProxyGroupOutbounds(section2, proxies, subscriptionTags) {
+  const sectionDisplayName = getDisplayName(section2);
   const exportableProviderTags = subscriptionTags.map(
     (item) => item.runtimeTag
   );
@@ -3206,12 +3001,12 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
   const selector = proxyByCode.get(sectionDisplayName);
   const selectorCodes = selector?.value?.all ?? [];
   const urlTestConfigByCode = new Map(
-    getUrlTestConfigs(section).map((config) => [config.code, config])
+    getUrlTestConfigs(section2).map((config) => [config.code, config])
   );
   const fallbackConfigByCode = new Map(
-    getFallbackConfigs(section).map((config) => [config.code, config])
+    getFallbackConfigs(section2).map((config) => [config.code, config])
   );
-  const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
+  const manualLinkByCode = buildManualLinkByCode(section2, selectorCodes);
   const outbounds = uniqueCodes(selectorCodes).flatMap((code) => {
     const item = proxyByCode.get(code);
     const urlTestConfig = urlTestConfigByCode.get(code);
@@ -3279,12 +3074,12 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
     outbounds
   };
 }
-function isSubscriptionMetadataVisible(section, sourceIndex) {
-  return (section.subscriptions || [])[sourceIndex - 1]?.show_dashboard_metadata !== "0";
+function isSubscriptionMetadataVisible(section2, sourceIndex) {
+  return (section2.subscriptions || [])[sourceIndex - 1]?.show_dashboard_metadata !== "0";
 }
-function getSectionSubscriptionTags(section, providers) {
-  const sectionDisplayName = getDisplayName(section);
-  return (section.subscriptions || []).map((subscription) => {
+function getSectionSubscriptionTags(section2, providers) {
+  const sectionDisplayName = getDisplayName(section2);
+  return (section2.subscriptions || []).map((subscription) => {
     const displayTag = subscription.tag.trim();
     const runtimeTag = `${sectionDisplayName}/${displayTag}`;
     return {
@@ -3329,7 +3124,7 @@ function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
     ...expire ? { expire } : {}
   };
 }
-function getSubscriptionMetadata(section, sourceCount, subscriptionTags, providers) {
+function getSubscriptionMetadata(section2, sourceCount, subscriptionTags, providers) {
   const items = subscriptionTags.slice(0, sourceCount).flatMap((tag, index) => {
     const sourceIndex = index + 1;
     const provider = providers[tag.runtimeTag];
@@ -3341,7 +3136,7 @@ function getSubscriptionMetadata(section, sourceCount, subscriptionTags, provide
       sourceIndex,
       tag.displayTag
     );
-    return metadata && isSubscriptionMetadataVisible(section, sourceIndex) ? [metadata] : [];
+    return metadata && isSubscriptionMetadataVisible(section2, sourceIndex) ? [metadata] : [];
   });
   return items.length ? items : void 0;
 }
@@ -3372,25 +3167,25 @@ async function getDashboardSections() {
   );
   const providers = clashProviders.success ? clashProviders.data?.providers || {} : {};
   const activeSections = configSections.filter(
-    (section) => section.enabled !== "0" && isConnectionAction(section.action)
+    (section2) => section2.enabled !== "0" && isConnectionAction(section2.action)
   );
-  const data = activeSections.map((section) => {
-    const displayName = getDisplayName(section);
-    const sectionName = section[".name"];
-    const sectionAction = section.action;
-    const proxyConfigType = getSectionProxyConfigType(section);
-    if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section)) {
-      const subscriptionSourceCount = getSubscriptionSourceCount(section);
+  const data = activeSections.map((section2) => {
+    const displayName = getDisplayName(section2);
+    const sectionName = section2[".name"];
+    const sectionAction = section2.action;
+    const proxyConfigType = getSectionProxyConfigType(section2);
+    if (isConnectionAction(sectionAction) && shouldUseProxyGroup(section2)) {
+      const subscriptionSourceCount = getSubscriptionSourceCount(section2);
       const subscriptionEnabled = subscriptionSourceCount > 0;
-      const subscriptionTags = getSectionSubscriptionTags(section, providers);
+      const subscriptionTags = getSectionSubscriptionTags(section2, providers);
       const subscriptionMetadata = subscriptionEnabled ? getSubscriptionMetadata(
-        section,
+        section2,
         subscriptionSourceCount,
         subscriptionTags,
         providers
       ) : void 0;
       const { selector, outbounds } = buildProxyGroupOutbounds(
-        section,
+        section2,
         proxies,
         subscriptionTags
       );
@@ -3421,7 +3216,7 @@ async function getDashboardSections() {
         outbounds: [
           {
             code: outbound?.code || displayName,
-            displayName: section.interface || outbound?.value?.name || "",
+            displayName: section2.interface || outbound?.value?.name || "",
             latency: outbound?.value?.history?.[0]?.delay || 0,
             type: outbound?.value?.type || "",
             selected: true,
@@ -3442,7 +3237,7 @@ async function getDashboardSections() {
         outbounds: [
           {
             code: outbound?.code || displayName,
-            displayName: getJsonOutboundDisplayName(section) || outbound?.value?.name || "",
+            displayName: getJsonOutboundDisplayName(section2) || outbound?.value?.name || "",
             latency: outbound?.value?.history?.[0]?.delay || 0,
             type: outbound?.value?.type || "",
             selected: true,
@@ -3520,23 +3315,9 @@ async function getFakeIpCheck() {
   );
 }
 
-// src/forkop/methods/fakeip/getIpCheck.ts
-async function getIpCheck() {
-  return createBaseApiRequest(
-    () => fetch(`https://${IP_CHECK_DOMAIN}/check`, {
-      method: "GET"
-    }),
-    {
-      operationName: "getIpCheck",
-      timeoutMs: 5e3
-    }
-  );
-}
-
 // src/forkop/methods/fakeip/index.ts
 var RemoteFakeIPMethods = {
-  getFakeIpCheck,
-  getIpCheck
+  getFakeIpCheck
 };
 
 // src/forkop/services/tab.service.ts
@@ -3596,64 +3377,49 @@ var TabService = class _TabService {
 };
 var TabServiceInstance = TabService.getInstance();
 
-// src/forkop/tabs/diagnostic/checks/contstants.ts
-var DIAGNOSTICS_CHECKS_MAP = {
-  ["DNS" /* DNS */]: {
-    order: 1,
-    title: "DNS",
-    code: "DNS" /* DNS */
-  },
-  ["SINGBOX" /* SINGBOX */]: {
-    order: 2,
-    title: "sing-box",
-    code: "SINGBOX" /* SINGBOX */
-  },
-  ["NFT" /* NFT */]: {
-    order: 3,
-    title: "nftables",
-    code: "NFT" /* NFT */
-  },
-  ["OUTBOUNDS" /* OUTBOUNDS */]: {
-    order: 4,
-    title: "Outbounds",
-    code: "OUTBOUNDS" /* OUTBOUNDS */
-  },
-  ["FAKEIP" /* FAKEIP */]: {
-    order: 6,
-    title: "FakeIP",
-    code: "FAKEIP" /* FAKEIP */
-  },
-  ["INBOUNDS" /* INBOUNDS */]: {
-    order: 5,
-    title: "Inbounds",
-    code: "INBOUNDS" /* INBOUNDS */
+// src/forkop/tabs/diagnostic/checks/groups.ts
+var DIAGNOSTICS_CHECKS_ORDER = [
+  "SERVICE" /* SERVICE */,
+  "DNS" /* DNS */,
+  "TRAFFIC" /* TRAFFIC */,
+  "SECTIONS" /* SECTIONS */,
+  "SERVERS" /* SERVERS */
+];
+function diagnosticsCheckTitle(code) {
+  switch (code) {
+    case "SERVICE" /* SERVICE */:
+      return _("Service");
+    case "DNS" /* DNS */:
+      return "DNS";
+    case "TRAFFIC" /* TRAFFIC */:
+      return _("Traffic");
+    case "SECTIONS" /* SECTIONS */:
+      return _("Sections");
+    case "SERVERS" /* SERVERS */:
+      return _("VPN server");
   }
-};
+}
 
 // src/forkop/tabs/diagnostic/diagnostic.store.ts
-function createDiagnosticCheck(code, description) {
-  const meta = DIAGNOSTICS_CHECKS_MAP[code];
+function createDiagnosticCheck(code, description, state = "skipped") {
   return {
     code,
-    title: meta.title,
-    order: meta.order,
+    title: diagnosticsCheckTitle(code),
+    order: DIAGNOSTICS_CHECKS_ORDER.indexOf(code),
     description,
     items: [],
-    state: "skipped"
+    state
   };
 }
+function diagnosticsCheckCodes(options = {}) {
+  return DIAGNOSTICS_CHECKS_ORDER.filter(
+    (code) => code !== "SERVERS" /* SERVERS */ || options.includeServers === true
+  );
+}
 function getDiagnosticsChecks(description, options = {}) {
-  const checks = [
-    "DNS" /* DNS */,
-    "SINGBOX" /* SINGBOX */,
-    "NFT" /* NFT */,
-    "OUTBOUNDS" /* OUTBOUNDS */
-  ];
-  if (options.includeInbounds === true) {
-    checks.push("INBOUNDS" /* INBOUNDS */);
-  }
-  checks.push("FAKEIP" /* FAKEIP */);
-  return checks.map((code) => createDiagnosticCheck(code, description));
+  return diagnosticsCheckCodes(options).map(
+    (code) => createDiagnosticCheck(code, description)
+  );
 }
 function getLoadingDiagnosticsChecks(options = {}) {
   return {
@@ -3688,7 +3454,7 @@ var initialDiagnosticStore = {
     disable: {
       loading: false
     },
-    globalCheck: {
+    report: {
       loading: false
     },
     showConfig: {
@@ -3698,7 +3464,7 @@ var initialDiagnosticStore = {
       loading: false
     }
   },
-  diagnosticsRunAction: { loading: false },
+  diagnosticsRunAction: { loading: false, finished: null },
   diagnosticsChecks: getDiagnosticsChecks(_("Not running"))
 };
 
@@ -4780,7 +4546,7 @@ var socket = SocketManager.getInstance();
 // src/forkop/methods/custom/getClashApiSecret.ts
 async function getClashApiSecret2() {
   const sections = await getConfigSections();
-  const settings = sections.find((section) => section[".type"] === "settings");
+  const settings = sections.find((section2) => section2[".type"] === "settings");
   return settings?.yacd_secret_key || "";
 }
 
@@ -4979,7 +4745,7 @@ function readCollapsedSections() {
 }
 function writeCollapsedSections() {
   const shown2 = new Set(
-    store.get().sectionsWidget.data.map((section) => section.sectionName)
+    store.get().sectionsWidget.data.map((section2) => section2.sectionName)
   );
   try {
     getLocalStorage()?.setItem(
@@ -5363,10 +5129,10 @@ function startDashboardDataUpdates() {
 }
 async function handleChooseOutbound(sectionName, selector, tag) {
   const sectionsWidget = store.get().sectionsWidget;
-  const section = sectionsWidget.data.find(
+  const section2 = sectionsWidget.data.find(
     (item) => item.sectionName === sectionName
   );
-  if (!section?.withTagSelect || selectorRequests.has(selector) || section.outbounds.some(
+  if (!section2?.withTagSelect || selectorRequests.has(selector) || section2.outbounds.some(
     (outbound) => outbound.code === tag && outbound.selected
   )) {
     return;
@@ -5408,13 +5174,13 @@ function applyLatencyResult(sectionName, latencies) {
   store.set({
     sectionsWidget: {
       ...sectionsWidget,
-      data: sectionsWidget.data.map((section) => {
-        if (section.sectionName !== sectionName) {
-          return section;
+      data: sectionsWidget.data.map((section2) => {
+        if (section2.sectionName !== sectionName) {
+          return section2;
         }
         return {
-          ...section,
-          outbounds: section.outbounds.map((outbound) => {
+          ...section2,
+          outbounds: section2.outbounds.map((outbound) => {
             const updateMembers = (members) => members.map((member) => ({
               ...member,
               latency: latencies[member.code] ?? member.latency
@@ -5440,7 +5206,7 @@ function applyLatencyResult(sectionName, latencies) {
     }
   });
 }
-async function handleTestLatency(latencyType, section, tag, requestKey) {
+async function handleTestLatency(latencyType, section2, tag, requestKey) {
   if (latencyRequests.has(requestKey)) {
     return true;
   }
@@ -5451,7 +5217,7 @@ async function handleTestLatency(latencyType, section, tag, requestKey) {
   try {
     const response = latencyType === "group" ? await CustomForkopMethods.getClashApiGroupLatency(tag) : await CustomForkopMethods.getClashApiProxyLatency(
       tag,
-      section.latencyTestTimeout
+      section2.latencyTestTimeout
     );
     if (!response.success) {
       if (response.status === void 0) {
@@ -5464,7 +5230,7 @@ async function handleTestLatency(latencyType, section, tag, requestKey) {
       throw new Error(response.error);
     }
     applyLatencyResult(
-      section.sectionName,
+      section2.sectionName,
       latencyType === "group" ? response.data : { [tag]: response.data.delay }
     );
   } catch (error) {
@@ -5476,13 +5242,13 @@ async function handleTestLatency(latencyType, section, tag, requestKey) {
   }
   return answered;
 }
-function handleTestSectionLatency(section) {
-  const target = sectionLatencyTarget(section);
-  return target ? handleTestLatency(
-    target.type,
-    section,
-    target.tag,
-    sectionLatencyRequestKey(section.sectionName)
+function handleTestSectionLatency(section2) {
+  const target2 = sectionLatencyTarget(section2);
+  return target2 ? handleTestLatency(
+    target2.type,
+    section2,
+    target2.tag,
+    sectionLatencyRequestKey(section2.sectionName)
   ) : Promise.resolve(true);
 }
 async function handleCopyOutbound(outbound) {
@@ -5769,8 +5535,8 @@ function renderFallbackMemberName(member, showLevel) {
   ];
 }
 function findGroupInfo(kind, code) {
-  for (const section of store.get().sectionsWidget.data) {
-    for (const outbound of section.outbounds) {
+  for (const section2 of store.get().sectionsWidget.data) {
+    for (const outbound of section2.outbounds) {
       if (outbound[kind]?.code === code) {
         return outbound[kind];
       }
@@ -6029,8 +5795,8 @@ async function runToolbarAction(action, run) {
 }
 function handleTestAllSections() {
   return runToolbarAction("testAll", async () => {
-    for (const section of store.get().sectionsWidget.data) {
-      if (!dashboardMounted || !await handleTestSectionLatency(section)) {
+    for (const section2 of store.get().sectionsWidget.data) {
+      if (!dashboardMounted || !await handleTestSectionLatency(section2)) {
         return;
       }
     }
@@ -6040,7 +5806,7 @@ function subscriptionProviderTags() {
   return [
     ...new Set(
       store.get().sectionsWidget.data.flatMap(
-        (section) => section.subscriptionProviderTags || []
+        (section2) => section2.subscriptionProviderTags || []
       )
     )
   ];
@@ -6110,34 +5876,34 @@ async function renderSectionsWidget() {
   });
   const collapsible = sectionsWidget.data.length > 1;
   const renderedWidgets = sectionsWidget.data.map(
-    (section) => renderSections({
+    (section2) => renderSections({
       loading: sectionsWidget.loading,
       failed: sectionsWidget.failed,
-      section,
+      section: section2,
       collapsible,
-      collapsed: collapsedSections.has(section.sectionName),
+      collapsed: collapsedSections.has(section2.sectionName),
       onCollapsedChange: handleCollapsedChange,
       latencyFetching: latencyRequests.has(
-        sectionLatencyRequestKey(section.sectionName)
+        sectionLatencyRequestKey(section2.sectionName)
       ),
       latencyFetchingTargets: new Set(
-        section.outbounds.map((outbound) => outbound.code).filter(
+        section2.outbounds.map((outbound) => outbound.code).filter(
           (tag) => latencyRequests.has(
-            outboundLatencyRequestKey(section.sectionName, tag)
+            outboundLatencyRequestKey(section2.sectionName, tag)
           )
         )
       ),
-      sortByLatency: latencySortedSections.has(section.sectionName),
+      sortByLatency: latencySortedSections.has(section2.sectionName),
       onSortByLatencyChange: handleSortByLatency,
       onTestLatency: () => {
-        void handleTestSectionLatency(section);
+        void handleTestSectionLatency(section2);
       },
       onTestOutboundLatency: (latencyType, tag) => {
         void handleTestLatency(
           latencyType,
-          section,
+          section2,
           tag,
-          outboundLatencyRequestKey(section.sectionName, tag)
+          outboundLatencyRequestKey(section2.sectionName, tag)
         );
       },
       onChooseOutbound: (sectionName, selector, tag) => {
@@ -7219,502 +6985,518 @@ function render2() {
   ]);
 }
 
-// src/forkop/tabs/diagnostic/checks/updateCheckStore.ts
-function updateCheckStore(check, minified) {
-  const diagnosticsChecks = store.get().diagnosticsChecks;
-  const other = diagnosticsChecks.filter((item) => item.code !== check.code);
-  const smallCheck = {
-    ...check,
-    items: check.items.filter((item) => item.state !== "success")
-  };
-  const targetCheck = minified ? smallCheck : check;
-  store.set({
-    diagnosticsChecks: [...other, targetCheck]
-  });
+// src/forkop/tabs/diagnostic/checks/present.ts
+var SEVERITY = {
+  success: 0,
+  warning: 1,
+  error: 2
+};
+function finding(state, key, value) {
+  return { state, key, value };
 }
-
-// src/forkop/tabs/diagnostic/helpers/getMeta.ts
-function getMeta({ allGood, atLeastOneGood }) {
-  if (allGood) {
-    return {
-      state: "success",
-      description: _("Checks passed")
-    };
-  }
-  if (atLeastOneGood) {
-    return {
-      state: "warning",
-      description: _("Issues detected")
-    };
-  }
+function summarize(items) {
+  const state = items.reduce(
+    (worst, item) => SEVERITY[item.state] > SEVERITY[worst] ? item.state : worst,
+    "success"
+  );
+  return {
+    state,
+    description: state === "error" ? _("Checks failed") : state === "warning" ? _("Issues detected") : _("Checks passed")
+  };
+}
+function outcome(items) {
+  return { ...summarize(items), items };
+}
+function skipped(description) {
+  return { state: "skipped", description, items: [] };
+}
+function unanswered() {
   return {
     state: "error",
-    description: _("Checks failed")
-  };
-}
-
-// src/forkop/tabs/diagnostic/checks/getDnsCheckPresentation.ts
-function getDnsCheckPresentation(data) {
-  const allGood = Boolean(data.dns_on_router) && Boolean(data.local_dns_status) && Boolean(data.dns_capture_status) && Boolean(data.bootstrap_dns_status) && Boolean(data.dns_status);
-  const atLeastOneGood = Boolean(data.dns_on_router) || Boolean(data.local_dns_status) || Boolean(data.dns_capture_status) || Boolean(data.bootstrap_dns_status) || Boolean(data.dns_status);
-  return getMeta({ atLeastOneGood, allGood });
-}
-
-// src/forkop/tabs/diagnostic/checks/runDnsCheck.ts
-async function runDnsCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.DNS;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
+    description: _("Cannot receive checks result"),
     items: []
-  });
-  const dnsChecks = await ForkopShellMethods.checkDNSAvailable();
-  if (!dnsChecks.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error("DNS checks failed");
-  }
-  const data = dnsChecks.data;
-  const { state, description } = getDnsCheckPresentation(data);
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items: [
-      {
-        state: data.bootstrap_dns_status ? "success" : "error",
-        key: _("Bootstrap DNS"),
-        value: data.bootstrap_dns_server
-      },
-      {
-        state: data.dns_status ? "success" : "error",
-        key: _("Main DNS"),
-        value: data.dns_server
-      },
-      {
-        state: data.dns_on_router ? "success" : "error",
-        key: _("DNS on router"),
-        value: ""
-      },
-      {
-        state: data.local_dns_status ? "success" : "error",
-        key: _("Local resolver"),
-        value: data.local_dns_server
-      },
-      {
-        state: data.dns_capture_status ? "success" : "error",
-        key: _("DNS capture active"),
-        value: ""
-      }
-    ]
-  });
-  if (state === "error") {
-    throw new Error("DNS checks failed");
-  }
-}
-
-// src/forkop/tabs/diagnostic/checks/runSingBoxCheck.ts
-async function runSingBoxCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.SINGBOX;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  const singBoxChecks = await ForkopShellMethods.checkSingBox();
-  if (!singBoxChecks.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error("Sing-box checks failed");
-  }
-  const data = singBoxChecks.data;
-  const allGood = Boolean(data.sing_box_installed) && Boolean(data.sing_box_version_ok) && Boolean(data.sing_box_clash_api) && Boolean(data.sing_box_service_exist) && Boolean(data.sing_box_autostart_disabled) && Boolean(data.sing_box_process_running) && Boolean(data.sing_box_ports_listening);
-  const atLeastOneGood = Boolean(data.sing_box_installed) || Boolean(data.sing_box_version_ok) || Boolean(data.sing_box_clash_api) || Boolean(data.sing_box_service_exist) || Boolean(data.sing_box_autostart_disabled) || Boolean(data.sing_box_process_running) || Boolean(data.sing_box_ports_listening);
-  const { state, description } = getMeta({ atLeastOneGood, allGood });
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items: [
-      {
-        state: data.sing_box_installed ? "success" : "error",
-        key: _("Installed"),
-        value: ""
-      },
-      {
-        state: data.sing_box_version_ok ? "success" : "error",
-        key: _("Version is compatible"),
-        value: ""
-      },
-      {
-        state: data.sing_box_clash_api ? "success" : "error",
-        key: _("Built with the Clash API"),
-        value: ""
-      },
-      {
-        state: data.sing_box_service_exist ? "success" : "error",
-        key: _("Service exists"),
-        value: ""
-      },
-      {
-        state: data.sing_box_autostart_disabled ? "success" : "error",
-        key: _("Autostart disabled"),
-        value: ""
-      },
-      {
-        state: data.sing_box_process_running ? "success" : "error",
-        key: _("Process running"),
-        value: ""
-      },
-      {
-        state: data.sing_box_ports_listening ? "success" : "error",
-        key: _("Ports listening"),
-        value: ""
-      }
-    ]
-  });
-  if (!atLeastOneGood || !data.sing_box_process_running) {
-    throw new Error("Sing-box checks failed");
-  }
-}
-
-// src/forkop/tabs/diagnostic/checks/runInboundsCheck.ts
-function serverPrefix(item) {
-  return `${item.label}:`;
-}
-function formatListen(item) {
-  return `${item.listen}:${Number(item.listen_port || 0)} [${item.required_proto}]`;
-}
-function getPortConflictItem(item) {
-  const key = `${serverPrefix(item)} ${_("Port conflict")}`;
-  if (item.port_conflict === 1) {
-    return {
-      state: "error",
-      key,
-      value: `${_("Used by")}: ${item.port_conflict_owners || _("unknown")}`
-    };
-  }
-  return {
-    state: "success",
-    key,
-    value: _("No conflict detected")
   };
 }
-function getPublicHostItem(item) {
-  const key = `${serverPrefix(item)} ${_("Public address")}`;
-  if (!item.public_host) {
-    return {
-      state: "warning",
-      key,
-      value: _("Not configured")
-    };
-  }
-  if (item.public_host_resolved === 0) {
-    return {
-      state: "warning",
-      key,
-      value: `${item.public_host} (${_("Does not resolve")})`
-    };
-  }
-  if (item.public_host_public === 0) {
-    return {
-      state: "warning",
-      key,
-      value: `${item.public_host} (${_("Not public")})`
-    };
-  }
-  if (item.public_host_matches_wan === 0) {
-    return {
-      state: "warning",
-      key,
-      value: `${item.public_host_ips || item.public_host} (${_("Does not match the WAN address")})`
-    };
-  }
-  return {
-    state: "success",
-    key,
-    value: item.public_host
-  };
+function formatMs(ms) {
+  return _("%d ms").format(ms);
 }
-function getServerItems(item) {
-  const prefix = serverPrefix(item);
-  const items = [
-    {
-      state: item.runtime_ok ? "success" : "error",
-      key: `${prefix} ${_("Inbound created")}`,
-      value: item.tag === item.label ? item.protocol : `${item.tag} [${item.protocol}]`
-    }
-  ];
-  if (item.protocol === "tailscale") {
-    items.push(
-      {
-        state: "success",
-        key: `${prefix} ${_("Tailscale endpoint")}`,
-        value: _("No public firewall port required")
-      },
-      {
-        state: item.routes_configured ? "success" : "warning",
-        key: `${prefix} ${_("Routing rules")}`,
-        value: item.routing_mode
-      }
+function formatMegabytes(kilobytes) {
+  return _("%d MB").format(Math.round(kilobytes / 1024));
+}
+function formatDuration(seconds3) {
+  const value = Math.max(0, Math.floor(seconds3));
+  const days = Math.floor(value / 86400);
+  const hours = Math.floor(value % 86400 / 3600);
+  const minutes = Math.floor(value % 3600 / 60);
+  if (days > 0) {
+    return hours > 0 ? `${_("%d d").format(days)} ${_("%d h").format(hours)}` : _("%d d").format(days);
+  }
+  if (hours > 0) {
+    return minutes > 0 ? `${_("%d h").format(hours)} ${_("%d min").format(minutes)}` : _("%d h").format(hours);
+  }
+  return minutes > 0 ? _("%d min").format(minutes) : _("%d s").format(value);
+}
+
+// src/forkop/tabs/diagnostic/checks/service.ts
+var CLOCK_TOLERANCE_S = 30;
+var LOW_MEMORY_SHARE = 0.1;
+function forkopItem(data) {
+  if (data.running) {
+    return finding(
+      "success",
+      "Forkop",
+      data.uptime >= 0 ? _("running for %s").format(formatDuration(data.uptime)) : _("running")
     );
-    return items;
   }
-  if (item.protocol === "json_inbound") {
-    items.push({
-      state: item.routes_configured ? "success" : "warning",
-      key: `${prefix} ${_("Routing rules")}`,
-      value: item.routing_mode
-    });
-    return items;
-  }
-  items.push(
-    {
-      state: item.listening === 1 && item.port_conflict !== 1 ? "success" : "error",
-      key: `${prefix} ${_("Listening port")}`,
-      value: formatListen(item)
-    },
-    getPortConflictItem(item),
-    {
-      // A listener that cannot be reached from WAN needs no rule, which is an
-      // answer and not a complaint.
-      state: item.firewall_required === 0 ? "success" : item.firewall_open === 1 ? "success" : "error",
-      key: `${prefix} ${_("Firewall WAN port")}`,
-      value: item.firewall_required === 0 ? _("Not required for this listen address") : `${item.required_proto}/${Number(item.listen_port || 0)}`
-    },
-    {
-      state: item.routes_configured ? "success" : "warning",
-      key: `${prefix} ${_("Routing rules")}`,
-      value: item.routing_mode
-    },
-    getPublicHostItem(item)
+  return finding(
+    "error",
+    "Forkop",
+    data.last_error ? _("not running: %s").format(data.last_error) : _("not running")
   );
-  return items;
 }
-async function runInboundsCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.INBOUNDS;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  const inboundsChecks = await ForkopShellMethods.checkInbounds();
-  if (!inboundsChecks.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error("Inbounds checks failed");
+function conflictItems(data) {
+  const key = _("Conflicts");
+  const items = data.conflicts.map(
+    (conflict) => conflict.kind === "tproxy" ? finding("error", key, _("%s intercepts traffic").format(conflict.table)) : finding(
+      "error",
+      key,
+      _("%s takes DNS queries before Forkop").format(conflict.table)
+    )
+  );
+  if (data.foreign_sing_box.length) {
+    items.push(
+      finding(
+        "error",
+        key,
+        _("another sing-box is running (PID %s)").format(
+          data.foreign_sing_box.join(", ")
+        )
+      )
+    );
   }
-  const data = inboundsChecks.data;
-  if (!data.enabled_count) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("No enabled server inbounds configured"),
-      state: "skipped",
-      items: []
-    });
-    return;
-  }
-  const items = [
-    {
-      state: data.wan_public ? "success" : "warning",
-      key: _("WAN public IP"),
-      value: data.wan_ip || _("Not detected")
+  return items.length ? items : [finding("success", key, _("none found"))];
+}
+function memoryItem(data) {
+  const key = _("Memory");
+  const free = _("%s of %s free").format(
+    formatMegabytes(data.memory.available_kb),
+    formatMegabytes(data.memory.total_kb)
+  );
+  if (data.oom.length) {
+    const counts = /* @__PURE__ */ new Map();
+    for (const kill of data.oom) {
+      counts.set(kill.process, (counts.get(kill.process) || 0) + 1);
     }
+    const killed = [...counts].map(([name, count]) => count > 1 ? `${name} \xD7${count}` : name).join(", ");
+    return finding(
+      "warning",
+      key,
+      _("ran out within a day, the kernel stopped %s").format(killed)
+    );
+  }
+  if (data.memory.total_kb > 0 && data.memory.available_kb < data.memory.total_kb * LOW_MEMORY_SHARE) {
+    return finding("warning", key, free);
+  }
+  return finding("success", key, free);
+}
+function clockSkewSeconds(routerTime, window2) {
+  const stamp = routerTime * 1e3;
+  const earliest = window2.sentAt - 1e3;
+  const latest = window2.receivedAt + 1e3;
+  const skew = stamp < earliest ? earliest - stamp : stamp > latest ? stamp - latest : 0;
+  return Math.round(skew / 1e3);
+}
+function clockItem(data, window2) {
+  const key = _("Clock");
+  const skew = clockSkewSeconds(data.time, window2);
+  if (skew > CLOCK_TOLERANCE_S) {
+    return finding(
+      "warning",
+      key,
+      _("%s off from this device").format(formatDuration(skew))
+    );
+  }
+  return finding("success", key, _("matches this device"));
+}
+function presentService(data, window2) {
+  return [
+    forkopItem(data),
+    ...conflictItems(data),
+    memoryItem(data),
+    clockItem(data, window2)
   ];
-  data.items.forEach((item) => {
-    items.push(...getServerItems(item));
-  });
-  const allGood = items.every((item) => item.state === "success");
-  const atLeastOneGood = items.some((item) => item.state !== "error");
-  const { state, description } = getMeta({ atLeastOneGood, allGood });
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items
-  });
-  if (!atLeastOneGood) {
-    throw new Error("Inbounds checks failed");
-  }
 }
-
-// src/forkop/tabs/diagnostic/checks/runNftCheck.ts
-async function runNftCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.NFT;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  await RemoteFakeIPMethods.getFakeIpCheck();
-  await RemoteFakeIPMethods.getIpCheck();
-  const nftablesChecks = await ForkopShellMethods.checkNftRules();
-  if (!nftablesChecks.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error("Nftables checks failed");
+async function runServiceCheck() {
+  const sentAt = Date.now();
+  const response = await ForkopShellMethods.checkService();
+  const receivedAt = Date.now();
+  if (!response.success) {
+    return { result: unanswered(), running: true };
   }
-  const data = nftablesChecks.data;
-  const allGood = Boolean(data.table_exist) && Boolean(data.rules_mangle_exist) && Boolean(data.rules_mangle_counters) && Boolean(data.rules_mangle_output_exist) && Boolean(data.rules_mangle_output_counters) && Boolean(data.rules_proxy_exist) && Boolean(data.rules_proxy_counters) && !data.rules_other_mark_exist;
-  const atLeastOneGood = Boolean(data.table_exist) || Boolean(data.rules_mangle_exist) || Boolean(data.rules_mangle_counters) || Boolean(data.rules_mangle_output_exist) || Boolean(data.rules_mangle_output_counters) || Boolean(data.rules_proxy_exist) || Boolean(data.rules_proxy_counters);
-  const { state, description } = getMeta({ atLeastOneGood, allGood });
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items: [
-      {
-        state: data.table_exist ? "success" : "error",
-        key: _("Table exist"),
-        value: ""
-      },
-      {
-        state: data.rules_mangle_exist ? "success" : "error",
-        key: _("Rules mangle exist"),
-        value: ""
-      },
-      {
-        state: data.rules_mangle_counters ? "success" : "warning",
-        key: _("Rules mangle counters"),
-        value: ""
-      },
-      {
-        state: data.rules_mangle_output_exist ? "success" : "error",
-        key: _("Rules mangle output exist"),
-        value: ""
-      },
-      {
-        state: data.rules_mangle_output_counters ? "success" : "error",
-        key: _("Rules mangle output counters"),
-        value: ""
-      },
-      {
-        state: data.rules_proxy_exist ? "success" : "error",
-        key: _("Rules proxy exist"),
-        value: ""
-      },
-      {
-        state: data.rules_proxy_counters ? "success" : "error",
-        key: _("Rules proxy counters"),
-        value: ""
-      },
-      {
-        state: !data.rules_other_mark_exist ? "success" : "warning",
-        key: !data.rules_other_mark_exist ? _("No other marking rules found") : _("Additional marking rules found"),
-        value: ""
-      }
-    ]
-  });
-  if (!atLeastOneGood) {
-    throw new Error("Nftables checks failed");
-  }
-}
-
-// src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts
-async function runFakeIPCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.FAKEIP;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  const routerFakeIPResponse = await ForkopShellMethods.checkFakeIP();
-  const checkFakeIPResponse = await RemoteFakeIPMethods.getFakeIpCheck();
-  const checkIPResponse = await RemoteFakeIPMethods.getIpCheck();
-  const browserFakeIPCheckUnavailable = !checkFakeIPResponse.success;
-  const browserFakeIPCheckMessage = checkFakeIPResponse.success ? "" : checkFakeIPResponse.message;
-  const checks = {
-    singBoxFakeIP: routerFakeIPResponse.success && routerFakeIPResponse.data.fakeip,
-    browserFakeIP: checkFakeIPResponse.success && checkFakeIPResponse.data.fakeip,
-    canComparePublicIP: checkFakeIPResponse.success && checkIPResponse.success,
-    differentIP: checkFakeIPResponse.success && checkIPResponse.success && checkFakeIPResponse.data.IP !== checkIPResponse.data.IP
+  return {
+    result: outcome(presentService(response.data, { sentAt, receivedAt })),
+    running: response.data.running,
+    data: response.data
   };
-  const fakeIPWorks = checks.singBoxFakeIP && checks.browserFakeIP;
-  const { state, description } = fakeIPWorks ? checks.differentIP ? { state: "success", description: _("Checks passed") } : {
-    state: "warning",
-    description: _("FakeIP works; public IP comparison is inconclusive")
-  } : browserFakeIPCheckUnavailable && checks.singBoxFakeIP ? {
-    state: "warning",
-    description: _("Browser FakeIP check could not be completed")
-  } : getMeta({
-    allGood: false,
-    atLeastOneGood: checks.singBoxFakeIP || checks.browserFakeIP
+}
+
+// src/forkop/tabs/diagnostic/checks/dns.ts
+function mainItem(main) {
+  const key = _("Main DNS");
+  if (main.answered) {
+    return finding("success", key, `${main.servers} \xB7 ${formatMs(main.ms)}`);
+  }
+  return finding(
+    "error",
+    key,
+    main.status ? _("%s answers with %s").format(main.servers, main.status) : _("%s does not answer").format(main.servers)
+  );
+}
+function bootstrapItem(bootstrap) {
+  const key = _("Bootstrap DNS");
+  if (bootstrap.answered) {
+    return finding(
+      "success",
+      key,
+      `${bootstrap.servers} \xB7 ${formatMs(bootstrap.ms)}`
+    );
+  }
+  return finding(
+    "error",
+    key,
+    _("%s cannot find %s").format(bootstrap.servers, bootstrap.host)
+  );
+}
+function localItem(local) {
+  const key = _("Local DNS");
+  return local.answered ? finding("success", key, `dnsmasq \xB7 ${formatMs(local.ms)}`) : finding("error", key, _("dnsmasq does not answer"));
+}
+function presentDns(data) {
+  return [
+    mainItem(data.main),
+    ...data.bootstrap ? [bootstrapItem(data.bootstrap)] : [],
+    localItem(data.local)
+  ];
+}
+async function runDnsCheck() {
+  const response = await ForkopShellMethods.checkDns();
+  return response.success ? outcome(presentDns(response.data)) : unanswered();
+}
+
+// src/forkop/tabs/diagnostic/checks/traffic.ts
+function routerItem(router) {
+  const key = _("Router");
+  if (router.fakeip) {
+    return finding("success", key, _("goes through Forkop"));
+  }
+  if (!router.dns_fakeip) {
+    return finding("warning", key, _("resolves past Forkop"));
+  }
+  if (router.answered) {
+    return finding("error", key, _("goes past Forkop"));
+  }
+  return finding(
+    "warning",
+    key,
+    _("not checked: the check service did not answer")
+  );
+}
+function exitItem(data) {
+  const exit = data.exit;
+  const key = _('Exit via "%s"').format(exit.section);
+  const direct = data.router.answered ? data.router.ip : "";
+  if (!exit.answered) {
+    return finding("warning", key, _("no answer"));
+  }
+  if (direct && direct === exit.ip) {
+    return finding("warning", key, _("%s, the same as direct").format(exit.ip));
+  }
+  return finding(
+    "success",
+    key,
+    direct ? _("%s, direct %s").format(exit.ip, direct) : exit.ip
+  );
+}
+function deviceItem(browser) {
+  const key = _("This device");
+  if (browser?.fakeip) {
+    return finding("success", key, _("goes through Forkop"));
+  }
+  return browser ? finding("warning", key, _("does not use the router's DNS")) : finding("warning", key, _("not checked: no answer"));
+}
+function presentTraffic(data, browser) {
+  return [
+    routerItem(data.router),
+    ...data.exit ? [exitItem(data)] : [],
+    deviceItem(browser)
+  ];
+}
+async function runTrafficCheck() {
+  const [response, browser] = await Promise.all([
+    ForkopShellMethods.checkTraffic(),
+    RemoteFakeIPMethods.getFakeIpCheck()
+  ]);
+  if (!response.success) {
+    return unanswered();
+  }
+  return outcome(
+    presentTraffic(
+      response.data,
+      browser.success ? { fakeip: Boolean(browser.data.fakeip) } : null
+    )
+  );
+}
+
+// src/forkop/tabs/diagnostic/checks/sections.ts
+function probeResult(response) {
+  if (response.success && Number(response.data?.delay) > 0) {
+    return { delay: Number(response.data.delay) };
+  }
+  const status = response.success ? 0 : Number(response.status || 0);
+  if (status === 504) {
+    return { failure: "timeout" };
+  }
+  if (status === 503 || response.success && response.data?.message) {
+    return { failure: "error" };
+  }
+  if (status === 404) {
+    return { failure: "missing" };
+  }
+  return { failure: "unavailable" };
+}
+function target(section2) {
+  if (!section2.withTagSelect) {
+    return {
+      code: section2.code,
+      node: "",
+      timeout: section2.latencyTestTimeout
+    };
+  }
+  const node = section2.outbounds.find((item) => item.selected) ?? section2.outbounds.find((item) => item.type?.toLowerCase() === "urltest") ?? section2.outbounds[0];
+  return { code: node?.code || section2.code, node: node?.displayName || "" };
+}
+function presentSection(section2, node, probe) {
+  const key = section2.displayName;
+  const on = (text6) => node ? `${node}: ${text6}` : text6;
+  if ("delay" in probe) {
+    return finding(
+      "success",
+      key,
+      node ? `${node} \xB7 ${formatMs(probe.delay)}` : formatMs(probe.delay)
+    );
+  }
+  if (section2.action === "vpn" && section2.outbounds[0]?.runtimeAvailable && probe.failure !== "unavailable") {
+    return finding(
+      "warning",
+      key,
+      _("interface is up, no internet through it")
+    );
+  }
+  switch (probe.failure) {
+    case "timeout":
+      return finding("error", key, on(_("no answer in time")));
+    case "error":
+      return finding("error", key, on(_("connection failed")));
+    case "missing":
+      return finding("error", key, on(_("not in the running configuration")));
+    default:
+      return finding(
+        "warning",
+        key,
+        on(_("not checked: the Clash API did not answer"))
+      );
+  }
+}
+async function runSectionsCheck() {
+  const sections = await getDashboardSections();
+  if (!sections.success) {
+    return {
+      state: "warning",
+      description: _("Not checked: the Clash API did not answer"),
+      items: []
+    };
+  }
+  if (!sections.data.length) {
+    return skipped(_("No sections with a proxy"));
+  }
+  const items = await Promise.all(
+    sections.data.map(async (section2) => {
+      const { code, node, timeout } = target(section2);
+      const response = await CustomForkopMethods.getClashApiProxyLatency(
+        code,
+        ...timeout ? [timeout] : []
+      );
+      return presentSection(section2, node, probeResult(response));
+    })
+  );
+  return outcome(items);
+}
+
+// src/forkop/tabs/diagnostic/checks/servers.ts
+function portText(server2) {
+  return `${server2.port}/${server2.transports.split(" ").filter(Boolean).join("+")}`;
+}
+function listenerItems(server2) {
+  const key = server2.label;
+  const port2 = portText(server2);
+  if (server2.owners) {
+    return [
+      finding(
+        "error",
+        key,
+        _("port %s is taken by %s").format(port2, server2.owners)
+      )
+    ];
+  }
+  if (!server2.listening) {
+    return [
+      finding(
+        "error",
+        key,
+        server2.runtime ? _("does not listen on %s").format(port2) : _("not in the running configuration")
+      )
+    ];
+  }
+  if (server2.exposed && !server2.firewall_open) {
+    return [
+      finding("error", key, _("%s is closed in the firewall").format(port2))
+    ];
+  }
+  return [];
+}
+function publicHostItems(server2, wan) {
+  const key = server2.label;
+  const host = server2.public_host;
+  if (server2.protocol === "json_inbound") {
+    return [];
+  }
+  if (!host) {
+    return [finding("warning", key, _("no public address"))];
+  }
+  if (server2.resolved === 0) {
+    return [finding("warning", key, _("%s does not resolve").format(host))];
+  }
+  if (server2.public === 0) {
+    return [
+      finding(
+        "warning",
+        key,
+        _("%s is not a public address").format(
+          server2.public_ips && server2.public_ips !== host ? `${host} (${server2.public_ips})` : host
+        )
+      )
+    ];
+  }
+  if (server2.matches_wan === 0) {
+    return [
+      finding(
+        "warning",
+        key,
+        _("%s leads to %s, the router has %s").format(
+          host,
+          server2.public_ips,
+          wan
+        )
+      )
+    ];
+  }
+  return [];
+}
+function presentServers(data) {
+  return data.items.flatMap((server2) => {
+    const problems = [
+      ...listenerItems(server2),
+      ...publicHostItems(server2, data.wan)
+    ];
+    if (problems.length) {
+      return problems;
+    }
+    return [
+      finding(
+        "success",
+        server2.label,
+        server2.public_host ? `${portText(server2)} \xB7 ${server2.public_host}` : portText(server2)
+      )
+    ];
   });
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items: [
-      {
-        state: checks.singBoxFakeIP ? "success" : "error",
-        key: checks.singBoxFakeIP ? _("Sing-box FakeIP DNS works") : _("Sing-box FakeIP DNS does not work"),
-        value: routerFakeIPResponse.success ? routerFakeIPResponse.data.IP : ""
-      },
-      {
-        state: browserFakeIPCheckUnavailable ? "warning" : checks.browserFakeIP ? "success" : "error",
-        key: browserFakeIPCheckUnavailable ? _("Browser FakeIP check could not be completed") : checks.browserFakeIP ? _("Browser is using FakeIP correctly") : _("Browser is not using FakeIP"),
-        value: browserFakeIPCheckMessage
-      },
-      ...insertIf(checks.browserFakeIP, [
-        {
-          state: checks.differentIP ? "success" : "warning",
-          key: !checks.canComparePublicIP ? _("Could not compare FakeIP and control public IPs") : checks.differentIP ? _("FakeIP and control checks use different public IPs") : _("FakeIP and control checks use the same public IP"),
-          value: ""
-        }
-      ])
-    ]
-  });
+}
+async function runServersCheck() {
+  const response = await ForkopShellMethods.checkServers();
+  if (!response.success) {
+    return unanswered();
+  }
+  if (!response.data.items.length) {
+    return skipped(_("No servers to check"));
+  }
+  return outcome(presentServers(response.data));
+}
+
+// src/forkop/tabs/diagnostic/report.ts
+var MARKS = {
+  success: "\u2713",
+  warning: "!",
+  error: "\u2717",
+  skipped: "\u2013",
+  loading: "\u2026"
+};
+function checksText(checks) {
+  const lines3 = [];
+  for (const check of [...checks].sort((a, b) => a.order - b.order)) {
+    lines3.push(`${MARKS[check.state]} ${check.title} \u2014 ${check.description}`);
+    for (const item of check.items) {
+      lines3.push(
+        `    ${MARKS[item.state]} ${item.key}${item.value ? `: ${item.value}` : ""}`
+      );
+    }
+  }
+  return `${lines3.join("\n")}
+`;
+}
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+function timestamp(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+function section(title, body) {
+  const text6 = body.trim();
+  return `== ${title} ==
+${text6 ? `${text6}
+` : `${_("empty")}
+`}`;
+}
+function reportText(input, attachments) {
+  const { systemInfo, service } = input;
+  const versions = [`Forkop ${systemInfo.forkop_version}`];
+  if (input.luciVersion && input.luciVersion !== systemInfo.forkop_version) {
+    versions.push(`LuCI ${input.luciVersion}`);
+  }
+  versions.push(`sing-box ${systemInfo.sing_box_version}`);
+  const system = [
+    versions.join(" \xB7 "),
+    `${systemInfo.openwrt_version} \xB7 ${systemInfo.device_model}`
+  ];
+  if (service) {
+    system.push(
+      `${_("Router up for %s").format(formatDuration(service.router_uptime))} \xB7 ${_(
+        "Memory: %s of %s free"
+      ).format(
+        formatMegabytes(service.memory.available_kb),
+        formatMegabytes(service.memory.total_kb)
+      )}`
+    );
+  }
+  return [
+    `${_("Forkop diagnostic report")} \xB7 ${timestamp(input.generatedAt)}
+`,
+    section(_("System"), system.join("\n")),
+    section(_("Checks"), attachments.checks),
+    section(_("Log"), attachments.log),
+    section(_("Forkop configuration"), attachments.forkop_config),
+    section(_("sing-box configuration"), attachments.sing_box_config),
+    section("nftables", attachments.nftables),
+    section(_("Routing rules"), attachments.ip_rules)
+  ].join("\n");
 }
 
 // src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts
@@ -7730,7 +7512,6 @@ function renderAvailableActions({
   stop,
   enable,
   disable,
-  globalCheck,
   showConfig,
   showSingBoxConfig
 }) {
@@ -7784,15 +7565,6 @@ function renderAvailableActions({
         text: _("Enable autostart"),
         loading: enable.loading,
         disabled: enable.disabled
-      })
-    ]),
-    ...insertIf(globalCheck.visible, [
-      renderButton({
-        onClick: globalCheck.onClick,
-        icon: renderCircleCheckBigIcon24,
-        text: _("Global check"),
-        loading: globalCheck.loading,
-        disabled: globalCheck.disabled
       })
     ]),
     ...insertIf(showConfig.visible, [
@@ -7923,7 +7695,8 @@ function renderCheckSection(props, { expanded = true, onToggle } = {}) {
 function renderRunAction({
   loading: loading3,
   disabled,
-  click
+  click,
+  report: report2
 }) {
   return textE("div", { class: "fkp_diagnostic-page__run_check_wrapper" }, [
     renderButton({
@@ -7933,7 +7706,16 @@ function renderRunAction({
       loading: loading3,
       disabled,
       classNames: ["cbi-button-apply"]
-    })
+    }),
+    ...report2 ? [
+      renderButton({
+        text: _("Get report"),
+        onClick: report2.click,
+        icon: renderFileTextIcon24,
+        loading: report2.loading,
+        disabled: report2.disabled
+      })
+    ] : []
   ]);
 }
 
@@ -7960,114 +7742,6 @@ function normalizeCompiledVersion(version) {
     return "dev";
   }
   return version;
-}
-
-// src/forkop/tabs/diagnostic/checks/runSectionsCheck.ts
-async function runSectionsCheck() {
-  const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.OUTBOUNDS;
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description: _("Checking, please wait"),
-    state: "loading",
-    items: []
-  });
-  const sections = await getDashboardSections();
-  if (!sections.success) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("Cannot receive checks result"),
-      state: "error",
-      items: []
-    });
-    throw new Error("Rule outbounds checks failed");
-  }
-  if (!sections.data.length) {
-    updateCheckStore({
-      order,
-      code,
-      title,
-      description: _("No sections to check"),
-      state: "skipped",
-      items: []
-    });
-    return;
-  }
-  const items = [];
-  for (const section of sections.data) {
-    async function getLatency() {
-      if (section.withTagSelect) {
-        const selectedOutbound2 = section.outbounds.find((item) => item.selected) ?? section.outbounds.find(
-          (item) => item.type?.toLowerCase() === "urltest"
-        ) ?? section.outbounds[0];
-        if (selectedOutbound2?.code) {
-          const latencyProxy2 = await CustomForkopMethods.getClashApiProxyLatency(
-            selectedOutbound2.code
-          );
-          const proxySuccess = latencyProxy2.success && !latencyProxy2.data.message;
-          if (proxySuccess) {
-            return {
-              state: "success",
-              latency: `[${selectedOutbound2.displayName ?? ""}] ${latencyProxy2.data.delay}ms`
-            };
-          }
-          return {
-            state: "error",
-            latency: `[${selectedOutbound2.displayName ?? ""}] ${_("Not responding")}`
-          };
-        }
-        return {
-          state: "error",
-          latency: _("Not responding")
-        };
-      }
-      const selectedOutbound = section.outbounds[0];
-      const latencyProxy = await CustomForkopMethods.getClashApiProxyLatency(
-        section.code,
-        section.latencyTestTimeout
-      );
-      const success = latencyProxy.success && !latencyProxy.data.message;
-      if (success) {
-        return {
-          state: "success",
-          latency: `${latencyProxy.data.delay} ms`
-        };
-      }
-      if (section.action === "vpn" && selectedOutbound?.runtimeAvailable) {
-        return {
-          state: "warning",
-          latency: `[${selectedOutbound.displayName || section.code}] ${_("Connectivity probe failed")}`
-        };
-      }
-      return {
-        state: "error",
-        latency: _("Not responding")
-      };
-    }
-    const { latency, state: state2 } = await getLatency();
-    items.push({
-      state: state2,
-      key: section.displayName,
-      value: latency
-    });
-  }
-  const allGood = items.every((item) => item.state === "success");
-  const atLeastOneGood = items.some((item) => item.state !== "error");
-  const { state, description } = getMeta({ atLeastOneGood, allGood });
-  updateCheckStore({
-    order,
-    code,
-    title,
-    description,
-    state,
-    items
-  });
-  if (!atLeastOneGood) {
-    throw new Error("Rule outbounds checks failed");
-  }
 }
 
 // src/forkop/tabs/diagnostic/serviceTransition.ts
@@ -8136,9 +7810,10 @@ function getAutostartControlsPresentation({
   };
 }
 function shouldDisableDiagnosticRunAction({
-  capabilitiesLoaded
+  capabilitiesLoaded,
+  operation
 }) {
-  return !capabilitiesLoaded;
+  return !capabilitiesLoaded || operation !== null;
 }
 var SERVICE_ACTION_FAILURE_LABELS = {
   start: () => _("Failed to start the service"),
@@ -8173,9 +7848,11 @@ var diagnosticMountId = 0;
 var diagnosticsChecksOwnedByRun = false;
 var handledServiceActionJobs = /* @__PURE__ */ new Set();
 var checkFolding = /* @__PURE__ */ new Map();
+var forkopRunningInRun = true;
+var runServiceData;
 function getDiagnosticsCheckOptions(systemInfo = store.get().diagnosticsSystemInfo) {
   return {
-    includeInbounds: systemInfo.server_inbounds_enabled_count > 0
+    includeServers: systemInfo.server_inbounds_enabled_count > 0
   };
 }
 function getNotRunningDiagnosticsChecks(systemInfo = store.get().diagnosticsSystemInfo) {
@@ -8197,6 +7874,7 @@ function releaseDiagnosticsChecks() {
     return;
   }
   diagnosticsChecksOwnedByRun = false;
+  store.set({ diagnosticsRunAction: { loading: false, finished: null } });
   rebuildIdleDiagnosticsChecks();
 }
 function setDiagnosticActionLoading(action, loading3) {
@@ -8259,32 +7937,20 @@ async function fetchDiagnosticsCapabilities({
       return;
     }
     if (uiState) {
-      const currentSystemInfo2 = store.get().diagnosticsSystemInfo;
+      const currentSystemInfo = store.get().diagnosticsSystemInfo;
       const nextSystemInfo2 = {
-        ...currentSystemInfo2,
+        ...currentSystemInfo,
         capabilitiesLoaded: true,
         server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
       };
       applyDiagnosticsCapabilities(nextSystemInfo2, resetChecks);
       return;
     }
-    const inboundsConfig = await ForkopShellMethods.checkInboundsConfig();
-    if (requestId !== latestCapabilitiesRequestId) {
-      return;
-    }
-    const currentSystemInfo = store.get().diagnosticsSystemInfo;
     const nextSystemInfo = {
-      ...currentSystemInfo,
+      ...store.get().diagnosticsSystemInfo,
       capabilitiesLoaded: true,
-      server_inbounds_enabled_count: inboundsConfig.success ? inboundsConfig.data.enabled_count : -1
+      server_inbounds_enabled_count: -1
     };
-    if (!inboundsConfig.success) {
-      logger.error(
-        "[DIAGNOSTIC]",
-        "fetchInboundsConfig failed",
-        inboundsConfig
-      );
-    }
     applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
   } catch (error) {
     logger.error("[DIAGNOSTIC]", "fetchDiagnosticsCapabilities failed", error);
@@ -8322,13 +7988,27 @@ function renderDiagnosticsChecks() {
 }
 function renderDiagnosticRunActionWidget() {
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticRunActionWidget");
-  const { loading: loading3 } = store.get().diagnosticsRunAction;
+  const { loading: loading3, finished } = store.get().diagnosticsRunAction;
+  const { diagnosticsActions, servicesInfoWidget } = store.get();
   const capabilitiesLoaded = store.get().diagnosticsSystemInfo.capabilitiesLoaded;
   const container = document.getElementById("fkp_diagnostic-page-run-check");
+  const disabled = shouldDisableDiagnosticRunAction({
+    capabilitiesLoaded,
+    operation: getServiceOperation({
+      busy: servicesInfoWidget.data.forkopBusy,
+      localPending: getLocalPendingServiceOperation(diagnosticsActions)
+    })
+  });
   const renderedAction = renderRunAction({
     loading: loading3,
-    disabled: shouldDisableDiagnosticRunAction({ capabilitiesLoaded }),
-    click: () => runChecks()
+    disabled,
+    click: () => runChecks(),
+    // The report is the result of a run, so it is offered once one finished.
+    report: finished && !loading3 ? {
+      loading: diagnosticsActions.report.loading,
+      disabled: diagnosticsActions.report.loading,
+      click: () => handleReport()
+    } : null
   });
   return preserveScrollForPage(() => {
     container.replaceChildren(renderedAction);
@@ -8399,7 +8079,6 @@ async function showDiagnosticModal(action, title, name, load) {
       title,
       renderModal(text6, name, {
         getText,
-        initialAutoRefresh: false,
         showMaskValuesToggle: true
       })
     );
@@ -8410,13 +8089,43 @@ async function showDiagnosticModal(action, title, name, load) {
     setDiagnosticActionLoading(action, false);
   }
 }
-function handleShowGlobalCheck() {
-  return showDiagnosticModal(
-    "globalCheck",
-    _("Global check"),
-    "global_check",
-    ForkopShellMethods.globalCheck
+async function buildReport(masked) {
+  const run = store.get().diagnosticsRunAction.finished;
+  const attachments = await ForkopShellMethods.report(
+    masked,
+    checksText(store.get().diagnosticsChecks)
   );
+  if (!attachments.success) {
+    throw new Error(attachments.error || "Failed to collect the report");
+  }
+  return reportText(
+    {
+      generatedAt: /* @__PURE__ */ new Date(),
+      systemInfo: store.get().diagnosticsSystemInfo,
+      luciVersion: normalizeCompiledVersion(FORKOP_LUCI_APP_VERSION),
+      service: run?.service
+    },
+    attachments.data
+  );
+}
+async function handleReport() {
+  setDiagnosticActionLoading("report", true);
+  try {
+    const getText = ({ maskValues }) => buildReport(maskValues);
+    const text6 = await getText({ maskValues: true });
+    ui.showModal(
+      _("Diagnostic report"),
+      renderModal(text6, "forkop-report", {
+        getText,
+        showMaskValuesToggle: true
+      })
+    );
+  } catch (error) {
+    logger.error("[DIAGNOSTIC]", "report", error);
+    showToast(_("Failed to load diagnostics"), "error");
+  } finally {
+    setDiagnosticActionLoading("report", false);
+  }
 }
 function handleShowForkopConfig() {
   return showDiagnosticModal(
@@ -8466,12 +8175,6 @@ function renderDiagnosticAvailableActionsWidget() {
     // Read-only actions are never gated by service state or by another action:
     // they answer questions, and the questions matter most when something is
     // wrong. Each one still blocks its own double submit while it runs.
-    globalCheck: {
-      loading: diagnosticsActions.globalCheck.loading,
-      visible: true,
-      onClick: handleShowGlobalCheck,
-      disabled: diagnosticsActions.globalCheck.loading
-    },
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,
       visible: true,
@@ -8518,7 +8221,7 @@ async function onStoreUpdate2(_next, _prev, diff) {
   if (diff.diagnosticsChecks) {
     renderDiagnosticsChecks();
   }
-  if (diff.diagnosticsRunAction || diff.diagnosticsSystemInfo) {
+  if (diff.diagnosticsRunAction || diff.diagnosticsSystemInfo || diff.diagnosticsActions || diff.servicesInfoWidget) {
     renderDiagnosticRunActionWidget();
   }
   if (diff.diagnosticsActions || diff.servicesInfoWidget) {
@@ -8528,66 +8231,76 @@ async function onStoreUpdate2(_next, _prev, diff) {
     renderDiagnosticSystemInfoWidget();
   }
 }
-function setDiagnosticCheckLoading(code) {
-  const meta = DIAGNOSTICS_CHECKS_MAP[code];
-  const diagnosticsChecks = store.get().diagnosticsChecks;
-  const other = diagnosticsChecks.filter((item) => item.code !== code);
+function setDiagnosticCheck(code, result) {
+  const other = store.get().diagnosticsChecks.filter((item) => item.code !== code);
   store.set({
     diagnosticsChecks: [
       ...other,
-      {
-        order: meta.order,
-        code: meta.code,
-        title: meta.title,
-        description: _("Checking, please wait"),
-        state: "loading",
-        items: []
-      }
+      { ...createDiagnosticCheck(code, result.description), ...result }
     ]
   });
 }
 function getDiagnosticRunners(checkOptions) {
-  return [
-    { code: "DNS" /* DNS */, run: runDnsCheck },
-    { code: "SINGBOX" /* SINGBOX */, run: runSingBoxCheck },
-    { code: "NFT" /* NFT */, run: runNftCheck },
-    { code: "OUTBOUNDS" /* OUTBOUNDS */, run: runSectionsCheck },
-    ...checkOptions.includeInbounds ? [{ code: "INBOUNDS" /* INBOUNDS */, run: runInboundsCheck }] : [],
-    { code: "FAKEIP" /* FAKEIP */, run: runFakeIPCheck }
-  ];
+  const runners = {
+    ["SERVICE" /* SERVICE */]: async () => {
+      const service = await runServiceCheck();
+      runServiceData = service.data;
+      forkopRunningInRun = service.running;
+      return service.result;
+    },
+    ["DNS" /* DNS */]: runDnsCheck,
+    ["TRAFFIC" /* TRAFFIC */]: runTrafficCheck,
+    ["SECTIONS" /* SECTIONS */]: runSectionsCheck,
+    ["SERVERS" /* SERVERS */]: runServersCheck
+  };
+  return diagnosticsCheckCodes(checkOptions).map((code) => ({
+    code,
+    run: () => code === "SERVICE" /* SERVICE */ || forkopRunningInRun ? runners[code]() : Promise.resolve(skipped(_("Skipped: Forkop is not running")))
+  }));
 }
 async function runChecks() {
   if (store.get().diagnosticsRunAction.loading) {
     return;
   }
+  let finished = null;
   diagnosticsChecksOwnedByRun = true;
   checkFolding.clear();
   store.set({
-    diagnosticsRunAction: { loading: true },
+    diagnosticsRunAction: { loading: true, finished: null },
     diagnosticsChecks: getLoadingDiagnosticsChecks(getDiagnosticsCheckOptions()).diagnosticsChecks
   });
   try {
     await fetchDiagnosticsCapabilities({ resetChecks: false });
-    const checkOptions = getDiagnosticsCheckOptions();
+    const checkOptions = {
+      includeServers: store.get().diagnosticsSystemInfo.server_inbounds_enabled_count !== 0
+    };
     store.set({
       diagnosticsChecks: getLoadingDiagnosticsChecks(checkOptions).diagnosticsChecks
     });
+    forkopRunningInRun = true;
+    runServiceData = void 0;
     for (const runner of getDiagnosticRunners(checkOptions)) {
-      setDiagnosticCheckLoading(runner.code);
+      setDiagnosticCheck(runner.code, {
+        state: "loading",
+        description: _("Checking, please wait"),
+        items: []
+      });
       try {
-        await runner.run();
+        setDiagnosticCheck(runner.code, await runner.run());
       } catch (e) {
-        logger.error(
-          "[DIAGNOSTIC]",
-          `runChecks - ${runner.run.name} failed`,
-          e
-        );
+        logger.error("[DIAGNOSTIC]", `runChecks - ${runner.code} failed`, e);
+        setDiagnosticCheck(runner.code, {
+          state: "error",
+          description: _("Cannot receive checks result"),
+          items: []
+        });
       }
     }
+    finished = { service: runServiceData };
   } catch (e) {
     logger.error("[DIAGNOSTIC]", "runChecks - e", e);
   } finally {
-    store.set({ diagnosticsRunAction: { loading: false } });
+    store.set({ diagnosticsRunAction: { loading: false, finished } });
   }
 }
 async function loadInitialDiagnosticData() {
@@ -8767,8 +8480,17 @@ var styles4 = `
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__run_check_wrapper button {
+/* The run, and under it the report of what the run found. */
+.fkp_diagnostic-page__run_check_wrapper {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-row-gap: 10px;
+}
+
+.fkp_diagnostic-page__run_check_wrapper > .fkp-partial-button {
     width: 100%;
+    min-width: 0;
+    margin-left: 0;
 }
 
 .fkp_diagnostic-page__checks {
@@ -9327,8 +9049,8 @@ function createLocalDeviceDynamicListWidget(option2, section_id, cfgvalue) {
       });
     };
     const maybeLoadChoices = (ev) => {
-      const target = ev.target;
-      if (target && typeof target.closest === "function" && target.closest(".cbi-dropdown")) {
+      const target2 = ev.target;
+      if (target2 && typeof target2.closest === "function" && target2.closest(".cbi-dropdown")) {
         loadChoices();
       }
     };
@@ -9713,8 +9435,8 @@ var closingConnectionIds = /* @__PURE__ */ new Set();
 function normalizeString(value) {
   return value == null ? "" : String(value).trim();
 }
-function getDisplayName2(section) {
-  return normalizeString(section.label) || section[".name"];
+function getDisplayName2(section2) {
+  return normalizeString(section2.label) || section2[".name"];
 }
 function buildRouteDisplayNames(sections) {
   const map = {
@@ -9725,32 +9447,32 @@ function buildRouteDisplayNames(sections) {
   const wireGuardServerTags = {};
   const clientNames = {};
   const routeSectionItems = [];
-  sections.filter((section) => section[".type"] === "section").filter((section) => section.enabled !== "0").forEach((section) => {
-    const sectionName = section[".name"];
-    const displayName = getDisplayName2(section);
+  sections.filter((section2) => section2[".type"] === "section").filter((section2) => section2.enabled !== "0").forEach((section2) => {
+    const sectionName = section2[".name"];
+    const displayName = getDisplayName2(section2);
     if (!sectionName || !displayName) {
       return;
     }
     routeSectionItems.push({ sectionName: displayName, displayName });
     map[displayName] = displayName;
   });
-  sections.filter((section) => section[".type"] === "server").filter((section) => section.enabled !== "0").forEach((section) => {
-    const sectionName = section[".name"];
-    const displayName = getDisplayName2(section);
+  sections.filter((section2) => section2[".type"] === "server").filter((section2) => section2.enabled !== "0").forEach((section2) => {
+    const sectionName = section2[".name"];
+    const displayName = getDisplayName2(section2);
     if (!sectionName || !displayName) {
       return;
     }
     serverTags.add(displayName);
-    if (section.protocol === "openvpn") {
+    if (section2.protocol === "openvpn") {
       openVPNServerTags[sectionName] = displayName;
     }
-    if (section.protocol === "wireguard" || section.protocol === "amneziawg") {
+    if (section2.protocol === "wireguard" || section2.protocol === "amneziawg") {
       wireGuardServerTags[sectionName] = displayName;
     }
   });
-  sections.filter((section) => section[".type"] === "server_client").forEach((section) => {
-    const owner = normalizeString(section.server);
-    const name = normalizeString(section.name);
+  sections.filter((section2) => section2[".type"] === "server_client").forEach((section2) => {
+    const owner = normalizeString(section2.server);
+    const name = normalizeString(section2.name);
     const openVPNTag = openVPNServerTags[owner];
     const wireGuardTag = wireGuardServerTags[owner];
     if (!name) {
@@ -9759,11 +9481,11 @@ function buildRouteDisplayNames(sections) {
     if (openVPNTag) {
       clientNames[openVPNTag] = {
         ...clientNames[openVPNTag],
-        [section[".name"]]: name
+        [section2[".name"]]: name
       };
     }
     if (wireGuardTag) {
-      const addresses = (Array.isArray(section.wireguard_address) ? section.wireguard_address : [section.wireguard_address]).map((address) => normalizeString(address).split("/")[0]).filter(Boolean);
+      const addresses = (Array.isArray(section2.wireguard_address) ? section2.wireguard_address : [section2.wireguard_address]).map((address) => normalizeString(address).split("/")[0]).filter(Boolean);
       clientNames[wireGuardTag] = {
         ...clientNames[wireGuardTag],
         ...Object.fromEntries(addresses.map((address) => [address, name]))
@@ -9798,21 +9520,21 @@ function parseStartedAt(connection) {
   const startedAt = Date.parse(connection.start || "");
   return Number.isFinite(startedAt) ? startedAt : connection.lastSeenAt;
 }
-function formatDuration(ms) {
+function formatDuration2(ms) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1e3));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor(totalSeconds % 3600 / 60);
   const seconds3 = totalSeconds % 60;
-  const pad = (value) => String(value).padStart(2, "0");
+  const pad2 = (value) => String(value).padStart(2, "0");
   if (hours > 0) {
-    return `${hours}:${pad(minutes)}:${pad(seconds3)}`;
+    return `${hours}:${pad2(minutes)}:${pad2(seconds3)}`;
   }
-  return `${minutes}:${pad(seconds3)}`;
+  return `${minutes}:${pad2(seconds3)}`;
 }
 function formatConnectionDuration(connection) {
   const startedAt = parseStartedAt(connection);
   const finishedAt = connection.closedAt || monitoringPausedAt || Date.now();
-  return formatDuration(finishedAt - startedAt);
+  return formatDuration2(finishedAt - startedAt);
 }
 function formatBytes2(value) {
   return prettyBytes(Number.isFinite(value) ? Number(value) : 0);
@@ -9861,10 +9583,10 @@ function normalizeSearchValue(value) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 function getSearchValues(connection) {
-  const target = getTargetCellParts(connection);
+  const target2 = getTargetCellParts(connection);
   return [
     connection.id,
-    target.primary,
+    target2.primary,
     getNetwork(connection),
     getRoute(connection),
     formatConnectionDuration(connection),
@@ -10379,8 +10101,8 @@ function bindControls() {
   }
   if (connectionsContainer) {
     connectionsContainer.onclick = (event) => {
-      const target = event.target;
-      const button = target?.closest(
+      const target2 = event.target;
+      const button = target2?.closest(
         ".fkp_monitoring-page__row-action"
       );
       if (button?.value) {
@@ -11226,8 +10948,8 @@ function copyVisibleLogs() {
 function downloadVisibleLogs() {
   const visibleLogs = getVisibleLogs();
   if (visibleLogs) {
-    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-    downloadAsTxt(visibleLogs, `forkop-logs-${timestamp}`);
+    const timestamp2 = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+    downloadAsTxt(visibleLogs, `forkop-logs-${timestamp2}`);
   }
 }
 async function initController4() {
@@ -11604,8 +11326,8 @@ function mountTab(key, render5, initController5) {
   }
   return node;
 }
-function mountTabOption(section, key, tab) {
-  const o = section.option(form.DummyValue, "_mount_node");
+function mountTabOption(section2, key, tab) {
+  const o = section2.option(form.DummyValue, "_mount_node");
   o.rawhtml = true;
   o.cfgvalue = () => mountTab(key, tab.render, tab.initController);
 }
@@ -12039,11 +11761,11 @@ function parentSectionIdForItem(itemId) {
 }
 
 // src/forkop/cbi/uci.ts
-function getUciSectionName(section) {
-  return section && section[".name"] ? section[".name"] : "";
+function getUciSectionName(section2) {
+  return section2 && section2[".name"] ? section2[".name"] : "";
 }
-function getUciSectionLabel(section) {
-  return section && section.label || getUciSectionName(section);
+function getUciSectionLabel(section2) {
+  return section2 && section2.label || getUciSectionName(section2);
 }
 function plainObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
@@ -12074,13 +11796,13 @@ function keepUnavailableSectionChoice(option2, storedValue) {
   if (!value || (option2.keylist || []).includes(value)) {
     return;
   }
-  const target = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
-    (section) => getUciSectionName(section) === value
+  const target2 = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
+    (section2) => getUciSectionName(section2) === value
   );
   option2.value(
     value,
     _("%s (section is unavailable)").format(
-      target ? getUciSectionLabel(target) : value
+      target2 ? getUciSectionLabel(target2) : value
     )
   );
 }
@@ -13445,8 +13167,8 @@ function configureConditionListStorage(o, key) {
     uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text_mode`);
   };
 }
-function addDynamicConditionField(section, config) {
-  const o = section.taboption(
+function addDynamicConditionField(section2, config) {
+  const o = section2.taboption(
     "conditions",
     form.DynamicList,
     config.key,
@@ -13463,8 +13185,8 @@ function addDynamicConditionField(section, config) {
   configureConditionListStorage(o, config.key);
   return o;
 }
-function addLocalDeviceSubnetDynamicField(section, config) {
-  const o = section.taboption(
+function addLocalDeviceSubnetDynamicField(section2, config) {
+  const o = section2.taboption(
     "conditions",
     form.DynamicList,
     config.key,
@@ -13489,8 +13211,8 @@ function addLocalDeviceSubnetDynamicField(section, config) {
   };
   return o;
 }
-function addDestinationField(section, name, label, placeholder, analyze, description) {
-  const o = section.taboption(
+function addDestinationField(section2, name, label, placeholder, analyze, description) {
+  const o = section2.taboption(
     "conditions",
     form.TextValue,
     name,
@@ -13981,14 +13703,14 @@ function missingConnectionOutbound(modalMap, section_id) {
     ).length > 0
   );
 }
-function isDetourTargetSection(section, currentSectionId) {
-  const sectionName = getUciSectionName(section);
-  const action = section && section.action || "";
-  return !!sectionName && sectionName !== currentSectionId && section.enabled !== "0" && DETOUR_TARGET_ACTIONS.includes(action);
+function isDetourTargetSection(section2, currentSectionId) {
+  const sectionName = getUciSectionName(section2);
+  const action = section2 && section2.action || "";
+  return !!sectionName && sectionName !== currentSectionId && section2.enabled !== "0" && DETOUR_TARGET_ACTIONS.includes(action);
 }
 function getOutboundDetourTargetSections(currentSectionId) {
   return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
-    (section) => isDetourTargetSection(section, currentSectionId)
+    (section2) => isDetourTargetSection(section2, currentSectionId)
   );
 }
 function refreshOutboundDetourSectionOptionValues(option2, sectionId) {
@@ -14006,25 +13728,25 @@ function tailscaleDetourSectionValue(detour, currentSectionId) {
   if (!wanted) {
     return "";
   }
-  const target = getOutboundDetourTargetSections(currentSectionId).find(
-    (section) => getUciSectionLabel(section) === wanted
+  const target2 = getOutboundDetourTargetSections(currentSectionId).find(
+    (section2) => getUciSectionLabel(section2) === wanted
   );
-  return target ? getUciSectionName(target) : wanted;
+  return target2 ? getUciSectionName(target2) : wanted;
 }
 function tailscaleDetourTag(sectionId) {
   sectionId = `${sectionId || ""}`.trim();
   if (!sectionId) {
     return "";
   }
-  const target = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
-    (section) => getUciSectionName(section) === sectionId
+  const target2 = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
+    (section2) => getUciSectionName(section2) === sectionId
   );
-  return target ? getUciSectionLabel(target) : sectionId;
+  return target2 ? getUciSectionLabel(target2) : sectionId;
 }
 function refreshDnsDetourSectionOptionValues(option2, sectionId) {
   option2.keylist = [];
   option2.vallist = [];
-  (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section) => isDetourTargetSection(section, sectionId)).forEach((targetSection) => {
+  (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section2) => isDetourTargetSection(section2, sectionId)).forEach((targetSection) => {
     option2.value(
       getUciSectionName(targetSection),
       getUciSectionLabel(targetSection)
@@ -14056,9 +13778,9 @@ function safeRuntimeSectionName(section_id) {
   return /^[A-Za-z0-9_-]+$/.test(`${section_id || ""}`);
 }
 function subscriptionDownloadTargetChoices(section_id) {
-  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section) => isDetourTargetSection(section, section_id)).map((section) => ({
-    value: getUciSectionName(section),
-    label: getUciSectionLabel(section)
+  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section2) => isDetourTargetSection(section2, section_id)).map((section2) => ({
+    value: getUciSectionName(section2),
+    label: getUciSectionLabel(section2)
   }));
 }
 
@@ -17565,11 +17287,11 @@ function createTunnelItem(sectionId, tunnelId, settings) {
   if (uci.get(FORKOP_UCI_PACKAGE, itemId, "section") !== sectionId) {
     uci.set(FORKOP_UCI_PACKAGE, itemId, "section", sectionId);
   }
-  const target = {};
+  const target2 = {};
   tunnelSettingsKeys().forEach((key) => {
-    target[key] = Object.prototype.hasOwnProperty.call(settings, key) ? settings[key] : "";
+    target2[key] = Object.prototype.hasOwnProperty.call(settings, key) ? settings[key] : "";
   });
-  applyChildItemSettings(itemId, target);
+  applyChildItemSettings(itemId, target2);
   return itemId;
 }
 function materializeTunnelPeers(tunnelId, values, option2) {
@@ -19097,20 +18819,20 @@ function addCascadeOptions(itemSection, parentSectionForItem, description, depen
   toggle.remove = function() {
   };
   dependencies.forEach((dependency) => toggle.depends(dependency));
-  const target = itemSection.option(
+  const target2 = itemSection.option(
     form.ListValue,
     "detour_section",
     _("Connect through")
   );
-  target.rmempty = false;
+  target2.rmempty = false;
   if (dependencies.length) {
     dependencies.forEach(
-      (dependency) => target.depends({ ...dependency, _cascade: "1" })
+      (dependency) => target2.depends({ ...dependency, _cascade: "1" })
     );
   } else {
-    target.depends("_cascade", "1");
+    target2.depends("_cascade", "1");
   }
-  target.load = function(itemId) {
+  target2.load = function(itemId) {
     refreshOutboundDetourSectionOptionValues(
       this,
       parentSectionForItem(itemId)
@@ -19119,7 +18841,7 @@ function addCascadeOptions(itemSection, parentSectionForItem, description, depen
     keepUnavailableSectionChoice(this, value);
     return value;
   };
-  target.validate = function(itemId, value) {
+  target2.validate = function(itemId, value) {
     if (currentOptionValue(this, itemId, "_cascade") !== "1") {
       return true;
     }
@@ -19247,10 +18969,10 @@ function showRuleSetSettingsModal(section_id, itemValue, option2, widget) {
     }
   };
   const map = new form.JSONMap(data);
-  const section = map.section(form.NamedSection, "settings");
-  section.anonymous = true;
-  section.addremove = false;
-  const includeSubnets = section.option(
+  const section2 = map.section(form.NamedSection, "settings");
+  section2.anonymous = true;
+  section2.addremove = false;
+  const includeSubnets = section2.option(
     form.Flag,
     "include_subnets",
     _("Include IP addresses and subnets"),
@@ -19405,47 +19127,47 @@ function subscriptionHeaderLines(map) {
     return `${name}:${value ? ` ${value}` : ""}`;
   });
 }
-function syncSubscriptionHeaderRows(section) {
-  const configName = section.uciconfig ?? section.map.config;
-  section.cfgsections().forEach((sectionId) => {
-    section.children.forEach((option2) => {
+function syncSubscriptionHeaderRows(section2) {
+  const configName = section2.uciconfig ?? section2.map.config;
+  section2.cfgsections().forEach((sectionId) => {
+    section2.children.forEach((option2) => {
       if (!option2.editable || option2.modalonly) {
         return;
       }
       const value = option2.formvalue(sectionId);
       if (value == null) {
-        section.map.data.unset(configName, sectionId, option2.option);
+        section2.map.data.unset(configName, sectionId, option2.option);
       } else {
-        section.map.data.set(configName, sectionId, option2.option, value);
+        section2.map.data.set(configName, sectionId, option2.option, value);
       }
     });
   });
 }
-function refreshSubscriptionHeaderRows(section) {
-  return section.map.load().then(() => section.map.reset());
+function refreshSubscriptionHeaderRows(section2) {
+  return section2.map.load().then(() => section2.map.reset());
 }
-function nextSubscriptionHeaderRowId(section) {
-  const configName = section.uciconfig ?? section.map.config;
+function nextSubscriptionHeaderRowId(section2) {
+  const configName = section2.uciconfig ?? section2.map.config;
   let sectionId;
   do {
-    sectionId = `header_${section.nextHeaderRowIndex}`;
-    section.nextHeaderRowIndex += 1;
-  } while (section.map.data.get(configName, sectionId) != null);
+    sectionId = `header_${section2.nextHeaderRowIndex}`;
+    section2.nextHeaderRowIndex += 1;
+  } while (section2.map.data.get(configName, sectionId) != null);
   return sectionId;
 }
-function addSubscriptionHeaderRow(section) {
-  syncSubscriptionHeaderRows(section);
-  section.map.data.add(
-    section.uciconfig ?? section.map.config,
-    section.sectiontype,
-    nextSubscriptionHeaderRowId(section)
+function addSubscriptionHeaderRow(section2) {
+  syncSubscriptionHeaderRows(section2);
+  section2.map.data.add(
+    section2.uciconfig ?? section2.map.config,
+    section2.sectiontype,
+    nextSubscriptionHeaderRowId(section2)
   );
-  return refreshSubscriptionHeaderRows(section);
+  return refreshSubscriptionHeaderRows(section2);
 }
-function removeSubscriptionHeaderRow(section, sectionId) {
-  syncSubscriptionHeaderRows(section);
-  section.map.data.remove(section.uciconfig ?? section.map.config, sectionId);
-  return refreshSubscriptionHeaderRows(section);
+function removeSubscriptionHeaderRow(section2, sectionId) {
+  syncSubscriptionHeaderRows(section2);
+  section2.map.data.remove(section2.uciconfig ?? section2.map.config, sectionId);
+  return refreshSubscriptionHeaderRows(section2);
 }
 function showSubscriptionHeadersModal(parentMap, itemId) {
   const data = {
@@ -19760,8 +19482,8 @@ function readSections(input) {
 function readConfigFile2(input) {
   const sections = readSections(input);
   if (!sections) return { message: _("Invalid WireGuard configuration") };
-  const iface = sections.find((section) => section.name === "interface");
-  const peers = sections.filter((section) => section.name === "peer");
+  const iface = sections.find((section2) => section2.name === "interface");
+  const peers = sections.filter((section2) => section2.name === "peer");
   if (!iface || peers.length === 0)
     return {
       message: _(
@@ -19770,7 +19492,7 @@ function readConfigFile2(input) {
     };
   return {
     iface: iface.values,
-    peers: peers.map((section) => section.values)
+    peers: peers.map((section2) => section2.values)
   };
 }
 function decodeLinkComponent(value) {
@@ -20217,8 +19939,8 @@ function configureMaterialOption(option2, kind, required, pair) {
 }
 
 // src/forkop/tabs/sections/tunnels/openvpnForm.ts
-function secondsOption(section, name, title, description, placeholder) {
-  const o = section.option(form.Value, name, title, description ?? void 0);
+function secondsOption(section2, name, title, description, placeholder) {
+  const o = section2.option(form.Value, name, title, description ?? void 0);
   o.datatype = "uinteger";
   o.placeholder = placeholder;
   o.rmempty = true;
@@ -20228,7 +19950,7 @@ function onKind(o, extra = {}) {
   o.depends({ tunnel_type: "openvpn-client", ...extra });
   return o;
 }
-function addOpenVPNOptions(section) {
+function addOpenVPNOptions(section2) {
   const options = {};
   const add = (name, o2) => {
     options[name] = o2;
@@ -20240,7 +19962,7 @@ function addOpenVPNOptions(section) {
   let o = add(
     "openvpn_servers",
     onKind(
-      section.option(
+      section2.option(
         form.DynamicList,
         "openvpn_servers",
         _("Servers"),
@@ -20260,7 +19982,7 @@ function addOpenVPNOptions(section) {
   };
   o = add(
     "openvpn_network",
-    onKind(section.option(form.ListValue, "openvpn_network", _("Transport")))
+    onKind(section2.option(form.ListValue, "openvpn_network", _("Transport")))
   );
   o.value("udp", "UDP");
   o.value("tcp", "TCP");
@@ -20268,7 +19990,7 @@ function addOpenVPNOptions(section) {
   o.rmempty = false;
   o = add(
     "openvpn_mode",
-    onKind(section.option(form.ListValue, "openvpn_mode", _("Mode")))
+    onKind(section2.option(form.ListValue, "openvpn_mode", _("Mode")))
   );
   o.value("tls", _("TLS (certificates)"));
   o.value("static_key", _("Static key"));
@@ -20277,7 +19999,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_login",
     onKind(
-      section.option(form.Flag, "openvpn_login", _("Username and password")),
+      section2.option(form.Flag, "openvpn_login", _("Username and password")),
       tls
     )
   );
@@ -20285,7 +20007,7 @@ function addOpenVPNOptions(section) {
   o.rmempty = false;
   o = add(
     "openvpn_username",
-    onKind(section.option(form.Value, "openvpn_username", _("Username")), {
+    onKind(section2.option(form.Value, "openvpn_username", _("Username")), {
       ...tls,
       openvpn_login: "1"
     })
@@ -20294,7 +20016,7 @@ function addOpenVPNOptions(section) {
   o.validate = (_sectionId, value) => trimmed(value) ? true : _("Enter the username");
   o = add(
     "openvpn_password",
-    onKind(section.option(form.Value, "openvpn_password", _("Password")), {
+    onKind(section2.option(form.Value, "openvpn_password", _("Password")), {
       ...tls,
       openvpn_login: "1"
     })
@@ -20304,7 +20026,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_ca",
     onKind(
-      section.option(form.TextValue, "openvpn_ca", _("CA certificate")),
+      section2.option(form.TextValue, "openvpn_ca", _("CA certificate")),
       tls
     )
   );
@@ -20316,7 +20038,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_cert",
     onKind(
-      section.option(form.TextValue, "openvpn_cert", _("Client certificate")),
+      section2.option(form.TextValue, "openvpn_cert", _("Client certificate")),
       tls
     )
   );
@@ -20328,7 +20050,7 @@ function addOpenVPNOptions(section) {
   );
   o = add(
     "openvpn_key",
-    onKind(section.option(form.TextValue, "openvpn_key", _("Client key")), tls)
+    onKind(section2.option(form.TextValue, "openvpn_key", _("Client key")), tls)
   );
   configureMaterialOption(
     o,
@@ -20339,7 +20061,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_control_wrap",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_control_wrap",
         _("Control channel protection")
@@ -20354,7 +20076,7 @@ function addOpenVPNOptions(section) {
   o.rmempty = true;
   o = add(
     "openvpn_control_wrap_key",
-    section.option(
+    section2.option(
       form.TextValue,
       "openvpn_control_wrap_key",
       _("Control channel key")
@@ -20374,7 +20096,7 @@ function addOpenVPNOptions(section) {
   );
   o = add(
     "openvpn_key_direction",
-    section.option(form.ListValue, "openvpn_key_direction", _("Key direction"))
+    section2.option(form.ListValue, "openvpn_key_direction", _("Key direction"))
   );
   o.value("1", "1");
   o.value("0", "0");
@@ -20386,7 +20108,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_static_key",
     onKind(
-      section.option(form.TextValue, "openvpn_static_key", _("Static key")),
+      section2.option(form.TextValue, "openvpn_static_key", _("Static key")),
       staticKey
     )
   );
@@ -20394,7 +20116,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_static_cipher",
     onKind(
-      section.option(form.ListValue, "openvpn_static_cipher", _("Cipher")),
+      section2.option(form.ListValue, "openvpn_static_cipher", _("Cipher")),
       staticKey
     )
   );
@@ -20404,7 +20126,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_address",
     onKind(
-      section.option(
+      section2.option(
         form.DynamicList,
         "openvpn_address",
         _("Tunnel addresses"),
@@ -20418,7 +20140,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_peer_address",
     onKind(
-      section.option(
+      section2.option(
         form.Value,
         "openvpn_peer_address",
         _("Peer address"),
@@ -20432,7 +20154,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_peer_address_ipv6",
     onKind(
-      section.option(
+      section2.option(
         form.Value,
         "openvpn_peer_address_ipv6",
         _("Peer IPv6 address"),
@@ -20446,7 +20168,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_advanced",
     onKind(
-      section.option(form.Flag, "openvpn_advanced", _("Advanced settings"))
+      section2.option(form.Flag, "openvpn_advanced", _("Advanced settings"))
     )
   );
   o.default = "0";
@@ -20454,7 +20176,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_remote_random",
     onKind(
-      section.option(
+      section2.option(
         form.Flag,
         "openvpn_remote_random",
         _("Random server order")
@@ -20467,7 +20189,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_server_name",
     onKind(
-      section.option(
+      section2.option(
         form.Value,
         "openvpn_server_name",
         _("Server certificate name"),
@@ -20480,7 +20202,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_server_name_type",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_server_name_type",
         _("Name match")
@@ -20499,7 +20221,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_verify_purpose",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_verify_purpose",
         _("Server certificate purpose")
@@ -20515,7 +20237,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_peer_fingerprint",
     onKind(
-      section.option(
+      section2.option(
         form.DynamicList,
         "openvpn_peer_fingerprint",
         _("Server certificate fingerprints"),
@@ -20531,7 +20253,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_certificate_profile",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_certificate_profile",
         _("Certificate profile"),
@@ -20550,7 +20272,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_tls_version_min",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_tls_version_min",
         _("Minimum TLS version")
@@ -20567,7 +20289,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_tls_cipher",
     onKind(
-      section.option(
+      section2.option(
         form.Value,
         "openvpn_tls_cipher",
         _("TLS ciphers"),
@@ -20582,7 +20304,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_data_ciphers",
     onKind(
-      section.option(
+      section2.option(
         form.MultiValue,
         "openvpn_data_ciphers",
         _("Data ciphers"),
@@ -20598,7 +20320,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_data_ciphers_fallback",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_data_ciphers_fallback",
         _("Fallback cipher"),
@@ -20615,7 +20337,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_auth",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_auth",
         _("Packet authentication"),
@@ -20630,7 +20352,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_compression",
     onKind(
-      section.option(
+      section2.option(
         form.ListValue,
         "openvpn_compression",
         _("Compression"),
@@ -20647,7 +20369,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_mtu",
     onKind(
-      section.option(
+      section2.option(
         form.Value,
         "openvpn_mtu",
         _("MTU"),
@@ -20662,7 +20384,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_fragment",
     onKind(
-      section.option(
+      section2.option(
         form.Value,
         "openvpn_fragment",
         _("Fragment size"),
@@ -20676,7 +20398,7 @@ function addOpenVPNOptions(section) {
   o = add(
     "openvpn_mss_fix",
     onKind(
-      section.option(
+      section2.option(
         form.Value,
         "openvpn_mss_fix",
         _("MSS clamping"),
@@ -20692,7 +20414,7 @@ function addOpenVPNOptions(section) {
     "openvpn_ping_interval",
     onKind(
       secondsOption(
-        section,
+        section2,
         "openvpn_ping_interval",
         _("Ping interval, seconds"),
         _("ping in the profile"),
@@ -20705,7 +20427,7 @@ function addOpenVPNOptions(section) {
     "openvpn_ping_restart",
     onKind(
       secondsOption(
-        section,
+        section2,
         "openvpn_ping_restart",
         _("Reconnect after silence, seconds"),
         _("0 switches it off (ping-restart in the profile)"),
@@ -20718,7 +20440,7 @@ function addOpenVPNOptions(section) {
     "openvpn_renegotiate",
     onKind(
       secondsOption(
-        section,
+        section2,
         "openvpn_renegotiate",
         _("Key renegotiation, seconds"),
         _("0 switches it off (reneg-sec in the profile)"),
@@ -20772,7 +20494,7 @@ function formValue(option2, name) {
   if (!found) return "";
   return `${found[0].formvalue(found[1]) ?? found[0].cfgvalue(found[1]) ?? ""}`;
 }
-function addOpenConnectOptions(section) {
+function addOpenConnectOptions(section2) {
   const options = {};
   const add = (o2) => {
     options[o2.option] = o2;
@@ -20782,14 +20504,14 @@ function addOpenConnectOptions(section) {
   const stoken = { openconnect_token_mode: "stoken" };
   const certificate = { openconnect_certificate_enabled: "1" };
   let o = add(
-    onKind2(section.option(form.ListValue, "openconnect_flavor", _("Protocol")))
+    onKind2(section2.option(form.ListValue, "openconnect_flavor", _("Protocol")))
   );
   FLAVORS.forEach(([value, label]) => o.value(value, label));
   o.default = "anyconnect";
   o.rmempty = false;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_server",
         _("Server"),
@@ -20802,17 +20524,17 @@ function addOpenConnectOptions(section) {
   o.rmempty = false;
   o.validate = (_sectionId, value) => validateOpenConnectServer(value);
   o = add(
-    onKind2(section.option(form.Value, "openconnect_username", _("Username")))
+    onKind2(section2.option(form.Value, "openconnect_username", _("Username")))
   );
   o.rmempty = true;
   o = add(
-    onKind2(section.option(form.Value, "openconnect_password", _("Password")))
+    onKind2(section2.option(form.Value, "openconnect_password", _("Password")))
   );
   o.password = true;
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_auth_group",
         _("Login group"),
@@ -20823,7 +20545,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.ListValue,
         "openconnect_token_mode",
         _("One-time code"),
@@ -20837,7 +20559,7 @@ function addOpenConnectOptions(section) {
   o.value("oidc", _("OIDC access token"));
   o.rmempty = true;
   o = add(
-    section.option(
+    section2.option(
       form.Value,
       "openconnect_token_secret",
       _("Token secret"),
@@ -20859,7 +20581,7 @@ function addOpenConnectOptions(section) {
   };
   o = add(
     onKind2(
-      section.option(form.Value, "openconnect_token_pin", _("PIN")),
+      section2.option(form.Value, "openconnect_token_pin", _("PIN")),
       stoken
     )
   );
@@ -20867,7 +20589,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_token_password",
         _("Token password"),
@@ -20880,7 +20602,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_token_device_id",
         _("Device ID"),
@@ -20892,7 +20614,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_certificate_enabled",
         _("Client certificate"),
@@ -20904,7 +20626,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = false;
   o = add(
     onKind2(
-      section.option(form.TextValue, "openconnect_cert", _("Certificate")),
+      section2.option(form.TextValue, "openconnect_cert", _("Certificate")),
       certificate
     )
   );
@@ -20916,7 +20638,7 @@ function addOpenConnectOptions(section) {
   );
   o = add(
     onKind2(
-      section.option(form.TextValue, "openconnect_key", _("Key")),
+      section2.option(form.TextValue, "openconnect_key", _("Key")),
       certificate
     )
   );
@@ -20932,7 +20654,7 @@ function addOpenConnectOptions(section) {
   );
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_key_password",
         _("Key passphrase"),
@@ -20948,7 +20670,7 @@ function addOpenConnectOptions(section) {
   };
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.TextValue,
         "openconnect_ca",
         _("CA certificate"),
@@ -20961,7 +20683,7 @@ function addOpenConnectOptions(section) {
   configureMaterialOption(o, "ca", () => "");
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.DynamicList,
         "openconnect_fingerprints",
         _("Server certificate fingerprints"),
@@ -20975,14 +20697,14 @@ function addOpenConnectOptions(section) {
   o.validate = (_sectionId, value) => validateOpenConnectFingerprint(value);
   o = add(
     onKind2(
-      section.option(form.Flag, "openconnect_advanced", _("Advanced settings"))
+      section2.option(form.Flag, "openconnect_advanced", _("Advanced settings"))
     )
   );
   o.default = "0";
   o.rmempty = false;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_no_udp",
         _("TLS only"),
@@ -20997,7 +20719,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_cookie",
         _("Session cookie"),
@@ -21012,7 +20734,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.DynamicList,
         "openconnect_form_entries",
         _("Answers to the login form"),
@@ -21027,7 +20749,7 @@ function addOpenConnectOptions(section) {
   o.validate = (_sectionId, value) => validateFormEntry(value);
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_browser",
         _("Browser sign-in"),
@@ -21042,7 +20764,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onFlavors(
-      section.option(
+      section2.option(
         form.ListValue,
         "openconnect_reported_os",
         _("Reported system"),
@@ -21061,14 +20783,14 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(form.Value, "openconnect_user_agent", _("User-Agent")),
+      section2.option(form.Value, "openconnect_user_agent", _("User-Agent")),
       advanced
     )
   );
   o.rmempty = true;
   o = add(
     onFlavors(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_version",
         _("Client version"),
@@ -21081,7 +20803,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_local_hostname",
         _("Device name"),
@@ -21093,7 +20815,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_insecure",
         _("Do not verify the server certificate"),
@@ -21108,7 +20830,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_server_name",
         _("Server name (SNI)")
@@ -21120,7 +20842,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_no_system_trust",
         _("Trust only the CA certificate above"),
@@ -21133,7 +20855,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_insecure_crypto",
         _("Legacy encryption"),
@@ -21146,7 +20868,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_pfs",
         _("Forward secrecy only"),
@@ -21159,7 +20881,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onFlavors(
-      section.option(
+      section2.option(
         form.ListValue,
         "openconnect_compression",
         _("Compression"),
@@ -21176,7 +20898,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Flag,
         "openconnect_ipv6_disabled",
         _("No IPv6 in the tunnel")
@@ -21187,13 +20909,13 @@ function addOpenConnectOptions(section) {
   o.default = "0";
   o.rmempty = true;
   o = add(
-    onKind2(section.option(form.Value, "openconnect_mtu", _("MTU")), advanced)
+    onKind2(section2.option(form.Value, "openconnect_mtu", _("MTU")), advanced)
   );
   o.datatype = "range(576,65535)";
   o.rmempty = true;
   o = add(
     onFlavors(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_base_mtu",
         _("Path MTU"),
@@ -21209,7 +20931,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
+      section2.option(
         form.Value,
         "openconnect_dpd",
         _("Dead peer detection, seconds")
@@ -21456,30 +21178,30 @@ function validateTunnelItemsBeforeSave(section_id, values) {
 }
 
 // src/forkop/tabs/sections/tunnels/dialog.ts
-function addWireGuardPeerItemOptions(section) {
-  let o = section.option(form.Value, "address", _("Server address"));
+function addWireGuardPeerItemOptions(section2) {
+  let o = section2.option(form.Value, "address", _("Server address"));
   o.rmempty = false;
   o.validate = function(_itemId, value) {
     return `${value || ""}`.trim() ? true : _("Enter a server address");
   };
-  o = section.option(form.Value, "port", _("Server port"));
+  o = section2.option(form.Value, "port", _("Server port"));
   o.datatype = "port";
   o.rmempty = false;
-  o = section.option(form.Value, "public_key", _("Public key"));
+  o = section2.option(form.Value, "public_key", _("Public key"));
   o.rmempty = false;
   o.validate = function(_itemId, value) {
     const key = `${value || ""}`.trim();
     if (!key) return _("Enter a public key");
     return validateWireGuardKey(key) ? true : _("WireGuard keys must be standard base64-encoded 32-byte values");
   };
-  o = section.option(form.Value, "pre_shared_key", _("Pre-shared key"));
+  o = section2.option(form.Value, "pre_shared_key", _("Pre-shared key"));
   o.password = true;
   o.rmempty = true;
   o.validate = function(_itemId, value) {
     const key = `${value || ""}`.trim();
     return !key || validateWireGuardKey(key) ? true : _("WireGuard keys must be standard base64-encoded 32-byte values");
   };
-  o = section.option(
+  o = section2.option(
     form.DynamicList,
     "allowed_ips",
     _("Allowed IPs"),
@@ -21489,7 +21211,7 @@ function addWireGuardPeerItemOptions(section) {
   o.validate = function(_itemId, value) {
     return validateWireGuardListInput(value);
   };
-  o = section.option(
+  o = section2.option(
     form.Value,
     "persistent_keepalive_interval",
     _("Persistent keepalive"),
@@ -22321,16 +22043,16 @@ function validateUrlTestItemsBeforeSave(section_id, values, option2) {
 }
 
 // src/forkop/tabs/sections/form.ts
-function createSectionContent(section) {
+function createSectionContent(section2) {
   let o;
-  section.tab("settings", _("Route"));
-  section.tab("conditions", _("Conditions"));
-  o = section.taboption("settings", form.Flag, "enabled", _("Enable"));
+  section2.tab("settings", _("Route"));
+  section2.tab("conditions", _("Conditions"));
+  o = section2.taboption("settings", form.Flag, "enabled", _("Enable"));
   o.default = "1";
   o.rmempty = false;
   o.editable = true;
   o.width = GRID_SWITCH_COLUMN_WIDTH;
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     form.DummyValue,
     "_action_display",
@@ -22345,7 +22067,7 @@ function createSectionContent(section) {
     return getRuleActionDisplayValue(section_id);
   };
   o.width = GRID_KIND_COLUMN_WIDTH;
-  o = section.taboption("settings", form.Value, "label", _("Section name"));
+  o = section2.taboption("settings", form.Value, "label", _("Section name"));
   o.rmempty = false;
   o.modalonly = true;
   o.load = function(section_id) {
@@ -22365,7 +22087,7 @@ function createSectionContent(section) {
       (item) => item[".name"] !== section_id && `${item.label || item[".name"] || ""}`.trim() === normalized
     ) ? _("Section name must be unique") : true;
   };
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     form.ListValue,
     "action",
@@ -22384,7 +22106,7 @@ function createSectionContent(section) {
     populateActionOptionValues(this, value);
     return value;
   };
-  const dnsServerOption = section.taboption(
+  const dnsServerOption = section2.taboption(
     "settings",
     form.DynamicList,
     "dns_server",
@@ -22397,7 +22119,7 @@ function createSectionContent(section) {
   dnsServerOption.retain = true;
   dnsServerOption.modalonly = true;
   configureDnsServerList(dnsServerOption);
-  const dnsQueryModeOption = section.taboption(
+  const dnsQueryModeOption = section2.taboption(
     "settings",
     form.ListValue,
     "dns_fallback_strategy",
@@ -22410,7 +22132,7 @@ function createSectionContent(section) {
   configureDnsQueryMode(dnsQueryModeOption, "dns_server", {
     alsoDependsOn: { action: "dns" }
   });
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     form.Flag,
     "dns_detour_enabled",
@@ -22421,7 +22143,7 @@ function createSectionContent(section) {
   o.default = "0";
   o.rmempty = false;
   o.modalonly = true;
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     form.ListValue,
     "dns_detour_section",
@@ -22439,7 +22161,7 @@ function createSectionContent(section) {
   o.validate = function(_section_id, value) {
     return value ? true : _("Select a section");
   };
-  const links = section.taboption(
+  const links = section2.taboption(
     "settings",
     SettingsDynamicList,
     "connection_link",
@@ -22487,7 +22209,7 @@ function createSectionContent(section) {
     return node;
   };
   outboundNameSourceOptions.set("connection_link", links);
-  const subscriptions = section.taboption(
+  const subscriptions = section2.taboption(
     "settings",
     SettingsDynamicList,
     "subscription_url",
@@ -22542,7 +22264,7 @@ function createSectionContent(section) {
       childItemInputValue(section_id, value, "subscription_url", "url")
     );
   };
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     InterfaceSettingsDynamicList,
     "interfaces",
@@ -22571,7 +22293,7 @@ function createSectionContent(section) {
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set("interfaces", o);
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     ButtonAddSettingsDynamicList,
     "tunnels",
@@ -22607,7 +22329,7 @@ function createSectionContent(section) {
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   o.afterMaterializeChildItems = orderChildItemsByPosition;
   outboundNameSourceOptions.set("tunnels", o);
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     ButtonAddSettingsDynamicList,
     "outbound_jsons",
@@ -22633,7 +22355,7 @@ function createSectionContent(section) {
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   outboundNameSourceOptions.set("outbound_jsons", o);
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     ButtonAddSettingsDynamicList,
     "urltest",
@@ -22657,7 +22379,7 @@ function createSectionContent(section) {
     return renderChildItemLabel(this, section_id, itemId);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-  o = section.taboption(
+  o = section2.taboption(
     "settings",
     ButtonAddSettingsDynamicList,
     "fallback_group",
@@ -22682,7 +22404,7 @@ function createSectionContent(section) {
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
   const destinationOption = addDestinationField(
-    section,
+    section2,
     "destinations",
     _("Domains and IPs"),
     DESTINATION_CONDITION_PLACEHOLDER,
@@ -22691,14 +22413,14 @@ function createSectionContent(section) {
   );
   dependsOnRoutingAction(destinationOption);
   const dnsDestinationOption = addDestinationField(
-    section,
+    section2,
     "_dns_destinations",
     _("Domains"),
     DOMAIN_CONDITION_PLACEHOLDER,
     analyzeDnsDestinationText
   );
   dnsDestinationOption.depends("action", "dns");
-  const builtInRulesetOption = section.taboption(
+  const builtInRulesetOption = section2.taboption(
     "conditions",
     form.DynamicList,
     "community_lists",
@@ -22717,7 +22439,7 @@ function createSectionContent(section) {
   builtInRulesetOption.remove = function(section_id) {
     uci.unset(FORKOP_UCI_PACKAGE, section_id, "community_lists");
   };
-  const dnsRuleSetOption = section.taboption(
+  const dnsRuleSetOption = section2.taboption(
     "conditions",
     form.DynamicList,
     "_dns_rule_set",
@@ -22739,7 +22461,7 @@ function createSectionContent(section) {
   dnsRuleSetOption.validate = function(_section_id, value) {
     return validateCustomRulesetReference(value);
   };
-  const ruleSetOption = section.taboption(
+  const ruleSetOption = section2.taboption(
     "conditions",
     SettingsDynamicList,
     "rule_set",
@@ -22767,13 +22489,13 @@ function createSectionContent(section) {
   ruleSetOption.validate = function(_section_id, value) {
     return validateCustomRulesetReference(value);
   };
-  const sourceIpOption = addLocalDeviceSubnetDynamicField(section, {
+  const sourceIpOption = addLocalDeviceSubnetDynamicField(section2, {
     key: "source_ip_cidr",
     label: _("Only for devices"),
     description: _("The section conditions only match these devices")
   });
   dependsOnRuleConditions(sourceIpOption);
-  const fullyRoutedOption = addLocalDeviceSubnetDynamicField(section, {
+  const fullyRoutedOption = addLocalDeviceSubnetDynamicField(section2, {
     key: "fully_routed_ips",
     label: _("Devices"),
     description: _(
@@ -22783,7 +22505,7 @@ function createSectionContent(section) {
   dependsOnRoutingAction(fullyRoutedOption);
   fullyRoutedOption.depends("action", "dns");
   makeDeviceOptionsExclusive(sourceIpOption, fullyRoutedOption);
-  const portsOption = addDynamicConditionField(section, {
+  const portsOption = addDynamicConditionField(section2, {
     key: "ports",
     label: _("Ports"),
     description: _("Match destination ports"),
@@ -22856,7 +22578,6 @@ var RESERVED_PORTS = [
   ["1603", _("Forkop transparent proxy")],
   ["1604", _("Forkop transparent proxy")],
   ["1605", _("Forkop transparent proxy")],
-  ["4534", _("Forkop service proxy")],
   ["4536", _("Forkop service proxy")],
   ["9090", _("sing-box Clash API")]
 ];
@@ -23502,13 +23223,13 @@ function loadSystemPorts() {
         }
       });
     };
-    (uci.sections("uhttpd") || []).forEach((section) => {
-      addListen(section.listen_http, _("LuCI web interface"));
-      addListen(section.listen_https, _("LuCI web interface"));
+    (uci.sections("uhttpd") || []).forEach((section2) => {
+      addListen(section2.listen_http, _("LuCI web interface"));
+      addListen(section2.listen_https, _("LuCI web interface"));
     });
-    (uci.sections("dropbear") || []).forEach((section) => {
-      if (section.enable !== "0") {
-        addListen(section.Port || "22", _("router SSH"));
+    (uci.sections("dropbear") || []).forEach((section2) => {
+      if (section2.enable !== "0") {
+        addListen(section2.Port || "22", _("router SSH"));
       }
     });
     systemPortsCache = entries;
@@ -23936,11 +23657,11 @@ function validateTunnelSubnets(values) {
   }
   return true;
 }
-function addTunnelOptions(section) {
+function addTunnelOptions(section2) {
   const onTunnel = (o2, extra = {}) => protocolsWith("tunnel").forEach(
     (protocol) => o2.depends({ protocol, ...extra })
   );
-  let o = section.option(
+  let o = section2.option(
     form.DynamicList,
     "tunnel_address",
     _("Tunnel subnet")
@@ -23959,7 +23680,7 @@ function addTunnelOptions(section) {
     return validateTunnelSubnets(current);
   };
   onTunnel(o);
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "tunnel_all_traffic",
     _("All traffic through the server"),
@@ -23969,7 +23690,7 @@ function addTunnelOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   onTunnel(o);
-  o = section.option(form.DynamicList, "tunnel_routes", _("Routes"));
+  o = section2.option(form.DynamicList, "tunnel_routes", _("Routes"));
   o.modalonly = true;
   o.rmempty = true;
   o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : _("Use a subnet like 192.168.1.0/24");
@@ -24237,8 +23958,8 @@ function qrBuildDataCodewords(bytes, version) {
     }
     result.push(value);
   }
-  for (let pad = 236; result.length < capacity; pad ^= 253) {
-    result.push(pad);
+  for (let pad2 = 236; result.length < capacity; pad2 ^= 253) {
+    result.push(pad2);
   }
   return result;
 }
@@ -25193,11 +24914,11 @@ function validateOptionalMasquerade(_sectionId, value) {
   if (isEmptyValue(value)) {
     return true;
   }
-  const target = `${value}`.trim();
-  if (target.startsWith("file://")) {
-    return target.length > "file://".length ? true : _("Specify a directory after file://");
+  const target2 = `${value}`.trim();
+  if (target2.startsWith("file://")) {
+    return target2.length > "file://".length ? true : _("Specify a directory after file://");
   }
-  return validateHttpUrl(null, target) === true ? true : _("Use an https:// URL to proxy a site or file:// to serve a directory");
+  return validateHttpUrl(null, target2) === true ? true : _("Use an https:// URL to proxy a site or file:// to serve a directory");
 }
 function validateInboundJson(_sectionId, value) {
   if (isEmptyValue(value)) {
@@ -25281,16 +25002,16 @@ function validateListenPort(sectionId, value) {
 // src/forkop/tabs/servers/clients.ts
 function clientSections(sectionId) {
   return (uci.sections(FORKOP_UCI_PACKAGE, CLIENT_TYPE) || []).filter(
-    (section) => `${section[CLIENT_OWNER_OPTION] || ""}` === `${sectionId}`
+    (section2) => `${section2[CLIENT_OWNER_OPTION] || ""}` === `${sectionId}`
   );
 }
-function readClient(section) {
+function readClient(section2) {
   return {
-    id: `${section[".name"] || ""}`,
-    name: `${section.name || ""}`,
-    uuid: `${section.uuid || ""}`,
-    password: `${section.password || ""}`,
-    flow: `${section.flow || ""}`
+    id: `${section2[".name"] || ""}`,
+    name: `${section2.name || ""}`,
+    uuid: `${section2.uuid || ""}`,
+    password: `${section2.password || ""}`,
+    flow: `${section2.flow || ""}`
   };
 }
 function listClients(sectionId) {
@@ -25298,7 +25019,7 @@ function listClients(sectionId) {
 }
 function routerClientNames() {
   return (uci.sections(FORKOP_UCI_PACKAGE, CLIENT_TYPE) || []).map(
-    (section) => `${section.name || ""}`
+    (section2) => `${section2.name || ""}`
   );
 }
 var CLIENT_NAME_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789".split("");
@@ -25388,7 +25109,7 @@ function listedClientNames(sectionId, listOption) {
     }
   }
   if (current == null) {
-    return clientSections(sectionId).map((section) => `${section.name || ""}`);
+    return clientSections(sectionId).map((section2) => `${section2.name || ""}`);
   }
   return valueList(current).map(
     (value) => typeof listOption.inputValueForItem === "function" ? listOption.inputValueForItem(sectionId, value) : `${value}`
@@ -25436,19 +25157,19 @@ function validateClientsOnSave(sectionId, values, listOption) {
 }
 function pruneClientCredentials(sectionId) {
   const keep = new Set(visibleClientFields(sectionId));
-  clientSections(sectionId).forEach((section) => {
+  clientSections(sectionId).forEach((section2) => {
     const stale = CLIENT_KEYS.filter(
       (key) => key !== "name" && !keep.has(key) && !CLIENT_ROUTING_KEYS.includes(key)
     );
-    if (section.routing_override !== "1") {
+    if (section2.routing_override !== "1") {
       stale.push(...CLIENT_ROUTING_KEYS);
     }
-    if (section.routing_mode !== "section") {
+    if (section2.routing_mode !== "section") {
       stale.push("routing_section");
     }
     stale.forEach((key) => {
-      if (section[key] != null) {
-        uci.unset(FORKOP_UCI_PACKAGE, section[".name"], key);
+      if (section2[key] != null) {
+        uci.unset(FORKOP_UCI_PACKAGE, section2[".name"], key);
       }
     });
   });
@@ -25478,10 +25199,10 @@ function isRoutingSectionAction(action) {
 }
 function routingSectionChoices() {
   return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
-    (section) => section[".name"] && section.enabled !== "0" && isRoutingSectionAction(section.action)
-  ).map((section) => [
-    section[".name"],
-    `${section.label || section[".name"]}`
+    (section2) => section2[".name"] && section2.enabled !== "0" && isRoutingSectionAction(section2.action)
+  ).map((section2) => [
+    section2[".name"],
+    `${section2.label || section2[".name"]}`
   ]);
 }
 function loadRoutingSectionChoices(optionRef, sectionId) {
@@ -25493,8 +25214,8 @@ function loadRoutingSectionChoices(optionRef, sectionId) {
   keepUnavailableSectionChoice(optionRef, option(sectionId, "routing_section"));
   return Promise.resolve();
 }
-function addRoutingOptions(section) {
-  let o = section.option(
+function addRoutingOptions(section2) {
+  let o = section2.option(
     form.ListValue,
     "routing_mode",
     _("Routing mode"),
@@ -25507,7 +25228,7 @@ function addRoutingOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateRequired;
-  o = section.option(form.ListValue, "routing_section", _("Routing section"));
+  o = section2.option(form.ListValue, "routing_section", _("Routing section"));
   o.depends("routing_mode", "section");
   o.modalonly = true;
   o.rmempty = false;
@@ -25587,22 +25308,22 @@ function addClientRoutingOptions(sectionId, itemSection) {
   mode.default = "rules";
   mode.rmempty = false;
   mode.depends("routing_override", "1");
-  const target = itemSection.option(
+  const target2 = itemSection.option(
     form.ListValue,
     "routing_section",
     _("Routing section")
   );
   routingSectionChoices().forEach(
-    ([value, label]) => target.value(value, label)
+    ([value, label]) => target2.value(value, label)
   );
-  target.rmempty = false;
-  target.load = function(sid) {
+  target2.rmempty = false;
+  target2.load = function(sid) {
     const value = form.ListValue.prototype.load.call(this, sid);
     keepUnavailableSectionChoice(this, value);
     return value;
   };
-  target.depends({ routing_override: "1", routing_mode: "section" });
-  target.validate = (_id, value) => value ? true : _("Select a section");
+  target2.depends({ routing_override: "1", routing_mode: "section" });
+  target2.validate = (_id, value) => value ? true : _("Select a section");
 }
 function showClientSettingsModal(sectionId, itemValue, listOption, widget, itemNode, context = {}) {
   return showChildItemSettingsModal(sectionId, itemValue, listOption, {
@@ -25634,8 +25355,8 @@ function showClientSettingsModal(sectionId, itemValue, listOption, widget, itemN
 }
 
 // src/forkop/tabs/servers/form/clients.ts
-function addClientListOption(section) {
-  const o = section.option(
+function addClientListOption(section2) {
+  const o = section2.option(
     ButtonAddSettingsDynamicList,
     "clients",
     _("Clients")
@@ -25670,13 +25391,13 @@ function addClientListOption(section) {
 }
 
 // src/forkop/tabs/servers/form/identity.ts
-function addIdentityOptions(section) {
-  let o = section.option(form.Flag, "enabled", _("Enable"));
+function addIdentityOptions(section2) {
+  let o = section2.option(form.Flag, "enabled", _("Enable"));
   o.default = "1";
   o.rmempty = false;
   o.editable = true;
   o.width = GRID_SWITCH_COLUMN_WIDTH;
-  o = section.option(form.DummyValue, "_protocol_display", _("Protocol"));
+  o = section2.option(form.DummyValue, "_protocol_display", _("Protocol"));
   o.modalonly = false;
   o.textvalue = (sectionId) => {
     const label = protocolLabel(getProtocol(sectionId));
@@ -25685,7 +25406,7 @@ function addIdentityOptions(section) {
   };
   o.cfgvalue = o.textvalue;
   o.width = GRID_KIND_COLUMN_WIDTH;
-  o = section.option(form.Value, "label", _("Server name"));
+  o = section2.option(form.Value, "label", _("Server name"));
   o.modalonly = true;
   o.rmempty = false;
   o.validate = function(sectionId, value) {
@@ -25707,7 +25428,7 @@ function addIdentityOptions(section) {
       (item) => item[".name"] !== sectionId && `${item.label || item[".name"] || ""}`.trim() === name
     ) ? _("This name is already taken") : true;
   };
-  o = section.option(form.ListValue, "protocol", _("Protocol"));
+  o = section2.option(form.ListValue, "protocol", _("Protocol"));
   o.load = function(sectionId) {
     const current = option(sectionId, "protocol") || DEFAULT_PROTOCOL;
     this.keylist = [];
@@ -25737,9 +25458,9 @@ function addIdentityOptions(section) {
     clearClientList(this.map, sectionId);
   };
 }
-function addTailscaleOptions(section) {
+function addTailscaleOptions(section2) {
   const onTailscale = (o2) => o2.depends("protocol", "tailscale");
-  let o = section.option(
+  let o = section2.option(
     form.Value,
     "tailscale_auth_key",
     _("Authorization key")
@@ -25749,7 +25470,7 @@ function addTailscaleOptions(section) {
   o.password = true;
   o.validate = validateRequired;
   onTailscale(o);
-  o = section.option(
+  o = section2.option(
     form.Value,
     "tailscale_hostname",
     _("Device name"),
@@ -25761,7 +25482,7 @@ function addTailscaleOptions(section) {
   o.rmempty = false;
   o.validate = (_sectionId, value) => validateTailscaleHostname(value);
   onTailscale(o);
-  o = section.option(
+  o = section2.option(
     form.DynamicList,
     "tailscale_advertise_routes",
     _("Advertise routes")
@@ -25771,17 +25492,17 @@ function addTailscaleOptions(section) {
   o.rmempty = true;
   o.validate = validateOptionalCidrOrIp;
   onTailscale(o);
-  o = section.option(form.Flag, "tailscale_accept_routes", _("Accept routes"));
+  o = section2.option(form.Flag, "tailscale_accept_routes", _("Accept routes"));
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
   onTailscale(o);
-  o = section.option(form.Flag, "tailscale_ephemeral", _("Ephemeral node"));
+  o = section2.option(form.Flag, "tailscale_ephemeral", _("Ephemeral node"));
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
   onTailscale(o);
-  o = section.option(
+  o = section2.option(
     form.Value,
     "tailscale_control_url",
     _("Coordination server")
@@ -25791,7 +25512,7 @@ function addTailscaleOptions(section) {
   o.rmempty = false;
   o.validate = (_sectionId, value) => validateUrlField(value);
   onTailscale(o);
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "tailscale_detour_enabled",
     _("Coordination server through a section")
@@ -25800,7 +25521,7 @@ function addTailscaleOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   onTailscale(o);
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "tailscale_detour_section",
     _("Coordination server through")
@@ -25829,8 +25550,8 @@ var JSON_INBOUND_PLACEHOLDER = [
   '  "listen_port": 1080',
   "}"
 ].join("\n");
-function addJsonInboundOptions(section) {
-  const o = section.option(form.TextValue, "inbound_json", _("JSON Inbound"));
+function addJsonInboundOptions(section2) {
+  const o = section2.option(form.TextValue, "inbound_json", _("JSON Inbound"));
   o.depends("protocol", "json_inbound");
   o.placeholder = JSON_INBOUND_PLACEHOLDER;
   o.rows = 10;
@@ -25841,18 +25562,18 @@ function addJsonInboundOptions(section) {
   o.validate = validateInboundJson;
   configureTextareaOption(o);
 }
-function addListenerOptions(section) {
+function addListenerOptions(section2) {
   const onListener = (o2) => listenerProtocols().forEach(
     (protocol) => o2.depends("protocol", protocol)
   );
-  let o = section.option(form.Value, "listen", _("Listen address"));
+  let o = section2.option(form.Value, "listen", _("Listen address"));
   o.placeholder = "::";
   o.default = "::";
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenAddress;
   listenerProtocols().filter((protocol) => !protocolSpec(protocol)?.anyAddress).forEach((protocol) => o.depends("protocol", protocol));
-  o = section.option(form.Value, "listen_port", _("Listen port"));
+  o = section2.option(form.Value, "listen_port", _("Listen port"));
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateListenPort;
@@ -25862,7 +25583,7 @@ function addListenerOptions(section) {
   );
   onListener(o);
   addGenerateButton(o, () => randomPort(), _("Pick a free port"));
-  o = section.option(
+  o = section2.option(
     form.Value,
     "public_host",
     _("Public address"),
@@ -25876,7 +25597,7 @@ function addListenerOptions(section) {
     const stored = option(sectionId, "public_host");
     return stored ? stored : loadDefaultPublicHost().then((host) => host || "");
   });
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "open_firewall",
     _("Open the port"),
@@ -25891,15 +25612,15 @@ function addListenerOptions(section) {
 }
 
 // src/forkop/tabs/servers/form/protocol.ts
-function addShadowsocksOptions(section) {
-  let o = section.option(form.ListValue, "shadowsocks_method", _("Method"));
+function addShadowsocksOptions(section2) {
+  let o = section2.option(form.ListValue, "shadowsocks_method", _("Method"));
   SHADOWSOCKS_METHODS.forEach((method) => o.value(method.id, method.id));
   o.default = SHADOWSOCKS_METHODS[0].id;
   o.rmempty = false;
   o.modalonly = true;
   o.validate = validateRequired;
   o.depends("protocol", "shadowsocks");
-  o = section.option(form.Value, "shadowsocks_psk", _("Server key"));
+  o = section2.option(form.Value, "shadowsocks_psk", _("Server key"));
   o.modalonly = true;
   o.rmempty = false;
   o.password = true;
@@ -25920,8 +25641,8 @@ function addShadowsocksOptions(section) {
     )
   );
 }
-function addMixedOptions(section) {
-  const o = section.option(
+function addMixedOptions(section2) {
+  const o = section2.option(
     form.Flag,
     "mixed_auth_enabled",
     _("Authentication")
@@ -25936,9 +25657,9 @@ function addMixedOptions(section) {
     }
   };
 }
-function addHysteria2Options(section) {
+function addHysteria2Options(section2) {
   const onHysteria2 = (o2) => o2.depends("protocol", "hysteria2");
-  let o = section.option(
+  let o = section2.option(
     form.ListValue,
     "hysteria2_obfs_type",
     _("Obfuscation")
@@ -25950,7 +25671,7 @@ function addHysteria2Options(section) {
   o.rmempty = true;
   o.modalonly = true;
   onHysteria2(o);
-  o = section.option(
+  o = section2.option(
     form.Value,
     "hysteria2_obfs_password",
     _("Obfuscation password")
@@ -25966,7 +25687,7 @@ function addHysteria2Options(section) {
   o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "salamander" });
   o.depends({ protocol: "hysteria2", hysteria2_obfs_type: "gecko" });
   addGenerateButton(o, () => generatePassword());
-  o = section.option(form.ListValue, "hysteria2_bbr_profile", _("BBR profile"));
+  o = section2.option(form.ListValue, "hysteria2_bbr_profile", _("BBR profile"));
   o.value("", _("Default"));
   ["standard", "conservative", "aggressive"].forEach(
     (value) => o.value(value, value)
@@ -25974,7 +25695,7 @@ function addHysteria2Options(section) {
   o.rmempty = true;
   o.modalonly = true;
   onHysteria2(o);
-  o = section.option(
+  o = section2.option(
     form.Value,
     "hysteria2_up_mbps",
     _("Max speed to a client, Mbps")
@@ -25983,7 +25704,7 @@ function addHysteria2Options(section) {
   o.rmempty = true;
   o.validate = validateOptionalPositiveInteger;
   onHysteria2(o);
-  o = section.option(
+  o = section2.option(
     form.Value,
     "hysteria2_down_mbps",
     _("Max speed from a client, Mbps")
@@ -25992,15 +25713,15 @@ function addHysteria2Options(section) {
   o.rmempty = true;
   o.validate = validateOptionalPositiveInteger;
   onHysteria2(o);
-  o = section.option(form.Value, "hysteria2_masquerade", _("Masquerade"));
+  o = section2.option(form.Value, "hysteria2_masquerade", _("Masquerade"));
   o.placeholder = "https://example.com";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalMasquerade;
   onHysteria2(o);
 }
-function addTuicOptions(section) {
-  const o = section.option(
+function addTuicOptions(section2) {
+  const o = section2.option(
     form.ListValue,
     "tuic_congestion_control",
     _("Congestion control")
@@ -26013,8 +25734,8 @@ function addTuicOptions(section) {
   o.modalonly = true;
   o.depends("protocol", "tuic");
 }
-function addProtocolOptions(section) {
-  let o = section.option(form.ListValue, "naive_network", _("Network"));
+function addProtocolOptions(section2) {
+  let o = section2.option(form.ListValue, "naive_network", _("Network"));
   o.load = function(sectionId) {
     const current = option(sectionId, "naive_network") || "tcp";
     this.keylist = [];
@@ -26037,7 +25758,7 @@ function addProtocolOptions(section) {
   o.rmempty = false;
   o.modalonly = true;
   o.depends("protocol", "naive");
-  o = section.option(form.ListValue, "mieru_transport", _("Transport"));
+  o = section2.option(form.ListValue, "mieru_transport", _("Transport"));
   o.value("TCP", "TCP");
   o.value("UDP", "UDP");
   o.default = "TCP";
@@ -26047,7 +25768,7 @@ function addProtocolOptions(section) {
 }
 
 // src/forkop/tabs/servers/form/security.ts
-function addSecurityOptions(section) {
+function addSecurityOptions(section2) {
   const streamProtocols = protocolsWith("transport");
   const tlsOnlyProtocols = protocolsWhere(
     (entry) => (entry.securities || []).length === 1 && entry.securities?.[0] === "tls"
@@ -26061,7 +25782,7 @@ function addSecurityOptions(section) {
     );
   };
   const onReality = (o2) => o2.depends({ protocol: "vless", security: "reality" });
-  let o = section.option(form.ListValue, "security", _("Security"));
+  let o = section2.option(form.ListValue, "security", _("Security"));
   o.value("reality", "Reality");
   o.value("tls", "TLS");
   o.value("none", _("None"));
@@ -26079,7 +25800,7 @@ function addSecurityOptions(section) {
       return node;
     };
   }
-  o = section.option(form.Value, "tls_server_name", _("SNI"));
+  o = section2.option(form.Value, "tls_server_name", _("SNI"));
   o.placeholder = "example.com";
   o.modalonly = true;
   o.rmempty = true;
@@ -26100,7 +25821,7 @@ function addSecurityOptions(section) {
     (sectionId) => camouflageSite(sectionId, true),
     _("Pick a domain")
   );
-  o = section.option(form.MultiValue, "tls_alpn", _("ALPN"));
+  o = section2.option(form.MultiValue, "tls_alpn", _("ALPN"));
   ["h3", "h2", "http/1.1"].forEach((value) => o.value(value, value));
   o.create = false;
   o.rmempty = true;
@@ -26121,7 +25842,7 @@ function addSecurityOptions(section) {
       (protocol) => protocol === "naive" ? o2.depends("protocol", protocol) : o2.depends({ protocol, tls_certificate_source: "custom" })
     );
   };
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "tls_certificate_source",
     _("Certificate")
@@ -26135,7 +25856,7 @@ function addSecurityOptions(section) {
     (protocol) => o.depends({ protocol, security: "tls" })
   );
   tlsOnlyProtocols.filter((protocol) => protocol !== "naive").forEach((protocol) => o.depends("protocol", protocol));
-  o = section.option(
+  o = section2.option(
     form.TextValue,
     "tls_certificate",
     _("Server certificate"),
@@ -26151,7 +25872,7 @@ function addSecurityOptions(section) {
     "tls_key"
   );
   onOwnCertificate(o);
-  o = section.option(
+  o = section2.option(
     form.TextValue,
     "tls_key",
     _("Private key"),
@@ -26172,7 +25893,7 @@ function addSecurityOptions(section) {
     };
   }
   onOwnCertificate(o);
-  o = section.option(
+  o = section2.option(
     form.Value,
     "reality_private_key",
     _("Reality private key")
@@ -26189,7 +25910,7 @@ function addSecurityOptions(section) {
   );
   onReality(o);
   addRealityKeypairButton(o);
-  o = section.option(form.Value, "reality_public_key", _("Reality public key"));
+  o = section2.option(form.Value, "reality_public_key", _("Reality public key"));
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateRealityKey;
@@ -26200,7 +25921,7 @@ function addSecurityOptions(section) {
     )
   );
   onReality(o);
-  o = section.option(form.Value, "reality_short_id", _("Reality short ID"));
+  o = section2.option(form.Value, "reality_short_id", _("Reality short ID"));
   o.modalonly = true;
   o.rmempty = false;
   o.validate = validateShortId;
@@ -26211,7 +25932,7 @@ function addSecurityOptions(section) {
   );
   onReality(o);
   addGenerateButton(o, () => randomHex(4));
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "client_fingerprint",
     _("Client fingerprint")
@@ -26222,12 +25943,12 @@ function addSecurityOptions(section) {
   o.modalonly = true;
   onReality(o);
 }
-function addTransportOptions(section) {
+function addTransportOptions(section2) {
   const streamProtocols = protocolsWith("transport");
   const onTransport = (o2, transport3) => streamProtocols.forEach(
     (protocol) => o2.depends({ protocol, transport: transport3 })
   );
-  let o = section.option(form.ListValue, "transport", _("Transport"));
+  let o = section2.option(form.ListValue, "transport", _("Transport"));
   TRANSPORTS.forEach(([value, label]) => o.value(value, label));
   o.default = "tcp";
   o.rmempty = false;
@@ -26235,7 +25956,7 @@ function addTransportOptions(section) {
   streamProtocols.forEach(
     (protocol) => o.depends("protocol", protocol)
   );
-  o = section.option(form.Value, "transport_path", _("Transport path"));
+  o = section2.option(form.Value, "transport_path", _("Transport path"));
   o.placeholder = "/ws";
   o.modalonly = true;
   o.rmempty = true;
@@ -26243,7 +25964,7 @@ function addTransportOptions(section) {
   ["ws", "http", "httpupgrade", "xhttp"].forEach(
     (transport3) => onTransport(o, transport3)
   );
-  o = section.option(form.Value, "transport_host", _("Transport host"));
+  o = section2.option(form.Value, "transport_host", _("Transport host"));
   o.placeholder = "example.com";
   o.modalonly = true;
   o.rmempty = true;
@@ -26251,13 +25972,13 @@ function addTransportOptions(section) {
   ["ws", "http", "httpupgrade", "xhttp"].forEach(
     (transport3) => onTransport(o, transport3)
   );
-  o = section.option(form.Value, "transport_service_name", _("gRPC service"));
+  o = section2.option(form.Value, "transport_service_name", _("gRPC service"));
   o.placeholder = "grpc";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateGrpcServiceName;
   onTransport(o, "grpc");
-  o = section.option(form.ListValue, "transport_xhttp_mode", _("XHTTP mode"));
+  o = section2.option(form.ListValue, "transport_xhttp_mode", _("XHTTP mode"));
   ["auto", "packet-up", "stream-up", "stream-one"].forEach(
     (value) => o.value(value, value)
   );
@@ -26266,17 +25987,17 @@ function addTransportOptions(section) {
   o.modalonly = true;
   onTransport(o, "xhttp");
 }
-function addMultiplexOptions(section) {
+function addMultiplexOptions(section2) {
   const multiplexProtocols = protocolsWith("multiplex");
   const onMultiplex = (o2, extra) => multiplexProtocols.forEach(
     (protocol) => o2.depends(Object.assign({ protocol }, extra || {}))
   );
-  let o = section.option(form.Flag, "multiplex_enabled", _("Multiplex"));
+  let o = section2.option(form.Flag, "multiplex_enabled", _("Multiplex"));
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
   onMultiplex(o);
-  o = section.option(form.Flag, "multiplex_padding", _("Padding"));
+  o = section2.option(form.Flag, "multiplex_padding", _("Padding"));
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
@@ -26284,8 +26005,8 @@ function addMultiplexOptions(section) {
 }
 
 // src/forkop/tabs/servers/form/openvpn.ts
-function addOpenVPNServerOptions(section) {
-  const o = section.option(form.ListValue, "openvpn_network", _("Transport"));
+function addOpenVPNServerOptions(section2) {
+  const o = section2.option(form.ListValue, "openvpn_network", _("Transport"));
   o.value("udp", "UDP");
   o.value("tcp", "TCP");
   o.default = "udp";
@@ -26316,8 +26037,8 @@ function revalidate(sectionId, keys) {
     })
   );
 }
-function addAmneziaServerOptions(section) {
-  const button = section.option(
+function addAmneziaServerOptions(section2) {
+  const button = section2.option(
     form.Button,
     "_generate_amnezia",
     _("Obfuscation parameters")
@@ -26330,7 +26051,7 @@ function addAmneziaServerOptions(section) {
     ([key, value]) => applyFieldValue(`${sectionId}`, `amnezia_${key}`, value)
   );
   AMNEZIA_PARAMETERS.forEach(({ key, conf, kind }) => {
-    const o = section.option(
+    const o = section2.option(
       kind === "flag" ? form.Flag : form.Value,
       `amnezia_${key}`,
       conf
@@ -26363,25 +26084,25 @@ function addAmneziaServerOptions(section) {
 }
 
 // src/forkop/tabs/servers/form.ts
-function createServerContent(section) {
+function createServerContent(section2) {
   injectServerStyles();
-  addIdentityOptions(section);
-  addTailscaleOptions(section);
-  addJsonInboundOptions(section);
-  addListenerOptions(section);
-  addOpenVPNServerOptions(section);
-  addTunnelOptions(section);
-  addShadowsocksOptions(section);
-  addMixedOptions(section);
-  addClientListOption(section);
-  addRoutingOptions(section);
-  addAmneziaServerOptions(section);
-  addSecurityOptions(section);
-  addTransportOptions(section);
-  addMultiplexOptions(section);
-  addHysteria2Options(section);
-  addTuicOptions(section);
-  addProtocolOptions(section);
+  addIdentityOptions(section2);
+  addTailscaleOptions(section2);
+  addJsonInboundOptions(section2);
+  addListenerOptions(section2);
+  addOpenVPNServerOptions(section2);
+  addTunnelOptions(section2);
+  addShadowsocksOptions(section2);
+  addMixedOptions(section2);
+  addClientListOption(section2);
+  addRoutingOptions(section2);
+  addAmneziaServerOptions(section2);
+  addSecurityOptions(section2);
+  addTransportOptions(section2);
+  addMultiplexOptions(section2);
+  addHysteria2Options(section2);
+  addTuicOptions(section2);
+  addProtocolOptions(section2);
 }
 
 // src/forkop/tabs/servers/table.ts
@@ -26665,8 +26386,8 @@ function showStaticHostsModal(textareaNode) {
     }
   });
 }
-function createStaticHostsOption(section) {
-  const option2 = section.option(
+function createStaticHostsOption(section2) {
+  const option2 = section2.option(
     form.TextValue,
     "static_hosts_text",
     _("Static DNS records"),
@@ -26706,8 +26427,8 @@ function createStaticHostsOption(section) {
 }
 
 // src/forkop/tabs/settings/form/dns.ts
-function addDnsOptions(section) {
-  const dnsOption = section.option(
+function addDnsOptions(section2) {
+  const dnsOption = section2.option(
     form.DynamicList,
     "dns_server",
     _("DNS Server"),
@@ -26717,7 +26438,7 @@ function addDnsOptions(section) {
   );
   dnsOption.default = ["77.88.8.8"];
   configureDnsServerList(dnsOption);
-  let o = section.option(
+  let o = section2.option(
     form.ListValue,
     "dns_main_fallback_strategy",
     _("Main DNS Query Mode"),
@@ -26726,7 +26447,7 @@ function addDnsOptions(section) {
     )
   );
   configureDnsQueryMode(o, "dns_server");
-  const bootstrapOption = section.option(
+  const bootstrapOption = section2.option(
     form.DynamicList,
     "bootstrap_dns_server",
     _("Bootstrap DNS Servers"),
@@ -26736,7 +26457,7 @@ function addDnsOptions(section) {
   );
   bootstrapOption.default = ["77.88.8.8"];
   configureDnsServerList(bootstrapOption, { ipOnly: true });
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "dns_bootstrap_fallback_strategy",
     _("Bootstrap DNS Query Mode"),
@@ -26745,7 +26466,7 @@ function addDnsOptions(section) {
     )
   );
   configureDnsQueryMode(o, "bootstrap_dns_server");
-  o = section.option(
+  o = section2.option(
     form.Value,
     "dns_rewrite_ttl",
     _("DNS Rewrite TTL"),
@@ -26759,7 +26480,7 @@ function addDnsOptions(section) {
     }
     return /^[0-9]+$/.test(value) ? true : _("TTL must be a positive number");
   };
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "dns_strategy",
     _("DNS Strategy"),
@@ -26771,22 +26492,22 @@ function addDnsOptions(section) {
   o.value("ipv6_only", _("IPv6 only"));
   o.default = "prefer_ipv4";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "dns_detour_enabled",
     _("DNS through section"),
     _("Route main DNS requests through a section")
   );
   configureDownloadViaProxyFlag(o, "dns_detour_section");
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "dns_detour_section",
     _("DNS requests through")
   );
   o.depends("dns_detour_enabled", "1");
   configureDownloadSectionOption(o, "dns_detour_section");
-  createStaticHostsOption(section);
-  o = section.option(
+  createStaticHostsOption(section2);
+  o = section2.option(
     form.Value,
     "dns_timeout",
     _("DNS timeout"),
@@ -26795,7 +26516,7 @@ function addDnsOptions(section) {
   o.default = "10s";
   o.rmempty = false;
   o.validate = (_sectionId, value) => validateRequiredSingBoxDuration(value);
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "unmatched_dns_mode",
     _("DNS outside the rules"),
@@ -26808,8 +26529,8 @@ function addDnsOptions(section) {
 }
 
 // src/forkop/tabs/settings/form/network.ts
-function addNetworkOptions(section) {
-  const excludedDevicesOption = section.option(
+function addNetworkOptions(section2) {
+  const excludedDevicesOption = section2.option(
     form.DynamicList,
     "routing_excluded_ips",
     _("Exclude devices from routing"),
@@ -26828,7 +26549,7 @@ function addNetworkOptions(section) {
   excludedDevicesOption.renderWidget = function(section_id, _option_index, cfgvalue) {
     return createLocalDeviceDynamicListWidget(this, section_id, cfgvalue);
   };
-  let o = section.option(
+  let o = section2.option(
     widgets.DeviceSelect,
     "source_network_interfaces",
     _("Source Network Interface"),
@@ -26854,7 +26575,7 @@ function addNetworkOptions(section) {
     const isWireless = type === "wifi" || type === "wireless" || type.includes("wlan");
     return !isWireless;
   };
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "enable_output_network_interface",
     _("Enable Output Network Interface"),
@@ -26862,7 +26583,7 @@ function addNetworkOptions(section) {
   );
   o.default = "0";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     widgets.DeviceSelect,
     "output_network_interface",
     _("Output Network Interface"),
@@ -26892,7 +26613,7 @@ function addNetworkOptions(section) {
     const isWireless = type === "wifi" || type === "wireless" || type.includes("wlan");
     return !isWireless;
   };
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "enable_badwan_interface_monitoring",
     _("Interface Monitoring"),
@@ -26900,7 +26621,7 @@ function addNetworkOptions(section) {
   );
   o.default = "0";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     widgets.NetworkSelect,
     "badwan_monitored_interfaces",
     _("Monitored Interfaces"),
@@ -26918,7 +26639,7 @@ function addNetworkOptions(section) {
     }
     return true;
   };
-  o = section.option(
+  o = section2.option(
     form.Value,
     "badwan_reload_delay",
     _("Interface Monitoring Delay"),
@@ -26966,8 +26687,8 @@ function validateSingBoxPath(value, fileName2) {
 }
 
 // src/forkop/tabs/settings/form/service.ts
-function addServiceOptions(section) {
-  let o = section.option(form.Value, "config_path", _("Config File Path"));
+function addServiceOptions(section2) {
+  let o = section2.option(form.Value, "config_path", _("Config File Path"));
   o.value("/etc/sing-box/config.json", "Flash (/etc/sing-box/config.json)");
   o.value("/tmp/sing-box/config.json", "RAM (/tmp/sing-box/config.json)");
   o.default = "/etc/sing-box/config.json";
@@ -26975,7 +26696,7 @@ function addServiceOptions(section) {
   o.validate = function(_section_id, value) {
     return validateSingBoxPath(value, "config.json");
   };
-  o = section.option(form.Value, "cache_path", _("Cache File Path"));
+  o = section2.option(form.Value, "cache_path", _("Cache File Path"));
   o.value("/tmp/sing-box/cache.db", "RAM (/tmp/sing-box/cache.db)");
   o.value(
     "/usr/share/sing-box/cache.db",
@@ -26986,7 +26707,7 @@ function addServiceOptions(section) {
   o.validate = function(_section_id, value) {
     return validateSingBoxPath(value, "cache.db");
   };
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "log_level",
     _("Log Level"),
@@ -27001,7 +26722,7 @@ function addServiceOptions(section) {
   o.value("panic", "Panic");
   o.default = "warn";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "exclude_ntp",
     _("Exclude NTP"),
@@ -27012,8 +26733,8 @@ function addServiceOptions(section) {
 }
 
 // src/forkop/tabs/settings/form/traffic.ts
-function addTrafficOptions(section) {
-  let o = section.option(
+function addTrafficOptions(section2) {
+  let o = section2.option(
     form.Flag,
     "enable_yacd",
     _("Enable YACD"),
@@ -27021,7 +26742,7 @@ function addTrafficOptions(section) {
   );
   o.default = "0";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "enable_yacd_wan_access",
     _("Enable YACD WAN Access"),
@@ -27032,7 +26753,7 @@ function addTrafficOptions(section) {
   o.depends("enable_yacd", "1");
   o.default = "0";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     form.Value,
     "yacd_secret_key",
     _("YACD Secret Key"),
@@ -27044,7 +26765,7 @@ function addTrafficOptions(section) {
   o.retain = true;
   o.rmempty = false;
   const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "enable_native_api",
     _("sing-box Dashboard and API"),
@@ -27056,13 +26777,13 @@ function addTrafficOptions(section) {
     return coreHas("api") || this.cfgvalue(sectionId) === "1";
   };
   o.validate = (_sectionId, value) => value === "1" ? validateCoreFeature("api") : true;
-  o = section.option(form.Value, "native_api_secret", _("API secret"));
+  o = section2.option(form.Value, "native_api_secret", _("API secret"));
   o.password = true;
   o.depends("enable_native_api", "1");
   o.retain = true;
   o.rmempty = false;
   o.validate = (_sectionId, value) => value ? true : _("Enter an API secret");
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "disable_quic",
     _("Disable QUIC"),
@@ -27070,7 +26791,7 @@ function addTrafficOptions(section) {
   );
   o.default = "0";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "bittorrent_direct",
     _("Torrents directly"),
@@ -27081,8 +26802,8 @@ function addTrafficOptions(section) {
 }
 
 // src/forkop/tabs/settings/form/updates.ts
-function addUpdateOptions(section) {
-  let o = section.option(
+function addUpdateOptions(section2) {
+  let o = section2.option(
     form.Flag,
     "list_update_enabled",
     _("Rule set auto update"),
@@ -27090,7 +26811,7 @@ function addUpdateOptions(section) {
   );
   o.default = "1";
   o.rmempty = false;
-  o = section.option(form.Value, "update_interval", _("List update interval"));
+  o = section2.option(form.Value, "update_interval", _("List update interval"));
   o.depends("list_update_enabled", "1");
   o.retain = true;
   o.placeholder = "1d";
@@ -27110,7 +26831,7 @@ function addUpdateOptions(section) {
   o.validate = function(_section_id, value) {
     return validateRequiredSingBoxDuration(value);
   };
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "unified_delay",
     _("Accurate latency measurement"),
@@ -27118,7 +26839,7 @@ function addUpdateOptions(section) {
   );
   o.default = "1";
   o.rmempty = false;
-  o = section.option(
+  o = section2.option(
     form.Value,
     "latency_test_url",
     _("Latency test URL"),
@@ -27130,7 +26851,7 @@ function addUpdateOptions(section) {
   o.validate = function(_section_id, value) {
     return validateUrlField(value);
   };
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "download_lists_via_proxy",
     _("Download lists through a section"),
@@ -27139,7 +26860,7 @@ function addUpdateOptions(section) {
     )
   );
   configureDownloadViaProxyFlag(o, "download_lists_via_proxy_section");
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "download_lists_via_proxy_section",
     _("Download lists through")
@@ -27147,7 +26868,7 @@ function addUpdateOptions(section) {
   o.depends("download_lists_via_proxy", "1");
   o.retain = true;
   configureDownloadSectionOption(o, "download_lists_via_proxy_section");
-  o = section.option(
+  o = section2.option(
     form.Flag,
     "warp_profiles_via_proxy",
     _("Request WARP through a section"),
@@ -27160,7 +26881,7 @@ function addUpdateOptions(section) {
     return coreHas("wireguard") || this.cfgvalue(sectionId) === "1";
   };
   o.validate = (_sectionId, value) => value === "1" ? validateCoreFeature("wireguard") : true;
-  o = section.option(
+  o = section2.option(
     form.ListValue,
     "warp_profiles_via_proxy_section",
     _("Request WARP through")
@@ -27171,12 +26892,12 @@ function addUpdateOptions(section) {
 }
 
 // src/forkop/tabs/settings/form.ts
-function createSettingsContent(section) {
-  addDnsOptions(section);
-  addNetworkOptions(section);
-  addTrafficOptions(section);
-  addUpdateOptions(section);
-  addServiceOptions(section);
+function createSettingsContent(section2) {
+  addDnsOptions(section2);
+  addNetworkOptions(section2);
+  addTrafficOptions(section2);
+  addUpdateOptions(section2);
+  addServiceOptions(section2);
 }
 
 // src/forkop/cbi/unsavedUci.ts
@@ -27193,7 +26914,7 @@ function captureUnsavedUci() {
     deletes: copy(state.deletes[FORKOP_UCI_PACKAGE]),
     reorder: state.reorder[FORKOP_UCI_PACKAGE] === true,
     order: Object.fromEntries(
-      Object.entries(values).map(([sid, section]) => [sid, section[".index"]])
+      Object.entries(values).map(([sid, section2]) => [sid, section2[".index"]])
     )
   };
 }
@@ -27218,9 +26939,9 @@ function restoreUnsavedUci(unsaved) {
     delete state.reorder[FORKOP_UCI_PACKAGE];
   }
   Object.entries(state.values[FORKOP_UCI_PACKAGE] || {}).forEach(
-    ([sid, section]) => {
+    ([sid, section2]) => {
       if (Object.prototype.hasOwnProperty.call(unsaved.order, sid)) {
-        section[".index"] = unsaved.order[sid];
+        section2[".index"] = unsaved.order[sid];
       }
     }
   );
@@ -27250,7 +26971,7 @@ function nextLabel(sectionRef, configName, prefix) {
   const taken = new Set(
     ["server", "section"].flatMap(
       (type) => (sectionRef.map.data.sections(configName, type) || []).map(
-        (section) => `${section.label || ""}`.trim()
+        (section2) => `${section2.label || ""}`.trim()
       )
     )
   );
@@ -27343,13 +27064,13 @@ function pageTitle(compiledVersion) {
 
 // src/forkop/entry/view.ts
 function addMountedTab(map, type, title, tab) {
-  const section = map.section(form.TypedSection, type, title);
-  section.anonymous = true;
-  section.addremove = false;
-  section.cfgsections = function() {
+  const section2 = map.section(form.TypedSection, type, title);
+  section2.anonymous = true;
+  section2.addremove = false;
+  section2.cfgsections = function() {
     return [type];
   };
-  mountTabOption(section, type, tab);
+  mountTabOption(section2, type, tab);
 }
 var ForkopView = {
   // The forms offer only what the installed core can run, so what it can do

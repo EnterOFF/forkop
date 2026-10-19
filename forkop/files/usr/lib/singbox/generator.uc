@@ -1092,16 +1092,10 @@ function first_outbound_section(sections) {
 }
 
 // An inbound exists for what runs outside the core and so cannot name an
-// outbound. The proxy diagnostic measures the running core through one instead
-// of starting a second sing-box beside it, on the first section: the one the
-// transparent proxy check sends its domain to, so both checks see one exit. The
-// page's WARP profile generator takes another when WARP profiles go through a
-// section. What the core downloads itself names its section as a detour.
-function add_service_mixed_proxy(config, settings, sections) {
-    let first = first_outbound_section(sections);
-    if (first != null)
-        add_service_mixed_proxy_inbound(config, runtime_constants.SERVICE_MIXED_INBOUND_TAG,
-            runtime_constants.SERVICE_MIXED_INBOUND_PORT, outbound_tag(first[".name"]));
+// outbound: the page's WARP profile generator takes one when WARP profiles go
+// through a section. What the core downloads itself names its section as a
+// detour.
+function add_service_mixed_proxy(config, settings) {
     if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
         add_service_mixed_proxy_inbound(config, runtime_constants.WARP_PROFILES_MIXED_INBOUND_TAG,
             runtime_constants.WARP_PROFILES_MIXED_INBOUND_PORT, download_detour(settings, "warp_profiles"));
@@ -1966,7 +1960,7 @@ function build(context) {
     add_source_aware_dns_fallback(config);
     add_tunnel_dns_rules(config);
     add_server_routes(config, servers, sections);
-    add_service_mixed_proxy(config, settings, sections);
+    add_service_mixed_proxy(config, settings);
 
     assert_unique_outbound_tags(config);
     assert_compatible_wireguard_endpoints(config);

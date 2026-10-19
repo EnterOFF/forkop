@@ -71,6 +71,10 @@ function diagnostics() {
     return require("diagnostics.runtime");
 }
 
+function checks() {
+    return require("diagnostics.checks");
+}
+
 function text(fn) {
     return function(args) {
         let result = fn(...args);
@@ -109,18 +113,15 @@ const COMMANDS = {
     enable: { help: "Enable Forkop autostart", run: reply(() => autostart(true)) },
     disable: { help: "Disable Forkop autostart", run: reply(() => autostart(false)) },
     uninstall: { help: "Remove Forkop files installed outside opkg/apk", run: () => lifecycle().uninstall() },
-    check_proxy: { help: "Check proxy connectivity", run: () => diagnostics().check_proxy() },
-    check_nft_rules: { help: "Check NFT rules status", run: json(() => diagnostics().nft_rules()) },
-    check_sing_box: { help: "Check sing-box installation and status", run: json(() => diagnostics().sing_box()) },
-    check_inbounds_config: { help: "Check whether enabled server inbounds are configured", run: json(() => diagnostics().inbounds_config()) },
-    check_inbounds: { help: "Check server inbounds from the VPN server tab", run: json(() => diagnostics().inbounds()) },
+    check_service: { help: "Check the service, memory, clock and conflicting interceptors in JSON format", run: json(() => checks().service()) },
+    check_dns: { help: "Check the DNS servers sing-box resolves with in JSON format", run: json(() => checks().dns()) },
+    check_traffic: { help: "Check that the router's own traffic goes through Forkop in JSON format", run: json(() => checks().traffic()) },
+    check_servers: { help: "Check the listeners of the enabled servers in JSON format", run: json(() => checks().servers()) },
     check_logs: { help: "Show Forkop logs from system journal", run: () => {
         print(diagnostics().logs());
         return 0;
     } },
-    check_fakeip: { help: "Test sing-box FakeIP DNS", run: json(() => diagnostics().fakeip()) },
-    check_dns_available: { help: "Check DNS server availability", run: json(() => diagnostics().dns()) },
-    global_check: { args: 2, help: "Run global system check", run: (args) => diagnostics().global_check(args[0], args[1]) },
+    report: { args: 2, usage: "[masked|raw] [checks]", help: "Collect the log and configurations of a diagnostic report in JSON format", run: json((visibility, checks) => require("diagnostics.report").report(visibility || "masked", checks)) },
     clash_api: { args: 3, usage: "<method> <path> [body]", help: "Allowlisted Clash API transport fallback", run: clash((api, method, path, body) => api.request(method, path, body)) },
     clash_summary: { help: "Summarize the Clash API state in JSON format", run: clash((api) => api.summary()) },
     show_config: { args: 1, help: "Display current Forkop configuration", run: text((visibility) => diagnostics().show_config(visibility || "masked")) },

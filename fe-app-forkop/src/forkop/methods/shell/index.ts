@@ -93,30 +93,27 @@ function diagnosticCheck<T>(
 }
 
 export const ForkopShellMethods = {
-  checkDNSAvailable: async () =>
-    diagnosticCheck<Forkop.DnsCheckResult>(
-      Forkop.AvailableMethods.CHECK_DNS_AVAILABLE,
+  checkService: async () =>
+    diagnosticCheck<Forkop.ServiceCheckResult>(
+      Forkop.AvailableMethods.CHECK_SERVICE,
     ),
-  checkFakeIP: async () =>
-    diagnosticCheck<Forkop.FakeIPCheckResult>(
-      Forkop.AvailableMethods.CHECK_FAKEIP,
+  checkDns: async () =>
+    diagnosticCheck<Forkop.DnsCheckResult>(Forkop.AvailableMethods.CHECK_DNS),
+  checkTraffic: async () =>
+    diagnosticCheck<Forkop.TrafficCheckResult>(
+      Forkop.AvailableMethods.CHECK_TRAFFIC,
     ),
-  checkNftRules: async () =>
-    diagnosticCheck<Forkop.NftRulesCheckResult>(
-      Forkop.AvailableMethods.CHECK_NFT_RULES,
+  checkServers: async () =>
+    diagnosticCheck<Forkop.ServersCheckResult>(
+      Forkop.AvailableMethods.CHECK_SERVERS,
     ),
-  checkInboundsConfig: async () =>
-    diagnosticCheck<Forkop.InboundsConfigCheckResult>(
-      Forkop.AvailableMethods.CHECK_INBOUNDS_CONFIG,
-    ),
-  checkSingBox: async () =>
-    diagnosticCheck<Forkop.SingBoxCheckResult>(
-      Forkop.AvailableMethods.CHECK_SING_BOX,
-    ),
-  checkInbounds: async () =>
-    diagnosticCheck<Forkop.InboundsCheckResult>(
-      Forkop.AvailableMethods.CHECK_INBOUNDS,
-    ),
+  // The checks the page ran go along, so the router masks them by the same
+  // rules as the rest of the report.
+  report: async (masked: boolean, checks: string) =>
+    diagnosticCheck<Forkop.ReportAttachments>(Forkop.AvailableMethods.REPORT, [
+      masked ? 'masked' : 'raw',
+      checks,
+    ]),
   clashApi: async (method: string, path: string, body = '') =>
     callBaseMethod<Forkop.ClashApiResponse>(
       Forkop.AvailableMethods.CLASH_API,
@@ -140,10 +137,6 @@ export const ForkopShellMethods = {
   // procd's per-service lock, and the CLI writes the rc.d symlink at once.
   enable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.ENABLE),
   disable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.DISABLE),
-  globalCheck: async (masked = true) =>
-    diagnosticCheck<unknown>(Forkop.AvailableMethods.GLOBAL_CHECK, [
-      masked ? 'masked' : 'raw',
-    ]),
   showConfig: async (masked = true) =>
     callBaseMethod<unknown>(Forkop.AvailableMethods.SHOW_CONFIG, [
       masked ? 'masked' : 'raw',

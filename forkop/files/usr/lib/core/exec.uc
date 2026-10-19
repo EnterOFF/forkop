@@ -35,6 +35,26 @@ function capture(argv) {
     return { status: pipe.close(), stdout: stdout ?? "" };
 }
 
+// The { status, stdout } of each command, all run at once, so slow ones wait
+// together. Each writes to a file of its own rather than to a pipe: in a process
+// with a ubus connection, a child that exits while another one's pipe is being
+// read interrupts that read for good, and its output is lost.
+function capture_parallel(commands) {
+    let now = clock();
+    let base = sprintf("/tmp/forkop-exec.%d.%d.%d", common.own_pid(), now[0], now[1]);
+    let jobs = [];
+    for (let i = 0; i < length(commands); i++)
+        push(jobs, sprintf("{ %s >%s 2>/dev/null; echo $? >%s; } &", command_line(commands[i]), quote(base + "." + i), quote(base + "." + i + ".status")));
+    system(join(" ", jobs) + " wait");
+    let results = [];
+    for (let i = 0; i < length(commands); i++) {
+        push(results, { status: int(trim(fs.readfile(base + "." + i + ".status") ?? "1")), stdout: fs.readfile(base + "." + i) ?? "" });
+        fs.unlink(base + "." + i);
+        fs.unlink(base + "." + i + ".status");
+    }
+    return results;
+}
+
 // { status, output } with stderr folded into stdout.
 function combined(argv) {
     let pipe = fs.popen(command_line(argv) + " 2>&1", "r");
@@ -80,4 +100,4 @@ function log(level, message) {
     status([ "logger", "-t", "forkop", "-p", "user." + (PRIORITIES[level] ?? "notice"), "[" + level + "] " + common.as_string(message) ]);
 }
 
-return { command_line, run, status, ok, capture, combined, output, feed, background, log };
+return { command_line, run, status, ok, capture, capture_parallel, combined, output, feed, background, log };

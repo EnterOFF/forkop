@@ -1,47 +1,44 @@
 import {
   DIAGNOSTICS_CHECKS,
-  DIAGNOSTICS_CHECKS_MAP,
-} from './checks/contstants';
+  DIAGNOSTICS_CHECKS_ORDER,
+  diagnosticsCheckTitle,
+} from './checks/groups';
 import { IDiagnosticsChecksStoreItem, StoreType } from '../../services';
 
 export interface DiagnosticsCheckOptions {
-  includeInbounds?: boolean;
+  includeServers?: boolean;
 }
 
-function createDiagnosticCheck(
+export function createDiagnosticCheck(
   code: DIAGNOSTICS_CHECKS,
   description: string,
+  state: IDiagnosticsChecksStoreItem['state'] = 'skipped',
 ): IDiagnosticsChecksStoreItem {
-  const meta = DIAGNOSTICS_CHECKS_MAP[code];
-
   return {
     code,
-    title: meta.title,
-    order: meta.order,
+    title: diagnosticsCheckTitle(code),
+    order: DIAGNOSTICS_CHECKS_ORDER.indexOf(code),
     description,
     items: [],
-    state: 'skipped',
+    state,
   };
+}
+
+// The servers check is listed only for a configuration that has a server.
+export function diagnosticsCheckCodes(options: DiagnosticsCheckOptions = {}) {
+  return DIAGNOSTICS_CHECKS_ORDER.filter(
+    (code) =>
+      code !== DIAGNOSTICS_CHECKS.SERVERS || options.includeServers === true,
+  );
 }
 
 export function getDiagnosticsChecks(
   description: string,
   options: DiagnosticsCheckOptions = {},
 ): Array<IDiagnosticsChecksStoreItem> {
-  const checks = [
-    DIAGNOSTICS_CHECKS.DNS,
-    DIAGNOSTICS_CHECKS.SINGBOX,
-    DIAGNOSTICS_CHECKS.NFT,
-    DIAGNOSTICS_CHECKS.OUTBOUNDS,
-  ];
-
-  if (options.includeInbounds === true) {
-    checks.push(DIAGNOSTICS_CHECKS.INBOUNDS);
-  }
-
-  checks.push(DIAGNOSTICS_CHECKS.FAKEIP);
-
-  return checks.map((code) => createDiagnosticCheck(code, description));
+  return diagnosticsCheckCodes(options).map((code) =>
+    createDiagnosticCheck(code, description),
+  );
 }
 
 export function getLoadingDiagnosticsChecks(
@@ -86,7 +83,7 @@ export const initialDiagnosticStore: Pick<
     disable: {
       loading: false,
     },
-    globalCheck: {
+    report: {
       loading: false,
     },
     showConfig: {
@@ -96,6 +93,6 @@ export const initialDiagnosticStore: Pick<
       loading: false,
     },
   },
-  diagnosticsRunAction: { loading: false },
+  diagnosticsRunAction: { loading: false, finished: null },
   diagnosticsChecks: getDiagnosticsChecks(_('Not running')),
 };

@@ -89,8 +89,17 @@ export const styles = `
     grid-row-gap: 10px;
 }
 
-.fkp_diagnostic-page__run_check_wrapper button {
+/* The run, and under it the report of what the run found. */
+.fkp_diagnostic-page__run_check_wrapper {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-row-gap: 10px;
+}
+
+.fkp_diagnostic-page__run_check_wrapper > .fkp-partial-button {
     width: 100%;
+    min-width: 0;
+    margin-left: 0;
 }
 
 .fkp_diagnostic-page__checks {

@@ -13,7 +13,6 @@ import { createHarness } from './lib/luciForm.js';
 import {
   DOMAIN_LIST_OPTIONS,
   FAKEIP_CHECK_DOMAIN,
-  IP_CHECK_DOMAIN,
   RESERVED_RUNTIME_TAGS,
 } from '../src/constants';
 import { RESERVED_PORTS } from '../src/forkop/tabs/servers/constants';
@@ -68,9 +67,7 @@ describe('the tables the page carries', () => {
   });
 
   it('check the domains the configuration answers for', () => {
-    expect({ fakeip: FAKEIP_CHECK_DOMAIN, ip: IP_CHECK_DOMAIN }).toEqual(
-      contract.check_domains,
-    );
+    expect({ fakeip: FAKEIP_CHECK_DOMAIN }).toEqual(contract.check_domains);
   });
 
   it('read the AmneziaWG parameters by the kinds and sides the backend does', () => {

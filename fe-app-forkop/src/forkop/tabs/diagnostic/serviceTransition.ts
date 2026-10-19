@@ -152,15 +152,19 @@ export function hasLocalMutatingServiceActionLoading(
   );
 }
 
-// A read-only probe is most useful exactly when the service is down - "sing-box
-// is not running, the nft table is absent" is the diagnosis, not a reason to
-// refuse. The only gate left is the page not yet knowing what to check.
+// A read-only probe is most useful exactly when the service is down - "Forkop
+// is not running, and this is the last error" is the diagnosis, not a reason to
+// refuse. What it waits for is the page knowing what to check, and a start,
+// stop or apply in progress: checks run in the middle of one would describe a
+// runtime that is being replaced, and its end throws their result away.
 export function shouldDisableDiagnosticRunAction({
   capabilitiesLoaded,
+  operation,
 }: {
   capabilitiesLoaded: boolean;
+  operation: ServiceOperation | null;
 }) {
-  return !capabilitiesLoaded;
+  return !capabilitiesLoaded || operation !== null;
 }
 
 // What a service action the router never took up says: the request to start it

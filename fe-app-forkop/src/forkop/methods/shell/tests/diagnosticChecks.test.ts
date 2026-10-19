@@ -21,12 +21,10 @@ describe('diagnostic checks', () => {
   });
 
   it.each([
-    ['checkSingBox', 'check_sing_box'],
-    ['checkNftRules', 'check_nft_rules'],
-    ['checkDNSAvailable', 'check_dns_available'],
-    ['checkFakeIP', 'check_fakeip'],
-    ['checkInbounds', 'check_inbounds'],
-    ['checkInboundsConfig', 'check_inbounds_config'],
+    ['checkService', 'check_service'],
+    ['checkDns', 'check_dns'],
+    ['checkTraffic', 'check_traffic'],
+    ['checkServers', 'check_servers'],
   ] as const)(
     '%s waits long enough for a slow router',
     async (method, command) => {
@@ -38,6 +36,15 @@ describe('diagnostic checks', () => {
       expect(call.timeout).toBeGreaterThan(20000);
     },
   );
+
+  it('sends the checks the page ran along with the report, for the router to mask', async () => {
+    await ForkopShellMethods.report(true, '✓ Service — OK\n');
+
+    const call = mocks.executeShellCommand.mock.calls[0][0];
+
+    expect(call.args).toEqual(['report', 'masked', '✓ Service — OK\n']);
+    expect(call.timeout).toBeGreaterThan(20000);
+  });
 
   it('keeps short-lived UI state polling fast', async () => {
     await ForkopShellMethods.getUiState();

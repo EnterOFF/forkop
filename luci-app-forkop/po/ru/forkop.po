@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 16:47+0300\n"
-"PO-Revision-Date: 2026-10-19 16:47+0300\n"
+"POT-Creation-Date: 2026-10-19 18:56+0300\n"
+"PO-Revision-Date: 2026-10-19 18:56+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -20,20 +20,77 @@ msgstr ""
 msgid "-- Select --"
 msgstr "-- Выберите --"
 
+msgid "%d d"
+msgstr "%d д"
+
+msgid "%d h"
+msgstr "%d ч"
+
+msgid "%d MB"
+msgstr "%d МБ"
+
+msgid "%d min"
+msgstr "%d мин"
+
+msgid "%d ms"
+msgstr "%d мс"
+
+msgid "%d s"
+msgstr "%d с"
+
 msgid "%s (section is unavailable)"
 msgstr "%s (секция недоступна)"
+
+msgid "%s answers with %s"
+msgstr "%s отвечает ошибкой %s"
+
+msgid "%s cannot find %s"
+msgstr "%s не находит %s"
+
+msgid "%s does not answer"
+msgstr "%s не отвечает"
+
+msgid "%s does not resolve"
+msgstr "%s не резолвится"
 
 msgid "%s has an invalid port %s"
 msgstr "%s: неверный порт %s"
 
+msgid "%s intercepts traffic"
+msgstr "%s перехватывает трафик"
+
+msgid "%s is closed in the firewall"
+msgstr "%s закрыт в файерволе"
+
+msgid "%s is not a public address"
+msgstr "%s — не публичный адрес"
+
 msgid "%s is set by the cascade connection of the subscription"
 msgstr "%s задаётся каскадным подключением подписки"
+
+msgid "%s leads to %s, the router has %s"
+msgstr "%s ведёт на %s, а у роутера %s"
 
 msgid "%s names an unsupported protocol %s"
 msgstr "%s: неподдерживаемый протокол %s"
 
 msgid "%s needs a whole number"
 msgstr "%s: нужно целое число"
+
+msgid "%s of %s free"
+msgstr "свободно %s из %s"
+
+msgid "%s off from this device"
+msgstr "расходится с этим устройством на %s"
+
+msgid "%s takes DNS queries before Forkop"
+msgstr "%s забирает DNS-запросы раньше Forkop"
+
+msgid "%s, direct %s"
+msgstr "%s, напрямую %s"
+
+msgid "%s, the same as direct"
+msgstr "%s, как и напрямую"
 
 msgid "%s: needs hexadecimal digits"
 msgstr "%s: нужны шестнадцатеричные цифры"
@@ -230,9 +287,6 @@ msgstr "Добавляется после имени каждого сервер
 msgid "Added in front of every server name"
 msgstr "Добавляется перед именем каждого сервера"
 
-msgid "Additional marking rules found"
-msgstr "Найдены дополнительные правила маркировки"
-
 msgid "Advanced settings"
 msgstr "Дополнительные параметры"
 
@@ -293,6 +347,9 @@ msgstr "Сетевой интерфейс OpenWrt"
 msgid "Another server or group of the section has this name"
 msgstr "Это название уже носит другой сервер или группа секции"
 
+msgid "another sing-box is running (PID %s)"
+msgstr "запущен посторонний sing-box (PID %s)"
+
 msgid "Answers to the login form"
 msgstr "Ответы для формы входа"
 
@@ -332,9 +389,6 @@ msgstr "Ключ авторизации"
 msgid "Auto refresh"
 msgstr "Автообновление"
 
-msgid "Autostart disabled"
-msgstr "Автостарт отключён"
-
 msgid "Availability check for every server"
 msgstr "Проверка доступности каждого сервера"
 
@@ -365,20 +419,8 @@ msgstr "Bootstrap DNS-серверы"
 msgid "Both directions"
 msgstr "Оба направления"
 
-msgid "Browser FakeIP check could not be completed"
-msgstr "Не удалось выполнить проверку FakeIP в браузере"
-
-msgid "Browser is not using FakeIP"
-msgstr "Браузер не использует FakeIP"
-
-msgid "Browser is using FakeIP correctly"
-msgstr "Браузер использует FakeIP"
-
 msgid "Browser sign-in"
 msgstr "Вход через браузер"
-
-msgid "Built with the Clash API"
-msgstr "Собран с Clash API"
 
 msgid "Built-in lists"
 msgstr "Встроенные списки"
@@ -425,8 +467,11 @@ msgstr "URL проверки"
 msgid "Checking, please wait"
 msgstr "Проверяем, пожалуйста подождите"
 
+msgid "Checks"
+msgstr "Проверки"
+
 msgid "Checks failed"
-msgstr "Проверки не выполнены"
+msgstr "Проверки не пройдены"
 
 msgid "Checks passed"
 msgstr "Проверки пройдены"
@@ -472,6 +517,9 @@ msgstr "Клиент: %s"
 
 msgid "Clients"
 msgstr "Клиенты"
+
+msgid "Clock"
+msgstr "Время"
 
 msgid "Close"
 msgstr "Закрыть"
@@ -527,6 +575,9 @@ msgstr "Конфигурация"
 msgid "Configure User-Agent in the item settings"
 msgstr "Настройте User-Agent в настройках элемента"
 
+msgid "Conflicts"
+msgstr "Конфликты"
+
 msgid "Congestion control"
 msgstr "Управление перегрузкой"
 
@@ -542,6 +593,9 @@ msgstr "Подключаться к серверу через другую се�
 msgid "Connect to the tunnel server through another section"
 msgstr "Подключаться к серверу туннеля через другую секцию"
 
+msgid "connection failed"
+msgstr "соединение не установлено"
+
 msgid "Connection timeout"
 msgstr "Таймаут подключения"
 
@@ -550,9 +604,6 @@ msgstr "URI подключения"
 
 msgid "Connections are unavailable"
 msgstr "Подключения недоступны"
-
-msgid "Connectivity probe failed"
-msgstr "Проверка соединения не прошла"
 
 msgid "Control channel key"
 msgstr "Ключ управляющего канала"
@@ -583,9 +634,6 @@ msgstr "Скопировать ссылку прокси"
 
 msgid "Copy the profile"
 msgstr "Скопировать профиль"
-
-msgid "Could not compare FakeIP and control public IPs"
-msgstr "Не удалось сравнить публичные IP FakeIP и контрольной проверки"
 
 msgid "Could not disable autostart"
 msgstr "Не удалось отключить автостарт"
@@ -668,6 +716,9 @@ msgstr "Устройство или IP"
 msgid "Devices"
 msgstr "Устройства"
 
+msgid "Diagnostic report"
+msgstr "Отчёт диагностики"
+
 msgid "Direct"
 msgstr "Напрямую"
 
@@ -679,12 +730,6 @@ msgstr "Отключить QUIC"
 
 msgid "Disables QUIC for compatibility and to fix video streaming"
 msgstr "Отключает QUIC для совместимости и исправления видеостриминга"
-
-msgid "DNS capture active"
-msgstr "Перехват DNS активен"
-
-msgid "DNS on router"
-msgstr "DNS на роутере"
 
 msgid "DNS outside the rules"
 msgstr "DNS вне правил"
@@ -719,17 +764,20 @@ msgstr "DNS через секцию"
 msgid "DNS timeout"
 msgstr "Тайм-аут DNS"
 
+msgid "dnsmasq does not answer"
+msgstr "dnsmasq не отвечает"
+
 msgid "Do not check"
 msgstr "Не проверять"
 
 msgid "Do not verify the server certificate"
 msgstr "Не проверять сертификат сервера"
 
-msgid "Does not match the WAN address"
-msgstr "Не совпадает с адресом WAN"
+msgid "does not listen on %s"
+msgstr "не слушает %s"
 
-msgid "Does not resolve"
-msgstr "Не резолвится"
+msgid "does not use the router's DNS"
+msgstr "не использует DNS роутера"
 
 msgid "Domain Resolver"
 msgstr "Резолвер доменов"
@@ -781,6 +829,9 @@ msgstr "Редактировать"
 
 msgid "Edit rule action"
 msgstr "Изменить"
+
+msgid "empty"
+msgstr "пусто"
 
 msgid "Enable"
 msgstr "Включить"
@@ -920,6 +971,9 @@ msgstr "Исключить типы"
 msgid "Exit node"
 msgstr "Выходной узел"
 
+msgid "Exit via \"%s\""
+msgstr "Выход через «%s»"
+
 msgid "Expand section"
 msgstr "Развернуть секцию"
 
@@ -971,15 +1025,6 @@ msgstr "Ошибка обновления списков"
 msgid "Failed to update subscriptions"
 msgstr "Ошибка обновления подписок"
 
-msgid "FakeIP and control checks use different public IPs"
-msgstr "FakeIP и контрольная проверка используют разные публичные IP"
-
-msgid "FakeIP and control checks use the same public IP"
-msgstr "FakeIP и контрольная проверка используют один публичный IP"
-
-msgid "FakeIP works; public IP comparison is inconclusive"
-msgstr "FakeIP работает; сравнение публичных IP не дает однозначного результата"
-
 msgid "Fallback"
 msgstr "Fallback"
 
@@ -1000,9 +1045,6 @@ msgstr "Fallback: %s"
 
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
-
-msgid "Firewall WAN port"
-msgstr "Порт в файрволе"
 
 msgid "Fixed addresses for domains in the hosts format"
 msgstr "Постоянные адреса для доменов в формате hosts"
@@ -1027,6 +1069,9 @@ msgstr "Например: 30m, 12h или 1d"
 
 msgid "Forkop configuration"
 msgstr "Конфигурация Forkop"
+
+msgid "Forkop diagnostic report"
+msgstr "Отчёт диагностики Forkop"
 
 msgid "Forkop DNS"
 msgstr "DNS Forkop"
@@ -1073,8 +1118,14 @@ msgstr "Сгенерировать параметры"
 msgid "Generate profile"
 msgstr "Сгенерировать профиль"
 
-msgid "Global check"
-msgstr "Глобальная проверка"
+msgid "Get report"
+msgstr "Получить отчёт"
+
+msgid "goes past Forkop"
+msgstr "идёт мимо Forkop"
+
+msgid "goes through Forkop"
+msgstr "идёт через Forkop"
 
 msgid "Group name"
 msgstr "Имя группы"
@@ -1166,9 +1217,6 @@ msgstr "Импортирован первый сервер. В профиле е
 msgid "Imported. Not carried over: %s"
 msgstr "Импортировано. Не перенесено: %s"
 
-msgid "Inbound created"
-msgstr "Inbound создан"
-
 msgid "Include by pattern"
 msgstr "Включить по шаблону"
 
@@ -1184,8 +1232,8 @@ msgstr "Учитывает установку соединения и TLS-рук
 msgid "insecure: also MD5 and short keys"
 msgstr "insecure: ещё MD5 и короткие ключи"
 
-msgid "Installed"
-msgstr "Установлен"
+msgid "interface is up, no internet through it"
+msgstr "интерфейс работает, выхода в интернет через него нет"
 
 msgid "Interface Monitoring"
 msgstr "Мониторинг интерфейса"
@@ -1358,9 +1406,6 @@ msgstr "Адрес прослушивания"
 msgid "Listen port"
 msgstr "Порт"
 
-msgid "Listening port"
-msgstr "Порт прослушивания"
-
 msgid "Lists updated"
 msgstr "Списки успешно обновлены"
 
@@ -1373,11 +1418,14 @@ msgstr "Загрузка подключений..."
 msgid "Loading logs..."
 msgstr "Загрузка логов..."
 
+msgid "Local DNS"
+msgstr "Локальный DNS"
+
 msgid "Local port"
 msgstr "Локальный порт"
 
-msgid "Local resolver"
-msgstr "Локальный резолвер"
+msgid "Log"
+msgstr "Журнал"
 
 msgid "Log Level"
 msgstr "Уровень логов"
@@ -1409,6 +1457,9 @@ msgstr "Совпадение по доменам и адресам назнач�
 msgid "Match destination ports"
 msgstr "Совпадение по портам назначения"
 
+msgid "matches this device"
+msgstr "совпадает с этим устройством"
+
 msgid "Max speed from a client, Mbps"
 msgstr "Макс. скорость от клиента, Мбит/с"
 
@@ -1418,8 +1469,14 @@ msgstr "Макс. скорость к клиенту, Мбит/с"
 msgid "Maximum time to wait for a DNS response"
 msgstr "Максимальное время ожидания ответа DNS"
 
+msgid "Memory"
+msgstr "Память"
+
 msgid "Memory Usage"
 msgstr "Использование памяти"
+
+msgid "Memory: %s of %s free"
+msgstr "Память: свободно %s из %s"
 
 msgid "Method"
 msgstr "Метод"
@@ -1496,14 +1553,14 @@ msgstr "Нет"
 msgid "No active connections"
 msgstr "Нет активных подключений"
 
+msgid "no answer"
+msgstr "нет ответа"
+
+msgid "no answer in time"
+msgstr "не ответил вовремя"
+
 msgid "No closed connections"
 msgstr "Нет закрытых подключений"
-
-msgid "No conflict detected"
-msgstr "Конфликт не обнаружен"
-
-msgid "No enabled server inbounds configured"
-msgstr "Включённые серверные inbounds не настроены"
 
 msgid "No IPv6 in the tunnel"
 msgstr "Без IPv6 в туннеле"
@@ -1514,14 +1571,14 @@ msgstr "Логи отсутствуют"
 msgid "No logs match the current filters"
 msgstr "Нет логов, соответствующих текущим фильтрам"
 
-msgid "No other marking rules found"
-msgstr "Другие правила маркировки не найдены"
+msgid "no public address"
+msgstr "публичный адрес не указан"
 
-msgid "No public firewall port required"
-msgstr "Публичный порт в firewall не требуется"
+msgid "No sections with a proxy"
+msgstr "Нет секций с прокси"
 
-msgid "No sections to check"
-msgstr "Нет секций для проверки"
+msgid "No servers to check"
+msgstr "Нет серверов для проверки"
 
 msgid "Node list is empty"
 msgstr "Список узлов пуст"
@@ -1532,26 +1589,35 @@ msgstr "Узлы"
 msgid "None"
 msgstr "Нет"
 
-msgid "Not configured"
-msgstr "Не настроено"
+msgid "none found"
+msgstr "не найдены"
 
-msgid "Not detected"
-msgstr "Не обнаружено"
+msgid "not checked: no answer"
+msgstr "не проверено: нет ответа"
+
+msgid "not checked: the check service did not answer"
+msgstr "не проверено: сервис проверки не ответил"
+
+msgid "not checked: the Clash API did not answer"
+msgstr "не проверено: Clash API не ответил"
+
+msgid "Not checked: the Clash API did not answer"
+msgstr "Не проверено: Clash API не ответил"
+
+msgid "not in the running configuration"
+msgstr "нет в рабочей конфигурации"
 
 msgid "Not installed"
 msgstr "Не установлено"
 
-msgid "Not public"
-msgstr "Не публичный"
-
-msgid "Not required for this listen address"
-msgstr "Не требуется для этого адреса прослушивания"
-
-msgid "Not responding"
-msgstr "Не отвечает"
+msgid "not running"
+msgstr "не запущен"
 
 msgid "Not running"
 msgstr "Не запущено"
+
+msgid "not running: %s"
+msgstr "не запущен: %s"
 
 msgid "Obfuscation"
 msgstr "Обфускация"
@@ -1736,8 +1802,8 @@ msgstr "Интервал ping, секунд"
 msgid "Port %s is already used by %s"
 msgstr "Порт %s уже занят: %s"
 
-msgid "Port conflict"
-msgstr "Конфликт порта"
+msgid "port %s is taken by %s"
+msgstr "порт %s занят: %s"
 
 msgid "Port must be between 1 and 65535"
 msgstr "Порт должен быть от 1 до 65535"
@@ -1747,9 +1813,6 @@ msgstr "Начало диапазона портов должно быть ме�
 
 msgid "Ports"
 msgstr "Порты"
-
-msgid "Ports listening"
-msgstr "Порты слушаются"
 
 msgid "Pre-shared key"
 msgstr "Предварительно согласованный ключ"
@@ -1765,9 +1828,6 @@ msgstr "Предпочтительный тип IP-адресов для дом�
 
 msgid "Private key"
 msgstr "Приватный ключ"
-
-msgid "Process running"
-msgstr "Процесс запущен"
 
 msgid "Profile"
 msgstr "Профиль"
@@ -1795,6 +1855,9 @@ msgstr "Укажите имя пользователя в его поле, а н
 
 msgid "QR code"
 msgstr "QR-код"
+
+msgid "ran out within a day, the kernel stopped %s"
+msgstr "за сутки кончалась, система завершила %s"
 
 msgid "Random server order"
 msgstr "Случайный порядок серверов"
@@ -1868,6 +1931,9 @@ msgstr "Резолвят адреса основных DNS-серверов и �
 msgid "Resolves domains that match the section conditions. Several servers give automatic failover. The protocol is set by a prefix: %s"
 msgstr "Резолвит домены, совпавшие с условиями секции. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
 
+msgid "resolves past Forkop"
+msgstr "резолвит мимо Forkop"
+
 msgid "Restart"
 msgstr "Перезапустить"
 
@@ -1891,6 +1957,9 @@ msgstr "Роутер"
 
 msgid "router SSH"
 msgstr "SSH роутера"
+
+msgid "Router up for %s"
+msgstr "Роутер работает %s"
 
 msgid "Routes"
 msgstr "Маршруты"
@@ -1925,26 +1994,14 @@ msgstr "Наборы правил"
 msgid "Rules"
 msgstr "Правила"
 
-msgid "Rules mangle counters"
-msgstr "Счётчики правил mangle"
-
-msgid "Rules mangle exist"
-msgstr "Правила mangle существуют"
-
-msgid "Rules mangle output counters"
-msgstr "Счётчики правил mangle output"
-
-msgid "Rules mangle output exist"
-msgstr "Правила mangle output существуют"
-
-msgid "Rules proxy counters"
-msgstr "Счётчики правил прокси"
-
-msgid "Rules proxy exist"
-msgstr "Правила прокси существуют"
-
 msgid "Run Diagnostic"
 msgstr "Запустить диагностику"
+
+msgid "running"
+msgstr "работает"
+
+msgid "running for %s"
+msgstr "работает %s"
 
 msgid "Save"
 msgstr "Сохранить"
@@ -2090,11 +2147,11 @@ msgstr "Серверы этих протоколов не войдут в гру
 msgid "Servers whose names match the regular expression"
 msgstr "Серверы, чьи имена совпадают с регулярным выражением"
 
+msgid "Service"
+msgstr "Служба"
+
 msgid "Service action failed"
 msgstr "Действие сервиса не выполнено"
-
-msgid "Service exists"
-msgstr "Сервис существует"
 
 msgid "Service list"
 msgstr "Список сервисов"
@@ -2150,14 +2207,11 @@ msgstr "Панель sing-box и API"
 msgid "sing-box does not support a query in the server address, such as the secret of ocserv camouflage after ?"
 msgstr "sing-box не поддерживает параметры в адресе сервера, например секрет маскировки ocserv после ?"
 
-msgid "Sing-box FakeIP DNS does not work"
-msgstr "FakeIP DNS sing-box не работает"
-
-msgid "Sing-box FakeIP DNS works"
-msgstr "FakeIP DNS sing-box работает"
-
 msgid "sing-box log level"
 msgstr "Уровень логов sing-box"
+
+msgid "Skipped: Forkop is not running"
+msgstr "Пропущено: Forkop не запущен"
 
 msgid "SNI"
 msgstr "SNI"
@@ -2257,12 +2311,6 @@ msgstr "Системная информация"
 
 msgid "System information"
 msgstr "Системная информация"
-
-msgid "Table exist"
-msgstr "Таблица существует"
-
-msgid "Tailscale endpoint"
-msgstr "Tailscale endpoint"
 
 msgid "TCP and UDP"
 msgstr "TCP и UDP"
@@ -2455,6 +2503,9 @@ msgstr "Секрет токена — не корректный base32"
 
 msgid "The token secret is not valid hexadecimal"
 msgstr "Секрет токена — не корректное шестнадцатеричное число"
+
+msgid "This device"
+msgstr "Это устройство"
 
 msgid "This field is required"
 msgstr "Заполните это поле"
@@ -2723,9 +2774,6 @@ msgstr "Используйте форму шаблон => замена"
 msgid "Use the tunnel's DNS for the domains its server declares. Add those domains to the section so that devices reach them through the tunnel"
 msgstr "Использовать DNS туннеля для доменов, которые объявляет его сервер. Добавьте эти домены в секцию, чтобы устройства ходили к ним через туннель"
 
-msgid "Used by"
-msgstr "Используется"
-
 msgid "User name"
 msgstr "Имя пользователя"
 
@@ -2762,14 +2810,8 @@ msgstr "verify-x509-name в профиле"
 msgid "verify-x509-name names no certificate name"
 msgstr "verify-x509-name: не указано имя сертификата"
 
-msgid "Version is compatible"
-msgstr "Версия совместима"
-
 msgid "VPN server"
 msgstr "VPN-сервер"
-
-msgid "WAN public IP"
-msgstr "Публичный WAN IP"
 
 msgid "WARP profile"
 msgstr "Профиль WARP"
