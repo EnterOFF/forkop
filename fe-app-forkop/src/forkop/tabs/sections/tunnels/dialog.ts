@@ -443,9 +443,6 @@ export function showTunnelSettingsModal(
     form.Button,
     '_import_config',
     _('Import configuration'),
-    _(
-      'A WireGuard or AmneziaWG configuration, a wireguard:// or vpn:// link, or an OpenVPN profile',
-    ),
   );
   importButton.inputtitle = _('Import');
   importButton.inputstyle = 'apply';
@@ -457,7 +454,6 @@ export function showTunnelSettingsModal(
     form.Button,
     '_generate_warp_profile',
     _('WARP profile'),
-    _('Registers a device and fills the fields below'),
   );
   warpGenerateButton.inputtitle = _('Generate profile');
   warpGenerateButton.inputstyle = 'apply';

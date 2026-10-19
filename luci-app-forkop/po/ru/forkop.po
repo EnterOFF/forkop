@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 07:02+0300\n"
-"PO-Revision-Date: 2026-10-19 07:02+0300\n"
+"POT-Creation-Date: 2026-10-19 12:08+0300\n"
+"PO-Revision-Date: 2026-10-19 12:08+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -121,9 +121,6 @@ msgstr "URL или локальный путь. Формат определяе�
 
 msgid "A URL, or the absolute path of a file on the router"
 msgstr "URL или абсолютный путь к файлу на роутере"
-
-msgid "A WireGuard or AmneziaWG configuration, a wireguard:// or vpn:// link, or an OpenVPN profile"
-msgstr "Конфигурация WireGuard или AmneziaWG, ссылка wireguard:// или vpn:// либо профиль OpenVPN"
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
@@ -1693,9 +1690,6 @@ msgstr "Сброс"
 
 msgid "Register a Cloudflare WARP device and fill the profile fields."
 msgstr "Зарегистрировать устройство Cloudflare WARP и заполнить поля профиля."
-
-msgid "Registers a device and fills the fields below"
-msgstr "Регистрирует устройство и заполняет поля ниже"
 
 msgid "Regular expression must not contain spaces or commas"
 msgstr "Регулярное выражение не должно содержать пробелы или запятые"

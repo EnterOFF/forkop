@@ -19691,10 +19691,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const importButton = itemSection.option(
     form.Button,
     "_import_config",
-    _("Import configuration"),
-    _(
-      "A WireGuard or AmneziaWG configuration, a wireguard:// or vpn:// link, or an OpenVPN profile"
-    )
+    _("Import configuration")
   );
   importButton.inputtitle = _("Import");
   importButton.inputstyle = "apply";
@@ -19704,8 +19701,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const warpGenerateButton = itemSection.option(
     form.Button,
     "_generate_warp_profile",
-    _("WARP profile"),
-    _("Registers a device and fills the fields below")
+    _("WARP profile")
   );
   warpGenerateButton.inputtitle = _("Generate profile");
   warpGenerateButton.inputstyle = "apply";
