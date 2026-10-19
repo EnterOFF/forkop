@@ -1,81 +1,96 @@
 let t = require("t");
 let rule = require("config.rule");
 
-const DOMAIN_KINDS = [ "domain", "domain_suffix", "domain_keyword", "domain_regex" ];
-
-function condition(key, combined_text, combined_list) {
-    let kind = key == "domain" || key == "domain_suffix" ? "domains" : "generic";
-    return rule.rule_condition_csv_value(key, kind, "0", "0", "", "", combined_text, combined_list);
+function parsed(text) {
+    return rule.destination_conditions(text);
 }
 
-// What a section's combined domain field turns into, one kind at a time, the
-// way config/connections.uc asks for it.
-function domain_conditions(combined_text, combined_list) {
-    let result = {};
-    for (let key in DOMAIN_KINDS)
-        result[key] = condition(key, combined_text, combined_list);
+function only(kind, values) {
+    let result = { domain: [], domain_suffix: [], domain_keyword: [], domain_regex: [], ip_cidr: [] };
+    result[kind] = values;
     return result;
 }
 
-const TEXT_A = "full:a.example\nb.example\nkeyword:ads\nregex:^tracker\\.\n";
-const TEXT_B = "full:c.example\nd.example\nkeyword:beacon\n";
+const TEXT_A = "full:a.example\nb.example\nkeyword:ads\nregex:^tracker\\.\n192.0.2.0/24\n";
+const TEXT_B = "full:c.example\nd.example\nkeyword:beacon\n2001:db8::1\n";
 
-t.test("the combined domain text splits by its prefixes", () => {
-    t.eq(domain_conditions(TEXT_A, ""), {
-        domain: "a.example",
-        domain_suffix: "b.example",
-        domain_keyword: "ads",
-        domain_regex: "^tracker\\."
+t.test("the destinations split by their prefixes, and an address is matched as one", () => {
+    t.eq(parsed(TEXT_A), {
+        domain: [ "a.example" ],
+        domain_suffix: [ "b.example" ],
+        domain_keyword: [ "ads" ],
+        domain_regex: [ "^tracker\\." ],
+        ip_cidr: [ "192.0.2.0/24" ]
     });
 });
 
-t.test("the whitespace-separated list form splits the same way", () => {
-    t.eq(domain_conditions("", "full:e.example f.example keyword:beacon"), {
-        domain: "e.example",
-        domain_suffix: "f.example",
-        domain_keyword: "beacon",
-        domain_regex: ""
+t.test("entries may share a line, separated by spaces or commas, and comments are left out", () => {
+    t.eq(parsed("full:e.example f.example,keyword:beacon # g.example\n10.0.0.1, fd00::/8 // 10.0.0.2"), {
+        domain: [ "e.example" ],
+        domain_suffix: [ "f.example" ],
+        domain_keyword: [ "beacon" ],
+        domain_regex: [],
+        ip_cidr: [ "10.0.0.1", "fd00::/8" ]
     });
 });
 
-// The four kinds are answered from one classification pass; a wrong cache key
-// would hand a section the values of the one asked before it.
-t.test("two sections asked in turn each keep their own values", () => {
+// The kinds are answered from one parse that is kept; a wrong key would hand a
+// section the destinations of the one asked before it.
+t.test("two sections asked in turn each keep their own destinations", () => {
     let expected = {
-        [TEXT_A]: { domain: "a.example", domain_suffix: "b.example", domain_keyword: "ads", domain_regex: "^tracker\\." },
-        [TEXT_B]: { domain: "c.example", domain_suffix: "d.example", domain_keyword: "beacon", domain_regex: "" }
+        [TEXT_A]: parsed(TEXT_A),
+        [TEXT_B]: { domain: [ "c.example" ], domain_suffix: [ "d.example" ], domain_keyword: [ "beacon" ], domain_regex: [], ip_cidr: [ "2001:db8::1" ] }
     };
     for (let round = 0; round < 2; round++)
-        for (let key in DOMAIN_KINDS)
-            for (let text in [ TEXT_A, TEXT_B ])
-                t.eq(condition(key, text, ""), expected[text][key], key);
+        for (let text in [ TEXT_A, TEXT_B ])
+            t.eq(parsed(text), expected[text], text);
 });
 
-t.test("an international entry is punycoded for every kind", () => {
-    t.eq(domain_conditions("сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$", ""), {
-        domain: "xn--e1afmkfd.xn--80akhbyknj4f",
-        domain_suffix: "xn--80aswg.xn--p1ai",
-        domain_keyword: "xn--e1afmkfd",
-        domain_regex: "^xn--80aswg[.]xn--p1ai$"
-    });
+t.test("a caller that changes its lists does not change what the next caller gets", () => {
+    let first = parsed(TEXT_A);
+    push(first.ip_cidr, "198.51.100.0/24");
+    first.domain_suffix[0] = "changed.example";
+    t.eq(parsed(TEXT_A).ip_cidr, [ "192.0.2.0/24" ]);
+    t.eq(parsed(TEXT_A).domain_suffix, [ "b.example" ]);
 });
 
-t.test("the combined field comes before the legacy per-kind one, which a suffix ignores", () => {
-    t.eq(rule.rule_condition_csv_value("domain", "domains", "0", "0", "legacy.example", "",
-        "full:one.example keyword:skip regex:^skip suffix.example", "full:list.example keyword:list-skip"),
-        "one.example,list.example,legacy.example");
-    t.eq(rule.rule_condition_csv_value("domain_suffix", "domains", "0", "0", "legacy.example", "legacy-list.example",
-        "full:one.example suffix.example keyword:skip", "full:list-full.example list.example"),
-        "suffix.example,list.example");
+t.test("an international entry is punycoded for every domain kind", () => {
+    let result = parsed("сайт.рф full:пример.испытание keyword:пример regex:^сайт[.]рф$");
+    t.eq([ result.domain, result.domain_suffix, result.domain_keyword, result.domain_regex ], [
+        [ "xn--e1afmkfd.xn--80akhbyknj4f" ],
+        [ "xn--80aswg.xn--p1ai" ],
+        [ "xn--e1afmkfd" ],
+        [ "^xn--80aswg[.]xn--p1ai$" ]
+    ]);
 });
 
-t.test("a subnet condition takes the list unless the text mode is on, and drops what is not an address", () => {
-    t.eq(rule.rule_condition_csv_value("ip_cidr", "subnets", "1", "0",
-        "198.51.100.1\nbad-value\n203.0.113.0/24", "10.0.0.0/8", "", ""),
-        "198.51.100.1,203.0.113.0/24");
-    t.eq(rule.rule_condition_csv_value("ip_cidr", "subnets", "0", "0",
-        "198.51.100.1", "10.0.0.0/8 192.0.2.1", "", ""),
-        "10.0.0.0/8,192.0.2.1");
+// An address and a domain never look alike: a domain always ends in a label
+// that is not a number, and an IPv6 address is hex digits and colons, which
+// never spell full, keyword or regex.
+t.test("every address form is an address, and nothing else is", () => {
+    for (let value in [ "192.0.2.1", "192.0.2.0/24", "0.0.0.0/0", "2001:db8::1", "2001:db8::/32", "::/0",
+        "::ffff:192.0.2.1", "FD00::1" ])
+        t.eq(parsed(value), only("ip_cidr", [ value ]), value);
+    for (let value in [ "cafe.example", "dead.beef.example", "face" ])
+        t.eq(parsed(value), only("domain_suffix", [ value ]), value);
+});
+
+t.test("a mistyped address is dropped instead of becoming a domain", () => {
+    for (let value in [ "192.0.2", "192.0.2.256", "192.0.2.01", "192.0.2.0/33", "192.0.2.0/024", "2001:db8:::1",
+        "2001:db8::/129", "fe80::1%eth0", "example.123", "full:192.0.2", "dead:beef" ])
+        t.eq(parsed(value), only("domain", []), value);
+});
+
+t.test("a prefix makes a number a domain condition when that is what is meant", () => {
+    t.eq(parsed("keyword:192.0.2").domain_keyword, [ "192.0.2" ]);
+    t.eq(parsed("regex:^10[.]").domain_regex, [ "^10[.]" ]);
+});
+
+t.test("an entry is classified on its own and keeps its kind among others", () => {
+    t.eq(rule.destination_kind_value(" 198.51.100.7 "), { kind: "ip_cidr", value: "198.51.100.7" });
+    t.eq(rule.destination_kind_value("full:full:legacy.example"), { kind: "domain", value: "legacy.example" });
+    t.eq(rule.destination_kind_value("unknown:example.org"), null);
+    t.eq(rule.destination_kind_value("1.2.3"), null);
 });
 
 t.done();

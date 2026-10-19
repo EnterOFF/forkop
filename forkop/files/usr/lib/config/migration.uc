@@ -1854,6 +1854,32 @@ function migrate_native_protocol_json(ctx) {
     }
 }
 
+// The domains and the addresses a section matches are one text in destinations.
+// A released section kept the domains in domain and the addresses in ip_cidr. A
+// DNS section never matched its addresses, and destinations refuses them there,
+// so they are dropped instead of carried along.
+function merge_destination_conditions(ctx) {
+    for (let section in ctx.model.sections || []) {
+        if (!option_exists(section, "domain") && !option_exists(section, "ip_cidr"))
+            continue;
+
+        let keys = option(section, "action", "") == "dns"
+            ? [ "destinations", "domain" ]
+            : [ "destinations", "domain", "ip_cidr" ];
+        let parts = [];
+        for (let key in keys) {
+            let text = trim(join("\n", option_list_values(section, key)));
+            if (text != "")
+                push(parts, text);
+        }
+
+        delete_option(ctx, section, "domain");
+        delete_option(ctx, section, "ip_cidr");
+        if (length(parts) > 0)
+            set_option(ctx, section, "destinations", join("\n", parts));
+    }
+}
+
 const CURRENT_TRANSFORMS = [
     remove_server_country_and_dashboard_filter,
     use_native_fallbacks,
@@ -1894,7 +1920,8 @@ const CURRENT_TRANSFORMS = [
     migrate_dns_capture_settings,
     request_dnsmasq_restore,
     remove_dpi_provider_sections,
-    migrate_native_protocol_json
+    migrate_native_protocol_json,
+    merge_destination_conditions
 ];
 
 function migrate_to_current(ctx) {

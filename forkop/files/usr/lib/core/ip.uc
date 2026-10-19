@@ -1,5 +1,6 @@
-// IP literals as sing-box and nft read them. Both refuse an octet or a prefix
-// length written with a leading zero, so it is not an address here either.
+// IP literals as sing-box reads them. It refuses an octet or a prefix length
+// written with a leading zero, and nft reads one as octal - 010.0.0.1 is 8.0.0.1
+// and /024 is /20 - so such a number is not part of an address here either.
 
 function as_string(value) {
     return value == null ? "" : "" + value;

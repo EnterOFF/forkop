@@ -90,7 +90,7 @@ t.test("DNS over QUIC and HTTP/3 need QUIC", () => {
 });
 
 t.test("a DNS section's servers need QUIC for DNS over QUIC too", () => {
-    needs({ section: [ { ".name": "dns", enabled: "1", action: "dns", dns_server: [ "quic://dns.example.com" ], domain_suffix: [ "example.org" ] } ] },
+    needs({ section: [ { ".name": "dns", enabled: "1", action: "dns", dns_server: [ "quic://dns.example.com" ], destinations: "example.org" } ] },
         without(BASE, "with_quic"), "DNS server 'quic://dns.example.com' uses DNS over QUIC");
 });
 

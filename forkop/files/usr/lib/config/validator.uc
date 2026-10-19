@@ -81,25 +81,6 @@ function regex_problem(pattern) {
     }
 }
 
-function combined_domain_valid(value) {
-    value = trim(as_string(value));
-    if (value == "")
-        return true;
-
-    let normalized = rule_config.prefixed_domain_kind_value(value);
-    if (normalized == null)
-        return false;
-
-    return normalized.kind != "domain_regex" || regex_problem(normalized.value) == null;
-}
-
-function combined_domain_text_valid(value) {
-    for (let item in rule_config.text_list_values(value, "comma-space"))
-        if (!combined_domain_valid(item))
-            return false;
-    return true;
-}
-
 function remote_reference(value) {
     return string_starts_with(value, "http://") || string_starts_with(value, "https://");
 }
@@ -543,18 +524,17 @@ function validate_section_group_references(section) {
             }
 }
 
-function validate_combined_domain_value(value, section) {
-    if (as_string(value) == "" || combined_domain_valid(value))
-        return;
-
-    fail_validation("Invalid domain condition '" + value + "' in section '" + section_label(section) + "'. Use plain domains or full:, keyword:, regex: prefixes");
-}
-
-function validate_combined_domain_text_value(value, section) {
-    if (as_string(value) == "" || combined_domain_text_valid(value))
-        return;
-
-    fail_validation("Invalid domain conditions in section '" + section_label(section) + "'. Use plain domains or full:, keyword:, regex: prefixes");
+// A DNS section picks a server for a query by its name, which carries no address
+// to match, so an address among its destinations would never match anything.
+function validate_destinations(section, action) {
+    for (let value in rule_config.text_list_values(option(section, "destinations", ""), "comma-space")) {
+        let parsed = rule_config.destination_kind_value(value);
+        if (parsed == null || (parsed.kind == "domain_regex" && regex_problem(parsed.value) != null))
+            fail_validation("Invalid condition '" + value + "' in section '" + section_label(section) +
+                "'. Use a domain, a full:, keyword: or regex: prefix, an IP address or a subnet");
+        if (parsed.kind == "ip_cidr" && action == "dns")
+            fail_validation("Section '" + section_label(section) + "' matches DNS queries by domain only, so it cannot use the address '" + value + "'");
+    }
 }
 
 function validate_service_value(service, context) {
@@ -914,15 +894,6 @@ function validate_subscription_filter(section, entry) {
     );
 }
 
-function dns_action_has_domain_matchers(section) {
-    for (let key in [ "domain", "domain_suffix", "domain_keyword", "domain_regex" ])
-        if (option(section, key, "") != "" || option(section, key + "_text", "") != "" || length(list_option(section, key)) > 0)
-            return true;
-
-    return length(connections.community_lists(section)) > 0 ||
-        length(connections.rule_sets(section)) > 0;
-}
-
 function validate_interface_domain_resolvers(section, sections, context) {
     let name = section_name(section);
     for (let interface_name in connections.interfaces(section)) {
@@ -968,7 +939,7 @@ function validate_dns_action(section, sections, context) {
     }
     if (length(connections.rule_sets_with_subnets(section)) > 0)
         fail_validation("Section '" + section_label(name) + "' can use domain-only rule sets, but subnet extraction is enabled. Disable 'Include IP addresses and subnets'");
-    if (!dns_action_has_domain_matchers(section) && length(list_option(section, "fully_routed_ips")) == 0)
+    if (!connections.has_dns_matchers(section) && length(list_option(section, "fully_routed_ips")) == 0)
         fail_validation("Section '" + section_label(name) + "' must contain at least one domain condition or domain rule set");
     if (!bool_option(section, "dns_detour_enabled", false))
         return;
@@ -996,6 +967,7 @@ function validate_rule(section, sections, context) {
     if (action != "dns")
         for (let value in list_option(section, "ports"))
             validate_port_condition_value(value, name);
+    validate_destinations(section, action);
 
     if (action == "dns")
         validate_dns_action(section, sections, context);
@@ -1061,10 +1033,6 @@ function validate_rule(section, sections, context) {
     if (action == "outbound")
         validate_outbound_json_rule(section);
 
-    validate_combined_domain_text_value(option(section, "domain", ""), name);
-    for (let value in list_option(section, "domain_suffix"))
-        validate_combined_domain_value(value, name);
-    validate_combined_domain_text_value(option(section, "domain_suffix_text", ""), name);
     validate_common_rule_references(section, context);
     if (connections.is_connections_action(action) && !connections.has_connection_sources(section))
         core_exec.log("warn", "Section '" + section_label(section) + "' has no servers and is skipped");

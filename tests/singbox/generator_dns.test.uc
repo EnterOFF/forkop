@@ -11,7 +11,7 @@ function build(data) {
 t.test("a single DNS server is used directly", () => {
     let single = build({
         settings: { dns_server: [ "77.88.8.8" ], bootstrap_dns_server: [ "77.88.8.8" ] },
-        section: [ { ".name": "direct", enabled: "1", action: "bypass", domain_suffix: [ "example.org" ] } ]
+        section: [ { ".name": "direct", enabled: "1", action: "bypass", destinations: "example.org" } ]
     });
     t.eq(q.tags(single.dns.servers), [ "bootstrap-dns-server", "dns-server", "fakeip-server", "dnsmasq-server" ]);
     t.eq(q.dns_server_tag(single, "dns-server").server, "77.88.8.8");
@@ -30,7 +30,7 @@ t.test("several DNS servers become native fallback groups with their own query m
         },
         section: [ {
             ".name": "proxy", enabled: "1", action: "outbound",
-            outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"fixture\"}" ], domain_suffix: [ "example.org" ]
+            outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"fixture\"}" ], destinations: "example.org"
         } ]
     });
     t.eq(length(multi.dns.servers), 8, "four candidates, two groups, the local resolver and FakeIP");
@@ -54,8 +54,8 @@ t.test("static records answer from a hosts server after the sections and before 
             static_hosts_text: "# pinned by hand\n130.255.77.28 ntc.party www.ntc.party\n2a03:4000::1 NTC.party\n\n198.51.100.7 example.com # trailing note\n"
         },
         section: [
-            { ".name": "pinned", enabled: "1", action: "bypass", domain_suffix: [ "ntc.party" ] },
-            { ".name": "direct_rule", enabled: "1", action: "bypass", domain_suffix: [ "example.org" ] }
+            { ".name": "pinned", enabled: "1", action: "bypass", destinations: "ntc.party" },
+            { ".name": "direct_rule", enabled: "1", action: "bypass", destinations: "example.org" }
         ]
     });
     let hosts = q.dns_server_tag(records, "hosts-server");
@@ -86,7 +86,7 @@ t.test("static records answer from a hosts server after the sections and before 
 t.test("no records, no hosts server", () => {
     let empty = build({
         settings: { dns_server: [ "77.88.8.8" ], bootstrap_dns_server: [ "77.88.8.8" ] },
-        section: [ { ".name": "pinned", enabled: "1", action: "bypass", domain_suffix: [ "ntc.party" ] } ]
+        section: [ { ".name": "pinned", enabled: "1", action: "bypass", destinations: "ntc.party" } ]
     });
     t.eq(q.dns_server_tag(empty, "hosts-server"), null);
     t.eq(q.dns_rule(empty, (r) => r.server == "hosts-server"), null);
@@ -94,7 +94,7 @@ t.test("no records, no hosts server", () => {
 });
 
 const DNS = { dns_server: [ "77.88.8.8" ], bootstrap_dns_server: [ "77.88.8.8" ] };
-const BYPASS = [ { ".name": "direct", enabled: "1", action: "bypass", domain_suffix: [ "example.org" ] } ];
+const BYPASS = [ { ".name": "direct", enabled: "1", action: "bypass", destinations: "example.org" } ];
 
 t.test("the router's own lookups reach sing-box whatever the sections say, and leave the way a client's do", () => {
     let config = build({ settings: DNS, section: BYPASS });
@@ -109,7 +109,7 @@ t.test("the router's own lookups reach sing-box whatever the sections say, and l
 
     let router = build({
         settings: { ...DNS, unmatched_dns_mode: "router" },
-        section: [ { ".name": "direct", enabled: "1", action: "bypass", domain_suffix: [ "example.org" ], source_ip_cidr: [ "@system" ] } ]
+        section: [ { ".name": "direct", enabled: "1", action: "bypass", destinations: "example.org", source_ip_cidr: [ "@system" ] } ]
     });
     t.ok(q.dns_rule(router, (r) => r.server == "dnsmasq-server" && q.has(r.inbound, "system-dns-in") &&
         r.type == null && r.domain_regex == null && r.domain_suffix == null && r.query_type == null) != null,
@@ -145,7 +145,7 @@ t.test("router mode hands every unmatched client query back to the local resolve
 t.test("DNS timeout and optimistic answers reach the core as configured", () => {
     let config = build({
         settings: { dns_server: [ "1.1.1.1" ], bootstrap_dns_server: [ "1.1.1.1" ], dns_timeout: "4s", dns_optimistic: "1", dns_optimistic_timeout: "2h" },
-        section: [ { ".name": "direct", enabled: "1", action: "bypass", domain_suffix: [ "example.org" ] } ]
+        section: [ { ".name": "direct", enabled: "1", action: "bypass", destinations: "example.org" } ]
     });
     t.eq(config.dns.timeout, "4s");
     t.eq(config.dns.optimistic, { enabled: true, timeout: "2h" });

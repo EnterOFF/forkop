@@ -418,27 +418,8 @@ function rule_sets_with_subnets(section) {
     return whitespace_list_value(section, "rule_set_with_subnets");
 }
 
-function combined_domain_condition_text(section) {
-    if (type(raw_option(section, "domain")) != "array") {
-        let value = option(section, "domain", "");
-        if (value != "")
-            return value;
-    }
-
-    return option(section, "domain_suffix_text", "");
-}
-
-function rule_condition_csv(section, key, kind) {
-    return rule_config.rule_condition_csv_value(
-        key,
-        kind,
-        option(section, key + "_text_mode", "0"),
-        option(section, "conditions_text_mode", "0"),
-        option(section, key + "_text", ""),
-        option(section, key, ""),
-        combined_domain_condition_text(section),
-        option(section, "domain_suffix", "")
-    );
+function destinations(section) {
+    return rule_config.destination_conditions(option(section, "destinations", ""));
 }
 
 // Which section a download is routed through. "components" falls back to the
@@ -481,10 +462,9 @@ function rule_ports_csv(section) {
 }
 
 function has_dns_matchers(section) {
-    return rule_condition_csv(section, "domain", "domains") != "" ||
-        rule_condition_csv(section, "domain_suffix", "domains") != "" ||
-        rule_condition_csv(section, "domain_keyword", "generic") != "" ||
-        rule_condition_csv(section, "domain_regex", "generic") != "" ||
+    let parsed = destinations(section);
+    return length(parsed.domain) > 0 || length(parsed.domain_suffix) > 0 ||
+        length(parsed.domain_keyword) > 0 || length(parsed.domain_regex) > 0 ||
         length(community_lists(section)) > 0 ||
         length(rule_sets(section)) > 0 ||
         length(rule_sets_with_subnets(section)) > 0;
@@ -735,7 +715,7 @@ function fallback_level_exclude_types(group_id, value) {
 
 return {
     SYSTEM_DEVICE_VALUE,
-    rule_condition_csv,
+    destinations,
     rule_ports_csv,
     download_via_proxy_enabled,
     download_via_proxy_section,

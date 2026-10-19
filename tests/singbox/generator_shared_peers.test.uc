@@ -13,7 +13,7 @@ function refused(data) {
 }
 
 function section(name, label, extra) {
-    return { ".name": name, label, enabled: "1", action: "connection", domain_suffix: [ name + ".example" ], ...(extra ?? {}) };
+    return { ".name": name, label, enabled: "1", action: "connection", destinations: name + ".example", ...(extra ?? {}) };
 }
 
 function awg(name, owner, extra) {

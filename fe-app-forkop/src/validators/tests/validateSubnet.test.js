@@ -27,6 +27,8 @@ const invalidSubnets = [
   ['Invalid CIDR (negative)', '192.168.1.1/-1'],
   ['CIDR not number', '192.168.1.1/abc'],
   ['Empty CIDR prefix', '192.168.1.1/'],
+  ['Leading zero CIDR prefix', '192.168.1.0/024'],
+  ['Leading zero IPv6 CIDR prefix', '2001:db8::/032'],
   ['Forbidden 0.0.0.0', '0.0.0.0'],
   ['Forbidden ::', '::'],
   ['Invalid IPv6 CIDR', '2001:db8::1/129'],

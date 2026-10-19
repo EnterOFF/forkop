@@ -103,7 +103,7 @@ t.test("a client of an OpenVPN server takes its own route by the name on its cer
             openvpn_certificate_sha256: "bb", routing_override: "1", routing_mode: "rules" }
     ]);
     push(data.section, { ".name": "exit", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ],
-        domain_suffix: [ "exit.example" ] });
+        destinations: "exit.example" });
     fixture.seed(data);
     let config = generator.build({ service_address: "127.0.0.1" });
     let identity = (rule) => rule.type == "logical" ? rule.rules[0] : rule;
@@ -175,7 +175,7 @@ t.test("a client of a WireGuard server takes its own route by its tunnel address
     data.server_client[1].routing_override = "1";
     data.server_client[1].routing_mode = "rules";
     push(data.section, { ".name": "exit", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ],
-        domain_suffix: [ "exit.example" ] });
+        destinations: "exit.example" });
     fixture.seed(data);
     let config = generator.build({ service_address: "127.0.0.1" });
     let identity = (rule) => rule.type == "logical" ? rule.rules[0] : rule;

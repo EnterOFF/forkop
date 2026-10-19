@@ -58,9 +58,7 @@ t.test("duplicate-json-tags", () => {
                     "{\"type\":\"direct\",\"tag\":\"same\"}",
                     "{\"type\":\"direct\",\"tag\":\"same\"}"
                 ],
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "duplicate JSON outbound tag 'same'");
@@ -77,9 +75,7 @@ t.test("tagless-json", () => {
                 "outbound_jsons": [
                     "{\"type\":\"direct\"}"
                 ],
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "JSON outbound without a non-empty tag");

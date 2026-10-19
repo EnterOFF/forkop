@@ -31,14 +31,13 @@ import {
   populateActionOptionValues,
 } from './actions';
 import {
+  DESTINATION_CONDITION_PLACEHOLDER,
   DOMAIN_CONDITION_PLACEHOLDER,
-  IP_CONDITION_PLACEHOLDER,
+  addDestinationField,
   addDynamicConditionField,
   addLocalDeviceSubnetDynamicField,
-  addTextConditionField,
-  analyzeDomainSuffixText,
-  analyzeIpCidrText,
-  loadCombinedDomainText,
+  analyzeDestinationText,
+  analyzeDnsDestinationText,
   makeDeviceOptionsExclusive,
   validatePortCondition,
 } from './conditions';
@@ -596,42 +595,23 @@ export function createSectionContent(section: CBISection) {
     return true;
   };
 
-  addTextConditionField(section, {
-    key: 'domain_suffix',
-    optionName: 'domain',
-    legacyTextOptionName: 'domain_suffix_text',
-    label: _('Domains'),
-    placeholder: DOMAIN_CONDITION_PLACEHOLDER,
-    textAnalyze: analyzeDomainSuffixText,
-    loadText: loadCombinedDomainText,
-    afterWrite: function (section_id: string) {
-      [
-        'domain_suffix',
-        'domain_suffix_text',
-        'domain_suffix_text_mode',
-        'domain_keyword',
-        'domain_regex',
-        'domain_text',
-        'domain_keyword_text',
-        'domain_regex_text',
-        'domain_text_mode',
-        'domain_keyword_text_mode',
-        'domain_regex_text_mode',
-      ].forEach((key: string) => {
-        uci.unset(FORKOP_UCI_PACKAGE, section_id, key);
-      });
-    },
-  });
+  const destinationOption = addDestinationField(
+    section,
+    'destinations',
+    _('Domains and IPs'),
+    DESTINATION_CONDITION_PLACEHOLDER,
+    analyzeDestinationText,
+  );
+  dependsOnRoutingAction(destinationOption);
 
-  const ipConditionOption = addTextConditionField(section, {
-    key: 'ip_cidr',
-    optionName: 'ip_cidr',
-    legacyTextOptionName: 'ip_cidr_text',
-    label: _('IPs'),
-    placeholder: IP_CONDITION_PLACEHOLDER,
-    textAnalyze: analyzeIpCidrText,
-  });
-  dependsOnRoutingAction(ipConditionOption);
+  const dnsDestinationOption = addDestinationField(
+    section,
+    '_dns_destinations',
+    _('Domains'),
+    DOMAIN_CONDITION_PLACEHOLDER,
+    analyzeDnsDestinationText,
+  );
+  dnsDestinationOption.depends('action', 'dns');
 
   const builtInRulesetOption = section.taboption(
     'conditions',

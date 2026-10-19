@@ -62,7 +62,7 @@ function elements(transaction, set_name) {
 }
 
 const MIXED = {
-    ".name": "mixed", enabled: "1", action: "connection", ip_cidr: [ "10.0.0.0/8", "fd00::/8" ], ports: [ "80", "443", "1000-1050" ],
+    ".name": "mixed", enabled: "1", action: "connection", destinations: "10.0.0.0/8\nfd00::/8", ports: [ "80", "443", "1000-1050" ],
     rule_set_with_subnets: [ ALPHA, BETA ]
 };
 
@@ -208,7 +208,7 @@ t.test("a transaction nft is killed over says the router ran out of memory, nami
 });
 
 t.test("a user's unusable address is dropped and the rest of the section loads", () => {
-    let section = { ".name": "typed", enabled: "1", action: "connection", ip_cidr: [ "203.0.113.0/24; delete table inet ForkopTable", "198.51.100.7" ],
+    let section = { ".name": "typed", enabled: "1", action: "connection", destinations: "203.0.113.0/24; delete table inet ForkopTable\n198.51.100.7",
         rule_set_with_subnets: [ ALPHA ] };
     seed([ section ]);
     run(() => sync.sync(snapshot({ [ALPHA]: provider(1, {}) }), [ section ]));
@@ -330,7 +330,7 @@ t.test("the rule-set worker is a respawning procd service run through the comman
 
 t.test("the worker is current while it runs with the providers each section reads, or does not run without one", () => {
     let fed = { ".name": "fed", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA, BETA ] };
-    let plain = { ".name": "plain", enabled: "1", action: "connection", ip_cidr: [ "10.0.0.0/8" ] };
+    let plain = { ".name": "plain", enabled: "1", action: "connection", destinations: "10.0.0.0/8" };
     let real = { current: worker.current, running: worker.running };
     let asked = null;
     worker.current = (spec) => { asked = spec.data; return true; };

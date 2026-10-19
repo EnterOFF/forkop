@@ -33,9 +33,7 @@ t.test("accepts valid", () => {
                 "enabled": "1",
                 "action": "outbound",
                 "outbound_json": "{\"type\":\"direct\"}",
-                "domain_suffix": [
-                    "detour.example"
-                ]
+                "destinations": "detour.example"
             },
             {
                 ".name": "proxy",
@@ -45,19 +43,10 @@ t.test("accepts valid", () => {
                     "80",
                     "1000-2000"
                 ],
-                "domain": "commented.example # keep this note\nfull:exact-comment.example // and this note\nkeyword:clip",
-                "domain_suffix": [
-                    "example.org",
-                    "сайт.рф",
-                    "full:exact.example",
-                    "full:full:legacy.example",
-                    "full:пример.испытание",
-                    "keyword:video",
-                    "keyword:пример",
-                    "regex:^api[.]example$",
-                    "regex:^сайт[.]рф$"
-                ],
-                "domain_suffix_text": "text.example\nmünich.example\nkeyword:stream",
+                "destinations": "commented.example # keep this note\nfull:exact-comment.example // and this note\nkeyword:clip\n" +
+                    "example.org\nсайт.рф\nfull:exact.example\nfull:full:legacy.example\nfull:пример.испытание\n" +
+                    "keyword:video\nkeyword:пример\nregex:^api[.]example$\nregex:^сайт[.]рф$\n" +
+                    "text.example\nmünich.example\nkeyword:stream",
                 "community_lists": [
                     "discord"
                 ],
@@ -75,9 +64,7 @@ t.test("accepts valid", () => {
                 ".name": "bypass",
                 "enabled": "1",
                 "action": "bypass",
-                "domain_suffix": [
-                    "bypass.example"
-                ]
+                "destinations": "bypass.example"
             },
             {
                 ".name": "custom_dns",
@@ -90,9 +77,7 @@ t.test("accepts valid", () => {
                 "dns_fallback_strategy": "sequential",
                 "dns_detour_enabled": "1",
                 "dns_detour_section": "proxy",
-                "domain_suffix": [
-                    "dns.example"
-                ],
+                "destinations": "dns.example",
                 "rule_set": [
                     "https://example.com/domain-only.srs",
                     "https://example.com/domains.lst"
@@ -461,9 +446,7 @@ t.test("bad DNS rule server", () => {
                 "enabled": "1",
                 "action": "dns",
                 "dns_server": "bad value",
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "invalid DNS server");
@@ -480,9 +463,7 @@ t.test("bad DNS rule protocol", () => {
                 "dns_server": [
                     "http://9.9.9.9/dns-query"
                 ],
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "unsupported DNS server URI scheme 'http'");
@@ -501,9 +482,7 @@ t.test("bad DNS rule fallback strategy", () => {
                     "1.1.1.1"
                 ],
                 "dns_fallback_strategy": "random",
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "unsupported DNS query mode 'random'");
@@ -521,6 +500,50 @@ t.test("DNS rule without domain matchers", () => {
             }
         ]
     }, "must contain at least one domain condition");
+});
+
+t.test("a DNS section names the address it cannot match", () => {
+    v.refuses({
+        "settings": {},
+        "section": [
+            {
+                ".name": "dns",
+                "enabled": "1",
+                "action": "dns",
+                "dns_server": "9.9.9.9",
+                "destinations": "example.org\n192.0.2.0/24"
+            }
+        ]
+    }, "Section 'dns' matches DNS queries by domain only, so it cannot use the address '192.0.2.0/24'");
+});
+
+t.test("a routing section takes domains and addresses side by side", () => {
+    v.accepts({
+        "settings": {},
+        "section": [
+            {
+                ".name": "bypass",
+                "enabled": "1",
+                "action": "bypass",
+                "destinations": "example.org, 192.0.2.0/24 2001:db8::/32\nfull:exact.example # note"
+            }
+        ]
+    });
+});
+
+t.test("an entry that is neither a domain nor an address is named", () => {
+    for (let entry in [ "192.0.2", "example.123", "bad:example.org", "2001:db8::/129" ])
+        v.refuses({
+            "settings": {},
+            "section": [
+                {
+                    ".name": "bypass",
+                    "enabled": "1",
+                    "action": "bypass",
+                    "destinations": "example.org\n" + entry
+                }
+            ]
+        }, "Invalid condition '" + entry + "' in section 'bypass'");
 });
 
 t.test("DNS rule subnet extraction", () => {
@@ -551,17 +574,13 @@ t.test("DNS rule unsupported detour", () => {
                 "dns_server": "9.9.9.9",
                 "dns_detour_enabled": "1",
                 "dns_detour_section": "bypass",
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             },
             {
                 ".name": "bypass",
                 "enabled": "1",
                 "action": "bypass",
-                "domain_suffix": [
-                    "bypass.example"
-                ]
+                "destinations": "bypass.example"
             }
         ]
     }, "whose action is 'bypass'");
@@ -681,9 +700,7 @@ t.test("interface resolver detour with an unsupported action", () => {
                 ".name": "bypass",
                 "enabled": "1",
                 "action": "bypass",
-                "domain_suffix": [
-                    "bypass.example"
-                ]
+                "destinations": "bypass.example"
             }
         ],
         "section_interface": [

@@ -8,7 +8,6 @@ let runtime_rulesets = require("singbox.rulesets");
 let runtime_servers = require("singbox.servers");
 let subscription_headers_module = require("singbox.subscription_headers");
 let runtime_urltest = require("singbox.urltest");
-let rule_config = require("config.rule");
 let connections = require("config.connections");
 let runtime_settings_cache = null;
 
@@ -1427,71 +1426,6 @@ function ensure_community_ruleset(config, section_name, community) {
     };
 }
 
-function legacy_condition_values(section, key) {
-    let raw_values = object_or_empty(section)[key];
-    let list_values = type(raw_values) == "array"
-        ? raw_values
-        : [];
-    let option_text_values = type(raw_values) == "array" || key == "domain"
-        ? []
-        : rule_config.text_list_values(raw_values, "comma-space");
-    let text_value = option(section, key + "_text", "");
-    let text_values = rule_config.text_list_values(text_value, "comma-space");
-
-    if (bool_option(section, key + "_text_mode", false) || bool_option(section, "conditions_text_mode", false))
-        return text_values;
-    if (length(list_values) > 0)
-        return list_values;
-    if (length(option_text_values) > 0)
-        return option_text_values;
-    return text_values;
-}
-
-function combined_domain_source_values(section) {
-    let values = [];
-    if (type(object_or_empty(section)["domain"]) != "array") {
-        for (let value in rule_config.text_list_values(option(section, "domain", ""), "comma-space"))
-            if (as_string(value) != "")
-                push(values, as_string(value));
-    }
-    for (let value in rule_config.text_list_values(option(section, "domain_suffix_text", ""), "comma-space"))
-        if (as_string(value) != "")
-            push(values, as_string(value));
-    for (let value in list_option(section, "domain_suffix"))
-        if (as_string(value) != "")
-            push(values, as_string(value));
-    return values;
-}
-
-function domain_suffix_condition_value_kind(value) {
-    return rule_config.prefixed_domain_kind_value(value);
-}
-
-function domain_conditions(section) {
-    let result = {
-        domain: [],
-        domain_suffix: [],
-        domain_keyword: [],
-        domain_regex: []
-    };
-
-    for (let key in [ "domain", "domain_keyword", "domain_regex" ]) {
-        for (let value in legacy_condition_values(section, key)) {
-            let normalized = rule_config.domain_value_for_key(value, key);
-            if (normalized != null)
-                push(result[key], normalized);
-        }
-    }
-
-    for (let value in combined_domain_source_values(section)) {
-        let normalized = domain_suffix_condition_value_kind(value);
-        if (normalized != null)
-            push(result[normalized.kind], normalized.value);
-    }
-
-    return result;
-}
-
 function add_domain_array(rule, key, values) {
     if (length(values) > 0)
         rule[key] = values;
@@ -1672,11 +1606,11 @@ function add_dns_server_for_section(config, section) {
 }
 
 function add_dns_action_rules_for_section(config, section) {
-    let domains = domain_conditions(section);
-    let domain = domains.domain;
-    let domain_suffix = domains.domain_suffix;
-    let domain_keyword = domains.domain_keyword;
-    let domain_regex = domains.domain_regex;
+    let destinations = connections.destinations(section);
+    let domain = destinations.domain;
+    let domain_suffix = destinations.domain_suffix;
+    let domain_keyword = destinations.domain_keyword;
+    let domain_regex = destinations.domain_regex;
     let rule_set_tags = [];
     let section_name = section[".name"];
     let fully_routed_devices = connections.device_matchers(section, "fully_routed_ips");
@@ -1828,12 +1762,12 @@ function constrain_rule_set_by_section(route_rule, target) {
 }
 
 function add_combined_route_for_section(config, section) {
-    let domains = domain_conditions(section);
-    let domain = domains.domain;
-    let domain_suffix = domains.domain_suffix;
-    let domain_keyword = domains.domain_keyword;
-    let domain_regex = domains.domain_regex;
-    let ip_cidr = legacy_condition_values(section, "ip_cidr");
+    let destinations = connections.destinations(section);
+    let domain = destinations.domain;
+    let domain_suffix = destinations.domain_suffix;
+    let domain_keyword = destinations.domain_keyword;
+    let domain_regex = destinations.domain_regex;
+    let ip_cidr = destinations.ip_cidr;
     let rule_set_tags = [];
     let section_name = section[".name"];
 

@@ -38,7 +38,7 @@ const SNAPSHOT = {
     enabled: '1',
     action: 'bypass',
     label: 'Bypass',
-    domain: 'example.com',
+    destinations: 'example.com',
   },
   dns_rule: {
     '.type': 'section',

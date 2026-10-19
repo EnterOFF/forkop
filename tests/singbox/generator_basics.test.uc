@@ -27,7 +27,7 @@ t.test("a disabled section is left out", () => {
         settings: fixture.settings(),
         section: [
             { ".name": "off", action: "connection", enabled: "0", selector_proxy_links: [ "vless://u@a.example:443#A" ] },
-            { ".name": "on", action: "block", domain: "ads.example" }
+            { ".name": "on", action: "block", destinations: "ads.example" }
         ]
     });
     for (let outbound in config.outbounds)

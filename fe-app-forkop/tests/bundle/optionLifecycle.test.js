@@ -95,7 +95,7 @@ const CONNECTION_SECTION = [
     action: 'connection',
     enabled: '1',
     label: 'proxy',
-    domain: 'example.com',
+    destinations: 'example.com',
     outbound_detour_enabled: '0',
     selector_proxy_links: ['vless://a@example:1?type=tcp#node'],
     outbound_jsons: [
@@ -278,6 +278,70 @@ describe('a list the dialog hides keeps its items', () => {
     }
 
     expect(itemsOfType('server_client')).not.toEqual([]);
+  });
+});
+
+/* ------------------------------------------- one text in two fields */
+
+// A section's domains and addresses are one text. A routing section edits it in
+// one field and a DNS section, which matches domains only, in another, so the
+// field that is hidden has to leave the text to the one that is shown.
+describe('the destinations of a section', () => {
+  const FIELDS = [
+    [
+      'a Connection section',
+      'connection',
+      'destinations',
+      'example.org\n192.0.2.0/24',
+    ],
+    ['a DNS section', 'dns', '_dns_destinations', 'example.org'],
+  ];
+
+  async function saveAs(action, destinations, answers = {}) {
+    addSections([
+      [
+        'section',
+        'sec',
+        { action, enabled: '1', dns_server: ['tls://1.1.1.1'], destinations },
+      ],
+    ]);
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    widgetAnswers(grid, answers);
+    for (const option of grid.children) {
+      await Promise.resolve()
+        .then(() => option.parse('sec'))
+        .catch(() => {});
+    }
+    return harness.uci.get('forkop', 'sec', 'destinations');
+  }
+
+  it.each(FIELDS)(
+    'survive a save of %s',
+    async (_label, action, _field, text) => {
+      expect(await saveAs(action, text)).toBe(text);
+    },
+  );
+
+  it.each(FIELDS)(
+    'are what the field of %s says after an edit',
+    async (_label, action, field) => {
+      expect(
+        await saveAs(action, 'old.example', { [field]: 'new.example' }),
+      ).toBe('new.example');
+    },
+  );
+
+  it.each(FIELDS)(
+    'leave with the text the field of %s was emptied of',
+    async (_label, action, field) => {
+      expect(await saveAs(action, 'old.example', { [field]: '' })).toBeNull();
+    },
+  );
+
+  it('survive a save of a section whose action shows neither field', async () => {
+    expect(await saveAs('zapret', 'example.org')).toBe('example.org');
   });
 });
 
@@ -495,7 +559,7 @@ describe.each([
           enabled: '1',
           label: 'DNS section',
           dns_server: ['tls://1.1.1.1'],
-          domain: 'example.com',
+          destinations: 'example.com',
           dns_detour_enabled: '1',
           dns_detour_section: 'target',
         },
@@ -726,7 +790,7 @@ it('a DNS detour survives a target whose provider is not installed', async () =>
         enabled: '1',
         label: 'DNS section',
         dns_server: ['tls://1.1.1.1'],
-        domain: 'example.com',
+        destinations: 'example.com',
         dns_detour_enabled: '1',
         dns_detour_section: 'target',
       },
@@ -740,7 +804,7 @@ it('a DNS detour survives a target whose provider is not installed', async () =>
         enabled: '1',
         label: 'Target',
         nfqws_opt: '--dpi-desync=fake',
-        domain: 'example.com',
+        destinations: 'example.com',
       },
     ],
   ]);
@@ -769,7 +833,7 @@ describe.each([
             action,
             enabled: '1',
             label: 'DPI section',
-            domain: 'example.com',
+            destinations: 'example.com',
             [field]: strategy,
           },
         ],

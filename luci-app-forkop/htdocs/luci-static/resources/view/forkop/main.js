@@ -13446,15 +13446,6 @@ function parentSectionIdForItem(itemId) {
 }
 
 // src/forkop/cbi/uci.ts
-function valuesToText(values) {
-  if (!values) {
-    return "";
-  }
-  if (Array.isArray(values)) {
-    return values.filter(Boolean).join("\n");
-  }
-  return values ? `${values}` : "";
-}
 function getUciSectionName(section) {
   return section && section[".name"] ? section[".name"] : "";
 }
@@ -14321,7 +14312,7 @@ function validateSubnet(value) {
     };
   }
   if (cidr !== void 0) {
-    if (!cidr || !/^\d+$/.test(cidr)) {
+    if (!cidr || !/^(?:0|[1-9]\d*)$/.test(cidr)) {
       return {
         valid: false,
         message: _("Invalid CIDR prefix")
@@ -14742,118 +14733,70 @@ var IP_CONDITION_PLACEHOLDER = [
   "192.168.1.0/24",
   "2606:4700::/32"
 ].join("\n");
-function analyzeDomainSuffixText(value) {
-  const validateDomainCondition = (domain) => {
-    const normalized = `${domain || ""}`.trim();
-    if (normalized.includes("/")) {
-      return { valid: false, message: _("Invalid domain address") };
-    }
-    return validateDomain(normalized, true);
-  };
-  return analyzeTextListValue(
-    value,
-    (item) => {
-      const colonIndex = item.indexOf(":");
-      const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : "";
-      const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
-      if (!prefix) {
-        return validateDomainCondition(body);
-      }
-      if (!["full", "keyword", "regex"].includes(prefix)) {
-        return {
-          valid: false,
-          message: _("Allowed domain prefixes are full:, keyword:, and regex:")
-        };
-      }
-      if (!body.length) {
-        return { valid: false, message: _("Value cannot be empty") };
-      }
-      if (prefix === "full") {
-        return validateDomainCondition(body);
-      }
-      if (prefix === "keyword") {
-        const validation2 = validateKeyword(body);
-        return validation2 === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation2 };
-      }
-      if (/[,\s]/.test(body)) {
-        return {
-          valid: false,
-          message: _("Regular expression must not contain spaces or commas")
-        };
-      }
-      const validation = validateRegex(body);
-      return validation === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation };
-    },
-    _("At least one valid domain must be specified."),
-    {
-      normalizeDuplicateValue: (item) => `${item}`.toLowerCase()
-    }
-  );
-}
-function domainValuesWithPrefix(section_id, key, prefix) {
-  return getConfigListValues(section_id, key).map(
-    (value) => prefix ? `${prefix}:${value}` : value
-  );
-}
-function domainTextValuesWithPrefix(section_id, key, prefix) {
-  const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-  if (!legacyText) {
-    return [];
+var DESTINATION_CONDITION_PLACEHOLDER = [
+  DOMAIN_CONDITION_PLACEHOLDER,
+  IP_CONDITION_PLACEHOLDER
+].join("\n");
+var ADDRESS_SHAPE = /^[\d.]+(?:\/.*)?$|^[\da-f]*:[\da-f:.]*(?:\/.*)?$/i;
+function validateDomainName(domain) {
+  const normalized = `${domain || ""}`.trim();
+  if (normalized.includes("/")) {
+    return { valid: false, message: _("Invalid domain address") };
   }
-  return parseValueList(`${legacyText}`).map(
-    (value) => prefix ? `${prefix}:${value}` : value
-  );
+  return validateDomain(normalized, true);
 }
-function firstSpellingOf(seen) {
-  return (value) => {
-    const key = `${value}`.toLowerCase();
-    if (!key || seen.has(key)) {
-      return false;
-    }
-    seen.add(key);
-    return true;
-  };
-}
-function uniqueDomainTextValues(values) {
-  return values.filter(firstSpellingOf(/* @__PURE__ */ new Set()));
-}
-function appendUniqueDomainTextValues(textValue, values) {
-  const originalText = typeof textValue === "string" ? textValue : "";
-  const seen = new Set(
-    parseValueList(originalText).map(
-      (value) => `${value}`.toLowerCase()
-    )
-  );
-  const additions = uniqueDomainTextValues(values).filter(
-    firstSpellingOf(seen)
-  );
-  if (!additions.length) {
-    return originalText;
+function validateDomainCondition(item) {
+  const colonIndex = item.indexOf(":");
+  const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : "";
+  const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
+  if (!prefix) {
+    return validateDomainName(body);
   }
-  const base = originalText.replace(/\s+$/, "");
-  return [base, ...additions].filter(Boolean).join("\n");
+  if (!["full", "keyword", "regex"].includes(prefix)) {
+    return {
+      valid: false,
+      message: _("Allowed domain prefixes are full:, keyword:, and regex:")
+    };
+  }
+  if (!body.length) {
+    return { valid: false, message: _("Value cannot be empty") };
+  }
+  if (prefix === "full") {
+    return validateDomainName(body);
+  }
+  if (prefix === "keyword") {
+    const validation2 = validateKeyword(body);
+    return validation2 === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation2 };
+  }
+  if (/[,\s]/.test(body)) {
+    return {
+      valid: false,
+      message: _("Regular expression must not contain spaces or commas")
+    };
+  }
+  const validation = validateRegex(body);
+  return validation === true ? { valid: true, message: _("Valid") } : { valid: false, message: validation };
 }
-function loadCombinedDomainText(section_id) {
-  const textValue = uci.get(FORKOP_UCI_PACKAGE, section_id, "domain") || uci.get(FORKOP_UCI_PACKAGE, section_id, "domain_suffix_text");
-  const values = [
-    ...domainValuesWithPrefix(section_id, "domain_suffix", ""),
-    ...domainValuesWithPrefix(section_id, "domain_keyword", "keyword"),
-    ...domainValuesWithPrefix(section_id, "domain_regex", "regex"),
-    ...domainTextValuesWithPrefix(section_id, "domain_suffix", ""),
-    ...domainTextValuesWithPrefix(section_id, "domain", "full"),
-    ...domainTextValuesWithPrefix(section_id, "domain_keyword", "keyword"),
-    ...domainTextValuesWithPrefix(section_id, "domain_regex", "regex")
-  ];
-  return appendUniqueDomainTextValues(textValue, values);
+function analyzeConditionText(value, validateItem, emptyMessage) {
+  return analyzeTextListValue(value, validateItem, emptyMessage, {
+    normalizeDuplicateValue: (item) => `${item}`.toLowerCase()
+  });
 }
-function analyzeIpCidrText(value) {
-  return analyzeTextListValue(
+function analyzeDestinationText(value) {
+  return analyzeConditionText(
     value,
-    (item) => validateSubnet(item),
-    _("At least one valid IP or subnet must be specified."),
-    {
-      normalizeDuplicateValue: (item) => `${item}`.trim()
-    }
+    (item) => ADDRESS_SHAPE.test(item) ? validateSubnet(item) : validateDomainCondition(item),
+    _("At least one valid domain, IP or subnet must be specified.")
+  );
+}
+function analyzeDnsDestinationText(value) {
+  return analyzeConditionText(
+    value,
+    (item) => validateSubnet(item).valid ? {
+      valid: false,
+      message: _("IP addresses cannot be used in a DNS section")
+    } : validateDomainCondition(item),
+    _("At least one valid domain must be specified.")
   );
 }
 function validatePortCondition(_section_id, value) {
@@ -14934,57 +14877,20 @@ function addLocalDeviceSubnetDynamicField(section, config) {
   };
   return o;
 }
-function addTextConditionField(section, config) {
-  const optionName = config.optionName || `${config.key}_text`;
-  const legacyTextOptionName = config.legacyTextOptionName || `${config.key}_text`;
-  const o = section.taboption(
-    "conditions",
-    form.TextValue,
-    optionName,
-    config.label,
-    config.description
-  );
+function addDestinationField(section, name, label, placeholder, analyze) {
+  const o = section.taboption("conditions", form.TextValue, name, label);
+  o.ucioption = "destinations";
+  o.retain = true;
   o.rows = 8;
   o.wrap = "soft";
   o.textarea = true;
   o.modalonly = true;
-  o.placeholder = config.placeholder;
-  if (config.textAnalyze) {
-    const analyze = config.textAnalyze;
-    o.validate = function(_section_id, value) {
-      const analysis = analyze(value);
-      return analysis.valid ? true : `${analysis.message}`;
-    };
-  }
-  configureTextareaOption(o, config.textAnalyze);
-  o.load = function(section_id) {
-    if (typeof config.loadText === "function") {
-      return config.loadText(section_id);
-    }
-    const textValue = uci.get(FORKOP_UCI_PACKAGE, section_id, optionName) || uci.get(FORKOP_UCI_PACKAGE, section_id, legacyTextOptionName);
-    if (textValue) {
-      return valuesToText(textValue);
-    }
-    return valuesToText(uci.get(FORKOP_UCI_PACKAGE, section_id, config.key));
+  o.placeholder = placeholder;
+  o.validate = function(_section_id, value) {
+    const analysis = analyze(value);
+    return analysis.valid ? true : `${analysis.message}`;
   };
-  o.write = function(section_id, value) {
-    const normalized = value ? `${value}`.trim() : "";
-    if (normalized.length) {
-      uci.set(FORKOP_UCI_PACKAGE, section_id, optionName, normalized);
-    } else {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, optionName);
-    }
-    if (config.key !== optionName) {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, config.key);
-    }
-    if (legacyTextOptionName !== optionName) {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, legacyTextOptionName);
-    }
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text_mode`);
-    if (typeof config.afterWrite === "function") {
-      config.afterWrite(section_id);
-    }
-  };
+  configureTextareaOption(o, analyze);
   return o;
 }
 
@@ -15457,8 +15363,7 @@ function dependsOnRoutingAction(option2) {
 }
 function dependsOnRuleConditions(option2) {
   const routingConditions = [
-    "domain",
-    "ip_cidr",
+    "destinations",
     "community_lists",
     "rule_set",
     "ports"
@@ -15468,7 +15373,7 @@ function dependsOnRuleConditions(option2) {
       (condition) => option2.depends({ action, [condition]: /\S/ })
     )
   );
-  ["domain", "community_lists", "rule_set", "_dns_rule_set"].forEach(
+  ["_dns_destinations", "community_lists", "rule_set", "_dns_rule_set"].forEach(
     (condition) => option2.depends({ action: "dns", [condition]: /\S/ })
   );
   return option2;
@@ -21854,41 +21759,22 @@ function createSectionContent(section) {
     }
     return true;
   };
-  addTextConditionField(section, {
-    key: "domain_suffix",
-    optionName: "domain",
-    legacyTextOptionName: "domain_suffix_text",
-    label: _("Domains"),
-    placeholder: DOMAIN_CONDITION_PLACEHOLDER,
-    textAnalyze: analyzeDomainSuffixText,
-    loadText: loadCombinedDomainText,
-    afterWrite: function(section_id) {
-      [
-        "domain_suffix",
-        "domain_suffix_text",
-        "domain_suffix_text_mode",
-        "domain_keyword",
-        "domain_regex",
-        "domain_text",
-        "domain_keyword_text",
-        "domain_regex_text",
-        "domain_text_mode",
-        "domain_keyword_text_mode",
-        "domain_regex_text_mode"
-      ].forEach((key) => {
-        uci.unset(FORKOP_UCI_PACKAGE, section_id, key);
-      });
-    }
-  });
-  const ipConditionOption = addTextConditionField(section, {
-    key: "ip_cidr",
-    optionName: "ip_cidr",
-    legacyTextOptionName: "ip_cidr_text",
-    label: _("IPs"),
-    placeholder: IP_CONDITION_PLACEHOLDER,
-    textAnalyze: analyzeIpCidrText
-  });
-  dependsOnRoutingAction(ipConditionOption);
+  const destinationOption = addDestinationField(
+    section,
+    "destinations",
+    _("Domains and IPs"),
+    DESTINATION_CONDITION_PLACEHOLDER,
+    analyzeDestinationText
+  );
+  dependsOnRoutingAction(destinationOption);
+  const dnsDestinationOption = addDestinationField(
+    section,
+    "_dns_destinations",
+    _("Domains"),
+    DOMAIN_CONDITION_PLACEHOLDER,
+    analyzeDnsDestinationText
+  );
+  dnsDestinationOption.depends("action", "dns");
   const builtInRulesetOption = section.taboption(
     "conditions",
     form.DynamicList,

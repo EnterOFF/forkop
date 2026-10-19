@@ -95,19 +95,6 @@ function prefixed_domain_kind_value(value) {
     return normalized == null ? null : { kind: "domain_regex", value: normalized };
 }
 
-function domain_value_for_key(value, key) {
-    key = as_string(key);
-
-    if (key == "domain" || key == "domain_suffix")
-        return domain_config.suffix_to_ascii(value);
-    if (key == "domain_keyword")
-        return domain_config.keyword_to_ascii(value);
-    if (key == "domain_regex")
-        return domain_config.regex_to_ascii(value);
-
-    return null;
-}
-
 function normalize_domain_subnet_value(value, kind) {
     kind = as_string(kind);
     if (kind == "domains")
@@ -118,130 +105,54 @@ function normalize_domain_subnet_value(value, kind) {
     die("unknown value kind '" + kind + "'");
 }
 
-function filter_domain_subnet_values(values, kind) {
-    let result = [];
-    kind = as_string(kind);
+const DESTINATION_KINDS = [ "domain", "domain_suffix", "domain_keyword", "domain_regex", "ip_cidr" ];
 
-    if (kind != "domains" && kind != "subnets")
-        die("unknown value kind '" + kind + "'");
+// An entry of a section's destinations is an address or a subnet when it is one,
+// and otherwise a domain of the kind its prefix names. No top-level domain is a
+// number, so a name ending in one is a mistyped address rather than a domain.
+function destination_kind_value(value) {
+    value = trim(as_string(value));
+    if (ip.valid_ip_or_cidr(value))
+        return { kind: "ip_cidr", value };
 
-    for (let value in values) {
-        let normalized = normalize_domain_subnet_value(value, kind);
-        if (normalized != null)
-            push(result, normalized);
-    }
+    let parsed = prefixed_domain_kind_value(value);
+    if (parsed != null && (parsed.kind == "domain" || parsed.kind == "domain_suffix") &&
+        match(parsed.value, /(^|\.)[0-9]+$/) != null)
+        return null;
 
-    return result;
+    return parsed;
 }
 
-function condition_text_csv_value(value, kind) {
-    kind = as_string(kind);
+// The same destinations are asked for more than once in a row - the nft builder
+// wants a section's addresses and then whether it names any domain - so the last
+// text parsed is kept. One entry is enough for that; holding more would keep whole
+// domain lists alive for no further gain. Every caller gets lists of its own to
+// build rules from.
+let destinations_text = null;
+let destinations_parsed = null;
 
-    if (kind == "domains")
-        return join(",", filter_domain_subnet_values(text_list_values(value, "comma-space"), "domains"));
-    if (kind == "subnets")
-        return join(",", filter_domain_subnet_values(text_list_values(value, "comma-space"), "subnets"));
+function destination_conditions(text) {
+    text = as_string(text);
 
-    return join(",", text_list_values(value, "comma"));
-}
+    if (destinations_text != text) {
+        let parsed = {};
+        for (let kind in DESTINATION_KINDS)
+            parsed[kind] = [];
 
-function legacy_condition_csv_value(kind, text_mode, conditions_text_mode, text_value, list_value) {
-    if (int(text_mode || 0) == 1 || int(conditions_text_mode || 0) == 1)
-        return condition_text_csv_value(text_value, kind);
+        for (let item in text_list_values(text, "comma-space")) {
+            let normalized = destination_kind_value(item);
+            if (normalized != null)
+                push(parsed[normalized.kind], normalized.value);
+        }
 
-    list_value = as_string(list_value);
-    if (list_value != "")
-        return kind == "subnets"
-            ? condition_text_csv_value(list_value, kind)
-            : replace(list_value, / /g, ",");
-
-    text_value = as_string(text_value);
-    if (text_value != "")
-        return condition_text_csv_value(text_value, kind);
-
-    return replace(list_value, / /g, ",");
-}
-
-const COMBINED_DOMAIN_KINDS = [ "domain", "domain_suffix", "domain_keyword", "domain_regex" ];
-
-// Which kind an entry belongs to does not depend on the kind being asked for,
-// so one pass classifies every entry and the four answers are read off the
-// result. Each list keeps the order the per-kind walk produced, so the
-// conditions and the reload-state signatures built from them do not change.
-function combined_domain_kind_csv_values(items) {
-    let values = {};
-    for (let kind in COMBINED_DOMAIN_KINDS)
-        values[kind] = [];
-
-    for (let item in items) {
-        let normalized = prefixed_domain_kind_value(item);
-        if (normalized != null && values[normalized.kind] != null)
-            push(values[normalized.kind], normalized.value);
+        destinations_parsed = parsed;
+        destinations_text = text;
     }
 
     let result = {};
-    for (let kind in COMBINED_DOMAIN_KINDS)
-        result[kind] = join(",", values[kind]);
-
+    for (let kind in DESTINATION_KINDS)
+        result[kind] = [ ...destinations_parsed[kind] ];
     return result;
-}
-
-// A section is asked for all four domain kinds in a row, from the same text and
-// the same list, and a signature or a generated rule set asks again later. One
-// entry is enough to collapse those four passes into one; holding more would
-// keep whole domain lists alive for no further gain.
-let combined_list_key = null;
-let combined_list_values = null;
-let combined_text_key = null;
-let combined_text_values = null;
-
-function combined_domain_csv_value(value, requested_kind) {
-    value = as_string(value);
-
-    if (combined_list_key != value) {
-        combined_list_values = combined_domain_kind_csv_values(split(value, ","));
-        combined_list_key = value;
-    }
-
-    return as_string(combined_list_values[as_string(requested_kind)]);
-}
-
-function combined_domain_text_csv_value(value, requested_kind) {
-    value = as_string(value);
-
-    if (combined_text_key != value) {
-        combined_text_values = combined_domain_kind_csv_values(text_list_values(value, "comma-space"));
-        combined_text_key = value;
-    }
-
-    return as_string(combined_text_values[as_string(requested_kind)]);
-}
-
-function concat_csv_values(first, second) {
-    first = as_string(first);
-    second = as_string(second);
-    if (first != "" && second != "")
-        return first + "," + second;
-    return first + second;
-}
-
-function combined_condition_csv_value(requested_key, legacy_kind, text_mode, conditions_text_mode, text_value, list_value, combined_text_value, combined_list_value) {
-    let combined_text_values = combined_domain_text_csv_value(combined_text_value, requested_key);
-    let combined_list_values = combined_domain_csv_value(replace(as_string(combined_list_value), / /g, ","), requested_key);
-    let combined_values = concat_csv_values(combined_text_values, combined_list_values);
-
-    if (requested_key == "domain_suffix")
-        return combined_values;
-
-    let legacy_values = legacy_condition_csv_value(legacy_kind, text_mode, conditions_text_mode, text_value, list_value);
-    return concat_csv_values(combined_values, legacy_values);
-}
-
-function rule_condition_csv_value(key, kind, text_mode, conditions_text_mode, text_value, list_value, combined_text_value, combined_list_value) {
-    if (key == "domain" || key == "domain_suffix" || key == "domain_keyword" || key == "domain_regex")
-        return combined_condition_csv_value(key, kind, text_mode, conditions_text_mode, text_value, list_value, combined_text_value, combined_list_value);
-
-    return legacy_condition_csv_value(kind, text_mode, conditions_text_mode, text_value, list_value);
 }
 
 function normalize_port_number_value(value) {
@@ -315,10 +226,9 @@ function community_service_has_subnet_list(value) {
 return {
     text_list_values,
     normalize_port_condition_value,
-    prefixed_domain_kind_value,
-    domain_value_for_key,
+    destination_kind_value,
+    destination_conditions,
     normalize_domain_subnet_value,
-    rule_condition_csv_value,
     rule_ports_csv_value,
     community_service_has_subnet_list,
 };

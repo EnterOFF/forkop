@@ -100,7 +100,7 @@ function matchers(section) {
     let sources = connections.device_matchers(section, "source_ip_cidr");
     let fully = connections.device_matchers(section, "fully_routed_ips");
     let ports = connections.rule_ports_csv(section);
-    let subnets = connections.rule_condition_csv(section, "ip_cidr", "subnets");
+    let subnets = join(",", connections.destinations(section).ip_cidr);
     let tags = subnet_source_tags(section);
     let ip_matchers = subnets != "" || length(tags) > 0;
     // A port on its own selects traffic. A port next to a destination - an

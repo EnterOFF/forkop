@@ -117,8 +117,7 @@ export function dependsOnRoutingAction(option: CBIOption) {
 
 export function dependsOnRuleConditions(option: CBIOption) {
   const routingConditions = [
-    'domain',
-    'ip_cidr',
+    'destinations',
     'community_lists',
     'rule_set',
     'ports',
@@ -128,7 +127,7 @@ export function dependsOnRuleConditions(option: CBIOption) {
       option.depends({ action, [condition]: /\S/ }),
     ),
   );
-  ['domain', 'community_lists', 'rule_set', '_dns_rule_set'].forEach(
+  ['_dns_destinations', 'community_lists', 'rule_set', '_dns_rule_set'].forEach(
     (condition) => option.depends({ action: 'dns', [condition]: /\S/ }),
   );
   return option;

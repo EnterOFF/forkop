@@ -97,13 +97,13 @@ t.test("the excluded System device keeps the router's own traffic and lookups ou
 
 function priority_sections() {
     return [
-        { ".name": "bypass_first", action: "bypass", ip_cidr: [ "198.51.100.0/24" ], fully_routed_ips: [ "192.168.1.10/32", "2001:db8::10/128", "@system" ] },
-        { ".name": "wide_proxy", action: "proxy", ip_cidr: [ "0.0.0.0/0" ], fully_routed_ips: [ "192.168.1.20/32", "2001:db8::20/128", "@system" ] },
+        { ".name": "bypass_first", action: "bypass", destinations: "198.51.100.0/24", fully_routed_ips: [ "192.168.1.10/32", "2001:db8::10/128", "@system" ] },
+        { ".name": "wide_proxy", action: "proxy", destinations: "0.0.0.0/0", fully_routed_ips: [ "192.168.1.20/32", "2001:db8::20/128", "@system" ] },
         { ".name": "port_bypass", action: "bypass", ports: [ "8443" ] },
-        { ".name": "system_filter", action: "proxy", ip_cidr: [ "203.0.113.0/24" ], source_ip_cidr: [ "@system" ] },
-        { ".name": "client_filter", action: "proxy", ip_cidr: [ "192.0.2.0/24" ], source_ip_cidr: [ "192.168.1.50/32" ] },
+        { ".name": "system_filter", action: "proxy", destinations: "203.0.113.0/24", source_ip_cidr: [ "@system" ] },
+        { ".name": "client_filter", action: "proxy", destinations: "192.0.2.0/24", source_ip_cidr: [ "192.168.1.50/32" ] },
         { ".name": "builtin_subnets", action: "proxy", community_lists: [ "discord" ] },
-        { ".name": "ip_and_ports", action: "proxy", ip_cidr: [ "203.0.113.0/24" ], ports: [ "8080" ] }
+        { ".name": "ip_and_ports", action: "proxy", destinations: "203.0.113.0/24", ports: [ "8080" ] }
     ];
 }
 
@@ -146,13 +146,13 @@ t.test("section rules keep configuration order and reach only the traffic their 
 
 t.test("the sets are filled in the same transaction from what the configuration lists", () => {
     let lines = script_lines({ settings: {}, section: [
-        { ".name": "disabled", enabled: "0", action: "proxy", ip_cidr: [ "192.0.2.1" ], ports: [ "53" ] },
-        { ".name": "inline", action: "proxy", ip_cidr: [ "198.51.100.1", "203.0.113.0/24", "2001:db8::1" ], source_ip_cidr: [ "192.168.1.60/32" ],
+        { ".name": "disabled", enabled: "0", action: "proxy", destinations: "192.0.2.1", ports: [ "53" ] },
+        { ".name": "inline", action: "proxy", destinations: "198.51.100.1\nexample.org\n203.0.113.0/24, 2001:db8::1", source_ip_cidr: [ "192.168.1.60/32" ],
             ports: [ "80", "443-444" ], fully_routed_ips: [ "192.168.1.20/32", "192.168.1.20/32", "2001:db8::20/128", "@system" ] },
-        { ".name": "inline_no_ports", action: "bypass", ip_cidr: [ "198.51.100.200", "2001:db8::200" ], fully_routed_ips: [ "192.168.1.21/32" ] },
+        { ".name": "inline_no_ports", action: "bypass", destinations: "198.51.100.200 2001:db8::200", fully_routed_ips: [ "192.168.1.21/32" ] },
         { ".name": "ports_only", action: "proxy", ports: [ "53", "853" ], ports_text: "5353, 853" },
-        { ".name": "ports_with_domain", action: "proxy", domain_suffix: [ "example.org" ], ports: [ "8443" ] },
-        { ".name": "dns_only", action: "dns", domain_suffix: [ "dns-only.example" ], ip_cidr: [ "192.0.2.53" ], fully_routed_ips: [ "192.168.1.53/32" ] },
+        { ".name": "ports_with_domain", action: "proxy", destinations: "example.org", ports: [ "8443" ] },
+        { ".name": "dns_only", action: "dns", destinations: "dns-only.example\n192.0.2.53", fully_routed_ips: [ "192.168.1.53/32" ] },
         { ".name": "vpn", action: "proxy", fully_routed_ips: [ "@system" ] }
     ] });
     has(lines, "add element inet ForkopTable forkop_rule_inline_subnets { 198.51.100.1,203.0.113.0/24 }", "addresses and ports are not multiplied");
@@ -180,14 +180,14 @@ t.test("the script is the same for the same configuration and moves with anythin
     t.eq(script(), baseline);
     for (let section in [
         { ".name": "s", action: "proxy" },
-        { ".name": "s", action: "proxy", domain_suffix_text: "a.example\nb.example" },
+        { ".name": "s", action: "proxy", destinations: "a.example\nb.example" },
         { ".name": "s", action: "proxy", label: "Renamed" },
-        { ".name": "s", enabled: "0", action: "proxy", ip_cidr: "192.0.2.0/24" },
+        { ".name": "s", enabled: "0", action: "proxy", destinations: "192.0.2.0/24" },
         { ".name": "s", action: "proxy", rule_set: "https://example.com/domains.lst" }
     ])
         t.eq(script([ section ]), baseline, "nothing of " + sprintf("%J", section) + " reaches nft");
     for (let section in [
-        { ".name": "s", action: "proxy", ip_cidr: "192.0.2.0/24" },
+        { ".name": "s", action: "proxy", destinations: "192.0.2.0/24" },
         { ".name": "s", action: "proxy", ports: "443" },
         { ".name": "s", action: "proxy", rule_set_with_subnets: "https://example.com/subnets.srs" },
         { ".name": "s", action: "proxy", community_lists: "telegram" },
@@ -196,7 +196,7 @@ t.test("the script is the same for the same configuration and moves with anythin
         t.ok(script([ section ]) != baseline, sprintf("%J", section) + " reaches nft");
     t.ok(script(null, { source_network_interfaces: "br-lan", exclude_ntp: "1" }) != baseline);
     t.ok(script(null, { source_network_interfaces: "br-lan tun0" }) != baseline);
-    t.ok(script([ { ".name": "s", action: "proxy", ip_cidr: "192.0.2.0/24" } ]) != script([ { ".name": "s", action: "proxy", ip_cidr: "198.51.100.0/24" } ]),
+    t.ok(script([ { ".name": "s", action: "proxy", destinations: "192.0.2.0/24" } ]) != script([ { ".name": "s", action: "proxy", destinations: "198.51.100.0/24" } ]),
         "the elements are part of the table");
 });
 

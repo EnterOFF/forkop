@@ -94,13 +94,14 @@ const FULL_1_0_2 = {
             sort_by_latency: "1", resolve_real_ip_for_routing: "1",
             mixed_proxy_enabled: "1", mixed_proxy_port: "2080", mixed_proxy_auth_enabled: "1",
             mixed_proxy_username: "Ivan Petrov", mixed_proxy_password: "proxy-secret",
-            outbound_detour_enabled: "1", outbound_detour_section: "zap"
+            outbound_detour_enabled: "1", outbound_detour_section: "zap",
+            domain: "example.com # the site\nkeyword:video", ip_cidr: "192.0.2.0/24\n2001:db8::/32"
         },
         {
             ".name": "dns_rule", ".type": "section", label: "DNS", action: "dns",
             dns_type: "dot", dns_server: "9.9.9.9:5353",
             domain_ip_lists: [ "dns-existing" ], remote_domain_lists: [ "dns-remote" ],
-            domain_suffix: [ "example.org" ]
+            domain: "example.org", ip_cidr: "198.51.100.1"
         },
         {
             ".name": "zap", ".type": "section", label: "Zapret", enabled: "1", action: "zapret",
@@ -256,6 +257,32 @@ t.test("the rule set lists of a section merge in order without duplicates", () =
     t.eq(sort([ ...section.main.rule_set_with_subnets ]), [ "existing", "local", "remote-domain", "remote-subnet" ]);
     t.eq(length(section.main.rule_set_with_subnets), 4);
     t.eq(section.dns_rule.rule_set, [ "dns-existing", "dns-remote" ], "a DNS rule keeps only domain lists");
+});
+
+t.test("a section's domains and addresses become one list of destinations, and a DNS section's addresses go", () => {
+    t.eq(section.main.destinations, "example.com # the site\nkeyword:video\n192.0.2.0/24\n2001:db8::/32");
+    t.eq(section.dns_rule.destinations, "example.org", "a DNS section never matched an address");
+    absent(section.main, [ "domain", "ip_cidr" ]);
+    absent(section.dns_rule, [ "domain", "ip_cidr" ]);
+});
+
+t.test("a section with addresses only, or with no destinations, is carried over as it is", () => {
+    let config = migrated({ settings: settings("1.0.5"), section: [
+        { ".name": "addresses", ".type": "section", action: "bypass", ip_cidr: "10.0.0.0/8" },
+        { ".name": "listed", ".type": "section", action: "connection", ip_cidr: [ "192.0.2.1", "192.0.2.2" ] },
+        { ".name": "none", ".type": "section", action: "connection", community_lists: [ "youtube" ] },
+        { ".name": "dns", ".type": "section", action: "dns", dns_server: [ "tls://1.1.1.1" ], ip_cidr: "192.0.2.53" }
+    ] }).config;
+    let sections = by_name(config.section);
+    t.eq(sections.addresses.destinations, "10.0.0.0/8");
+    t.eq(sections.listed.destinations, "192.0.2.1\n192.0.2.2");
+    t.ok(!exists(sections.none, "destinations"));
+    t.ok(!exists(sections.dns, "destinations") && !exists(sections.dns, "ip_cidr"));
+
+    config.settings.config_version = "1.0.5";
+    let again = migrated(config);
+    t.eq(filter(again.operations, (op) => op.option in [ "destinations", "domain", "ip_cidr" ]), [], "a second pass leaves them alone");
+    t.eq(by_name(again.config.section).addresses.destinations, "10.0.0.0/8");
 });
 
 t.test("a subscription's prefix, country filters, User-Agent and HWID become the current fields", () => {

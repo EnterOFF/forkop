@@ -33,7 +33,7 @@ t.test("a cascade points at another enabled Connection section with servers, wit
 // an outbound that does not exist.
 t.test("no reference may lead to a section without servers", () => {
     let empty = section("empty", "connection");
-    let dns = section("dns", "dns", { dns_server: [ "8.8.8.8" ], domain_suffix: [ "example.org" ], dns_detour_enabled: "1", dns_detour_section: "empty" });
+    let dns = section("dns", "dns", { dns_server: [ "8.8.8.8" ], destinations: "example.org", dns_detour_enabled: "1", dns_detour_section: "empty" });
     for (let data in [
         { settings: { dns_detour_enabled: "1", dns_detour_section: "empty" }, section: [ empty ] },
         { section: [ empty, dns ] },

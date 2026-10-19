@@ -23,12 +23,12 @@ function runtime_tags_config() {
                     "{\"type\":\"selector\",\"tag\":\"json-group\",\"outbounds\":[\"proxy-json-4-out\",\"direct-out\"],\"default\":\"json-hop\"}",
                     "{\"type\":\"direct\",\"tag\":\"service-mixed-in\"}"
                 ],
-                domain_suffix: [ "example.org" ]
+                destinations: "example.org"
             },
             {
                 ".name": "backup", label: "Backup", enabled: "1", action: "connection",
                 outbound_jsons: [ "{\"type\":\"socks\",\"tag\":\"json-hop\",\"server\":\"127.0.0.1\",\"server_port\":1301}" ],
-                domain_suffix: [ "backup.example.org" ]
+                destinations: "backup.example.org"
             }
         ],
         subscription_url: [ { ".name": "sub_dup", section: "proxy", url: "https://duplicate.example/sub", tag: "sub1" } ],

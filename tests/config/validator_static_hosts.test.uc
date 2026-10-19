@@ -17,9 +17,7 @@ t.test("a domain in the address column", () => {
                 ".name": "direct_rule",
                 "enabled": "1",
                 "action": "bypass",
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "invalid address 'ntc.party'");
@@ -41,9 +39,7 @@ t.test("a malformed domain", () => {
                 ".name": "direct_rule",
                 "enabled": "1",
                 "action": "bypass",
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "invalid domain 'ntc..party'");
@@ -65,9 +61,7 @@ t.test("a record without a domain", () => {
                 ".name": "direct_rule",
                 "enabled": "1",
                 "action": "bypass",
-                "domain_suffix": [
-                    "example.org"
-                ]
+                "destinations": "example.org"
             }
         ]
     }, "must contain an address followed by at least one domain");

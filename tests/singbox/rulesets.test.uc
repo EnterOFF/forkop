@@ -20,7 +20,7 @@ function seed() {
         section: [
             { ".name": "proxy", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ], community_lists: [ "telegram", "twitter" ], rule_set: [ "https://example.com/rules.srs" ] },
             { ".name": "direct", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ], rule_set_with_subnets: [ "https://example.com/mixed.txt" ], rule_set: [ "https://example.com/rules.srs" ] },
-            { ".name": "plain", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ], domain_suffix: [ "example.org" ] }
+            { ".name": "plain", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ], destinations: "example.org" }
         ]
     });
 }

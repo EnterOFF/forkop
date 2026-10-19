@@ -1,5 +1,6 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import { parseValueList } from '../../../helpers/parseValueList';
+import type { ValidationResult } from '../../../validators/types';
 import { validateDomain } from '../../../validators/validateDomain';
 import { validateSubnet } from '../../../validators/validateSubnet';
 import {
@@ -14,7 +15,6 @@ import {
 import {
   getConfigListValues,
   stringArraysEqual,
-  valuesToText,
   writeListOption,
 } from '../../cbi/uci';
 import { validateKeyword, validateRegex } from './validators';
@@ -86,9 +86,9 @@ export function makeDeviceOptionsExclusive(
   };
 }
 
-// Shown greyed out in the condition editors: one value per line, and for
-// domains every prefix analyzeDomainSuffixText accepts. Both are run through
-// their own analyzers by luciPlaceholders.test.js.
+// Shown greyed out in the condition editors: one value per line, every domain
+// prefix the field understands, an address and both kinds of subnet. Each is run
+// through the analyzer of its field by luciPlaceholders.test.js.
 export const DOMAIN_CONDITION_PLACEHOLDER = [
   'example.com',
   'full:api.example.com',
@@ -96,162 +96,108 @@ export const DOMAIN_CONDITION_PLACEHOLDER = [
   String.raw`regex:^ads\..*\.com$`,
 ].join('\n');
 
-export const IP_CONDITION_PLACEHOLDER = [
+const IP_CONDITION_PLACEHOLDER = [
   '1.1.1.1',
   '192.168.1.0/24',
   '2606:4700::/32',
 ].join('\n');
 
-export function analyzeDomainSuffixText(value: unknown) {
-  const validateDomainCondition = (domain: unknown) => {
-    const normalized = `${domain || ''}`.trim();
-    if (normalized.includes('/')) {
-      return { valid: false, message: _('Invalid domain address') };
-    }
+export const DESTINATION_CONDITION_PLACEHOLDER = [
+  DOMAIN_CONDITION_PLACEHOLDER,
+  IP_CONDITION_PLACEHOLDER,
+].join('\n');
 
-    return validateDomain(normalized, true);
-  };
+// Digits and dots, or hex digits around a colon. No domain condition looks like
+// this - a domain ends in a label that is not a number, and a prefix is spelled
+// with letters that are not hex digits - so such an entry is read as an address,
+// and a mistyped one is told what an address needs.
+const ADDRESS_SHAPE = /^[\d.]+(?:\/.*)?$|^[\da-f]*:[\da-f:.]*(?:\/.*)?$/i;
 
-  return analyzeTextListValue(
+function validateDomainName(domain: string): ValidationResult {
+  const normalized = `${domain || ''}`.trim();
+  if (normalized.includes('/')) {
+    return { valid: false, message: _('Invalid domain address') };
+  }
+
+  return validateDomain(normalized, true);
+}
+
+function validateDomainCondition(item: string): ValidationResult {
+  const colonIndex = item.indexOf(':');
+  const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : '';
+  const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
+
+  if (!prefix) {
+    return validateDomainName(body);
+  }
+
+  if (!['full', 'keyword', 'regex'].includes(prefix)) {
+    return {
+      valid: false,
+      message: _('Allowed domain prefixes are full:, keyword:, and regex:'),
+    };
+  }
+
+  if (!body.length) {
+    return { valid: false, message: _('Value cannot be empty') };
+  }
+
+  if (prefix === 'full') {
+    return validateDomainName(body);
+  }
+
+  if (prefix === 'keyword') {
+    const validation = validateKeyword(body);
+    return validation === true
+      ? { valid: true, message: _('Valid') }
+      : { valid: false, message: validation };
+  }
+
+  if (/[,\s]/.test(body)) {
+    return {
+      valid: false,
+      message: _('Regular expression must not contain spaces or commas'),
+    };
+  }
+
+  const validation = validateRegex(body);
+  return validation === true
+    ? { valid: true, message: _('Valid') }
+    : { valid: false, message: validation };
+}
+
+function analyzeConditionText(
+  value: unknown,
+  validateItem: TextItemValidator,
+  emptyMessage: string,
+) {
+  return analyzeTextListValue(value, validateItem, emptyMessage, {
+    normalizeDuplicateValue: (item) => `${item}`.toLowerCase(),
+  });
+}
+
+export function analyzeDestinationText(value: unknown) {
+  return analyzeConditionText(
     value,
-    (item) => {
-      const colonIndex = item.indexOf(':');
-      const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : '';
-      const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
+    (item) =>
+      ADDRESS_SHAPE.test(item)
+        ? validateSubnet(item)
+        : validateDomainCondition(item),
+    _('At least one valid domain, IP or subnet must be specified.'),
+  );
+}
 
-      if (!prefix) {
-        return validateDomainCondition(body);
-      }
-
-      if (!['full', 'keyword', 'regex'].includes(prefix)) {
-        return {
-          valid: false,
-          message: _('Allowed domain prefixes are full:, keyword:, and regex:'),
-        };
-      }
-
-      if (!body.length) {
-        return { valid: false, message: _('Value cannot be empty') };
-      }
-
-      if (prefix === 'full') {
-        return validateDomainCondition(body);
-      }
-
-      if (prefix === 'keyword') {
-        const validation = validateKeyword(body);
-        return validation === true
-          ? { valid: true, message: _('Valid') }
-          : { valid: false, message: validation };
-      }
-
-      if (/[,\s]/.test(body)) {
-        return {
-          valid: false,
-          message: _('Regular expression must not contain spaces or commas'),
-        };
-      }
-
-      const validation = validateRegex(body);
-      return validation === true
-        ? { valid: true, message: _('Valid') }
-        : { valid: false, message: validation };
-    },
+export function analyzeDnsDestinationText(value: unknown) {
+  return analyzeConditionText(
+    value,
+    (item) =>
+      validateSubnet(item).valid
+        ? {
+            valid: false,
+            message: _('IP addresses cannot be used in a DNS section'),
+          }
+        : validateDomainCondition(item),
     _('At least one valid domain must be specified.'),
-    {
-      normalizeDuplicateValue: (item) => `${item}`.toLowerCase(),
-    },
-  );
-}
-
-function domainValuesWithPrefix(
-  section_id: string,
-  key: string,
-  prefix: string,
-) {
-  return getConfigListValues(section_id, key).map((value: string) =>
-    prefix ? `${prefix}:${value}` : value,
-  );
-}
-
-function domainTextValuesWithPrefix(
-  section_id: string,
-  key: string,
-  prefix: string,
-) {
-  const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-  if (!legacyText) {
-    return [];
-  }
-
-  return parseValueList(`${legacyText}`).map((value: string) =>
-    prefix ? `${prefix}:${value}` : value,
-  );
-}
-
-// Keeps the first spelling of a value and drops any later one that differs only
-// in case: a domain list is case insensitive, so two spellings are one entry.
-// The set is passed in so a caller can seed it with what the field already holds.
-function firstSpellingOf(seen: Set<string>) {
-  return (value: unknown) => {
-    const key = `${value}`.toLowerCase();
-    if (!key || seen.has(key)) {
-      return false;
-    }
-
-    seen.add(key);
-    return true;
-  };
-}
-
-function uniqueDomainTextValues(values: string[]) {
-  return values.filter(firstSpellingOf(new Set<string>()));
-}
-
-function appendUniqueDomainTextValues(textValue: unknown, values: string[]) {
-  const originalText = typeof textValue === 'string' ? textValue : '';
-  const seen = new Set(
-    parseValueList(originalText).map((value: unknown) =>
-      `${value}`.toLowerCase(),
-    ),
-  );
-  const additions = uniqueDomainTextValues(values).filter(
-    firstSpellingOf(seen),
-  );
-
-  if (!additions.length) {
-    return originalText;
-  }
-
-  const base = originalText.replace(/\s+$/, '');
-  return [base, ...additions].filter(Boolean).join('\n');
-}
-
-export function loadCombinedDomainText(section_id: string) {
-  const textValue =
-    uci.get(FORKOP_UCI_PACKAGE, section_id, 'domain') ||
-    uci.get(FORKOP_UCI_PACKAGE, section_id, 'domain_suffix_text');
-  const values = [
-    ...domainValuesWithPrefix(section_id, 'domain_suffix', ''),
-    ...domainValuesWithPrefix(section_id, 'domain_keyword', 'keyword'),
-    ...domainValuesWithPrefix(section_id, 'domain_regex', 'regex'),
-    ...domainTextValuesWithPrefix(section_id, 'domain_suffix', ''),
-    ...domainTextValuesWithPrefix(section_id, 'domain', 'full'),
-    ...domainTextValuesWithPrefix(section_id, 'domain_keyword', 'keyword'),
-    ...domainTextValuesWithPrefix(section_id, 'domain_regex', 'regex'),
-  ];
-
-  return appendUniqueDomainTextValues(textValue, values);
-}
-
-export function analyzeIpCidrText(value: unknown) {
-  return analyzeTextListValue(
-    value,
-    (item) => validateSubnet(item),
-    _('At least one valid IP or subnet must be specified.'),
-    {
-      normalizeDuplicateValue: (item) => `${item}`.trim(),
-    },
   );
 }
 
@@ -281,22 +227,13 @@ export function validatePortCondition(_section_id: string, value: unknown) {
   return true;
 }
 
-// One condition field of the Conditions tab: the uci option it writes, its
-// wording, and - for the text fields - how its contents are read, checked and
-// marked up.
+// One list field of the Conditions tab: the uci option it writes and its wording.
 interface ConditionFieldConfig {
   key: string;
   label: string;
   description?: string;
   placeholder?: string;
-  optionName?: string;
-  // A field that used to store its text under a different option; the value is
-  // still read from there for a configuration written before the rename.
-  legacyTextOptionName?: string;
   dynamicValidate?: OptionValidator;
-  textAnalyze?: TextAnalyzer;
-  loadText?: (sectionId: string) => string;
-  afterWrite?: (sectionId: string) => void;
 }
 
 // A condition list is stored as a uci list. An older layout wrote it into a
@@ -382,71 +319,30 @@ export function addLocalDeviceSubnetDynamicField(
   return o;
 }
 
-export function addTextConditionField(
+// The domains and addresses a section matches are one text in the destinations
+// option. A DNS section matches domains only and is shown a field of its own that
+// says so, so two fields edit the same text, and the hidden one leaves it alone.
+export function addDestinationField(
   section: CBISection,
-  config: ConditionFieldConfig,
+  name: string,
+  label: string,
+  placeholder: string,
+  analyze: TextAnalyzer,
 ) {
-  const optionName = config.optionName || `${config.key}_text`;
-  const legacyTextOptionName =
-    config.legacyTextOptionName || `${config.key}_text`;
-  const o = section.taboption(
-    'conditions',
-    form.TextValue,
-    optionName,
-    config.label,
-    config.description,
-  );
+  const o = section.taboption('conditions', form.TextValue, name, label);
 
+  o.ucioption = 'destinations';
+  o.retain = true;
   o.rows = 8;
   o.wrap = 'soft';
   o.textarea = true;
   o.modalonly = true;
-  o.placeholder = config.placeholder;
-  if (config.textAnalyze) {
-    const analyze = config.textAnalyze;
-    o.validate = function (_section_id: string, value: string) {
-      const analysis = analyze(value);
-      return analysis.valid ? true : `${analysis.message}`;
-    };
-  }
-  configureTextareaOption(o, config.textAnalyze);
-
-  o.load = function (section_id: string) {
-    if (typeof config.loadText === 'function') {
-      return config.loadText(section_id);
-    }
-
-    const textValue =
-      uci.get(FORKOP_UCI_PACKAGE, section_id, optionName) ||
-      uci.get(FORKOP_UCI_PACKAGE, section_id, legacyTextOptionName);
-    if (textValue) {
-      return valuesToText(textValue);
-    }
-
-    return valuesToText(uci.get(FORKOP_UCI_PACKAGE, section_id, config.key));
+  o.placeholder = placeholder;
+  o.validate = function (_section_id: string, value: string) {
+    const analysis = analyze(value);
+    return analysis.valid ? true : `${analysis.message}`;
   };
-
-  o.write = function (section_id: string, value: unknown) {
-    const normalized = value ? `${value}`.trim() : '';
-
-    if (normalized.length) {
-      uci.set(FORKOP_UCI_PACKAGE, section_id, optionName, normalized);
-    } else {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, optionName);
-    }
-
-    if (config.key !== optionName) {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, config.key);
-    }
-    if (legacyTextOptionName !== optionName) {
-      uci.unset(FORKOP_UCI_PACKAGE, section_id, legacyTextOptionName);
-    }
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${config.key}_text_mode`);
-
-    if (typeof config.afterWrite === 'function') {
-      config.afterWrite(section_id);
-    }
-  };
+  configureTextareaOption(o, analyze);
 
   return o;
 }

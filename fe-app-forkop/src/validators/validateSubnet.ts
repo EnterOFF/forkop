@@ -19,7 +19,7 @@ export function validateSubnet(value: string): ValidationResult {
   }
 
   if (cidr !== undefined) {
-    if (!cidr || !/^\d+$/.test(cidr)) {
+    if (!cidr || !/^(?:0|[1-9]\d*)$/.test(cidr)) {
       return {
         valid: false,
         message: _('Invalid CIDR prefix'),

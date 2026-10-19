@@ -11,10 +11,10 @@ import { validateOutboundJson } from '../../validators/validateOutboundJson';
 import { JSON_ENDPOINT_PLACEHOLDER } from '../../forkop/tabs/sections/constants';
 import { validateTunnelSettings } from '../../forkop/tabs/sections/tunnels/validate';
 import {
+  DESTINATION_CONDITION_PLACEHOLDER,
   DOMAIN_CONDITION_PLACEHOLDER,
-  IP_CONDITION_PLACEHOLDER,
-  analyzeDomainSuffixText,
-  analyzeIpCidrText,
+  analyzeDestinationText,
+  analyzeDnsDestinationText,
 } from '../../forkop/tabs/sections/conditions';
 import { JSON_OUTBOUND_PLACEHOLDER } from '../../forkop/tabs/sections/outboundJson';
 import { JSON_INBOUND_PLACEHOLDER } from '../../forkop/tabs/servers/form/identity';
@@ -28,13 +28,13 @@ import {
 function loadSection() {
   installUciStub();
   return {
+    DESTINATION_CONDITION_PLACEHOLDER,
     DOMAIN_CONDITION_PLACEHOLDER,
-    IP_CONDITION_PLACEHOLDER,
     JSON_ENDPOINT_PLACEHOLDER,
     JSON_OUTBOUND_PLACEHOLDER,
     OVERRIDE_PATCH_PLACEHOLDER,
-    analyzeDomainSuffixText,
-    analyzeIpCidrText,
+    analyzeDestinationText,
+    analyzeDnsDestinationText,
     reservedOverridePatchPath,
   };
 }
@@ -52,36 +52,42 @@ function loadSettings() {
 describe('condition placeholders', () => {
   const section = loadSection();
 
-  it('offers a domain example the domain analyzer accepts', () => {
-    const analysis = section.analyzeDomainSuffixText(
-      section.DOMAIN_CONDITION_PLACEHOLDER,
-    );
+  it.each([
+    [
+      'a routing',
+      'DESTINATION_CONDITION_PLACEHOLDER',
+      'analyzeDestinationText',
+    ],
+    ['a DNS', 'DOMAIN_CONDITION_PLACEHOLDER', 'analyzeDnsDestinationText'],
+  ])(
+    'offers %s section an example its field accepts',
+    (_kind, name, analyzer) => {
+      const analysis = section[analyzer](section[name]);
 
-    expect(analysis.message).toBe('');
-    expect(analysis.annotations).toEqual([]);
-    expect(analysis.valid).toBe(true);
-  });
+      expect(analysis.message).toBe('');
+      expect(analysis.annotations).toEqual([]);
+      expect(analysis.valid).toBe(true);
+    },
+  );
 
   it('shows every domain prefix the field understands', () => {
-    const prefixes = section.DOMAIN_CONDITION_PLACEHOLDER.split('\n')
-      .map((line) => line.split(':')[0])
-      .filter((prefix) => ['full', 'keyword', 'regex'].includes(prefix));
+    for (const placeholder of [
+      section.DESTINATION_CONDITION_PLACEHOLDER,
+      section.DOMAIN_CONDITION_PLACEHOLDER,
+    ]) {
+      const prefixes = placeholder
+        .split('\n')
+        .map((line) => line.split(':')[0])
+        .filter((prefix) => ['full', 'keyword', 'regex'].includes(prefix));
 
-    expect(prefixes.sort()).toEqual(['full', 'keyword', 'regex']);
+      expect(prefixes.sort()).toEqual(['full', 'keyword', 'regex']);
+    }
   });
 
-  it('offers an IP example the IP analyzer accepts', () => {
-    const analysis = section.analyzeIpCidrText(
-      section.IP_CONDITION_PLACEHOLDER,
-    );
-
-    expect(analysis.message).toBe('');
-    expect(analysis.annotations).toEqual([]);
-    expect(analysis.valid).toBe(true);
-  });
-
-  it('shows a bare address, an IPv4 subnet and an IPv6 subnet', () => {
-    expect(section.IP_CONDITION_PLACEHOLDER.split('\n')).toEqual([
+  it('shows a routing section a bare address, an IPv4 subnet and an IPv6 subnet', () => {
+    expect(
+      section.DESTINATION_CONDITION_PLACEHOLDER.split('\n').slice(-3),
+    ).toEqual([
       expect.not.stringContaining('/'),
       expect.stringMatching(/^\d+\.\d+\.\d+\.\d+\/\d+$/),
       expect.stringMatching(/^[0-9a-f:]+\/\d+$/),
