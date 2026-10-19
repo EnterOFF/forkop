@@ -5,7 +5,7 @@ import { runDnsCheck } from './checks/dns';
 import { runTrafficCheck } from './checks/traffic';
 import { runSectionsCheck } from './checks/sections';
 import { runServersCheck } from './checks/servers';
-import { CheckOutcome, skipped } from './checks/present';
+import { CheckOutcome, skipped, unanswered } from './checks/present';
 import { DIAGNOSTICS_CHECKS } from './checks/groups';
 import {
   createDiagnosticCheck,
@@ -705,11 +705,7 @@ async function runChecks() {
         setDiagnosticCheck(runner.code, await runner.run());
       } catch (e) {
         logger.error('[DIAGNOSTIC]', `runChecks - ${runner.code} failed`, e);
-        setDiagnosticCheck(runner.code, {
-          state: 'error',
-          description: _('Cannot receive checks result'),
-          items: [],
-        });
+        setDiagnosticCheck(runner.code, unanswered());
       }
     }
 

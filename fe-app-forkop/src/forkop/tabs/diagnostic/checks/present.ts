@@ -58,7 +58,7 @@ export function skipped(description: string): CheckOutcome {
 export function unanswered(): CheckOutcome {
   return {
     state: 'error',
-    description: _('Cannot receive checks result'),
+    description: _('Could not get the check results'),
     items: [],
   };
 }

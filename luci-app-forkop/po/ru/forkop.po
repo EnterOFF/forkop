@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 19:31+0300\n"
-"PO-Revision-Date: 2026-10-19 19:31+0300\n"
+"POT-Creation-Date: 2026-10-19 19:32+0300\n"
+"PO-Revision-Date: 2026-10-19 19:32+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -431,9 +431,6 @@ msgstr "Сертификат центра сертификации"
 msgid "Cache File Path"
 msgstr "Путь к файлу кэша"
 
-msgid "Cannot receive checks result"
-msgstr "Не удалось получить результаты проверки"
-
 msgid "Carry the traffic over the TLS connection without the faster DTLS channel, for a network that drops or slows UDP"
 msgstr "Передавать трафик через соединение TLS без более быстрого канала DTLS — для сети, которая теряет или замедляет UDP"
 
@@ -462,7 +459,7 @@ msgid "Check URL"
 msgstr "URL проверки"
 
 msgid "Checking, please wait"
-msgstr "Проверяем, пожалуйста подождите"
+msgstr "Проверяем, пожалуйста, подождите"
 
 msgid "Checks"
 msgstr "Проверки"
@@ -646,6 +643,9 @@ msgstr "Не удалось включить автостарт"
 
 msgid "Could not generate a Reality key pair"
 msgstr "Не удалось сгенерировать пару ключей Reality"
+
+msgid "Could not get the check results"
+msgstr "Не удалось получить результаты проверки"
 
 msgid "CPU"
 msgstr "Процессор"
@@ -1862,8 +1862,8 @@ msgstr "Укажите имя пользователя в его поле, а н
 msgid "QR code"
 msgstr "QR-код"
 
-msgid "ran out within a day, the kernel stopped %s"
-msgstr "за сутки кончалась, система завершила %s"
+msgid "ran out in the last day: the kernel killed %s"
+msgstr "заканчивалась за последние сутки: система завершила %s"
 
 msgid "Random server order"
 msgstr "Случайный порядок серверов"

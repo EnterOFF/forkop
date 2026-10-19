@@ -110,7 +110,7 @@ describe('the service check', () => {
       }),
     ).toMatchObject({
       state: 'warning',
-      value: 'ran out within a day, the kernel stopped sing-box ×2, nft',
+      value: 'ran out in the last day: the kernel killed sing-box ×2, nft',
     });
     expect(
       memory({ memory: { total_kb: 131072, available_kb: 10240 } }),

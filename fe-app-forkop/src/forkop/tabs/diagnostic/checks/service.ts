@@ -88,7 +88,7 @@ function memoryItem(data: Forkop.ServiceCheckResult) {
     return finding(
       'warning',
       key,
-      _('ran out within a day, the kernel stopped %s').format(killed),
+      _('ran out in the last day: the kernel killed %s').format(killed),
     );
   }
 

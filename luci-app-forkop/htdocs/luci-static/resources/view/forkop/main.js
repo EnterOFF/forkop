@@ -7081,7 +7081,7 @@ function skipped(description) {
 function unanswered() {
   return {
     state: "error",
-    description: _("Cannot receive checks result"),
+    description: _("Could not get the check results"),
     items: []
   };
 }
@@ -7146,7 +7146,7 @@ function memoryItem(data) {
     return finding(
       "warning",
       key,
-      _("ran out within a day, the kernel stopped %s").format(killed)
+      _("ran out in the last day: the kernel killed %s").format(killed)
     );
   }
   if (data.memory.total_kb > 0 && data.memory.available_kb < data.memory.total_kb * LOW_MEMORY_SHARE) {
@@ -8364,11 +8364,7 @@ async function runChecks() {
         setDiagnosticCheck(runner.code, await runner.run());
       } catch (e) {
         logger.error("[DIAGNOSTIC]", `runChecks - ${runner.code} failed`, e);
-        setDiagnosticCheck(runner.code, {
-          state: "error",
-          description: _("Cannot receive checks result"),
-          items: []
-        });
+        setDiagnosticCheck(runner.code, unanswered());
       }
     }
     finished = { service: runServiceData };
