@@ -10,6 +10,7 @@ import { mountTabOption } from '../tabs/mountTab';
 import {
   configureSectionSection,
   createSectionContent,
+  registerSectionDialog,
 } from '../tabs/sections';
 import {
   configureServerSection,
@@ -81,6 +82,9 @@ export const ForkopView = {
     };
     configureSectionSection(rulesSection);
     createSectionContent(rulesSection);
+    registerSectionDialog((sectionId) =>
+      rulesSection.renderMoreOptionsModal(sectionId),
+    );
 
     const serverSection = forkopMap.section(
       form.GridSection,

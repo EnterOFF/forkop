@@ -1219,4 +1219,100 @@ describe('renderSections header', () => {
     expect(labels).not.toContain('Update subscriptions');
     expect(labels).not.toContain('Update lists');
   });
+
+  async function header(
+    props: Partial<{
+      collapsible: boolean;
+      collapsed: boolean;
+      onCollapsedChange: (sectionName: string, collapsed: boolean) => void;
+      onEditSection: (sectionName: string) => void;
+    }>,
+  ) {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    const root = renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'main-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [node('main/Node', true), node('main/Other', false)],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      latencyFetching: false,
+      ...props,
+    }) as unknown as FakeNode;
+    return findNode(root, (candidate) =>
+      String(candidate.attrs.class || '')
+        .split(' ')
+        .includes('fkp_dashboard-page__outbound-section__title-section'),
+    ) as FakeNode;
+  }
+
+  function select(collapsed: boolean) {
+    vi.stubGlobal('window', {
+      getSelection: () => ({ isCollapsed: collapsed }),
+    });
+  }
+
+  it('folds from anywhere on the header, not only from the chevron', async () => {
+    const onCollapsedChange = vi.fn();
+    select(true);
+
+    (
+      (await header({ collapsible: true, onCollapsedChange })).attrs
+        .click as () => void
+    )();
+    (
+      (await header({ collapsible: true, collapsed: true, onCollapsedChange }))
+        .attrs.click as () => void
+    )();
+
+    expect(onCollapsedChange.mock.calls).toEqual([
+      ['main', true],
+      ['main', false],
+    ]);
+    expect(
+      (await header({ collapsible: false, onCollapsedChange })).attrs.click,
+    ).toBeUndefined();
+  });
+
+  it('leaves a click that ends a text selection alone', async () => {
+    const onCollapsedChange = vi.fn();
+    select(false);
+
+    (
+      (await header({ collapsible: true, onCollapsedChange })).attrs
+        .click as () => void
+    )();
+
+    expect(onCollapsedChange).not.toHaveBeenCalled();
+  });
+
+  it("opens the section's own dialog from its gear without folding it", async () => {
+    const onEditSection = vi.fn();
+    const root = await header({ collapsible: true, onEditSection });
+    const gear = findNode(root, (candidate) =>
+      String(candidate.attrs.class || '').includes(
+        'fkp_dashboard-page__outbound-section__edit',
+      ),
+    );
+    const event = {
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    } as unknown as MouseEvent;
+
+    (gear?.attrs.click as (event: MouseEvent) => void)(event);
+
+    expect(onEditSection).toHaveBeenCalledWith('main');
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(gear?.attrs['aria-label']).toBe('Edit');
+  });
 });

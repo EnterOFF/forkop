@@ -114,6 +114,10 @@ export const styles = `
     background: var(--background-color-low, lightgray);
 }
 
+.fkp_dashboard-page__outbound-section__title-section--foldable {
+    cursor: pointer;
+}
+
 .fkp_dashboard-page__outbound-section__heading {
     flex: 1 1 auto;
     display: flex;
@@ -160,7 +164,8 @@ export const styles = `
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency,
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency {
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__edit {
     width: 28px;
     height: 28px;
     min-width: 28px;
@@ -173,7 +178,8 @@ export const styles = `
 }
 
 .fkp_dashboard-page__outbound-section__sort-by-latency svg,
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__edit svg {
     width: 15px;
     height: 15px;
     display: block;
@@ -200,12 +206,16 @@ export const styles = `
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
-    color: var(--text-color-medium, inherit);
+    color: inherit;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:hover,
+/* The whole header folds the section, so hovering anywhere on it lights the
+   chevron, in the header's own text colour rather than an accent. */
+.fkp_dashboard-page__outbound-section__title-section--foldable:hover .btn.fkp_dashboard-page__outbound-section__collapse,
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:focus-visible {
-    color: var(--primary-color-high, #337ab7);
+    opacity: 1;
 }
 
 .fkp_dashboard-page__outbound-section__collapse svg {
