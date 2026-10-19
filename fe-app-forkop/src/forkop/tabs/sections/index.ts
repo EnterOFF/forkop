@@ -11,4 +11,3 @@
 
 export { createSectionContent } from './form';
 export { configureSectionSection } from './table';
-export { openSectionDialog, registerSectionDialog } from './sectionDialog';

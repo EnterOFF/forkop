@@ -1225,7 +1225,6 @@ describe('renderSections header', () => {
       collapsible: boolean;
       collapsed: boolean;
       onCollapsedChange: (sectionName: string, collapsed: boolean) => void;
-      onEditSection: (sectionName: string) => void;
     }>,
   ) {
     installElementFactory();
@@ -1294,25 +1293,5 @@ describe('renderSections header', () => {
     )();
 
     expect(onCollapsedChange).not.toHaveBeenCalled();
-  });
-
-  it("opens the section's own dialog from its gear without folding it", async () => {
-    const onEditSection = vi.fn();
-    const root = await header({ collapsible: true, onEditSection });
-    const gear = findNode(root, (candidate) =>
-      String(candidate.attrs.class || '').includes(
-        'fkp_dashboard-page__outbound-section__edit',
-      ),
-    );
-    const event = {
-      preventDefault: vi.fn(),
-      stopPropagation: vi.fn(),
-    } as unknown as MouseEvent;
-
-    (gear?.attrs.click as (event: MouseEvent) => void)(event);
-
-    expect(onEditSection).toHaveBeenCalledWith('main');
-    expect(event.stopPropagation).toHaveBeenCalledOnce();
-    expect(gear?.attrs['aria-label']).toBe('Edit');
   });
 });

@@ -1,9 +1,7 @@
 import { latencyClassName } from '../latencyClassName';
 import { sectionLatencyTarget } from '../sectionLatencyTarget';
-import { getRuleEditButtonText } from '../../../cbi/grid';
 import {
   renderChevronUpIcon24,
-  renderCogIcon24,
   renderLoaderCircleIcon24,
   renderCopyIcon24,
   renderInfoIcon24,
@@ -36,7 +34,6 @@ interface IRenderSectionsProps {
   onShowFallbackInfo: (outbound: Forkop.Outbound) => void;
   onSortByLatencyChange?: (sectionName: string, enabled: boolean) => void;
   onCollapsedChange?: (sectionName: string, collapsed: boolean) => void;
-  onEditSection?: (sectionName: string) => void;
   latencyFetching: boolean;
   latencyFetchingTargets?: Set<string>;
   sortByLatency?: boolean;
@@ -261,7 +258,6 @@ function renderDefaultState({
   onTestOutboundLatency,
   onSortByLatencyChange,
   onCollapsedChange,
-  onEditSection,
   latencyFetching,
   latencyFetchingTargets = new Set(),
   sortByLatency,
@@ -530,25 +526,6 @@ function renderDefaultState({
       ])
     : undefined;
 
-  const editLabel = getRuleEditButtonText();
-  const editAction = onEditSection
-    ? E(
-        'button',
-        {
-          type: 'button',
-          class: 'btn fkp_dashboard-page__outbound-section__edit',
-          title: editLabel,
-          'aria-label': editLabel,
-          click: (event: MouseEvent) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onEditSection(section.sectionName);
-          },
-        },
-        renderCogIcon24(),
-      )
-    : undefined;
-
   // The whole header is the fold's target, not only the chevron in it: the
   // buttons on it keep their clicks to themselves, and a click that ends a
   // text selection was not meant for it.
@@ -601,7 +578,6 @@ function renderDefaultState({
             },
             latencyFetching ? renderLoaderCircleIcon24() : renderGaugeIcon24(),
           ),
-          ...(editAction ? [editAction] : []),
         ],
       ),
     ]),

@@ -121,32 +121,6 @@ function sectionLatencyTarget(section) {
   return outbound ? { type: "proxy", tag: outbound.code } : void 0;
 }
 
-// src/forkop/cbi/grid.ts
-var GRID_SWITCH_COLUMN_WIDTH = "6rem";
-var GRID_KIND_COLUMN_WIDTH = "8rem";
-function getRuleEditButtonText() {
-  const label = _("Edit rule action");
-  return label === "Edit rule action" ? "Edit" : label;
-}
-function loadVisibleTableOptions(sectionRef) {
-  const tasks = [];
-  sectionRef.cfgsections().forEach((sectionId) => {
-    sectionRef.children.forEach((option2) => {
-      if (option2.disable || option2.modalonly) {
-        return;
-      }
-      tasks.push(
-        Promise.resolve(option2.load.call(option2, sectionId)).then(
-          (value) => {
-            option2.cfgvalue(sectionId, value);
-          }
-        )
-      );
-    });
-  });
-  return Promise.all(tasks);
-}
-
 // src/helpers/spinPhase.ts
 var SPIN_PERIOD_MS = 1e3;
 function spinPhaseDelayMs(now) {
@@ -1045,7 +1019,6 @@ function renderDefaultState({
   onTestOutboundLatency,
   onSortByLatencyChange,
   onCollapsedChange,
-  onEditSection,
   latencyFetching,
   latencyFetchingTargets = /* @__PURE__ */ new Set(),
   sortByLatency,
@@ -1245,22 +1218,6 @@ function renderDefaultState({
       )
     ] : []
   ]) : void 0;
-  const editLabel = getRuleEditButtonText();
-  const editAction = onEditSection ? textE(
-    "button",
-    {
-      type: "button",
-      class: "btn fkp_dashboard-page__outbound-section__edit",
-      title: editLabel,
-      "aria-label": editLabel,
-      click: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onEditSection(section.sectionName);
-      }
-    },
-    renderCogIcon24()
-  ) : void 0;
   const headerFold = collapsible ? {
     class: "fkp_dashboard-page__outbound-section__title-section fkp_dashboard-page__outbound-section__title-section--foldable",
     click: () => {
@@ -1305,8 +1262,7 @@ function renderDefaultState({
               }
             },
             latencyFetching ? renderLoaderCircleIcon24() : renderGaugeIcon24()
-          ),
-          ...editAction ? [editAction] : []
+          )
         ]
       )
     ]),
@@ -4821,15 +4777,6 @@ var SocketManager = class _SocketManager {
 };
 var socket = SocketManager.getInstance();
 
-// src/forkop/tabs/sections/sectionDialog.ts
-var openDialog = null;
-function registerSectionDialog(open) {
-  openDialog = open;
-}
-function openSectionDialog(sectionId) {
-  return openDialog ? openDialog(sectionId) : Promise.resolve();
-}
-
 // src/forkop/methods/custom/getClashApiSecret.ts
 async function getClashApiSecret2() {
   const sections = await getConfigSections();
@@ -6168,9 +6115,6 @@ async function renderSectionsWidget() {
       collapsible,
       collapsed: collapsedSections.has(section.sectionName),
       onCollapsedChange: handleCollapsedChange,
-      onEditSection: (sectionName) => {
-        void openSectionDialog(sectionName);
-      },
       latencyFetching: latencyRequests.has(
         sectionLatencyRequestKey(section.sectionName)
       ),
@@ -6596,8 +6540,7 @@ var styles3 = `
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency,
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__edit {
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency {
     width: 28px;
     height: 28px;
     min-width: 28px;
@@ -6610,8 +6553,7 @@ var styles3 = `
 }
 
 .fkp_dashboard-page__outbound-section__sort-by-latency svg,
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__edit svg {
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
     width: 15px;
     height: 15px;
     display: block;
@@ -12368,6 +12310,32 @@ function configureDnsQueryMode(modeOption, dnsServerOptionName, options = {}) {
     );
     return satisfied && siblingValues(this.map, dnsServerOptionName, section_id).length > 1;
   };
+}
+
+// src/forkop/cbi/grid.ts
+var GRID_SWITCH_COLUMN_WIDTH = "6rem";
+var GRID_KIND_COLUMN_WIDTH = "8rem";
+function getRuleEditButtonText() {
+  const label = _("Edit rule action");
+  return label === "Edit rule action" ? "Edit" : label;
+}
+function loadVisibleTableOptions(sectionRef) {
+  const tasks = [];
+  sectionRef.cfgsections().forEach((sectionId) => {
+    sectionRef.children.forEach((option2) => {
+      if (option2.disable || option2.modalonly) {
+        return;
+      }
+      tasks.push(
+        Promise.resolve(option2.load.call(option2, sectionId)).then(
+          (value) => {
+            option2.cfgvalue(sectionId, value);
+          }
+        )
+      );
+    });
+  });
+  return Promise.all(tasks);
 }
 
 // src/forkop/cbi/dynamicList.ts
@@ -27371,9 +27339,6 @@ var ForkopView = {
     };
     configureSectionSection(rulesSection);
     createSectionContent(rulesSection);
-    registerSectionDialog(
-      (sectionId) => rulesSection.renderMoreOptionsModal(sectionId)
-    );
     const serverSection = forkopMap.section(
       form.GridSection,
       "server",

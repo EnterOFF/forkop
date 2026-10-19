@@ -20,7 +20,6 @@ import {
   renderWidget,
 } from './partials';
 import { sectionLatencyTarget } from './sectionLatencyTarget';
-import { openSectionDialog } from '../sections/sectionDialog';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { resetClashApiTransport } from '../../methods/custom/clashApi';
 import { Forkop } from '../../types';
@@ -1587,9 +1586,6 @@ async function renderSectionsWidget() {
       collapsible,
       collapsed: collapsedSections.has(section.sectionName),
       onCollapsedChange: handleCollapsedChange,
-      onEditSection: (sectionName) => {
-        void openSectionDialog(sectionName);
-      },
       latencyFetching: latencyRequests.has(
         sectionLatencyRequestKey(section.sectionName),
       ),

@@ -164,8 +164,7 @@ export const styles = `
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency,
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__edit {
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency {
     width: 28px;
     height: 28px;
     min-width: 28px;
@@ -178,8 +177,7 @@ export const styles = `
 }
 
 .fkp_dashboard-page__outbound-section__sort-by-latency svg,
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__edit svg {
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
     width: 15px;
     height: 15px;
     display: block;
