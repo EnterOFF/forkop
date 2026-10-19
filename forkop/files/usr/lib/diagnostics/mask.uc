@@ -63,6 +63,7 @@ function forkop_config_line(line) {
     line = mask_after_token(line, "list subscription_urls");
     line = mask_after_token(line, "list urltest_proxy_links");
     line = mask_after_token(line, "list selector_proxy_links");
+    line = mask_after_token_space(line, "option uri");
     for (let token in MULTILINE_OPTIONS)
         line = mask_after_token_space(line, token);
     line = mask_after_token_space(line, "list domain");

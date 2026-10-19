@@ -45,12 +45,6 @@ function getOutboundDetourTargetSections(currentSectionId: string) {
   );
 }
 
-export function getDefaultOutboundDetourSection(currentSectionId: string) {
-  const targetSections = getOutboundDetourTargetSections(currentSectionId);
-
-  return targetSections.length ? getUciSectionName(targetSections[0]) : '';
-}
-
 export function refreshOutboundDetourSectionOptionValues(
   option: CBIOption,
   sectionId: string,

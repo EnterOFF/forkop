@@ -199,6 +199,12 @@ describe('the draft names of a section', () => {
         name: 'lan1',
         display_name: 'Renamed interface',
       },
+      saved_link: {
+        '.type': 'connection_link',
+        section: 'main',
+        uri: 'vless://saved.test#Fragment',
+        name: 'Stored name',
+      },
     });
 
     const interfaceOption = {
@@ -206,9 +212,8 @@ describe('the draft names of a section', () => {
       formvalue: () => values.interfaces || [],
     };
     outboundNameSourceOptions.set('interfaces', interfaceOption);
-    outboundNameSourceOptions.set('selector_proxy_links', {
-      formvalue: () => values.selector_proxy_links || [],
-    });
+    const linkOption = { formvalue: () => values.connection_link || [] };
+    outboundNameSourceOptions.set('connection_link', linkOption);
     outboundNameSourceOptions.set('outbound_jsons', {
       formvalue: () => values.outbound_jsons || [],
     });
@@ -221,12 +226,21 @@ describe('the draft names of a section', () => {
       interfaceOption as unknown as CBIOption,
       'main',
     ).new_interface = { display_name: 'Draft interface' };
+    // A pasted link whose dialog gave it another name than the link carries.
+    childPendingSettingsStore(linkOption as unknown as CBIOption, 'main')[
+      'vless://renamed.test#Draft%20URL'
+    ] = { name: 'Renamed draft' };
 
     return values;
   }
 
   const SOURCES = {
-    selector_proxy_links: ['vless://example.test#Draft%20URL'],
+    connection_link: [
+      'saved_link',
+      'vless://renamed.test#Draft%20URL',
+      'vless://example.test#Draft%20URL',
+      'trojan://unnamed.test',
+    ],
     interfaces: ['saved_interface', 'new_interface'],
     outbound_jsons: [
       '{"type":"socks","tag":"Leaf JSON"}',
@@ -239,7 +253,10 @@ describe('the draft names of a section', () => {
     sectionWithDrafts({ ...SOURCES });
 
     expect(currentDraftOutboundNames('main')).toEqual([
+      'Stored name',
+      'Renamed draft',
       'Draft URL',
+      'Node #4',
       'Renamed interface',
       'Draft interface',
       'Leaf JSON',
@@ -249,7 +266,7 @@ describe('the draft names of a section', () => {
   it('drop an unsaved URL the moment it is deleted', () => {
     const values = sectionWithDrafts({
       ...SOURCES,
-      selector_proxy_links: [],
+      connection_link: [],
     });
     void values;
 
@@ -284,7 +301,7 @@ describe('currentLiveDynamicListValues', () => {
       querySelectorAll: () => [],
       querySelector: () => null,
     };
-    outboundNameSourceOptions.set('selector_proxy_links', {
+    outboundNameSourceOptions.set('connection_link', {
       liveDynamicListNodes: new Map([['main', node]]),
     });
     (globalThis as unknown as Record<string, unknown>).document = {
@@ -293,18 +310,14 @@ describe('currentLiveDynamicListValues', () => {
       },
     };
 
-    expect(
-      currentLiveDynamicListValues('main', 'selector_proxy_links'),
-    ).toEqual([]);
+    expect(currentLiveDynamicListValues('main', 'connection_link')).toEqual([]);
   });
 
   it('answers nothing at all once the tracked widget is unmounted', () => {
-    outboundNameSourceOptions.set('selector_proxy_links', {
+    outboundNameSourceOptions.set('connection_link', {
       liveDynamicListNodes: new Map([['main', { isConnected: false }]]),
     });
 
-    expect(currentLiveDynamicListValues('main', 'selector_proxy_links')).toBe(
-      null,
-    );
+    expect(currentLiveDynamicListValues('main', 'connection_link')).toBe(null);
   });
 });

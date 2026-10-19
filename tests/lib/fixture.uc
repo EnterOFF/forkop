@@ -4,11 +4,36 @@
 
 let uci = require("uci");
 let core_uci = require("core.uci");
+let core_url = require("core.url");
 
 const TYPES = [
     "settings", "section", "server", "server_client", "subscription_url", "section_interface",
-    "urltest", "fallback_group", "fallback_level", "tunnel", "tunnel_peer"
+    "connection_link", "urltest", "fallback_group", "fallback_level", "tunnel", "tunnel_peer"
 ];
+
+// The connection_link children a section dials, named the way the page names a
+// pasted link: after the link itself, or "Node #N" by its position, and "#2" on
+// for a name an earlier link already took.
+function links(section_name, uris, extra) {
+    let result = [];
+    let taken = {};
+    for (let i = 0; i < length(uris); i++) {
+        let base = core_url.link_name(uris[i]) || "Node #" + (i + 1);
+        let name = base;
+        for (let number = 2; taken[name]; number++)
+            name = base + " #" + number;
+        taken[name] = true;
+        push(result, {
+            ".name": section_name + "_link" + (i + 1),
+            section: section_name,
+            uri: uris[i],
+            name,
+            order: "" + i,
+            ...(extra ?? {})
+        });
+    }
+    return result;
+}
 
 function listed(data, type_name) {
     let value = data[type_name] ?? data[type_name + "s"];
@@ -46,4 +71,4 @@ function settings(extra) {
     };
 }
 
-return { seed, settings };
+return { seed, settings, links };

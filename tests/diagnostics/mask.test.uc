@@ -9,12 +9,13 @@ t.test("the masked Forkop configuration keeps its shape and loses every secret",
         "        option section 'tunnels'\n        option kind 'tailscale'\n        option tailscale_auth_key 'tskey-secret'\n" +
         "        option warp_profile_auth_token 'warp-token-secret'\n        option warp_profile_private_key 'warp-private-secret'\n" +
         "        option warp_profile_license_key 'warp-license-secret'\nconfig tunnel_peer 'peer_tailnet'\n" +
-        "        option tunnel 'tun_tailnet'\n        option pre_shared_key 'peer-secret'\n");
+        "        option tunnel 'tun_tailnet'\n        option pre_shared_key 'peer-secret'\n" +
+        "config connection_link 'link_1'\n        option uri 'trojan://link-secret@example.com:443#Node'\n        option name 'Node'\n");
     for (let secret in [ "device-secret", "vless://secret", "token=secret", "user:password", "header-secret", "tskey-secret",
-        "warp-token-secret", "warp-private-secret", "warp-license-secret", "peer-secret" ])
+        "warp-token-secret", "warp-private-secret", "warp-license-secret", "peer-secret", "link-secret" ])
         t.excludes(masked, secret);
     for (let kept in [ "list header 'MASKED'", "option hwid 'MASKED'", "option url 'MASKED'", "option tailscale_auth_key 'MASKED'",
-        "option warp_profile_auth_token 'MASKED'", "option pre_shared_key 'MASKED'" ])
+        "option warp_profile_auth_token 'MASKED'", "option pre_shared_key 'MASKED'", "option uri 'MASKED'", "option name 'Node'" ])
         t.contains(masked, kept);
 });
 

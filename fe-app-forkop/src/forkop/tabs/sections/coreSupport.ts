@@ -1,5 +1,4 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
-import { getConfigListValues } from '../../cbi/uci';
 import {
   coreFeatureOfType,
   coreHas,
@@ -67,11 +66,13 @@ export function sectionMissingCoreFeatures(sectionId: string) {
         missing.add(feature);
       }
     });
-  getConfigListValues(sectionId, 'selector_proxy_links').forEach((link) =>
-    linkCoreFeatures(link)
-      .filter((feature) => !coreHas(feature))
-      .forEach((feature) => missing.add(feature)),
-  );
+  (uci.sections(FORKOP_UCI_PACKAGE, 'connection_link') || [])
+    .filter((link) => link.section === sectionId)
+    .forEach((link) =>
+      linkCoreFeatures(`${link.uri || ''}`)
+        .filter((feature) => !coreHas(feature))
+        .forEach((feature) => missing.add(feature)),
+    );
   return [...missing];
 }
 

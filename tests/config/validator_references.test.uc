@@ -1,31 +1,77 @@
 let t = require("t");
 let v = require("validation");
+let fixture = require("fixture");
 
 function section(name, action, extra) {
     return { ".name": name, enabled: "1", action, ...(extra ?? {}) };
 }
 
-// A server of its own, which is what makes a section carry traffic at all.
-const SERVED = { selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] };
-
-function cascade(from, to) {
-    return { ...SERVED, outbound_detour_enabled: "1", outbound_detour_section: to };
+// A server of its own for each section named, which is what makes a section
+// carry traffic at all.
+function served(names) {
+    let result = [];
+    for (let name in names)
+        push(result, ...fixture.links(name, [ "socks://127.0.0.1:1080#one" ]));
+    return result;
 }
 
-t.test("a cascade points at another enabled Connection section with servers, without a cycle", () => {
-    v.accepts({ section: [ section("source", "connection", cascade("source", "target")), section("target", "connection", SERVED) ] });
-    v.refuses({ section: [ section("source", "zapret", cascade("source", "target")), section("target", "connection", SERVED) ] },
-        "An outbound cascade needs a Connection section");
-    v.refuses({ section: [ section("source", "connection", cascade("source", "missing")) ] }, "points to section 'missing', which does not exist");
-    v.refuses({ section: [ section("source", "connection", cascade("source", "target")), section("target", "connection", { ...SERVED, enabled: "0" }) ] },
+// A section whose one link goes through another section.
+function through(name, target) {
+    return fixture.links(name, [ "socks://127.0.0.1:1080#one" ], { detour_section: target });
+}
+
+const WG_KEY = "zz5/p+jwYqPFlg9mWcOP5ad8xXa4XfOOlrzouVD6E1w=";
+
+t.test("a cascade points at another enabled Connection section with servers", () => {
+    let source = section("source", "connection");
+    let target = section("target", "connection");
+    v.accepts({ section: [ source, target ], connection_link: [ ...through("source", "target"), ...served([ "target" ]) ] });
+    v.refuses({ section: [ source ], connection_link: through("source", "missing") },
+        "The cascade of link 'one' in section 'source' points to section 'missing', which does not exist");
+    v.refuses({ section: [ source, { ...target, enabled: "0" } ], connection_link: [ ...through("source", "target"), ...served([ "target" ]) ] },
         "points to section 'target', which is disabled");
-    v.refuses({ section: [ section("source", "connection", cascade("source", "target")), section("target", "zapret") ] },
+    v.refuses({ section: [ source, section("target", "zapret") ], connection_link: through("source", "target") },
         "points to section 'target', whose action is 'zapret'");
-    v.refuses({ section: [ section("source", "connection", cascade("source", "target")), section("target", "connection") ] },
+    v.refuses({ section: [ source, target ], connection_link: through("source", "target") },
         "points to section 'target', which has no servers");
-    v.refuses({ section: [ section("source", "connection", cascade("source", "source")) ] }, "cannot point to its own section");
-    v.refuses({ section: [ section("first", "connection", cascade("first", "second")), section("second", "connection", cascade("second", "first")) ] },
+    v.refuses({ section: [ source ], connection_link: through("source", "source") },
+        "The cascade of link 'one' in section 'source' cannot point to its own section");
+    v.accepts({ section: [ section("source", "bypass"), target ], connection_link: [ ...through("source", "missing"), ...served([ "target" ]) ] });
+    v.accepts({ section: [ { ...source, enabled: "0" }, target ], connection_link: [ ...through("source", "missing"), ...served([ "target" ]) ] });
+});
+
+t.test("a subscription and a tunnel name their cascade the same way", () => {
+    let sections = [ section("source", "connection"), section("target", "connection") ];
+    v.refuses({ section: sections, connection_link: served([ "source" ]),
+        subscription_url: [ { ".name": "sub", section: "source", url: "https://sub.example/s", tag: "sub1", detour_section: "target" } ] },
+        "The cascade of subscription 'sub1' in section 'source' points to section 'target', which has no servers");
+    v.refuses({ section: sections, connection_link: served([ "source" ]),
+        tunnel: [ { ".name": "tun", section: "source", kind: "warp", name: "WARP", warp_profile_id: "id",
+            warp_profile_auth_token: "token", warp_profile_private_key: WG_KEY, detour_section: "target" } ] },
+        "The cascade of tunnel 'WARP' in section 'source' points to section 'target', which has no servers");
+    v.accepts({ section: sections, connection_link: served([ "source" ]),
+        tunnel: [ { ".name": "tun", section: "source", kind: "json", endpoint_json: "{\"type\":\"wireguard\",\"tag\":\"own\"}",
+            detour_section: "target" } ] });
+});
+
+// A section's selector holds the server that goes through another section, so
+// that section reaching back to the first one through any of its servers is a
+// loop sing-box refuses to start with.
+t.test("a cascade never leads back to its own section", () => {
+    let first = section("first", "connection");
+    let second = section("second", "connection");
+    let third = section("third", "connection");
+    v.refuses({ section: [ first, second ], connection_link: [ ...through("first", "second"), ...through("second", "first") ] },
         "loops back through section 'second'");
+    v.refuses({ section: [ first, second, third ],
+        connection_link: [ ...through("first", "second"), ...through("second", "third"), ...through("third", "first") ] },
+        "loops back through section 'second'");
+    v.refuses({ section: [ first, second ], connection_link: [ ...through("first", "second"), ...served([ "second" ]) ],
+        tunnel: [ { ".name": "ts", section: "second", kind: "tailscale", name: "Tailnet", tailscale_auth_key: "tskey",
+            tailscale_hostname: "router", tailscale_detour_section: "first" } ] },
+        "loops back through section 'second'");
+    v.accepts({ section: [ first, second, third ],
+        connection_link: [ ...through("first", "third"), ...through("second", "third"), ...served([ "third" ]) ] });
 });
 
 // The runtime leaves out a Connection section without servers, so everything
@@ -57,13 +103,13 @@ function download_through(target, sections) {
 }
 
 t.test("downloads go through an enabled section with servers", () => {
-    let served = { proxy: { selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] }, outbound: { outbound_json: "{\"type\":\"direct\"}" } };
-    for (let action, sources in served)
-        v.accepts(download_through(action, [ section(action, action, sources) ]));
+    v.accepts({ ...download_through("proxy", [ section("proxy", "proxy") ]), connection_link: served([ "proxy" ]) });
+    v.accepts(download_through("outbound", [ section("outbound", "outbound", { outbound_json: "{\"type\":\"direct\"}" }) ]));
     v.accepts({ ...download_through("vpn", [ section("vpn", "vpn") ]), section_interface: [ { ".name": "vpn_wg0", section: "vpn", name: "wg0" } ] });
     v.refuses(download_through("", [ section("proxy", "proxy") ]), "no download section is selected");
     v.refuses(download_through("missing", [ section("proxy", "proxy") ]), "points to section 'missing', which does not exist");
-    v.refuses(download_through("proxy", [ section("proxy", "proxy", { ...served.proxy, enabled: "0" }) ]), "points to section 'proxy', which is disabled");
+    v.refuses({ ...download_through("proxy", [ section("proxy", "proxy", { enabled: "0" }) ]), connection_link: served([ "proxy" ]) },
+        "points to section 'proxy', which is disabled");
     v.refuses(download_through("bypass", [ section("bypass", "bypass") ]), "whose action is 'bypass'");
 });
 

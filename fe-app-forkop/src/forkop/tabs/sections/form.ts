@@ -1,7 +1,6 @@
 import { renderChildItemLabel } from '../../cbi/listItems';
 import { FORKOP_UCI_PACKAGE, RESERVED_RUNTIME_TAGS } from '../../../constants';
 import { validateOutboundJson } from '../../../validators/validateOutboundJson';
-import { validateProxyUrl } from '../../../validators/validateProxyUrl';
 import {
   childItemInputValue,
   getChildItemIds,
@@ -42,11 +41,7 @@ import {
   validatePortCondition,
 } from './conditions';
 import { RULE_SET_ITEM_SETTINGS_KEY } from './constants';
-import {
-  connectionUriDescription,
-  tunnelKindAvailable,
-  validateConnectionUriCore,
-} from './coreSupport';
+import { connectionUriDescription } from './coreSupport';
 import {
   fallbackGroupChildDefaults,
   removeFallbackLevels,
@@ -59,6 +54,13 @@ import {
   showInterfaceSettingsModal,
 } from './interfaces';
 import {
+  connectionLinkListItemLabel,
+  forgetRemovedLinkDrafts,
+  savedLinkName,
+  showConnectionLinkSettingsModal,
+  validateConnectionLink,
+} from './links';
+import {
   outboundJsonListItemLabel,
   showOutboundJsonSettingsModal,
   validateOutboundJsonItemsBeforeSave,
@@ -70,9 +72,7 @@ import {
 import {
   dependsOnRoutingAction,
   dependsOnRuleConditions,
-  getDefaultOutboundDetourSection,
   refreshDnsDetourSectionOptionValues,
-  refreshOutboundDetourSectionOptionValues,
 } from './references';
 import {
   getBuiltInRulesetReferences,
@@ -91,6 +91,7 @@ import {
   isRemoteSubscriptionSource,
   nextSubscriptionTag,
   reserveSubscriptionTags,
+  subscriptionListItemLabel,
   validateSubscriptionUrlEntry,
 } from './subscriptions/model';
 import { showSubscriptionUrlSettingsModal } from './subscriptions/options';
@@ -246,53 +247,65 @@ export function createSectionContent(section: CBISection) {
     return value ? true : _('Select a section');
   };
 
-  o = section.taboption(
+  // Named rather than held in `o`, for the same reason as the subscriptions below.
+  const links = section.taboption(
     'settings',
-    form.DynamicList,
-    'selector_proxy_links',
+    SettingsDynamicList,
+    'connection_link',
     _('Connection URI'),
     connectionUriDescription(),
   );
-  o.depends('action', 'connection');
-  o.rmempty = true;
-  o.modalonly = true;
-  // The other four sources a Connection section can have are child sections that
-  // a hidden list leaves alone; these links live in the section itself, and they
-  // are pasted server URIs nobody can type again. An action the user picked in
-  // the same dialog is not a reason to throw them away - the runtime reads none
-  // of them unless the action is Connection, and they are all still there when
-  // the action goes back.
-  o.retain = true;
-  o.validate = function (_section_id: string, value: string) {
-    if (!value || value.length === 0) {
-      return true;
-    }
-
-    const validation = validateProxyUrl(value);
-    return validation.valid
-      ? validateConnectionUriCore(value)
-      : validation.message;
+  links.depends('action', 'connection');
+  links.rmempty = true;
+  links.modalonly = true;
+  links.childType = 'connection_link';
+  links.childValueOption = 'uri';
+  links.createId = () => nextSectionId('connection_link');
+  links.childDefaults = {
+    // The list names an entry when it is added, so this is the last resort: a
+    // link typed into the add field and left there is materialized by the save
+    // without ever having been an entry.
+    name: (value: unknown, sectionId: string) =>
+      savedLinkName(sectionId, links, `${value ?? ''}`),
   };
-  o.liveDynamicListNodes = new Map();
-  const originalRenderWidget = o.renderWidget;
-  o.renderWidget = function (
+  links.renderItemSettingsModal = showConnectionLinkSettingsModal;
+  links.hasItemSettings = function (section_id: string, value: unknown) {
+    const normalized = `${value || ''}`.trim();
+    return (
+      isExistingChildItem(section_id, normalized, 'connection_link') ||
+      this.validate(section_id, normalized) === true
+    );
+  };
+  links.renderListItemLabel = function (section_id: string, value: string) {
+    return connectionLinkListItemLabel(section_id, this, value);
+  };
+  links.validate = function (section_id: string, value: string) {
+    return validateConnectionLink(
+      childItemInputValue(section_id, value, 'connection_link', 'uri'),
+    );
+  };
+  links.onListChange = (section_id: string, values: string[]) => {
+    forgetRemovedLinkDrafts(section_id, links, values);
+    refreshDashboardFilterChoiceWidgets(section_id);
+  };
+  links.afterMaterializeChildItems = orderChildItemsByPosition;
+  links.liveDynamicListNodes = new Map();
+  const renderLinks = links.renderWidget;
+  links.renderWidget = function (
     section_id: string,
-    option_index,
+    option_index: string,
     cfgvalue: unknown,
   ) {
-    const node = originalRenderWidget.call(
+    const node = renderLinks.call(
       this,
       section_id,
       option_index,
       cfgvalue,
     ) as HTMLElement;
     this.liveDynamicListNodes!.set(section_id, node);
-    node.addEventListener('cbi-dynlist-change', () => {
-      refreshDashboardFilterChoiceWidgets(section_id);
-    });
     return node;
   };
-  outboundNameSourceOptions.set('selector_proxy_links', o);
+  outboundNameSourceOptions.set('connection_link', links);
 
   // Named rather than held in `o`, which every option of this form is assigned to
   // in turn: the two callbacks below are handed this option and would otherwise
@@ -370,7 +383,7 @@ export function createSectionContent(section: CBISection) {
     section_id: string,
     itemId: string,
   ) {
-    return childItemInputValue(section_id, itemId, 'subscription_url', 'url');
+    return subscriptionListItemLabel(section_id, this, itemId);
   };
   subscriptions.validate = function (section_id: string, value: string) {
     return validateSubscriptionUrlEntry(
@@ -523,77 +536,6 @@ export function createSectionContent(section: CBISection) {
     return renderChildItemLabel(this, section_id, itemId);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-
-  o = section.taboption(
-    'settings',
-    form.Flag,
-    'outbound_detour_enabled',
-    _('Cascade connection'),
-    tunnelKindAvailable('tailscale')
-      ? _(
-          'Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints',
-        )
-      : _(
-          'Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints',
-        ),
-  );
-  o.default = '0';
-  o.rmempty = false;
-  o.depends('action', 'connection');
-  o.modalonly = true;
-  o.write = function (section_id: string, value: unknown) {
-    // Turning the cascade on needs a section to cascade through, so one is filled
-    // in when none is stored. Only then: a section that is stored but not in the
-    // list right now - its target was deleted or switched off - is still what the
-    // user chose, and replacing it here would send this section's traffic
-    // somewhere else without saying so.
-    if (
-      value === '1' &&
-      !(
-        uci.get(FORKOP_UCI_PACKAGE, section_id, 'outbound_detour_section') || ''
-      )
-    ) {
-      const selectedValue = getDefaultOutboundDetourSection(section_id);
-
-      if (selectedValue) {
-        uci.set(
-          FORKOP_UCI_PACKAGE,
-          section_id,
-          'outbound_detour_section',
-          selectedValue,
-        );
-      }
-    }
-
-    return form.Flag.prototype.write.call(this, section_id, value);
-  };
-
-  o = section.taboption(
-    'settings',
-    form.ListValue,
-    'outbound_detour_section',
-    _('Connect through'),
-    _('Select a transit section'),
-  );
-  o.rmempty = false;
-  o.depends({ action: 'connection', outbound_detour_enabled: '1' });
-  o.modalonly = true;
-  o.load = function (section_id: string) {
-    refreshOutboundDetourSectionOptionValues(this, section_id);
-    const value =
-      uci.get(FORKOP_UCI_PACKAGE, section_id, 'outbound_detour_section') || '';
-    keepUnavailableSectionChoice(this, value);
-    return Promise.resolve(value);
-  };
-  o.validate = function (section_id: string, value: unknown) {
-    if (!value) {
-      return _('Select an intermediate section');
-    }
-    if (value === section_id) {
-      return _('Current section cannot be used as its own transit section');
-    }
-    return true;
-  };
 
   const destinationOption = addDestinationField(
     section,

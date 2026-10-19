@@ -126,12 +126,16 @@ describe('what a section asks of the core', () => {
   it('is its tunnels and its links, and never its subscriptions', () => {
     setCoreFeatures(coreFeatures());
     installUciStub({
-      sec: {
-        '.type': 'section',
-        selector_proxy_links: [
-          'naive+https://u:p@example.com:443#n',
-          'vless://u@example.com:443?security=reality&pbk=k#r',
-        ],
+      sec: { '.type': 'section' },
+      naive: {
+        '.type': 'connection_link',
+        section: 'sec',
+        uri: 'naive+https://u:p@example.com:443#n',
+      },
+      reality: {
+        '.type': 'connection_link',
+        section: 'sec',
+        uri: 'vless://u@example.com:443?security=reality&pbk=k#r',
       },
       tun: { '.type': 'tunnel', section: 'sec', kind: 'tailscale' },
       json: { '.type': 'tunnel', section: 'sec', kind: 'json' },

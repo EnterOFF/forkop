@@ -36,7 +36,8 @@ function peer(name, tunnel, extra) {
 function one_server_in_two_sections(changes) {
     let data = {
         settings: fixture.settings(),
-        section: [ section("proxy", "Proxy"), section("test", "Test"), section("hop", "Hop", { selector_proxy_links: [ "socks://127.0.0.1:1080#hop" ] }) ],
+        section: [ section("proxy", "Proxy"), section("test", "Test"), section("hop", "Hop") ],
+        connection_link: fixture.links("hop", [ "socks://127.0.0.1:1080#hop" ]),
         tunnel: [ awg("tun_proxy", "proxy"), awg("tun_test", "test") ],
         tunnel_peer: [ peer("peer_proxy", "tun_proxy"), peer("peer_test", "tun_test") ]
     };
@@ -56,8 +57,7 @@ t.test("one AmneziaWG server in two sections stays an endpoint of each", () => {
 
 t.test("one key for one server with another detour is refused, naming both endpoints", () => {
     let message = refused(one_server_in_two_sections((data) => {
-        data.section[1].outbound_detour_enabled = "1";
-        data.section[1].outbound_detour_section = "hop";
+        data.tunnel[1].detour_section = "hop";
     }));
     t.contains(message, "'Proxy/awg'");
     t.contains(message, "'Test/awg'");

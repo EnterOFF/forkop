@@ -25,8 +25,8 @@ export const OVERRIDE_PATCH_PLACEHOLDER = [
   '}',
 ].join('\n');
 
-// Parameters the section owns rather than the subscription, mirroring
-// RESERVED_OVERRIDE_PATCH_PATHS in the backend.
+// Parameters a control of the subscription dialog owns rather than the patch,
+// mirroring RESERVED_OVERRIDE_PATCH_PATHS in the backend.
 export const RESERVED_OVERRIDE_PATCH_PATHS = ['detour'];
 
 export function reservedOverridePatchPath(document: unknown) {
@@ -155,9 +155,9 @@ export function showSubscriptionOverrideModal(
     }
     const reserved = reservedOverridePatchPath(parsed);
     if (reserved) {
-      return _('%s is set by the cascade connection of the section').format(
-        reserved,
-      );
+      return _(
+        '%s is set by the cascade connection of the subscription',
+      ).format(reserved);
     }
     return true;
   };

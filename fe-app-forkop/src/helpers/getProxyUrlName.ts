@@ -1,6 +1,7 @@
-// The name a link runs under, the way singbox/generator.uc connection_link_name()
-// gives it: a VMess link's own "ps" name, and otherwise everything after the
-// first "#", percent-decoded the way core/url.uc does.
+// The name a share link carries for its server, the way core/url.uc link_name()
+// reads it: a VMess link's own "ps" name, and otherwise everything after the
+// first "#", percent-decoded the way core/url.uc does. A pasted link starts out
+// under this name.
 export function getProxyUrlName(url: string) {
   const link = `${url ?? ''}`;
   const scheme = link.includes('://')

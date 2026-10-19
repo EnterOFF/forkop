@@ -10,6 +10,7 @@ import { loadDefaultSubscriptionHeaders } from './subscriptions/model';
 export function configureSectionSection(sectionRef: CBISection) {
   const handleRemove = sectionRef.handleRemove;
   sectionRef.handleRemove = function (section_id: string, event: Event) {
+    cleanupRemovedChildItems(section_id, 'connection_link', []);
     cleanupRemovedChildItems(section_id, 'subscription_url', []);
     cleanupRemovedChildItems(section_id, 'section_interface', []);
     cleanupRemovedChildItems(section_id, 'urltest', []);

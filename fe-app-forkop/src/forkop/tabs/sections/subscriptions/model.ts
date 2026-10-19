@@ -1,9 +1,15 @@
 import { FORKOP_UCI_PACKAGE } from '../../../../constants';
 import { validatePath } from '../../../../validators/validatePath';
 import { validateUrl } from '../../../../validators/validateUrl';
-import { getChildItemIds, isExistingChildItem } from '../../../cbi/childItems';
+import {
+  applyChildItemSettings,
+  childItemInputValue,
+  getChildItemIds,
+  isExistingChildItem,
+} from '../../../cbi/childItems';
 import { childPendingSettingsStore } from '../../../cbi/itemSettings';
 import { modalOptionFormValue } from '../../../cbi/modal';
+import { E } from '../../../../helpers/element';
 import { subscriptionOverrideKeys } from './overrides';
 
 export let defaultSubscriptionHeaderLines: string[] = [];
@@ -76,9 +82,11 @@ function remoteSubscriptionUrlSettingsKeys() {
   ];
 }
 
-export function subscriptionUrlSettingsKeys(remote: boolean = true) {
-  const keys = [
+export function subscriptionUrlSettingsKeys() {
+  return [
+    ...remoteSubscriptionUrlSettingsKeys(),
     'tag',
+    'detour_section',
     'server_filter_mode',
     'include_outbounds',
     'include_regex',
@@ -87,7 +95,20 @@ export function subscriptionUrlSettingsKeys(remote: boolean = true) {
     'exclude_regex',
     ...subscriptionOverrideKeys(),
   ];
-  return remote ? [...remoteSubscriptionUrlSettingsKeys(), ...keys] : keys;
+}
+
+// A stored subscription that was a local file and became a URL: the dialog shows
+// the defaults of every fetch setting, and a default the user left alone is not
+// a change it would write by itself.
+export function applyRemoteSubscriptionUrlSettings(
+  itemId: string,
+  settings: ChildSettings,
+) {
+  const remote: ChildSettings = {};
+  remoteSubscriptionUrlSettingsKeys().forEach((key: string) => {
+    remote[key] = settings[key];
+  });
+  applyChildItemSettings(itemId, remote);
 }
 
 export function cleanupRemoteSubscriptionUrlSettings(itemId: string) {
@@ -196,6 +217,55 @@ export function nextSubscriptionTag(
     if (!taken.has(value)) return value;
   }
   return `sub${Date.now()}`;
+}
+
+// The address one entry fetches: what its section stores, or - for a draft -
+// what its dialog changed it to, or the entry itself.
+function listedSubscriptionSource(
+  sectionId: string,
+  option: CBIOption,
+  value: string,
+) {
+  if (isExistingChildItem(sectionId, value, 'subscription_url')) {
+    return childItemInputValue(sectionId, value, 'subscription_url', 'url');
+  }
+
+  return `${childPendingSettingsStore(option, sectionId)[value]?.url || value}`;
+}
+
+// Every address the section's subscriptions fetch, so a dialog can refuse the
+// one another subscription already has: the runtime finds a subscription's
+// settings by its address.
+export function listedSubscriptionSources(
+  sectionId: string,
+  option: CBIOption,
+  excluded: string[] = [],
+) {
+  return listedSubscriptionValues(sectionId, option)
+    .filter((value) => !excluded.includes(value))
+    .map((value) => listedSubscriptionSource(sectionId, option, value).trim());
+}
+
+// What the list shows for one subscription, which is its tag. A subscription is
+// named the moment its address is added, so the label is where a new one gets
+// its tag.
+export function subscriptionListItemLabel(
+  sectionId: string,
+  option: CBIOption,
+  value: string,
+) {
+  let tag = listedSubscriptionTag(sectionId, option, value);
+  if (!tag && !isExistingChildItem(sectionId, value, 'subscription_url')) {
+    const store = childPendingSettingsStore(option, sectionId);
+    tag = nextSubscriptionTag(sectionId, option);
+    store[value] = Object.assign({}, store[value], { tag });
+  }
+
+  return E(
+    'span',
+    { class: 'fkp-dynlist-label' },
+    tag || listedSubscriptionSource(sectionId, option, value),
+  );
 }
 
 // Names every entry of the list that has no name yet, which is how a subscription

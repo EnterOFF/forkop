@@ -99,10 +99,9 @@ const LINK_SCHEME_OUTBOUND_TYPES = {
     "socks5h": "socks"
 };
 
-// The section fills in the detour of every server it imports from its cascade
-// connection. Repeating it in the free-form patch would silently fight a
-// control the subscription cannot see, so it is refused instead of resolved by
-// precedence.
+// A subscription fills in the detour of every server it imports from its cascade
+// connection. Repeating it in the free-form patch would silently fight the
+// control beside it, so it is refused instead of resolved by precedence.
 const RESERVED_OVERRIDE_PATCH_PATHS = [ "detour" ];
 
 const RESERVED_TAGS = {

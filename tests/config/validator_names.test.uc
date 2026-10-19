@@ -1,5 +1,6 @@
 let t = require("t");
 let v = require("validation");
+let fixture = require("fixture");
 
 t.test("untagged-subscription", () => {
     v.refuses({
@@ -35,13 +36,26 @@ t.test("untagged-subscription", () => {
     }, "A subscription in section 'Main' has no tag");
 });
 
+t.test("every link of a section has a link and a name of its own", () => {
+    let main = [ { ".name": "proxy", label: "Main", enabled: "1", action: "connection" } ];
+    let links = fixture.links("proxy", [ "socks5://127.0.0.1:1080#A", "socks5://127.0.0.1:1081#B" ]);
+    v.accepts({ section: main, connection_link: links });
+    v.refuses({ section: main, connection_link: [ links[0], { ...links[1], name: "A" } ] }, "Section 'Main' has more than one link named 'A'");
+    v.refuses({ section: main, connection_link: [ links[0], { ...links[1], name: " " } ] }, "A link in section 'Main' has no name");
+    v.refuses({ section: main, connection_link: [ links[0], { ...links[1], uri: "" } ] }, "A link in section 'Main' is empty");
+    v.accepts({ section: [ ...main, { ".name": "other", enabled: "1", action: "connection" } ],
+        connection_link: [ ...links, { ...links[1], ".name": "other_link1", name: "A", section: "other" } ] });
+});
+
 t.test("a refusal names sections and servers by the labels the page shows, not by their ids", () => {
     v.refuses({
         section: [ { ".name": "section_70536a", label: "Streaming", enabled: "1", action: "connection",
-            selector_proxy_links: [ "socks5://127.0.0.1:1080" ], ports: [ "99999" ] } ]
+             ports: [ "99999" ] } ],
+        connection_link: fixture.links("section_70536a", [ "socks5://127.0.0.1:1080" ])
     }, "Invalid port condition '99999' in section 'Streaming'");
     v.refuses({
-        section: [ { ".name": "section_70536a", label: "Streaming", enabled: "1", action: "connection", selector_proxy_links: [ "socks5://127.0.0.1:1080" ] } ],
+        section: [ { ".name": "section_70536a", label: "Streaming", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("section_70536a", [ "socks5://127.0.0.1:1080" ]),
         server: [ { ".name": "server_75e023", label: "Server #1", enabled: "1", protocol: "mixed", listen_port: "18080", routing_mode: "section", routing_section: "section_1f2e3d" } ]
     }, "Server 'Server #1' points to section 'section_1f2e3d', which does not exist");
 });

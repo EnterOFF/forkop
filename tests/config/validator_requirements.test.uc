@@ -27,7 +27,7 @@ function requirements(version_text, handlers) {
     fs.writefile(dir + "/version", version_text);
     require("core.packages").paths.sing_box_version = dir + "/version";
     let validator = require("config.validator");
-    fixture.seed({ settings: {}, section: [ { ".name": "p", action: "connection", enabled: "1", selector_proxy_links: [ "socks5://127.0.0.1:1080" ] } ] });
+    fixture.seed({ settings: {}, section: [ { ".name": "p", action: "connection", enabled: "1" } ], connection_link: fixture.links("p", [ "socks5://127.0.0.1:1080" ]) });
     let logs = [];
     stub.commands([
         stub.logger(logs),

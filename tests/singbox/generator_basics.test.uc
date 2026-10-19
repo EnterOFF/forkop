@@ -26,9 +26,10 @@ t.test("a disabled section is left out", () => {
     let config = build({
         settings: fixture.settings(),
         section: [
-            { ".name": "off", action: "connection", enabled: "0", selector_proxy_links: [ "vless://u@a.example:443#A" ] },
+            { ".name": "off", action: "connection", enabled: "0" },
             { ".name": "on", action: "block", destinations: "ads.example" }
-        ]
+        ],
+        connection_link: fixture.links("off", [ "vless://u@a.example:443#A" ])
     });
     for (let outbound in config.outbounds)
         t.ok(outbound.tag != "off", "disabled section produced an outbound");
@@ -37,11 +38,13 @@ t.test("a disabled section is left out", () => {
 t.test("each build reads the configuration committed at that moment", () => {
     let first = build({
         settings: fixture.settings(),
-        section: [ { ".name": "main", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ] } ]
+        section: [ { ".name": "main", action: "connection" } ],
+        connection_link: fixture.links("main", [ "vless://u@a.example:443#A" ])
     });
     let second = build({
         settings: fixture.settings(),
-        section: [ { ".name": "other", action: "connection", selector_proxy_links: [ "vless://u@b.example:443#B" ] } ]
+        section: [ { ".name": "other", action: "connection" } ],
+        connection_link: fixture.links("other", [ "vless://u@b.example:443#B" ])
     });
     let tags = map(second.outbounds, (o) => o.tag);
     t.contains(tags, "other");

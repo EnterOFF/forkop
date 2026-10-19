@@ -162,6 +162,15 @@ function validate_runtime_display_names(sections, kind, seen) {
 }
 
 function validate_subscription_tags(section) {
+    // A subscription's settings, its tag among them, are found by its address, so
+    // a second one with the same address would run with the first one's.
+    let sources = {};
+    for (let source in connections.subscription_urls(section)) {
+        if (sources[source])
+            fail_validation("Section '" + section_label(section) + "' has the same subscription twice");
+        sources[source] = true;
+    }
+
     let seen = {};
     for (let tag_name in connections.subscription_tags(section)) {
         if (trim(tag_name) == "")
@@ -171,6 +180,22 @@ function validate_subscription_tags(section) {
         if (seen[tag_name])
             fail_validation("Duplicate subscription tag '" + tag_name + "' in section '" + section_label(section) + "'");
         seen[tag_name] = true;
+    }
+}
+
+// A link's server runs under the name the link stores, which groups and filters
+// refer to, so every link has one and no two links of a section share it.
+function validate_connection_links(section) {
+    let seen = {};
+    for (let link in connections.connection_link_items(section)) {
+        let link_name = option(link, "name", "");
+        if (trim(option(link, "uri", "")) == "")
+            fail_validation("A link in section '" + section_label(section) + "' is empty. Paste the link in its settings");
+        if (trim(link_name) == "")
+            fail_validation("A link in section '" + section_label(section) + "' has no name. Set one in its settings");
+        if (seen[link_name])
+            fail_validation("Section '" + section_label(section) + "' has more than one link named '" + link_name + "'");
+        seen[link_name] = true;
     }
 }
 
@@ -204,34 +229,77 @@ function outbound_section(sections, label, target_name) {
     return target;
 }
 
-function cascade_target(section) {
-    return bool_option(section, "outbound_detour_enabled", false) ? option(section, "outbound_detour_section", "") : null;
+// The tunnels that dial their server through a cascade. A Tailscale tunnel
+// reaches its coordination server through a section of its own choosing, and a
+// JSON endpoint names its own detour.
+const CASCADE_TUNNEL_KINDS = { wireguard: true, amneziawg: true, warp: true, "openvpn-client": true };
+
+function tunnel_kind(tunnel) {
+    return lc(trim(as_string(option(tunnel, "kind", "wireguard"))));
 }
 
-function validate_outbound_detours(sections) {
-    for (let section in sections) {
-        let name = section_name(section);
-        let target = cascade_target(section);
-        if (!section_enabled(section) || target == null)
+// Every server of a section that is dialled through another section, as the
+// label a refusal names it by and the section it goes through.
+function section_cascades(section) {
+    let owner = " in section '" + section_label(section) + "'";
+    let result = [];
+    let add = (label, target) => {
+        if (target != "")
+            push(result, { label, target });
+    };
+    for (let link in connections.connection_link_items(section))
+        add("The cascade of link '" + option(link, "name", "") + "'" + owner, connections.cascade_section(link));
+    for (let source in connections.subscription_urls(section)) {
+        let subscription = connections.subscription_url_child(section, source);
+        add("The cascade of subscription '" + option(subscription, "tag", "") + "'" + owner, connections.cascade_section(subscription));
+    }
+    for (let tunnel in connections.tunnel_items(section))
+        if (CASCADE_TUNNEL_KINDS[tunnel_kind(tunnel)])
+            add("The cascade of tunnel '" + option(tunnel, "name", "") + "'" + owner, connections.cascade_section(tunnel));
+    return result;
+}
+
+// The sections whose selectors one section's servers dial through, a Tailscale
+// coordination server included: the graph a cascade must not loop in. A section
+// the runtime leaves out dials nothing.
+function cascade_neighbours(sections, name) {
+    let section = find_section(sections, name);
+    if (section == null || !section_enabled(section) || !connections.is_connections_action(rule_action(section)))
+        return [];
+    let result = map(section_cascades(section), (item) => item.target);
+    for (let tunnel in connections.tunnel_items(section)) {
+        let control = trim(as_string(option(tunnel, "tailscale_detour_section", "")));
+        if (tunnel_kind(tunnel) == "tailscale" && control != "")
+            push(result, control);
+    }
+    return result;
+}
+
+function cascade_reaches(sections, from, to) {
+    let seen = {};
+    for (let queue = [ from ]; length(queue) > 0;) {
+        let current = shift(queue);
+        if (current == to)
+            return true;
+        if (seen[current])
             continue;
+        seen[current] = true;
+        push(queue, ...cascade_neighbours(sections, current));
+    }
+    return false;
+}
 
-        let label = "The outbound cascade of section '" + section_label(section) + "'";
-        if (!connections.is_connections_action(rule_action(section)))
-            fail_validation("An outbound cascade needs a Connection section, but section '" + section_label(section) +
-                "' has action '" + rule_action(section) + "'");
-        if (target == "")
-            fail_validation(label + " is enabled, but no intermediate section is selected");
-        if (target == name)
-            fail_validation(label + " cannot point to its own section");
-        outbound_section(sections, label, target);
-
-        let seen = {};
-        for (let current = target; current != null && current != "" && !seen[current];) {
-            if (current == name)
-                fail_validation(label + " loops back through section '" + section_label(target) + "'");
-            seen[current] = true;
-            let next = find_section(sections, current);
-            current = next != null && section_enabled(next) && connections.is_connections_action(rule_action(next)) ? cascade_target(next) : null;
+function validate_cascades(sections) {
+    for (let section in sections) {
+        if (!section_enabled(section) || !connections.is_connections_action(rule_action(section)))
+            continue;
+        let name = section_name(section);
+        for (let item in section_cascades(section)) {
+            if (item.target == name)
+                fail_validation(item.label + " cannot point to its own section");
+            let target = outbound_section(sections, item.label, item.target);
+            if (cascade_reaches(sections, item.target, name))
+                fail_validation(item.label + " loops back through section '" + section_label(target) + "'");
         }
     }
 }
@@ -870,7 +938,7 @@ function validate_subscription_override(section, entry) {
         }
         if (node != null)
             fail_validation("Additional parameters in " + context + " must not set '" + path +
-                "': the cascade connection of the section fills it in");
+                "': the cascade connection of the subscription fills it in");
     }
 }
 
@@ -1012,6 +1080,7 @@ function validate_rule(section, sections, context) {
             validate_fallback_group(section, group_id);
         }
 
+        validate_connection_links(section);
         for (let value in connections.subscription_urls(section)) {
             validate_subscription_source_entry_value(value, name);
             validate_subscription_request_profile(section, value);
@@ -1578,8 +1647,9 @@ function validate_core_features(settings, sections, servers, core_tags) {
                 refuse_without(feature, core_tags, "Section '" + name + "' has a " + kind + " tunnel '" +
                     trim(as_string(connections.option(tunnel, "name", tunnel_id))) + "'");
         }
-        for (let link in connections.connection_urls(section)) {
-            let label = core_url.scheme(link) + ":// link" + (core_url.fragment(link) != "" ? " '" + core_url.fragment(link) + "'" : "");
+        for (let item in connections.connection_link_items(section)) {
+            let link = connections.option(item, "uri", "");
+            let label = core_url.scheme(link) + ":// link '" + connections.option(item, "name", "") + "'";
             for (let feature in features.link_features(link))
                 refuse_without(feature, core_tags, "Section '" + name + "' has a " + label +
                     (feature == "utls" ? " that uses Reality or a TLS fingerprint" : ""));
@@ -1633,7 +1703,7 @@ function validate_runtime_config(context) {
     if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
         validate_warp_profile_section(connections.download_via_proxy_section(settings, "warp_profiles"));
 
-    validate_outbound_detours(sections);
+    validate_cascades(sections);
     validate_subscription_download_sections(sections, context);
     validate_json_inbound_values();
     validate_server_routing_sections(sections);

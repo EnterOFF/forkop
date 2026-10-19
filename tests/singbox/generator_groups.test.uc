@@ -11,8 +11,8 @@ function build(data) {
 t.test("one filter picks manual servers as the core picks provider nodes", () => {
     let config = build({
         settings: { dns_server: "1.1.1.1" },
-        section: [ { ".name": "proxy", enabled: "1", action: "connection",
-            selector_proxy_links: [ "socks://127.0.0.1:1080#DE1", "socks://127.0.0.1:1081#DEd", "socks://127.0.0.1:1082#de 2" ] } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("proxy", [ "socks://127.0.0.1:1080#DE1", "socks://127.0.0.1:1081#DEd", "socks://127.0.0.1:1082#de 2" ]),
         subscription_url: [ { ".name": "sub_xray", section: "proxy", url: "https://xray.example/sub", tag: "sub1" } ],
         urltest: [
             { ".name": "digit", section: "proxy", name: "Digit", server_filter_mode: "include", include_regex: "^DE\\d$" },
@@ -56,7 +56,8 @@ const LINKS = [
 t.test("a URLTest keeps connections unless told otherwise, the selector interrupts them", () => {
     let config = build({
         settings: { log_level: "warn" },
-        section: [ { ".name": "proxy", enabled: "1", action: "proxy", selector_proxy_links: LINKS } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "proxy" } ],
+        connection_link: fixture.links("proxy", LINKS),
         urltest: [ {
             ".name": "proxy_fastest", section: "proxy", name: "Fastest", check_interval: "3m", tolerance: "50",
             testing_url: "https://www.gstatic.com/generate_204", server_filter_mode: "all"
@@ -71,7 +72,8 @@ t.test("a URLTest keeps connections unless told otherwise, the selector interrup
 t.test("each URLTest group carries its own settings, in list order in the selector", () => {
     let config = build({
         settings: { log_level: "warn" },
-        section: [ { ".name": "proxy", enabled: "1", action: "proxy", selector_proxy_links: LINKS } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "proxy" } ],
+        connection_link: fixture.links("proxy", LINKS),
         urltest: [
             {
                 ".name": "cfg010001", section: "proxy", name: "Fast URLTest", check_interval: "30s", tolerance: "50",

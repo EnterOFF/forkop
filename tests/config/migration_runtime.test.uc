@@ -87,6 +87,19 @@ t.test("a file the UCI parser refuses stops the migration with the parser's own 
     t.contains(run.error, run.config_path);
 });
 
+// Every kind of section the page writes, which a router already on the current
+// schema holds and a reinstall must leave alone.
+t.test("the current schema keeps every section type the page writes", () => {
+    let sections = [ { ".name": "settings", ".type": "settings", config_version: "NEXT" } ];
+    for (let type_name in [ "section", "server", "server_client", "subscription_url", "section_interface",
+        "connection_link", "urltest", "fallback_group", "fallback_level", "tunnel", "tunnel_peer" ])
+        push(sections, { ".name": type_name + "_1", ".type": type_name });
+    let run = migrate_router("config settings 'settings'
+        option config_version 'NEXT'
+", sections);
+    t.eq(run.status, 0, run.error);
+});
+
 t.test("a section type the released schema never had stops a released migration", () => {
     let run = migrate_router("", [ { ".name": "settings", ".type": "settings", config_version: "1.0.5" } ],
         { stdout: "forkop.settings=settings\nforkop.settings.config_version='1.0.5'\nforkop.@client[0]=server_client\n" });

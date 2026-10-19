@@ -24,10 +24,6 @@ vi.mock('../../../../helpers/getClashApiUrl', () => ({
   canUseDirectClashApi: mocks.canUseDirectClashApi,
   getClashApiUrl: () => 'http://router.example:9090',
 }));
-vi.mock('../../../../helpers/getProxyUrlName', () => ({
-  getProxyUrlName: (link?: string) =>
-    link?.includes('#') ? decodeURIComponent(link.split('#').pop() || '') : '',
-}));
 vi.mock('../../../../helpers/isCopyableProxyLink', () => ({
   isCopyableProxyLink: (link?: string) => Boolean(link),
 }));
@@ -90,6 +86,17 @@ function child(
     section: 'main',
     ...options,
   };
+}
+
+// The links of the main section, each under the name the page stored for it.
+function links(entries: Array<[string, string]>) {
+  return entries.map(([name, uri], index) =>
+    child('connection_link', `link${index + 1}`, {
+      name,
+      uri,
+      order: `${index}`,
+    }),
+  );
 }
 
 function neverAnsweringFetch() {
@@ -189,14 +196,20 @@ describe('getDashboardSections', () => {
   });
 
   it('derives manual node identity and presentation from readable runtime tags', async () => {
-    const links = [
+    const uris = [
       'vless://first@example.com:443#Same',
       'vless://second@example.com:443#Same',
       'trojan://secret@example.com:443',
       'vmess://example#Folder%2FNode',
     ];
     mocks.getConfigSections.mockResolvedValue([
-      section({ selector_proxy_links: links }),
+      section(),
+      ...links([
+        ['Same', uris[0]],
+        ['Same #2', uris[1]],
+        ['Node #3', uris[2]],
+        ['Folder/Node', uris[3]],
+      ]),
     ]);
     setClashProxies({
       Office: proxy('Selector', {
@@ -224,23 +237,23 @@ describe('getDashboardSections', () => {
       expect.objectContaining({
         code: 'Office/Same',
         displayName: 'Same',
-        link: links[0],
+        link: uris[0],
         selected: true,
       }),
       expect.objectContaining({
         code: 'Office/Same #2',
         displayName: 'Same #2',
-        link: links[1],
+        link: uris[1],
       }),
       expect.objectContaining({
         code: 'Office/Node #3',
         displayName: 'Node #3',
-        link: links[2],
+        link: uris[2],
       }),
       expect.objectContaining({
         code: 'Office/Folder/Node',
         displayName: 'Folder/Node',
-        link: links[3],
+        link: uris[3],
       }),
     ]);
   });
@@ -299,11 +312,10 @@ describe('getDashboardSections', () => {
 
   it('does not classify a static slash name as a subscription node', async () => {
     mocks.getConfigSections.mockResolvedValue([
-      section({
-        selector_proxy_links: [
-          'vless://static@example.com:443#premium%2FStatic',
-        ],
-      }),
+      section(),
+      ...links([
+        ['premium/Static', 'vless://static@example.com:443#premium%2FStatic'],
+      ]),
       child('subscription_url', 'subscription1', {
         url: 'https://example.com/subscription',
         tag: 'premium',
@@ -350,10 +362,8 @@ describe('getDashboardSections', () => {
       text === 'Fastest' ? 'Самый быстрый' : text,
     );
     mocks.getConfigSections.mockResolvedValue([
-      section({
-        selector_proxy_links: ['vless://a@example.com:443#Node A'],
-        urltest_enabled: '1',
-      }),
+      section({ urltest_enabled: '1' }),
+      ...links([['Node A', 'vless://a@example.com:443#Node A']]),
     ]);
     setClashProxies({
       Office: proxy('Selector', {
@@ -503,9 +513,8 @@ describe('getDashboardSections', () => {
   // The dashboard shows what the Clash API reports and nothing besides.
   it('leaves out a configured group the runtime does not carry', async () => {
     mocks.getConfigSections.mockResolvedValue([
-      section({
-        selector_proxy_links: ['vless://node@example.com:443#Node A'],
-      }),
+      section(),
+      ...links([['Node A', 'vless://node@example.com:443#Node A']]),
       child('urltest', 'ghost', { name: 'Ghost' }),
       child('fallback_group', 'ghostGroup', { name: 'Ghost group' }),
       child('fallback_level', 'primary', {
@@ -567,7 +576,8 @@ describe('getDashboardSections', () => {
 
   it('fetches Clash API directly when browser access is safe', async () => {
     mocks.getConfigSections.mockResolvedValue([
-      section({ selector_proxy_links: ['vless://example#Node'] }),
+      section(),
+      ...links([['Node', 'vless://example#Node']]),
     ]);
     mocks.canUseDirectClashApi.mockReturnValue(true);
     const fetchMock = vi.fn().mockResolvedValue({
@@ -594,7 +604,8 @@ describe('getDashboardSections', () => {
 
   it('falls back to the CLI transport when the controller is unreachable', async () => {
     mocks.getConfigSections.mockResolvedValue([
-      section({ selector_proxy_links: ['vless://example#Node'] }),
+      section(),
+      ...links([['Node', 'vless://example#Node']]),
     ]);
     mocks.canUseDirectClashApi.mockReturnValue(true);
     vi.stubGlobal(
@@ -1069,14 +1080,12 @@ describe('getDashboardSections', () => {
   // timeout as a sixteen bit number and refuses anything larger outright, so a
   // section that carried one number for both broke its own per node test.
   it('leaves a proxy section without a single node test budget of its own', async () => {
-    const links = Array.from(
-      { length: 30 },
-      (_, index) => `vless://node@example.com:443#Node${index}`,
-    );
-    const members = links.map((_, index) => `Office/Node${index}`);
-    mocks.getConfigSections.mockResolvedValue([
-      section({ selector_proxy_links: links }),
+    const nodes = Array.from({ length: 30 }, (_, index): [string, string] => [
+      `Node${index}`,
+      `vless://node@example.com:443#Node${index}`,
     ]);
+    const members = nodes.map(([name]) => `Office/${name}`);
+    mocks.getConfigSections.mockResolvedValue([section(), ...links(nodes)]);
     setClashProxies({
       Office: proxy('Selector', {
         name: 'Office',

@@ -1,6 +1,5 @@
 let common = require("core.common");
 let uci_core = require("core.uci");
-let core_url = require("core.url");
 let runtime_constants = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
 let runtime_route = require("singbox.route");
@@ -547,12 +546,11 @@ function assert_compatible_wireguard_endpoints(config) {
     }
 }
 
-function outbound_detour_tag_for_section(section) {
-    if (!bool_option(section, "outbound_detour_enabled", false))
-        return "";
-
-    let detour_section = option(section, "outbound_detour_section", "");
-    return detour_section == "" ? "" : outbound_tag(detour_section);
+// The section a link, a subscription or a tunnel is dialled through, as the tag
+// of its selector, or "" for none.
+function cascade_tag(item) {
+    let target = connections.cascade_section(item);
+    return target == "" ? "" : outbound_tag(target);
 }
 
 function override_rename_rules(values) {
@@ -597,7 +595,7 @@ function subscription_override_options(section, source) {
     if (length(rename) > 0)
         result.rename = rename;
 
-    let detour = outbound_detour_tag_for_section(section);
+    let detour = cascade_tag(connections.subscription_url_child(section, source));
     if (detour != "")
         result.detour = detour;
 
@@ -644,51 +642,12 @@ function add_subscription_providers(config, section) {
     return result;
 }
 
-function vmess_link_name(link) {
-    let payload = substr(as_string(link), length("vmess://"));
-    if (substr(payload, 0, 1) != "{") {
-        let boundary = length(payload);
-        for (let marker in [ "@", "?", "#" ]) {
-            let position = index(payload, marker);
-            if (position >= 0 && position < boundary)
-                boundary = position;
-        }
-        payload = substr(payload, 0, boundary);
-        payload = replace(replace(payload, /-/g, "+"), /_/g, "/");
-        while (length(payload) % 4 != 0)
-            payload += "=";
-        try {
-            payload = b64dec(payload);
-        }
-        catch (e) {
-            payload = "";
-        }
-    }
-    try {
-        let parsed = json(payload);
-        return type(parsed) == "object" ? as_string(parsed.ps || "") : "";
-    }
-    catch (e) {
-        return "";
-    }
-}
-
-function connection_link_name(link) {
-    return core_url.scheme(link) == "vmess"
-        ? (vmess_link_name(link) || core_url.fragment(link))
-        : core_url.fragment(link);
-}
-
 function add_manual_link_outbounds(config, section, taken, selector_tags, urltest_candidate_tags) {
-    let links = connections.connection_urls(section);
-    let detour = outbound_detour_tag_for_section(section);
-    for (let i = 0; i < length(links); i++) {
-        let display_name = connection_link_name(links[i]);
-        if (display_name == "")
-            display_name = "Node #" + (i + 1);
-        let tag_name = unique_tag(child_outbound_tag(section, display_name), taken);
+    for (let link in connections.connection_link_items(section)) {
+        let tag_name = unique_tag(child_outbound_tag(section, connections.option(link, "name", "")), taken);
         taken[tag_name] = true;
-        let outbound = { type: "parser", tag: tag_name, link: links[i] };
+        let outbound = { type: "parser", tag: tag_name, link: connections.option(link, "uri", "") };
+        let detour = cascade_tag(link);
         if (detour != "")
             outbound.detour = detour;
         push(config.outbounds, outbound);
@@ -1274,8 +1233,8 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         endpoint.tag = tag_name;
 
         if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "amneziawg" || endpoint_type == "warp" || endpoint_type == "openvpn-client")) {
-            let detour = outbound_detour_tag_for_section(section);
-            if (detour != "" && as_string(endpoint.detour || "") == "")
+            let detour = cascade_tag(tunnel);
+            if (detour != "")
                 endpoint.detour = detour;
         }
 

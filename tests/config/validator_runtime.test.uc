@@ -1,5 +1,6 @@
 let t = require("t");
 let v = require("validation");
+let fixture = require("fixture");
 
 t.test("accepts valid", () => {
     v.accepts({
@@ -1133,7 +1134,8 @@ t.test("server without clients", () => {
 // without the switch is authenticated too.
 t.test("a Tailscale server advertises addresses and subnets only", () => {
     let data = (routes) => ({
-        section: [ { ".name": "main", enabled: "1", action: "connection", selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] } ],
+        section: [ { ".name": "main", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("main", [ "socks://127.0.0.1:1080#one" ]),
         server: [ { ".name": "tail", enabled: "1", protocol: "tailscale", tailscale_auth_key: "tskey-auth-test", routing_mode: "direct",
             tailscale_advertise_routes: routes } ]
     });
@@ -1143,14 +1145,16 @@ t.test("a Tailscale server advertises addresses and subnets only", () => {
 
 t.test("a listen address with a leading zero is refused, as sing-box refuses it", () => {
     v.refuses({
-        section: [ { ".name": "main", enabled: "1", action: "connection", selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] } ],
+        section: [ { ".name": "main", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("main", [ "socks://127.0.0.1:1080#one" ]),
         server: [ { ".name": "srv", enabled: "1", protocol: "mixed", listen: "192.168.01.1", listen_port: "18080", mixed_auth_enabled: "0", routing_mode: "direct" } ]
     }, "listens on '192.168.01.1', which is not an IP address");
 });
 
 t.test("a Mixed server without the authentication switch asks for accounts", () => {
     let data = (extra) => ({
-        section: [ { ".name": "main", enabled: "1", action: "connection", selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] } ],
+        section: [ { ".name": "main", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("main", [ "socks://127.0.0.1:1080#one" ]),
         server: [ { ".name": "srv", enabled: "1", protocol: "mixed", listen_port: "18080", routing_mode: "direct", ...extra } ]
     });
     v.refuses(data({}), "has no clients");
@@ -1338,7 +1342,8 @@ t.test("server on a Forkop port", () => {
 // A port is two sockets, one per transport: a TCP server and a UDP one share it.
 t.test("servers share a port only on different transports", () => {
     let data = (servers) => ({
-        section: [ { ".name": "main", enabled: "1", action: "connection", selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] } ],
+        section: [ { ".name": "main", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("main", [ "socks://127.0.0.1:1080#one" ]),
         server: servers,
         server_client: [ { ".name": "c1", server: "tcp443", name: "one", uuid: "11111111-1111-4111-8111-111111111111" },
             { ".name": "c2", server: "udp443", name: "one", password: "secret-one" },
@@ -1356,7 +1361,8 @@ t.test("servers share a port only on different transports", () => {
 
 t.test("a server may not take the port the component manager downloads through", () => {
     v.refuses({
-        section: [ { ".name": "main", enabled: "1", action: "connection", selector_proxy_links: [ "socks://127.0.0.1:1080#one" ] } ],
+        section: [ { ".name": "main", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("main", [ "socks://127.0.0.1:1080#one" ]),
         server: [ { ".name": "srv", enabled: "1", protocol: "mixed", listen_port: "4535", mixed_auth_enabled: "0", routing_mode: "direct" } ]
     }, "already used by a Forkop inbound");
 });
@@ -1368,19 +1374,17 @@ t.test("bad detour", () => {
             {
                 ".name": "first",
                 "enabled": "1",
-                "action": "proxy",
-                "selector_proxy_links": [ "socks://127.0.0.1:1080#first" ],
-                "outbound_detour_enabled": "1",
-                "outbound_detour_section": "second"
+                "action": "proxy"
             },
             {
                 ".name": "second",
                 "enabled": "1",
-                "action": "proxy",
-                "selector_proxy_links": [ "socks://127.0.0.1:1081#second" ],
-                "outbound_detour_enabled": "1",
-                "outbound_detour_section": "first"
+                "action": "proxy"
             }
+        ],
+        "connection_link": [
+            ...fixture.links("first", [ "socks://127.0.0.1:1080#first" ], { detour_section: "second" }),
+            ...fixture.links("second", [ "socks://127.0.0.1:1081#second" ], { detour_section: "first" })
         ]
     }, "loops back through section");
 });

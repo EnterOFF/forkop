@@ -1,5 +1,6 @@
 let t = require("t");
 let v = require("validation");
+let fixture = require("fixture");
 
 t.test("invalid rename pattern", () => {
     v.refuses({
@@ -220,7 +221,7 @@ t.test("patch setting the cascade detour", () => {
                 "override_patch": "{\"detour\":\"hop\"}"
             }
         ]
-    }, "must not set 'detour'");
+    }, "must not set 'detour': the cascade connection of the subscription fills it in");
 });
 
 t.test("patch reaching a field with no control of its own", () => {
@@ -268,10 +269,7 @@ t.test("a complete override passes", () => {
             {
                 ".name": "hop",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://127.0.0.1:1080#Hop"
-                ]
+                "action": "connection"
             },
             {
                 ".name": "proxy",
@@ -281,6 +279,9 @@ t.test("a complete override passes", () => {
                 "outbound_detour_section": "hop"
             }
         ],
+        "connection_link": fixture.links("hop", [
+            "socks5://127.0.0.1:1080#Hop"
+        ]),
         "subscription_url": [
             {
                 ".name": "source",
@@ -322,13 +323,13 @@ t.test("subscription request profiles, filters and a local source pass", () => {
                 ".name": "proxy",
                 "enabled": "1",
                 "action": "connection",
-                "selector_proxy_links": [
-                    "vless://id@example.com:443?security=tls#Manual"
-                ],
                 "outbound_detour_enabled": "1",
                 "outbound_detour_section": "hop"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "vless://id@example.com:443?security=tls#Manual"
+        ]),
         "subscription_url": [
             {
                 ".name": "source",
@@ -394,6 +395,18 @@ t.test("subscription request profiles, filters and a local source pass", () => {
             }
         ]
     });
+});
+
+t.test("a section holds a subscription once", () => {
+    let data = (second) => ({
+        section: [ { ".name": "proxy", label: "Main", enabled: "1", action: "connection" } ],
+        subscription_url: [
+            { ".name": "one", section: "proxy", url: "https://one.example/sub", tag: "sub1" },
+            { ".name": "two", section: "proxy", url: second, tag: "sub2" }
+        ]
+    });
+    v.accepts(data("https://two.example/sub"));
+    v.refuses(data("https://one.example/sub"), "Section 'Main' has the same subscription twice");
 });
 
 t.done();

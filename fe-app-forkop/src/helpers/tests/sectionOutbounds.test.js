@@ -25,7 +25,7 @@ function modalMap(values) {
 }
 
 const OUTBOUND_SOURCES = {
-  selector_proxy_links: ['vless://node@example.com:443'],
+  connection_link: ['link_a1b2c3'],
   subscription_url: ['sub_a1b2c3'],
   interfaces: ['awg0'],
   tunnels: ['tunnel_a1b2c3'],
@@ -66,7 +66,7 @@ describe('connection section outbounds', () => {
     const { missingConnectionOutbound } = load();
     const map = modalMap({
       action: 'connection',
-      selector_proxy_links: ['', ' '],
+      connection_link: ['', ' '],
     });
 
     expect(missingConnectionOutbound(map, map.section)).toBe(true);

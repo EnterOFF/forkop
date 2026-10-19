@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 03:39+0300\n"
-"PO-Revision-Date: 2026-10-19 03:39+0300\n"
+"POT-Creation-Date: 2026-10-19 04:27+0300\n"
+"PO-Revision-Date: 2026-10-19 04:27+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -29,8 +29,8 @@ msgstr "%s: неверный порт %s"
 msgid "%s in the configuration"
 msgstr "%s в конфигурации"
 
-msgid "%s is set by the cascade connection of the section"
-msgstr "%s задаётся каскадным подключением секции"
+msgid "%s is set by the cascade connection of the subscription"
+msgstr "%s задаётся каскадным подключением подписки"
 
 msgid "%s names an unsupported protocol %s"
 msgstr "%s: неподдерживаемый протокол %s"
@@ -518,6 +518,15 @@ msgstr "Управление перегрузкой"
 msgid "Connect through"
 msgstr "Подключаться через"
 
+msgid "Connect to the servers of this subscription through another section"
+msgstr "Подключаться к серверам подписки через другую секцию"
+
+msgid "Connect to the tunnel server through another section"
+msgstr "Подключаться к серверу туннеля через другую секцию"
+
+msgid "Connect to this server through another section"
+msgstr "Подключаться к этому серверу через другую секцию"
+
 msgid "Connection timeout"
 msgstr "Таймаут подключения"
 
@@ -802,6 +811,9 @@ msgstr "Укажите отпечаток SHA-256 из 64 шестнадцате
 
 msgid "Enter a subscription tag"
 msgstr "Введите тег подписки"
+
+msgid "Enter a subscription URL or local path"
+msgstr "Введите URL подписки или локальный путь"
 
 msgid "Enter a Tailscale auth key"
 msgstr "Введите ключ авторизации Tailscale"
@@ -1271,6 +1283,9 @@ msgstr "Лицензионный ключ"
 msgid "Link"
 msgstr "Ссылка"
 
+msgid "Link settings"
+msgstr "Настройки ссылки"
+
 msgid "List update interval"
 msgstr "Период обновления списков"
 
@@ -1546,6 +1561,9 @@ msgstr "Параллельно — запрос всем сразу, быстр�
 
 msgid "Password"
 msgstr "Пароль"
+
+msgid "Paste a connection URI"
+msgstr "Вставьте URI подключения"
 
 msgid "Paste a PEM certificate or load it from a file"
 msgstr "Вставьте сертификат PEM или загрузите его из файла"
@@ -1865,14 +1883,8 @@ msgstr "Выберите секцию"
 msgid "Select a section for downloading this subscription"
 msgstr "Выберите секцию для скачивания этой подписки"
 
-msgid "Select a transit section"
-msgstr "Выберите транзитную секцию"
-
 msgid "Select an interface"
 msgstr "Выберите интерфейс"
-
-msgid "Select an intermediate section"
-msgstr "Выберите промежуточную секцию"
 
 msgid "Select at least one server or set a pattern"
 msgstr "Выберите хотя бы один сервер или задайте шаблон"
@@ -2267,6 +2279,9 @@ msgstr "Этот протокол не поддерживает выбранны
 msgid "This section name is reserved by Forkop"
 msgstr "Это название секции зарезервировано Forkop"
 
+msgid "This subscription is already in the section"
+msgstr "Эта подписка уже есть в секции"
+
 msgid "Time"
 msgstr "Время"
 
@@ -2437,12 +2452,6 @@ msgstr "Укажите IP-адрес с префиксом CIDR"
 
 msgid "Use an IP address, 0.0.0.0 for all IPv4, or :: for all addresses"
 msgstr "Укажите IP-адрес, 0.0.0.0 для всех IPv4 или :: для всех адресов"
-
-msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints"
-msgstr "Использовать другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, JSON outbound и JSON endpoint"
-
-msgid "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints"
-msgstr "Использовать другую секцию как промежуточный узел для подключения к серверам этой секции. Не применяется к сетевым интерфейсам, Tailscale, JSON outbound и JSON endpoint"
 
 msgid "Use letters, digits, dots, underscores, or hyphens"
 msgstr "Используйте буквы, цифры, точки, подчёркивания или дефисы"

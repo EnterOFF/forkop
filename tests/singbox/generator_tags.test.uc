@@ -14,7 +14,6 @@ function runtime_tags_config() {
         section: [
             {
                 ".name": "proxy", label: "Main", enabled: "1", action: "connection",
-                selector_proxy_links: [ "socks://127.0.0.1:1080#manual" ],
                 outbound_jsons: [
                     "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1201}",
                     "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1203}",
@@ -31,6 +30,7 @@ function runtime_tags_config() {
                 destinations: "backup.example.org"
             }
         ],
+        connection_link: fixture.links("proxy", [ "socks://127.0.0.1:1080#manual" ]),
         subscription_url: [ { ".name": "sub_dup", section: "proxy", url: "https://duplicate.example/sub", tag: "sub1" } ],
         section_interface: [ { ".name": "cfg-interface", section: "proxy", name: "wg0", display_name: "NL Amsterdam" } ],
         tunnel: [ { ".name": "tun_tailnet", section: "proxy", order: "0", kind: "tailscale", name: "Tailnet", tailscale_auth_key: "tskey-auth-test" } ],
@@ -100,24 +100,24 @@ t.test("manual link names follow the core parser", () => {
     let config = build({
         settings: {},
         section: [ {
-            ".name": "links", label: "Links", enabled: "1", action: "connection",
-            selector_proxy_links: [
-                "anytls://secret@example.com:443#AnyTLS%20Node",
-                "naive+https://user:pass@example.com:443#Naive+Node",
-                "https://user:pass@example.com:443#HTTP%20Node",
-                "hysteria://example.com:443#Hysteria%20Node",
-                "hy2://secret@example.com:443#Hysteria2%20Node",
-                "mierus://user:pass@example.com?profile=default#Mieru+Node",
-                "socks5://user:pass@example.com:1080#SOCKS%20Node",
-                "ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#SS%20Node",
-                "trojan://secret@example.com:443#Trojan%20Node",
-                "tuic://uuid:password@example.com:443#TUIC%20Node",
-                "vless://00000000-0000-4000-8000-000000000001@example.com:443#VLESS%20Node",
-                "vmess://eyJ2IjoiMiIsInBzIjoiVk1lc3MgV1MiLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjoiNDQzIiwiaWQiOiIyMjIyMjIyMi0yMjIyLTQyMjItODIyMi0yMjIyMjIyMjIyMjIiLCJhaWQiOiI0Iiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoidm1lc3MuZXhhbXBsZSIsInBhdGgiOiIvdm1lc3MiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJ2bWVzcy5leGFtcGxlIiwiYWxwbiI6ImgyLGh0dHAvMS4xIiwiZnAiOiJjaHJvbWUifQ==",
-                "vmess://{\"ps\":\"Raw VMess\",\"add\":\"127.0.0.1\",\"port\":\"1080\",\"id\":\"00000000-0000-4000-8000-000000000000\",\"net\":\"ws\",\"path\":\"/ws?ed=2048#inside\"}",
-                "trojan://secret@example.com:443"
-            ]
-        } ]
+            ".name": "links", label: "Links", enabled: "1", action: "connection"
+        } ],
+        connection_link: fixture.links("links", [
+            "anytls://secret@example.com:443#AnyTLS%20Node",
+            "naive+https://user:pass@example.com:443#Naive+Node",
+            "https://user:pass@example.com:443#HTTP%20Node",
+            "hysteria://example.com:443#Hysteria%20Node",
+            "hy2://secret@example.com:443#Hysteria2%20Node",
+            "mierus://user:pass@example.com?profile=default#Mieru+Node",
+            "socks5://user:pass@example.com:1080#SOCKS%20Node",
+            "ss://YWVzLTEyOC1nY206cGFzcw@example.com:8388#SS%20Node",
+            "trojan://secret@example.com:443#Trojan%20Node",
+            "tuic://uuid:password@example.com:443#TUIC%20Node",
+            "vless://00000000-0000-4000-8000-000000000001@example.com:443#VLESS%20Node",
+            "vmess://eyJ2IjoiMiIsInBzIjoiVk1lc3MgV1MiLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjoiNDQzIiwiaWQiOiIyMjIyMjIyMi0yMjIyLTQyMjItODIyMi0yMjIyMjIyMjIyMjIiLCJhaWQiOiI0Iiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoidm1lc3MuZXhhbXBsZSIsInBhdGgiOiIvdm1lc3MiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJ2bWVzcy5leGFtcGxlIiwiYWxwbiI6ImgyLGh0dHAvMS4xIiwiZnAiOiJjaHJvbWUifQ==",
+            "vmess://{\"ps\":\"Raw VMess\",\"add\":\"127.0.0.1\",\"port\":\"1080\",\"id\":\"00000000-0000-4000-8000-000000000000\",\"net\":\"ws\",\"path\":\"/ws?ed=2048#inside\"}",
+            "trojan://secret@example.com:443"
+        ])
     });
     t.eq(q.tags(filter(config.outbounds, (o) => o.type == "parser")), [
         "Links/AnyTLS Node", "Links/Naive+Node", "Links/HTTP Node",
@@ -131,13 +131,13 @@ t.test("a manual link is filtered by the protocol of its scheme", () => {
     let config = build({
         settings: {},
         section: [ {
-            ".name": "links", label: "Links", enabled: "1", action: "connection",
-            selector_proxy_links: [
-                "hy://example.com:443?auth=secret#Hysteria",
-                "socks5h://user:pass@example.com:1080#SOCKS",
-                "vless://00000000-0000-4000-8000-000000000001@example.com:443#VLESS"
-            ]
+            ".name": "links", label: "Links", enabled: "1", action: "connection"
         } ],
+        connection_link: fixture.links("links", [
+            "hy://example.com:443?auth=secret#Hysteria",
+            "socks5h://user:pass@example.com:1080#SOCKS",
+            "vless://00000000-0000-4000-8000-000000000001@example.com:443#VLESS"
+        ]),
         urltest: [ { ".name": "ut_types", section: "links", name: "Filtered", server_filter_mode: "exclude", exclude_types: [ "hysteria", "socks" ] } ]
     });
     t.eq(q.find(config.outbounds, (o) => o.type == "urltest").outbounds, [ "Links/VLESS" ]);

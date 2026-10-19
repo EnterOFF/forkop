@@ -99,6 +99,7 @@ describe('deleting a section', () => {
 
     expect(sectionRef.handleRemove('parent', event)).toBe(removeResult);
     expect(cleanupCalls).toEqual([
+      ['parent', 'connection_link', []],
       ['parent', 'subscription_url', []],
       ['parent', 'section_interface', []],
       ['parent', 'urltest', []],

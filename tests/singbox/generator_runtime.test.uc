@@ -336,17 +336,16 @@ function matcher_fixture() {
             { ".name": "bypass_ruleset", enabled: "1", action: "bypass", rule_set: [ "https://example.com/bypass-port.srs" ], source_ip_cidr: [ "10.0.0.4/32" ], ports: [ "8443" ] },
             {
                 ".name": "proxy", enabled: "1", action: "connection",
-                selector_proxy_links: [ "socks5://127.0.0.1:1080" ],
                 destinations: "commented.example # ignored.example\nfull:exact-comment.example // ignored-full.example\n" +
                     "full:source-priority.test\nkeyword:clip\nproxy.example.org сайт.рф, full:пример.испытание\n" +
                     "keyword:пример\nregex:^сайт[.]рф$\n77.111.247.0/24 #77.111.247.19\n198.51.100.0/24 //203.0.113.0/24",
                 source_ip_cidr: "10.0.0.2/32 #10.0.0.99\n2001:db8::2/128 //2001:db8::99/128\n@system",
-                ports_text: "80 # 443\n8080 // 8443",
-                outbound_detour_enabled: "1", outbound_detour_section: "detour"
+                ports_text: "80 # 443\n8080 // 8443"
             },
             { ".name": "proxy_global", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "example.org" },
             { ".name": "bypass_global", enabled: "1", action: "bypass", destinations: "full:source-priority.test" }
         ],
+        connection_link: fixture.links("proxy", [ "socks5://127.0.0.1:1080" ], { detour_section: "detour" }),
         server: [ {
             ".name": "server_proxy_mixed", enabled: "1", label: "proxy - Mixed proxy", protocol: "mixed",
             mixed_auth_enabled: "1", listen: "0.0.0.0", listen_port: "19090", open_firewall: "0",
@@ -364,7 +363,7 @@ t.test("inbounds, DNS servers and base routing of a matcher-heavy configuration"
     t.eq([ q.inbound(m, "system-in").listen_port, q.inbound(m, "system6-in").listen_port ], [ 1604, 1604 ]);
     t.eq(q.route_rule(m, (r) => r.action == "reject" && r.ip_version == 6), null, "IPv6 traffic is not rejected globally");
     t.eq(q.outbound(m, "direct-out").type, "direct");
-    t.eq(q.outbound(m, "proxy/Node #1").detour, "detour", "a manual link takes the section's cascade detour");
+    t.eq(q.outbound(m, "proxy/Node #1").detour, "detour", "a manual link takes its cascade detour");
 
     let mixed = q.inbound(m, "proxy - Mixed proxy");
     t.eq([ mixed.listen_port, mixed.users[0].username ], [ 19090, "user" ]);
@@ -602,7 +601,7 @@ t.test("a URLTest group filters its members and becomes the selector default", (
 });
 
 t.test("manual links stay verbatim in parser outbounds, JSON outbounds keep their transport", () => {
-    let http = build({ settings: { dns_server: "1.1.1.1" }, section: [ { ".name": "proxy", enabled: "1", action: "connection", selector_proxy_links: [ "http://127.0.0.1:8080" ] } ] });
+    let http = build({ settings: { dns_server: "1.1.1.1" }, section: [ { ".name": "proxy", enabled: "1", action: "connection" } ], connection_link: fixture.links("proxy", [ "http://127.0.0.1:8080" ]) });
     t.eq(q.outbound(http, "proxy/Node #1").type, "parser");
 
     let link = "vless://11111111-1111-4111-8111-111111111111@127.0.0.1:443?security=tls&type=ws&path=%2Fws&host=example.com&sni=example.com&alpn=h2%2Chttp%2F1.1&encryption=mlkem768x25519plus.native.test#WS";
@@ -610,20 +609,19 @@ t.test("manual links stay verbatim in parser outbounds, JSON outbounds keep thei
         settings: settings(),
         section: [ {
             ".name": "proxy", enabled: "1", action: "proxy",
-            selector_proxy_links: [
-                link,
-                "vmess://eyJ2IjoiMiIsInBzIjoiVk1lc3MgV1MiLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjoiNDQzIiwiaWQiOiIyMjIyMjIyMi0yMjIyLTQyMjItODIyMi0yMjIyMjIyMjIyMjIiLCJhaWQiOiI0Iiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoidm1lc3MuZXhhbXBsZSIsInBhdGgiOiIvdm1lc3MiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJ2bWVzcy5leGFtcGxlIiwiYWxwbiI6ImgyLGh0dHAvMS4xIiwiZnAiOiJjaHJvbWUifQ==#VMess",
-                "ss://YWVzLTEyOC1nY206cGFzcw@127.0.0.1:8388#SS"
-            ],
             destinations: "example.org"
-        } ]
+        } ],
+        connection_link: fixture.links("proxy", [
+            link,
+            "vmess://eyJ2IjoiMiIsInBzIjoiVk1lc3MgV1MiLCJhZGQiOiIxMjcuMC4wLjEiLCJwb3J0IjoiNDQzIiwiaWQiOiIyMjIyMjIyMi0yMjIyLTQyMjItODIyMi0yMjIyMjIyMjIyMjIiLCJhaWQiOiI0Iiwic2N5IjoiYXV0byIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0Ijoidm1lc3MuZXhhbXBsZSIsInBhdGgiOiIvdm1lc3MiLCJ0bHMiOiJ0bHMiLCJzbmkiOiJ2bWVzcy5leGFtcGxlIiwiYWxwbiI6ImgyLGh0dHAvMS4xIiwiZnAiOiJjaHJvbWUifQ==#VMess",
+            "ss://YWVzLTEyOC1nY206cGFzcw@127.0.0.1:8388#SS"
+        ])
     });
     t.eq(q.outbound(manual, "proxy/WS").link, link);
 
     let xhttp = build({ settings: { dns_server: "1.1.1.1" }, section: [ {
-        ".name": "manual_xhttp", enabled: "1", action: "connection",
-        selector_proxy_links: [ "vless://00000000-0000-4000-8000-000000000001@xhttp.example:443?encryption=none&security=tls&sni=xhttp.example&type=xhttp#Manual XHTTP" ]
-    } ] });
+        ".name": "manual_xhttp", enabled: "1", action: "connection"
+    } ], connection_link: fixture.links("manual_xhttp", [ "vless://00000000-0000-4000-8000-000000000001@xhttp.example:443?encryption=none&security=tls&sni=xhttp.example&type=xhttp#Manual XHTTP" ]) });
     t.contains(q.outbound(xhttp, "manual_xhttp/Manual XHTTP").link, "type=xhttp");
 
     let json_xhttp = build({ settings: { dns_server: "1.1.1.1" }, section: [ {
@@ -640,10 +638,10 @@ t.test("interface outbounds resolve through their own resolver group", () => {
             { ".name": "renamed_awg", enabled: "1", action: "connection", destinations: "vpn.example" },
             { ".name": "detoured_awg", enabled: "1", action: "connection", label: "Detoured", destinations: "detour.example" },
             {
-                ".name": "resolver_detour", enabled: "1", action: "connection", label: "Resolver detour",
-                selector_proxy_links: [ "vless://00000000-0000-4000-8000-000000000003@127.0.0.1:8443?security=none&type=tcp#Detour" ]
+                ".name": "resolver_detour", enabled: "1", action: "connection", label: "Resolver detour"
             }
         ],
+        connection_link: fixture.links("resolver_detour", [ "vless://00000000-0000-4000-8000-000000000003@127.0.0.1:8443?security=none&type=tcp#Detour" ]),
         section_interface: [
             {
                 ".name": "vpn-interface", section: "renamed_awg", name: "tun0", domain_resolver_enabled: "1",

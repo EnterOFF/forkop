@@ -18,10 +18,11 @@ function seed() {
     fixture.seed({
         settings: fixture.settings(),
         section: [
-            { ".name": "proxy", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ], community_lists: [ "telegram", "twitter" ], rule_set: [ "https://example.com/rules.srs" ] },
-            { ".name": "direct", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ], rule_set_with_subnets: [ "https://example.com/mixed.txt" ], rule_set: [ "https://example.com/rules.srs" ] },
-            { ".name": "plain", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ], destinations: "example.org" }
-        ]
+            { ".name": "proxy", enabled: "1", action: "connection",  community_lists: [ "telegram", "twitter" ], rule_set: [ "https://example.com/rules.srs" ] },
+            { ".name": "direct", enabled: "1", action: "connection",  rule_set_with_subnets: [ "https://example.com/mixed.txt" ], rule_set: [ "https://example.com/rules.srs" ] },
+            { ".name": "plain", enabled: "1", action: "connection",  destinations: "example.org" }
+        ],
+        connection_link: [ ...fixture.links("proxy", [ "vless://u@a.example:443#A" ]), ...fixture.links("direct", [ "vless://u@a.example:443#A" ]), ...fixture.links("plain", [ "vless://u@a.example:443#A" ]) ]
     });
 }
 

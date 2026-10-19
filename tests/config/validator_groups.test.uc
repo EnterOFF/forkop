@@ -1,5 +1,6 @@
 let t = require("t");
 let v = require("validation");
+let fixture = require("fixture");
 
 t.test("accepts fixture", () => {
     v.accepts({
@@ -16,14 +17,14 @@ t.test("accepts fixture", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "vless://11111111-1111-1111-1111-111111111111@vless.example:443?security=tls#VLESS node",
-                    "socks5://socks.example:1080#SOCKS node",
-                    "ss://YWVzLTI1Ni1nY206cGFzcw@ss.example:8388#SS node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "vless://11111111-1111-1111-1111-111111111111@vless.example:443?security=tls#VLESS node",
+            "socks5://socks.example:1080#SOCKS node",
+            "ss://YWVzLTI1Ni1nY206cGFzcw@ss.example:8388#SS node"
+        ]),
         "subscription_url": [
             {
                 ".name": "source",
@@ -87,12 +88,12 @@ t.test("accepts amnezia", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://socks.example:1080#Node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "socks5://socks.example:1080#Node"
+        ]),
         "tunnel": [
             {
                 ".name": "plain",
@@ -160,12 +161,12 @@ t.test("accepts prune", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://socks.example:1080#Node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "socks5://socks.example:1080#Node"
+        ]),
         "urltest": [
             {
                 ".name": "empty",
@@ -216,12 +217,12 @@ t.test("missing URLTest reference", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://socks.example:1080#Node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "socks5://socks.example:1080#Node"
+        ]),
         "fallback_group": [
             {
                 ".name": "group",
@@ -258,12 +259,12 @@ t.test("nested fallback reference", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://socks.example:1080#Node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "socks5://socks.example:1080#Node"
+        ]),
         "fallback_group": [
             {
                 ".name": "outer",
@@ -311,12 +312,12 @@ t.test("unknown server type", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://socks.example:1080#Node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "socks5://socks.example:1080#Node"
+        ]),
         "urltest": [
             {
                 ".name": "a",
@@ -346,12 +347,12 @@ t.test("endpoint type in a subscription", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://socks.example:1080#Node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "socks5://socks.example:1080#Node"
+        ]),
         "subscription_url": [
             {
                 ".name": "source",
@@ -382,12 +383,12 @@ t.test("protocol sing-box removed", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "connection",
-                "selector_proxy_links": [
-                    "socks5://socks.example:1080#Node"
-                ]
+                "action": "connection"
             }
         ],
+        "connection_link": fixture.links("proxy", [
+            "socks5://socks.example:1080#Node"
+        ]),
         "subscription_url": [
             {
                 ".name": "source",

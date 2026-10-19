@@ -247,7 +247,8 @@ t.test("a DPI section leaves with its children, and whatever pointed at it is sw
     t.eq(filter(config.subscription_url, (item) => item.section == "zap"), []);
     t.eq([ config.settings.dns_detour_enabled, config.settings.dns_detour_section ], [ "0", null ]);
     t.eq([ config.settings.download_lists_via_proxy, config.settings.download_lists_via_proxy_section ], [ "0", null ]);
-    t.eq([ section.main.outbound_detour_enabled, section.main.outbound_detour_section ], [ "0", null ]);
+    t.eq([ section.main.outbound_detour_enabled, section.main.outbound_detour_section ], [ null, null ]);
+    t.eq(filter(config.subscription_url, (item) => item.detour_section != null), [], "a cascade through it is gone too");
     let iface = config.section_interface[0];
     t.eq([ iface.domain_resolver_dns_detour_enabled, iface.domain_resolver_dns_detour_section ], [ "0", null ]);
 });
@@ -283,6 +284,62 @@ t.test("a section with addresses only, or with no destinations, is carried over 
     let again = migrated(config);
     t.eq(filter(again.operations, (op) => op.option in [ "destinations", "domain", "ip_cidr" ]), [], "a second pass leaves them alone");
     t.eq(by_name(again.config.section).addresses.destinations, "10.0.0.0/8");
+});
+
+t.test("a section's links become links of their own, under the names their servers ran under", () => {
+    let vmess = "vmess://" + b64enc(sprintf("%J", { v: "2", ps: "VMess name", add: "example.com", port: "443", id: "00000000-0000-4000-8000-000000000001" }));
+    let config = migrated({ settings: settings("1.0.5"), section: [
+        { ".name": "main", ".type": "section", action: "connection", selector_proxy_links: [
+            "vless://u@a.example:443#Node%20A", "trojan://p@b.example:443", "vless://u@c.example:443#Node%20A", vmess
+        ] },
+        { ".name": "plain", ".type": "section", action: "connection", selector_proxy_links: "socks5://127.0.0.1:1080#S socks5://127.0.0.1:1081" },
+        { ".name": "none", ".type": "section", action: "connection" }
+    ] }).config;
+    let links = (owner) => map(filter(config.connection_link ?? [], (link) => link.section == owner), (link) => [ link.uri, link.name, link.order ]);
+    t.eq(links("main"), [
+        [ "vless://u@a.example:443#Node%20A", "Node A", "0" ],
+        [ "trojan://p@b.example:443", "Node #2", "1" ],
+        [ "vless://u@c.example:443#Node%20A", "Node A #2", "2" ],
+        [ vmess, "VMess name", "3" ]
+    ]);
+    t.eq(links("plain"), [ [ "socks5://127.0.0.1:1080#S", "S", "0" ], [ "socks5://127.0.0.1:1081", "Node #2", "1" ] ],
+        "a value stored as one option splits on spaces, as the generator read it");
+    t.eq(links("none"), []);
+    for (let item in config.section)
+        t.ok(!exists(item, "selector_proxy_links"), item[".name"] + " kept selector_proxy_links");
+
+    config.settings.config_version = "1.0.5";
+    let again = migrated(config);
+    t.eq(filter(again.operations, (op) => op.type == "connection_link" || op.option == "selector_proxy_links"), [],
+        "a second pass leaves them alone");
+    t.eq(length(again.config.connection_link), 6);
+});
+
+t.test("a section's cascade goes to each of its links and subscriptions", () => {
+    let config = migrated({ settings: settings("1.0.5"), section: [
+        { ".name": "hop", ".type": "section", action: "connection", selector_proxy_links: [ "socks5://127.0.0.1:1080#Hop" ] },
+        { ".name": "main", ".type": "section", action: "connection", outbound_detour_enabled: "1", outbound_detour_section: "hop",
+            selector_proxy_links: [ "vless://u@a.example:443#A" ],
+            outbound_jsons: [ "{\"type\":\"socks\",\"tag\":\"Local\",\"server\":\"127.0.0.1\",\"server_port\":1081}" ] },
+        { ".name": "off", ".type": "section", action: "connection", outbound_detour_enabled: "0", outbound_detour_section: "hop",
+            selector_proxy_links: [ "vless://u@b.example:443#B" ] }
+    ], subscription_url: [
+        { ".name": "main_sub", ".type": "subscription_url", section: "main", url: "https://main.example/sub", tag: "sub1" },
+        { ".name": "off_sub", ".type": "subscription_url", section: "off", url: "https://off.example/sub", tag: "sub1" }
+    ] }).config;
+    let cascade = (type_name, owner) => map(filter(config[type_name] ?? [], (item) => item.section == owner), (item) => item.detour_section);
+    t.eq(cascade("connection_link", "main"), [ "hop" ]);
+    t.eq(cascade("subscription_url", "main"), [ "hop" ]);
+    t.eq(cascade("connection_link", "off"), [ null ], "a cascade switched off stays off");
+    t.eq(cascade("subscription_url", "off"), [ null ]);
+    t.eq(cascade("connection_link", "hop"), [ null ]);
+    t.eq(length(by_name(config.section).main.outbound_jsons), 1, "a JSON outbound kept its own way out");
+    for (let item in config.section)
+        absent(item, [ "outbound_detour_enabled", "outbound_detour_section" ]);
+
+    config.settings.config_version = "1.0.5";
+    let again = migrated(config);
+    t.eq(filter(again.operations, (op) => op.option == "detour_section"), [], "a second pass leaves them alone");
 });
 
 t.test("a subscription's prefix, country filters, User-Agent and HWID become the current fields", () => {
@@ -459,8 +516,8 @@ t.test("the 1.0.2 to 1.0.5 step turns a released HTTP link into an outbound befo
         } ]
     });
     let main = out.config.section[0];
-    t.eq(length(main.selector_proxy_links), 1);
-    t.matches(main.selector_proxy_links[0], /^vless:\/\//);
+    t.eq(map(out.config.connection_link, (link) => [ link.section, link.name ]), [ [ "main", "VLESS" ] ]);
+    t.matches(out.config.connection_link[0].uri, /^vless:\/\//);
     let http = json(main.outbound_jsons[0]);
     t.eq([ http.type, http.tag, http.server, http.server_port, http.username, http.password, http.tls?.enabled ],
         [ "http", "Released HTTP", "proxy.example.com", 8443, "alice", "secret", true ]);

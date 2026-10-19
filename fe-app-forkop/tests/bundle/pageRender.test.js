@@ -52,10 +52,14 @@ const SNAPSHOT = {
     enabled: '1',
     action: 'connection',
     label: 'Proxy',
-    selector_proxy_links: [
-      'vless://11111111-1111-4111-8111-111111111111@example.com:443?type=tcp&security=tls#node',
-    ],
     routing_mode: 'rules',
+  },
+  link_a1b2c3: {
+    '.type': 'connection_link',
+    section: 'proxy_rule',
+    uri: 'vless://11111111-1111-4111-8111-111111111111@example.com:443?type=tcp&security=tls#node',
+    name: 'node',
+    order: '0',
   },
   tun_a1b2c3: {
     '.type': 'tunnel',

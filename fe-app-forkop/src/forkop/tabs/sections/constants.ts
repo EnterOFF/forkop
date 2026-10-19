@@ -38,7 +38,7 @@ export const CONNECTIONS_BLOCKED_INTERFACES = [
 // outbound and no route, and the generator leaves it out of the runtime graph
 // entirely - so it is refused before it can be saved.
 export const CONNECTION_OUTBOUND_SOURCES = [
-  'selector_proxy_links',
+  'connection_link',
   'subscription_url',
   'interfaces',
   'tunnels',

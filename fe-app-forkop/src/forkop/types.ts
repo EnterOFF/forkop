@@ -220,6 +220,7 @@ export namespace Forkop {
       | 'server_client'
       | 'subscription_url'
       | 'section_interface'
+      | 'connection_link'
       | 'urltest'
       | 'fallback_group'
       | 'fallback_level'
@@ -234,7 +235,7 @@ export namespace Forkop {
     ports?: string[];
     update_interval?: string;
     proxy_string?: string;
-    selector_proxy_links?: string[];
+    connection_links?: Array<{ name: string; uri: string }>;
     subscription_urls?: string[];
     interfaces?: string[];
     tunnels?: string[];
@@ -263,6 +264,7 @@ export namespace Forkop {
     wireguard_address?: string | string[];
     id?: string;
     url?: string;
+    uri?: string;
     name?: string;
     display_name?: string;
     check_interval?: string;
@@ -289,8 +291,7 @@ export namespace Forkop {
     country?: string[];
     server_name?: string[];
     regex?: string[];
-    outbound_detour_enabled?: '0' | '1';
-    outbound_detour_section?: string;
+    detour_section?: string;
     download_via_proxy_enabled?: '0' | '1';
     download_via_proxy_section?: string;
     user_agent?: string;

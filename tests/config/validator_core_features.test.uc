@@ -1,5 +1,6 @@
 let t = require("t");
 let v = require("validation");
+let fixture = require("fixture");
 
 const BASE = [ "badlinkname", "tfogo_checklinkname0", "with_clash_api", "with_gvisor", "with_masque", "with_mtproxy",
     "with_openvpn", "with_quic", "with_sudoku", "with_trusttunnel", "with_utls", "with_wireguard" ];
@@ -63,14 +64,14 @@ t.test("a JSON endpoint is not judged by its type", () => {
 
 t.test("a link the build cannot dial is refused, without printing its secrets", () => {
     let hy2 = "hy2://secret-password@example.com:443?sni=example.com#Fast";
-    needs({ section: [ section({ selector_proxy_links: [ hy2 ] }) ] }, without(BASE, "with_quic"),
+    needs({ section: [ section() ], connection_link: fixture.links("proxy", [ hy2 ]) }, without(BASE, "with_quic"),
         "Section 'proxy' has a hy2:// link 'Fast', but this sing-box build lacks QUIC (built without with_quic)");
-    let result = v.run({ section: [ section({ selector_proxy_links: [ hy2 ] }) ] }, { core_tags: without(BASE, "with_quic") });
+    let result = v.run({ section: [ section() ], connection_link: fixture.links("proxy", [ hy2 ]) }, { core_tags: without(BASE, "with_quic") });
     t.ok(index(result.error, "secret-password") < 0, "the refusal carries the password");
 
-    needs({ section: [ section({ selector_proxy_links: [ "naive+https://u:p@example.com:443#N" ] }) ] }, BASE,
+    needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "naive+https://u:p@example.com:443#N" ]) }, BASE,
         "has a naive+https:// link 'N', but this sing-box build lacks the NaiveProxy client (built without with_naive_outbound)");
-    needs({ section: [ section({ selector_proxy_links: [ "vless://u@example.com:443?security=reality&pbk=key&sni=a.com#R" ] }) ] },
+    needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vless://u@example.com:443?security=reality&pbk=key&sni=a.com#R" ]) },
         without(BASE, "with_utls"), "has a vless:// link 'R' that uses Reality or a TLS fingerprint");
 });
 
@@ -102,7 +103,8 @@ t.test("the sing-box dashboard needs the API service", () => {
 t.test("requesting WARP profiles through a section needs WARP", () => {
     needs({
         settings: { warp_profiles_via_proxy: "1", warp_profiles_via_proxy_section: "proxy" },
-        section: [ section({ selector_proxy_links: [ "vless://u@a.example:443#A" ] }) ]
+        section: [ section() ],
+        connection_link: fixture.links("proxy", [ "vless://u@a.example:443#A" ])
     }, without(BASE, "with_wireguard"),
         "Requesting WARP profiles through a section is on, but this sing-box build lacks WireGuard, AmneziaWG and WARP (built without with_wireguard)");
 });

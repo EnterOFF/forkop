@@ -248,7 +248,6 @@ function buildSettings() {
     action: 'connection',
     enabled: '1',
     label: 'Live',
-    selector_proxy_links: ['vless://a@example:1#n'],
   });
   const map = new harness.form.Map('forkop');
   const settings = map.section(harness.form.NamedSection, 'settings');

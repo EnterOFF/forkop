@@ -14,13 +14,13 @@ t.test("type filters reach providers natively and manual nodes through the gener
     let config = build({
         settings: SETTINGS,
         section: [ {
-            ".name": "proxy", enabled: "1", action: "connection",
-            selector_proxy_links: [
-                "vless://11111111-1111-1111-1111-111111111111@vless.example:443?security=tls#VLESS node",
-                "socks5://socks.example:1080#SOCKS node",
-                "ss://YWVzLTI1Ni1nY206cGFzcw@ss.example:8388#SS node"
-            ]
+            ".name": "proxy", enabled: "1", action: "connection"
         } ],
+        connection_link: fixture.links("proxy", [
+            "vless://11111111-1111-1111-1111-111111111111@vless.example:443?security=tls#VLESS node",
+            "socks5://socks.example:1080#SOCKS node",
+            "ss://YWVzLTI1Ni1nY206cGFzcw@ss.example:8388#SS node"
+        ]),
         subscription_url: [ {
             ".name": "source", section: "proxy", url: "https://example.com/subscription", tag: "sub1",
             server_filter_mode: "exclude", exclude_types: [ "shadowsocks", "Trojan" ]
@@ -56,7 +56,8 @@ t.test("type filters reach providers natively and manual nodes through the gener
 t.test("AmneziaWG is told apart from plain WireGuard, and endpoint types stay out of native filters", () => {
     let config = build({
         settings: SETTINGS,
-        section: [ { ".name": "proxy", enabled: "1", action: "connection", selector_proxy_links: [ "socks5://socks.example:1080#Node" ] } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("proxy", [ "socks5://socks.example:1080#Node" ]),
         tunnel: [
             { ".name": "plain", section: "proxy", kind: "json", endpoint_json: "{\"type\":\"wireguard\",\"tag\":\"Plain WG\"}" },
             { ".name": "junk", section: "proxy", kind: "json", endpoint_json: "{\"type\":\"amneziawg\",\"tag\":\"Amnezia WG\",\"amnezia\":{\"jc\":4,\"s1\":64}}" },
@@ -82,7 +83,8 @@ t.test("AmneziaWG is told apart from plain WireGuard, and endpoint types stay ou
 t.test("a group without members is dropped, and so is one that only pointed at it", () => {
     let config = build({
         settings: SETTINGS,
-        section: [ { ".name": "proxy", enabled: "1", action: "connection", selector_proxy_links: [ "socks5://socks.example:1080#Node" ] } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("proxy", [ "socks5://socks.example:1080#Node" ]),
         urltest: [
             { ".name": "empty", section: "proxy", name: "Empty", server_filter_mode: "include" },
             { ".name": "real", section: "proxy", name: "Real", server_filter_mode: "all" }

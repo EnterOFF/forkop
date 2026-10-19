@@ -125,7 +125,7 @@ describe('the Sections tab', () => {
 
   it('lists and takes only the links the core can dial', () => {
     harness.bundle.setCoreFeatures(base());
-    const links = option(sections(), 'selector_proxy_links');
+    const links = option(sections(), 'connection_link');
 
     expect(links.description).toBe(
       'Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, mieru, anytls',
@@ -145,18 +145,6 @@ describe('the Sections tab', () => {
     harness.bundle.setCoreFeatures(coreFeatures({ add: ['with_tailscale'] }));
     expect(option(sections(), 'tunnels').description).toBe(
       'Available: WireGuard, AmneziaWG, Cloudflare WARP, Tailscale, OpenVPN, JSON endpoint',
-    );
-  });
-
-  it('leaves Tailscale out of the cascade note when the core lacks it', () => {
-    harness.bundle.setCoreFeatures(base());
-    expect(option(sections(), 'outbound_detour_enabled').description).toBe(
-      'Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints',
-    );
-
-    harness.bundle.setCoreFeatures(coreFeatures({ add: ['with_tailscale'] }));
-    expect(option(sections(), 'outbound_detour_enabled').description).toBe(
-      'Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints',
     );
   });
 

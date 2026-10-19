@@ -2446,58 +2446,6 @@ function closeAllClashApiConnections() {
   );
 }
 
-// src/helpers/getProxyUrlName.ts
-function getProxyUrlName(url) {
-  const link = `${url ?? ""}`;
-  const scheme = link.includes("://") ? link.slice(0, link.indexOf("://")).toLowerCase() : "";
-  if (scheme === "vmess") {
-    const name = vmessName(link.slice("vmess://".length));
-    if (name) {
-      return name;
-    }
-  }
-  const marker = link.indexOf("#");
-  return marker >= 0 ? percentDecode(link.slice(marker + 1)) : "";
-}
-function vmessName(source) {
-  let payload = source;
-  if (!payload.startsWith("{")) {
-    const encoded = payload.split(/[@?#]/, 1)[0].replace(/-/g, "+").replace(/_/g, "/");
-    try {
-      payload = new TextDecoder().decode(
-        Uint8Array.from(
-          atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
-          (character) => character.charCodeAt(0)
-        )
-      );
-    } catch {
-      return "";
-    }
-  }
-  try {
-    const name = JSON.parse(payload)?.ps;
-    return name ? `${name}` : "";
-  } catch {
-    return "";
-  }
-}
-function percentDecode(value) {
-  const bytes = [];
-  const encoder = new TextEncoder();
-  for (let i = 0; i < value.length; ) {
-    const hex = value.slice(i + 1, i + 3);
-    if (value[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
-      bytes.push(parseInt(hex, 16));
-      i += 3;
-      continue;
-    }
-    const character = String.fromCodePoint(value.codePointAt(i));
-    bytes.push(...encoder.encode(character));
-    i += character.length;
-  }
-  return new TextDecoder().decode(new Uint8Array(bytes));
-}
-
 // src/forkop/methods/custom/getDashboardSections.ts
 var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
   "http",
@@ -2543,6 +2491,7 @@ function hydrateConfigSections(configSections) {
   const fallbackGroups = childSections(configSections, "fallback_group");
   const fallbackLevels = childSections(configSections, "fallback_level");
   const tunnels = childSections(configSections, "tunnel");
+  const links = childSections(configSections, "connection_link");
   return configSections.map((section) => {
     if (section[".type"] !== "section") {
       return section;
@@ -2553,6 +2502,15 @@ function hydrateConfigSections(configSections) {
     const urltestItems = ownedChildSections(next, urltests);
     const fallbackGroupItems = ownedChildSections(next, fallbackGroups);
     const tunnelItems = ownedChildSections(next, tunnels);
+    const linkItems = ownedChildSections(next, links).sort(
+      (left, right) => Number(left.order || 0) - Number(right.order || 0)
+    );
+    if (linkItems.length) {
+      next.connection_links = linkItems.map((item) => ({
+        name: `${item.name || ""}`,
+        uri: `${item.uri || ""}`
+      }));
+    }
     if (subscriptionUrlItems.length) {
       const settings = {};
       next.subscription_urls = subscriptionUrlItems.map((item) => item.url || "").filter(Boolean);
@@ -2632,7 +2590,7 @@ function hydrateConfigSections(configSections) {
   });
 }
 function getManualProxyLinks(section) {
-  return getListValues(section.selector_proxy_links);
+  return section.connection_links || [];
 }
 function getConnectionInterfaces(section) {
   const values = getListValues(section.interfaces);
@@ -2705,20 +2663,12 @@ function getJsonOutboundDisplayName(section) {
   }
 }
 function buildManualLinkByCode(section, selectorCodes) {
-  const links = getManualProxyLinks(section);
   const available = new Set(selectorCodes);
-  const taken = /* @__PURE__ */ new Set();
   const sectionPrefix = `${getDisplayName(section)}/`;
   return new Map(
-    links.flatMap((link, index) => {
-      const name = getProxyUrlName(link) || `Node #${index + 1}`;
-      const base = `${sectionPrefix}${name}`;
-      let code = base;
-      for (let number3 = 2; taken.has(code); number3 += 1) {
-        code = `${base} #${number3}`;
-      }
-      taken.add(code);
-      return available.has(code) && isCopyableProxyLink(link) ? [[code, link]] : [];
+    getManualProxyLinks(section).flatMap(({ name, uri }) => {
+      const code = `${sectionPrefix}${name}`;
+      return available.has(code) && isCopyableProxyLink(uri) ? [[code, uri]] : [];
     })
   );
 }
@@ -13113,41 +13063,6 @@ function validateOutboundJson(value, usedTags = []) {
   return { valid: true, message: _("Valid") };
 }
 
-// src/validators/validateProxyUrl.ts
-var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
-  "anytls",
-  "hysteria",
-  "hysteria2",
-  "hy2",
-  "http",
-  "http2",
-  "http3",
-  "https",
-  "mieru",
-  "mierus",
-  "naive+https",
-  "naive+quic",
-  "socks",
-  "socks4",
-  "socks4a",
-  "socks5",
-  "ss",
-  "trojan",
-  "tuic",
-  "vless",
-  "vmess"
-]);
-function validateProxyUrl(url) {
-  const trimmedUrl = url.trim();
-  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(trimmedUrl);
-  if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
-    return { valid: true, message: _("Valid") };
-  return {
-    valid: false,
-    message: _("The pasted link is not supported. Try JSON outbound.")
-  };
-}
-
 // src/forkop/cbi/itemSettings.ts
 var sharedChildPendingSettings = /* @__PURE__ */ new Map();
 function readItemSettingsMap(section_id, settingsKey) {
@@ -13239,6 +13154,7 @@ function clearChildPendingSettings(option2, section_id) {
 
 // src/forkop/cbi/childItems.ts
 var SECTION_ID_PREFIXES = {
+  connection_link: "link",
   fallback_group: "group",
   fallback_level: "level",
   section: "section",
@@ -13273,7 +13189,9 @@ function childItemOrder(item) {
 function getChildItemIds(section_id, typeName, ownerOption) {
   const ownerKey = childOwnerOption(ownerOption);
   const items = uci.sections(FORKOP_UCI_PACKAGE, typeName).filter((item) => item[ownerKey] === section_id);
-  if (["fallback_level", "tunnel", "tunnel_peer"].includes(typeName)) {
+  if (["connection_link", "fallback_level", "tunnel", "tunnel_peer"].includes(
+    typeName
+  )) {
     items.sort((a, b) => {
       const orderDiff = childItemOrder(a) - childItemOrder(b);
       if (orderDiff !== 0) {
@@ -13995,7 +13913,7 @@ var SettingsDynamicList = form.DynamicList.extend({
   // The text an entry shows and is looked up by. A saved entry is a child
   // section id and shows what that section stores under childValueOption; a
   // draft has no section yet and is its own text, which its dialog may have
-  // changed - a rename moves the list value with it, so the name the dialog
+  // changed - a rename moves the list value with it, so the value the dialog
   // holds is where the draft's settings are.
   //
   // A list with no childValueOption stores nothing to show: its entry is the
@@ -14013,7 +13931,8 @@ var SettingsDynamicList = form.DynamicList.extend({
       this.ownerOption
     );
     const staged = childPendingSettingsStore(this, ownerId)[inputValue];
-    return staged && staged.name ? `${staged.name}` : inputValue;
+    const renamed = staged ? staged[this.childValueOption] : null;
+    return renamed ? `${renamed}` : inputValue;
   },
   // What an entry's dialog has taken but not written yet, handed to the child
   // section the moment that section is created.
@@ -14225,8 +14144,8 @@ function sectionMissingCoreFeatures(sectionId) {
       missing.add(feature);
     }
   });
-  getConfigListValues(sectionId, "selector_proxy_links").forEach(
-    (link) => linkCoreFeatures(link).filter((feature) => !coreHas(feature)).forEach((feature) => missing.add(feature))
+  (uci.sections(FORKOP_UCI_PACKAGE, "connection_link") || []).filter((link) => link.section === sectionId).forEach(
+    (link) => linkCoreFeatures(`${link.uri || ""}`).filter((feature) => !coreHas(feature)).forEach((feature) => missing.add(feature))
   );
   return [...missing];
 }
@@ -14923,7 +14842,7 @@ var CONNECTIONS_BLOCKED_INTERFACES = [
   "lan"
 ];
 var CONNECTION_OUTBOUND_SOURCES = [
-  "selector_proxy_links",
+  "connection_link",
   "subscription_url",
   "interfaces",
   "tunnels",
@@ -15200,6 +15119,58 @@ function setModalOptionValue(map, option2, value) {
   }
 }
 
+// src/helpers/getProxyUrlName.ts
+function getProxyUrlName(url) {
+  const link = `${url ?? ""}`;
+  const scheme = link.includes("://") ? link.slice(0, link.indexOf("://")).toLowerCase() : "";
+  if (scheme === "vmess") {
+    const name = vmessName(link.slice("vmess://".length));
+    if (name) {
+      return name;
+    }
+  }
+  const marker = link.indexOf("#");
+  return marker >= 0 ? percentDecode(link.slice(marker + 1)) : "";
+}
+function vmessName(source) {
+  let payload = source;
+  if (!payload.startsWith("{")) {
+    const encoded = payload.split(/[@?#]/, 1)[0].replace(/-/g, "+").replace(/_/g, "/");
+    try {
+      payload = new TextDecoder().decode(
+        Uint8Array.from(
+          atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
+          (character) => character.charCodeAt(0)
+        )
+      );
+    } catch {
+      return "";
+    }
+  }
+  try {
+    const name = JSON.parse(payload)?.ps;
+    return name ? `${name}` : "";
+  } catch {
+    return "";
+  }
+}
+function percentDecode(value) {
+  const bytes = [];
+  const encoder = new TextEncoder();
+  for (let i = 0; i < value.length; ) {
+    const hex = value.slice(i + 1, i + 3);
+    if (value[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
+      bytes.push(parseInt(hex, 16));
+      i += 3;
+      continue;
+    }
+    const character = String.fromCodePoint(value.codePointAt(i));
+    bytes.push(...encoder.encode(character));
+    i += character.length;
+  }
+  return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
 // src/forkop/tabs/sections/outboundJson.ts
 function parseOutboundJsonObject(value) {
   try {
@@ -15312,10 +15283,6 @@ function getOutboundDetourTargetSections(currentSectionId) {
   return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
     (section) => isDetourTargetSection(section, currentSectionId)
   );
-}
-function getDefaultOutboundDetourSection(currentSectionId) {
-  const targetSections = getOutboundDetourTargetSections(currentSectionId);
-  return targetSections.length ? getUciSectionName(targetSections[0]) : "";
 }
 function refreshOutboundDetourSectionOptionValues(option2, sectionId) {
   option2.keylist = [];
@@ -15533,9 +15500,9 @@ function showSubscriptionOverrideModal(parentMap, itemId) {
     }
     const reserved = reservedOverridePatchPath(parsed);
     if (reserved) {
-      return _("%s is set by the cascade connection of the section").format(
-        reserved
-      );
+      return _(
+        "%s is set by the cascade connection of the subscription"
+      ).format(reserved);
     }
     return true;
   };
@@ -15597,9 +15564,11 @@ function remoteSubscriptionUrlSettingsKeys() {
     "show_dashboard_metadata"
   ];
 }
-function subscriptionUrlSettingsKeys(remote = true) {
-  const keys = [
+function subscriptionUrlSettingsKeys() {
+  return [
+    ...remoteSubscriptionUrlSettingsKeys(),
     "tag",
+    "detour_section",
     "server_filter_mode",
     "include_outbounds",
     "include_regex",
@@ -15608,7 +15577,13 @@ function subscriptionUrlSettingsKeys(remote = true) {
     "exclude_regex",
     ...subscriptionOverrideKeys()
   ];
-  return remote ? [...remoteSubscriptionUrlSettingsKeys(), ...keys] : keys;
+}
+function applyRemoteSubscriptionUrlSettings(itemId, settings) {
+  const remote = {};
+  remoteSubscriptionUrlSettingsKeys().forEach((key) => {
+    remote[key] = settings[key];
+  });
+  applyChildItemSettings(itemId, remote);
 }
 function cleanupRemoteSubscriptionUrlSettings(itemId) {
   remoteSubscriptionUrlSettingsKeys().forEach(
@@ -15661,6 +15636,28 @@ function nextSubscriptionTag(sectionId, option2, values = listedSubscriptionValu
     if (!taken.has(value)) return value;
   }
   return `sub${Date.now()}`;
+}
+function listedSubscriptionSource(sectionId, option2, value) {
+  if (isExistingChildItem(sectionId, value, "subscription_url")) {
+    return childItemInputValue(sectionId, value, "subscription_url", "url");
+  }
+  return `${childPendingSettingsStore(option2, sectionId)[value]?.url || value}`;
+}
+function listedSubscriptionSources(sectionId, option2, excluded = []) {
+  return listedSubscriptionValues(sectionId, option2).filter((value) => !excluded.includes(value)).map((value) => listedSubscriptionSource(sectionId, option2, value).trim());
+}
+function subscriptionListItemLabel(sectionId, option2, value) {
+  let tag = listedSubscriptionTag(sectionId, option2, value);
+  if (!tag && !isExistingChildItem(sectionId, value, "subscription_url")) {
+    const store2 = childPendingSettingsStore(option2, sectionId);
+    tag = nextSubscriptionTag(sectionId, option2);
+    store2[value] = Object.assign({}, store2[value], { tag });
+  }
+  return textE(
+    "span",
+    { class: "fkp-dynlist-label" },
+    tag || listedSubscriptionSource(sectionId, option2, value)
+  );
 }
 function reserveSubscriptionTags(sectionId, option2, values) {
   const store2 = childPendingSettingsStore(option2, sectionId);
@@ -17246,6 +17243,12 @@ function tunnelListItemLabel(sectionId, tunnelId) {
     feature && !coreHas(feature) ? `${label} (${missingCoreFeatureNote(feature)})` : label
   );
 }
+var CASCADE_TUNNEL_KINDS = [
+  "wireguard",
+  "amneziawg",
+  "warp",
+  "openvpn-client"
+];
 var STORED_KINDS = [
   "openvpn-client",
   "json",
@@ -17288,6 +17291,7 @@ function tunnelInitialSettings(value, sectionId) {
       tailscaleDetour,
       sectionId
     ),
+    detour_section: `${tunnel.detour_section || ""}`,
     endpoint_json: kind === "json" ? `${tunnel.endpoint_json || ""}` : ""
   };
   AMNEZIA_KEYS.forEach((key) => {
@@ -17316,6 +17320,7 @@ function tunnelSettingsKeys() {
     "tailscale_accept_routes",
     "tailscale_exit_node",
     "tailscale_detour_section",
+    "detour_section",
     "endpoint_json",
     ...AMNEZIA_KEYS.map((key) => `amnezia_${key}`)
   ];
@@ -17372,6 +17377,9 @@ function tunnelStorageSettings(settings) {
     tailscale_accept_routes: kind === "tailscale" ? `${settings.tailscale_accept_routes || "1"}` : "",
     tailscale_exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
     tailscale_detour_section: `${settings.tailscale_detour_enabled || ""}` === "1" ? `${settings.tailscale_detour_section || ""}`.trim() : "",
+    // The dialog drops the section along with its switch, so a section it
+    // still holds is one the switch is on for.
+    detour_section: CASCADE_TUNNEL_KINDS.includes(kind) ? `${settings.detour_section || ""}`.trim() : "",
     endpoint_json: kind === "openvpn-client" ? JSON.stringify(openVPNEndpoint(settings)) : kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
   };
   AMNEZIA_KEYS.forEach((key) => {
@@ -17893,10 +17901,12 @@ function currentLiveDynamicListValues(section_id, optionName) {
 }
 function currentDraftOutboundNames(section_id) {
   const names = [];
-  currentSourceOptionValues(section_id, "selector_proxy_links").forEach(
+  const linkOption = outboundNameSourceOptions.get("connection_link");
+  const stagedLinks = linkOption ? childPendingSettingsStore(linkOption, section_id) : {};
+  currentSourceOptionValues(section_id, "connection_link").forEach(
     (value, index) => {
-      const name = getProxyUrlName(`${value || ""}`);
-      names.push(name || `Node #${index + 1}`);
+      const name = `${(isExistingChildItem(section_id, value, "connection_link") ? uci.get(FORKOP_UCI_PACKAGE, value, "name") : stagedLinks[value]?.name) || getProxyUrlName(value) || `Node #${index + 1}`}`.trim();
+      names.push(name);
     }
   );
   currentSourceOptionValues(section_id, "interfaces").forEach(
@@ -18830,6 +18840,208 @@ function showInterfaceSettingsModal(_section_id, itemValue, option2) {
   });
 }
 
+// src/validators/validateProxyUrl.ts
+var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
+  "anytls",
+  "hysteria",
+  "hysteria2",
+  "hy2",
+  "http",
+  "http2",
+  "http3",
+  "https",
+  "mieru",
+  "mierus",
+  "naive+https",
+  "naive+quic",
+  "socks",
+  "socks4",
+  "socks4a",
+  "socks5",
+  "ss",
+  "trojan",
+  "tuic",
+  "vless",
+  "vmess"
+]);
+function validateProxyUrl(url) {
+  const trimmedUrl = url.trim();
+  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(trimmedUrl);
+  if (match && NATIVE_PROXY_SCHEMES.has(match[1]))
+    return { valid: true, message: _("Valid") };
+  return {
+    valid: false,
+    message: _("The pasted link is not supported. Try JSON outbound.")
+  };
+}
+
+// src/forkop/tabs/sections/cascade.ts
+function addCascadeOptions(itemSection, parentSectionForItem, description, dependencies = []) {
+  const toggle = itemSection.option(
+    form.Flag,
+    "_cascade",
+    _("Cascade connection"),
+    description
+  );
+  toggle.default = "0";
+  toggle.rmempty = false;
+  toggle.load = function(itemId) {
+    return optionMapValue(this, itemId, "detour_section") ? "1" : "0";
+  };
+  toggle.write = function() {
+  };
+  toggle.remove = function() {
+  };
+  dependencies.forEach((dependency) => toggle.depends(dependency));
+  const target = itemSection.option(
+    form.ListValue,
+    "detour_section",
+    _("Connect through")
+  );
+  target.rmempty = false;
+  if (dependencies.length) {
+    dependencies.forEach(
+      (dependency) => target.depends({ ...dependency, _cascade: "1" })
+    );
+  } else {
+    target.depends("_cascade", "1");
+  }
+  target.load = function(itemId) {
+    refreshOutboundDetourSectionOptionValues(
+      this,
+      parentSectionForItem(itemId)
+    );
+    const value = `${optionMapValue(this, itemId, "detour_section") || ""}`;
+    keepUnavailableSectionChoice(this, value);
+    return value;
+  };
+  target.validate = function(itemId, value) {
+    if (currentOptionValue(this, itemId, "_cascade") !== "1") {
+      return true;
+    }
+    if (!value) {
+      return _("Select a section");
+    }
+    return value === parentSectionForItem(itemId) ? _("Current section cannot be used as its own transit section") : true;
+  };
+}
+
+// src/forkop/tabs/sections/links.ts
+function validateConnectionLink(value) {
+  const link = `${value ?? ""}`.trim();
+  if (!link) {
+    return true;
+  }
+  const validation = validateProxyUrl(link);
+  return validation.valid ? validateConnectionUriCore(link) : validation.message;
+}
+function listedLinkValues(sectionId, option2) {
+  let values = null;
+  try {
+    values = option2 && option2.formvalue ? option2.formvalue(sectionId) : null;
+  } catch (_error) {
+    values = null;
+  }
+  return Array.isArray(values) ? values.map((value) => `${value || ""}`.trim()).filter(Boolean) : getChildItemIds(sectionId, "connection_link");
+}
+function listedLinkName(sectionId, option2, value) {
+  if (isExistingChildItem(sectionId, value, "connection_link")) {
+    return `${uci.get(FORKOP_UCI_PACKAGE, value, "name") || ""}`.trim();
+  }
+  return `${childPendingSettingsStore(option2, sectionId)[value]?.name || ""}`.trim();
+}
+function nextLinkName(sectionId, option2, link, values = listedLinkValues(sectionId, option2)) {
+  const taken = new Set(
+    values.filter((value) => value !== link).map((value) => listedLinkName(sectionId, option2, value)).filter(Boolean)
+  );
+  const own = getProxyUrlName(link).trim();
+  if (own) {
+    let name = own;
+    for (let number3 = 2; taken.has(name); number3 += 1) {
+      name = `${own} #${number3}`;
+    }
+    return name;
+  }
+  for (let number3 = taken.size + 1; number3 < 1e5; number3 += 1) {
+    if (!taken.has(`Node #${number3}`)) return `Node #${number3}`;
+  }
+  return `Node #${Date.now()}`;
+}
+function savedLinkName(sectionId, option2, link) {
+  const values = listedLinkValues(sectionId, option2);
+  const stored = getChildItemIds(sectionId, "connection_link").filter(
+    (itemId) => !values.includes(itemId)
+  );
+  return nextLinkName(sectionId, option2, link, [...stored, ...values]);
+}
+function connectionLinkName(sectionId, option2, value) {
+  const listed = listedLinkName(sectionId, option2, value);
+  if (listed || isExistingChildItem(sectionId, value, "connection_link")) {
+    return listed;
+  }
+  const store2 = childPendingSettingsStore(option2, sectionId);
+  store2[value] = Object.assign({}, store2[value], {
+    name: nextLinkName(sectionId, option2, value)
+  });
+  return `${store2[value].name}`;
+}
+function connectionLinkListItemLabel(sectionId, option2, value) {
+  return textE(
+    "span",
+    { class: "fkp-dynlist-label" },
+    connectionLinkName(sectionId, option2, value)
+  );
+}
+function forgetRemovedLinkDrafts(sectionId, option2, values) {
+  const store2 = childPendingSettingsStore(option2, sectionId);
+  Object.keys(store2).forEach((value) => {
+    if (!values.includes(value)) delete store2[value];
+  });
+}
+function connectionLinkSettingsKeys() {
+  return ["name", "uri", "detour_section"];
+}
+function writeTrimmed(itemId, value) {
+  return form.Value.prototype.write.call(this, itemId, `${value ?? ""}`.trim());
+}
+function showConnectionLinkSettingsModal(sectionId, itemValue, option2, widget, itemNode) {
+  return showChildItemSettingsModal(sectionId, itemValue, option2, {
+    typeName: "connection_link",
+    valueOption: "uri",
+    keys: connectionLinkSettingsKeys(),
+    itemNode,
+    defaults: (inputValue) => ({
+      uri: inputValue,
+      name: connectionLinkName(sectionId, option2, `${itemValue ?? ""}`)
+    }),
+    addOptions: (itemSection) => {
+      let o = itemSection.option(form.Value, "name", _("Server name"));
+      o.rmempty = false;
+      o.write = writeTrimmed;
+      o.validate = function(_itemId, value) {
+        return `${value || ""}`.trim() ? validateUniqueDynamicListItemName(widget, itemNode, value) : _("Enter a display name");
+      };
+      o = itemSection.option(form.Value, "uri", _("Connection URI"));
+      o.password = true;
+      o.rmempty = false;
+      o.write = writeTrimmed;
+      o.validate = function(_itemId, value) {
+        return `${value || ""}`.trim() ? validateConnectionLink(value) : _("Paste a connection URI");
+      };
+      addCascadeOptions(
+        itemSection,
+        () => sectionId,
+        _("Connect to this server through another section")
+      );
+    },
+    title: () => _("Link settings"),
+    afterSave: (_itemId, _inputValue, settings) => {
+      updateDynamicListItemLabel(itemNode, `${settings.name || ""}`.trim());
+      refreshDashboardFilterChoiceWidgets(sectionId);
+    }
+  });
+}
+
 // src/forkop/tabs/sections/ruleSets.ts
 function ruleSetIncludesSubnets(section_id, value) {
   const settings = readItemSettingsMap(section_id, RULE_SET_ITEM_SETTINGS_KEY);
@@ -19091,81 +19303,10 @@ function showSubscriptionHeadersModal(parentMap, itemId) {
 }
 
 // src/forkop/tabs/sections/subscriptions/options.ts
+var REMOTE_SOURCE = /^https?:\/\//;
 function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
-  let o;
-  if (options.remote !== false) {
-    o = itemSection.option(
-      form.Flag,
-      "subscription_update_enabled",
-      _("Subscription auto update")
-    );
-    o.default = "1";
-    o.rmempty = false;
-    o = itemSection.option(
-      form.Value,
-      "subscription_update_interval",
-      _("Update interval")
-    );
-    o.depends("subscription_update_enabled", "1");
-    o.placeholder = "1h";
-    o.validate = function(itemId, value) {
-      return currentOptionValue(this, itemId, "subscription_update_enabled") === "1" ? validateRequiredSingBoxDuration(value) : validateOptionalSingBoxDuration(value);
-    };
-    o = itemSection.option(
-      form.Flag,
-      "download_via_proxy_enabled",
-      _("Request the subscription through a section")
-    );
-    o.default = "0";
-    o.rmempty = false;
-    o = itemSection.option(
-      form.ListValue,
-      "download_via_proxy_section",
-      _("Request through")
-    );
-    o.depends("download_via_proxy_enabled", "1");
-    o.load = function(itemId) {
-      const sectionId = parentSectionForItem(itemId);
-      refreshOptionChoices(this, subscriptionDownloadTargetChoices(sectionId));
-      const value = optionMapValue(this, itemId, "download_via_proxy_section") || "";
-      keepUnavailableSectionChoice(this, value);
-      return value;
-    };
-    o.validate = function(itemId, value) {
-      const sectionId = parentSectionForItem(itemId);
-      if (currentOptionValue(this, itemId, "download_via_proxy_enabled") !== "1") {
-        return true;
-      }
-      if (!value) {
-        return _("Select a section for downloading this subscription");
-      }
-      if (value === sectionId) {
-        return _("Current section cannot download its own subscription");
-      }
-      return true;
-    };
-    o = itemSection.option(
-      form.Button,
-      "_subscription_headers",
-      _("Headers"),
-      _("Change the HTTP headers of the request")
-    );
-    o.inputtitle = _("Edit");
-    o.inputstyle = "edit";
-    o.onclick = function() {
-      return showSubscriptionHeadersModal(itemSection.map, "settings");
-    };
-    o = itemSection.option(
-      form.Flag,
-      "show_dashboard_metadata",
-      _("Show metadata"),
-      _("Show the metadata block on the dashboard")
-    );
-    o.default = "1";
-    o.rmempty = false;
-  }
-  o = itemSection.option(
+  let o = itemSection.option(
     form.Value,
     "tag",
     _("Tag"),
@@ -19186,6 +19327,105 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
       inputValue
     ]).includes(normalized) ? _("Subscription tag must be unique within the section") : true;
   };
+  o = itemSection.option(
+    form.Value,
+    "url",
+    _("Subscription"),
+    _("Subscription URL or local path")
+  );
+  o.password = true;
+  o.rmempty = false;
+  o.validate = function(itemId, value) {
+    const source = `${value || ""}`.trim();
+    if (!source) return _("Enter a subscription URL or local path");
+    const result = validateSubscriptionUrlEntry(itemId, source);
+    if (result !== true) return result;
+    const sectionId = parentSectionForItem(itemId);
+    const ownerId = typeof options.ownerId === "function" ? options.ownerId() : "";
+    const inputValue = typeof options.itemValue === "function" ? options.itemValue() : "";
+    return listedSubscriptionSources(sectionId, options.listOption, [
+      ownerId === sectionId ? "" : ownerId,
+      inputValue
+    ]).includes(source) ? _("This subscription is already in the section") : true;
+  };
+  addCascadeOptions(
+    itemSection,
+    parentSectionForItem,
+    _("Connect to the servers of this subscription through another section")
+  );
+  o = itemSection.option(
+    form.Flag,
+    "subscription_update_enabled",
+    _("Subscription auto update")
+  );
+  o.depends("url", REMOTE_SOURCE);
+  o.default = "1";
+  o.rmempty = false;
+  o = itemSection.option(
+    form.Value,
+    "subscription_update_interval",
+    _("Update interval")
+  );
+  o.depends({ url: REMOTE_SOURCE, subscription_update_enabled: "1" });
+  o.placeholder = "1h";
+  o.validate = function(itemId, value) {
+    return currentOptionValue(this, itemId, "subscription_update_enabled") === "1" ? validateRequiredSingBoxDuration(value) : validateOptionalSingBoxDuration(value);
+  };
+  o = itemSection.option(
+    form.Flag,
+    "download_via_proxy_enabled",
+    _("Request the subscription through a section")
+  );
+  o.depends("url", REMOTE_SOURCE);
+  o.default = "0";
+  o.rmempty = false;
+  o = itemSection.option(
+    form.ListValue,
+    "download_via_proxy_section",
+    _("Request through")
+  );
+  o.depends({ url: REMOTE_SOURCE, download_via_proxy_enabled: "1" });
+  o.load = function(itemId) {
+    const sectionId = parentSectionForItem(itemId);
+    refreshOptionChoices(this, subscriptionDownloadTargetChoices(sectionId));
+    const value = optionMapValue(this, itemId, "download_via_proxy_section") || "";
+    keepUnavailableSectionChoice(this, value);
+    return value;
+  };
+  o.validate = function(itemId, value) {
+    const sectionId = parentSectionForItem(itemId);
+    if (currentOptionValue(this, itemId, "download_via_proxy_enabled") !== "1") {
+      return true;
+    }
+    if (!value) {
+      return _("Select a section for downloading this subscription");
+    }
+    if (value === sectionId) {
+      return _("Current section cannot download its own subscription");
+    }
+    return true;
+  };
+  o = itemSection.option(
+    form.Button,
+    "_subscription_headers",
+    _("Headers"),
+    _("Change the HTTP headers of the request")
+  );
+  o.depends("url", REMOTE_SOURCE);
+  o.inputtitle = _("Edit");
+  o.inputstyle = "edit";
+  o.onclick = function() {
+    return showSubscriptionHeadersModal(itemSection.map, "settings");
+  };
+  o = itemSection.option(
+    form.Flag,
+    "show_dashboard_metadata",
+    _("Show metadata"),
+    _("Show the metadata block on the dashboard")
+  );
+  o.depends("url", REMOTE_SOURCE);
+  o.default = "1";
+  o.rmempty = false;
   o = itemSection.option(
     form.Button,
     "_subscription_override",
@@ -19209,32 +19449,33 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
     ...subscriptionServerFilterDescriptions()
   });
 }
-function showSubscriptionUrlSettingsModal(_section_id, itemValue, option2) {
-  const source = childItemInputValue(
-    _section_id,
-    itemValue,
-    "subscription_url",
-    "url"
+function showSubscriptionUrlSettingsModal(sectionId, itemValue, option2, _widget, itemNode) {
+  const value = `${itemValue ?? ""}`;
+  const storedRemote = isExistingChildItem(sectionId, value, "subscription_url") && isRemoteSubscriptionSource(
+    childItemInputValue(sectionId, value, "subscription_url", "url")
   );
-  const remote = isRemoteSubscriptionSource(source);
-  const headers = remote ? loadDefaultSubscriptionHeaders().catch(() => []) : Promise.resolve([]);
-  return headers.then(
-    (headers2) => showChildItemSettingsModal(_section_id, itemValue, option2, {
+  return loadDefaultSubscriptionHeaders().catch(() => []).then(
+    (headers) => showChildItemSettingsModal(sectionId, itemValue, option2, {
       typeName: "subscription_url",
       valueOption: "url",
-      keys: subscriptionUrlSettingsKeys(remote),
-      defaults: (_inputValue, existing) => defaultSubscriptionUrlSettings(
-        existing ? [] : headers2,
-        nextSubscriptionTag(_section_id, option2),
-        remote
+      keys: ["url", ...subscriptionUrlSettingsKeys()],
+      itemNode,
+      defaults: (inputValue) => Object.assign(
+        defaultSubscriptionUrlSettings(
+          storedRemote ? [] : headers,
+          nextSubscriptionTag(sectionId, option2)
+        ),
+        { url: inputValue }
       ),
-      addOptions: (itemSection, options) => addSubscriptionUrlItemOptions(
-        itemSection,
-        Object.assign({}, options, { remote })
-      ),
+      addOptions: addSubscriptionUrlItemOptions,
       title: () => _("Subscription settings"),
-      afterSave: (itemId, _inputValue, _settings, existing) => {
-        if (!remote && existing) cleanupRemoteSubscriptionUrlSettings(itemId);
+      afterSave: (itemId, _inputValue, settings, existing) => {
+        if (existing && !isRemoteSubscriptionSource(settings.url)) {
+          cleanupRemoteSubscriptionUrlSettings(itemId);
+        } else if (existing && !storedRemote) {
+          applyRemoteSubscriptionUrlSettings(itemId, settings);
+        }
+        updateDynamicListItemLabel(itemNode, `${settings.tag || ""}`.trim());
       }
     })
   );
@@ -21108,6 +21349,12 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
       )
     );
   };
+  addCascadeOptions(
+    itemSection,
+    () => section_id,
+    _("Connect to the tunnel server through another section"),
+    CASCADE_TUNNEL_KINDS.map((kind) => ({ tunnel_type: kind }))
+  );
   const amneziaEnabledOption = itemSection.option(
     form.Flag,
     "amnezia_enabled",
@@ -21473,40 +21720,56 @@ function createSectionContent(section) {
   o.validate = function(_section_id, value) {
     return value ? true : _("Select a section");
   };
-  o = section.taboption(
+  const links = section.taboption(
     "settings",
-    form.DynamicList,
-    "selector_proxy_links",
+    SettingsDynamicList,
+    "connection_link",
     _("Connection URI"),
     connectionUriDescription()
   );
-  o.depends("action", "connection");
-  o.rmempty = true;
-  o.modalonly = true;
-  o.retain = true;
-  o.validate = function(_section_id, value) {
-    if (!value || value.length === 0) {
-      return true;
-    }
-    const validation = validateProxyUrl(value);
-    return validation.valid ? validateConnectionUriCore(value) : validation.message;
+  links.depends("action", "connection");
+  links.rmempty = true;
+  links.modalonly = true;
+  links.childType = "connection_link";
+  links.childValueOption = "uri";
+  links.createId = () => nextSectionId("connection_link");
+  links.childDefaults = {
+    // The list names an entry when it is added, so this is the last resort: a
+    // link typed into the add field and left there is materialized by the save
+    // without ever having been an entry.
+    name: (value, sectionId) => savedLinkName(sectionId, links, `${value ?? ""}`)
   };
-  o.liveDynamicListNodes = /* @__PURE__ */ new Map();
-  const originalRenderWidget = o.renderWidget;
-  o.renderWidget = function(section_id, option_index, cfgvalue) {
-    const node = originalRenderWidget.call(
+  links.renderItemSettingsModal = showConnectionLinkSettingsModal;
+  links.hasItemSettings = function(section_id, value) {
+    const normalized = `${value || ""}`.trim();
+    return isExistingChildItem(section_id, normalized, "connection_link") || this.validate(section_id, normalized) === true;
+  };
+  links.renderListItemLabel = function(section_id, value) {
+    return connectionLinkListItemLabel(section_id, this, value);
+  };
+  links.validate = function(section_id, value) {
+    return validateConnectionLink(
+      childItemInputValue(section_id, value, "connection_link", "uri")
+    );
+  };
+  links.onListChange = (section_id, values) => {
+    forgetRemovedLinkDrafts(section_id, links, values);
+    refreshDashboardFilterChoiceWidgets(section_id);
+  };
+  links.afterMaterializeChildItems = orderChildItemsByPosition;
+  links.liveDynamicListNodes = /* @__PURE__ */ new Map();
+  const renderLinks = links.renderWidget;
+  links.renderWidget = function(section_id, option_index, cfgvalue) {
+    const node = renderLinks.call(
       this,
       section_id,
       option_index,
       cfgvalue
     );
     this.liveDynamicListNodes.set(section_id, node);
-    node.addEventListener("cbi-dynlist-change", () => {
-      refreshDashboardFilterChoiceWidgets(section_id);
-    });
     return node;
   };
-  outboundNameSourceOptions.set("selector_proxy_links", o);
+  outboundNameSourceOptions.set("connection_link", links);
   const subscriptions = section.taboption(
     "settings",
     SettingsDynamicList,
@@ -21561,7 +21824,7 @@ function createSectionContent(section) {
     });
   };
   subscriptions.renderListItemLabel = function(section_id, itemId) {
-    return childItemInputValue(section_id, itemId, "subscription_url", "url");
+    return subscriptionListItemLabel(section_id, this, itemId);
   };
   subscriptions.validate = function(section_id, value) {
     return validateSubscriptionUrlEntry(
@@ -21705,60 +21968,6 @@ function createSectionContent(section) {
     return renderChildItemLabel(this, section_id, itemId);
   };
   o.onListChange = refreshDashboardFilterChoiceWidgets;
-  o = section.taboption(
-    "settings",
-    form.Flag,
-    "outbound_detour_enabled",
-    _("Cascade connection"),
-    tunnelKindAvailable("tailscale") ? _(
-      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, Tailscale, JSON outbounds, or JSON endpoints"
-    ) : _(
-      "Use another section as an intermediate hop to connect to servers in this section. Does not apply to network interfaces, JSON outbounds, or JSON endpoints"
-    )
-  );
-  o.default = "0";
-  o.rmempty = false;
-  o.depends("action", "connection");
-  o.modalonly = true;
-  o.write = function(section_id, value) {
-    if (value === "1" && !(uci.get(FORKOP_UCI_PACKAGE, section_id, "outbound_detour_section") || "")) {
-      const selectedValue = getDefaultOutboundDetourSection(section_id);
-      if (selectedValue) {
-        uci.set(
-          FORKOP_UCI_PACKAGE,
-          section_id,
-          "outbound_detour_section",
-          selectedValue
-        );
-      }
-    }
-    return form.Flag.prototype.write.call(this, section_id, value);
-  };
-  o = section.taboption(
-    "settings",
-    form.ListValue,
-    "outbound_detour_section",
-    _("Connect through"),
-    _("Select a transit section")
-  );
-  o.rmempty = false;
-  o.depends({ action: "connection", outbound_detour_enabled: "1" });
-  o.modalonly = true;
-  o.load = function(section_id) {
-    refreshOutboundDetourSectionOptionValues(this, section_id);
-    const value = uci.get(FORKOP_UCI_PACKAGE, section_id, "outbound_detour_section") || "";
-    keepUnavailableSectionChoice(this, value);
-    return Promise.resolve(value);
-  };
-  o.validate = function(section_id, value) {
-    if (!value) {
-      return _("Select an intermediate section");
-    }
-    if (value === section_id) {
-      return _("Current section cannot be used as its own transit section");
-    }
-    return true;
-  };
   const destinationOption = addDestinationField(
     section,
     "destinations",
@@ -21872,6 +22081,7 @@ function createSectionContent(section) {
 function configureSectionSection(sectionRef) {
   const handleRemove = sectionRef.handleRemove;
   sectionRef.handleRemove = function(section_id, event) {
+    cleanupRemovedChildItems(section_id, "connection_link", []);
     cleanupRemovedChildItems(section_id, "subscription_url", []);
     cleanupRemovedChildItems(section_id, "section_interface", []);
     cleanupRemovedChildItems(section_id, "urltest", []);

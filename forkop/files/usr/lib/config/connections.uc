@@ -17,6 +17,7 @@ const ITEM_TYPES = [
     "server_client",
     "subscription_url",
     "section_interface",
+    "connection_link",
     "urltest",
     "fallback_group",
     "fallback_level",
@@ -226,10 +227,6 @@ function is_connections_action(action) {
     return action == "connection" || is_legacy_connection_action(action);
 }
 
-function connection_urls(section) {
-    return whitespace_list_value(section, "selector_proxy_links");
-}
-
 function subscription_urls(section) {
     return child_values(section, "subscription_url", "url");
 }
@@ -266,6 +263,14 @@ function child_order_sort(left, right) {
     let left_name = section_name(left);
     let right_name = section_name(right);
     return left_name == right_name ? 0 : (left_name < right_name ? -1 : 1);
+}
+
+// The links a section dials, in the order its selector lists them. Each one is
+// stored with the name the page gave it, which is the name its server runs under.
+function connection_link_items(section) {
+    let result = child_items(section, "connection_link");
+    sort(result, child_order_sort);
+    return result;
 }
 
 function tunnel_items(section) {
@@ -471,11 +476,17 @@ function has_dns_matchers(section) {
 }
 
 function has_connection_sources(section) {
-    return length(connection_urls(section)) > 0 ||
+    return length(connection_link_items(section)) > 0 ||
         length(subscription_urls(section)) > 0 ||
         length(interfaces(section)) > 0 ||
         length(outbound_jsons(section)) > 0 ||
         length(tunnels(section)) > 0;
+}
+
+// The section a link, a subscription or a tunnel is dialled through, or "" when
+// it connects on its own.
+function cascade_section(item) {
+    return trim(option(item, "detour_section", ""));
 }
 
 function subscription_url_child(section, value) {
@@ -723,7 +734,7 @@ return {
     device_matchers,
     load,
     is_connections_action,
-    connection_urls,
+    connection_link_items,
     subscription_urls,
     subscription_source_type,
     interfaces,
@@ -738,6 +749,7 @@ return {
     rule_sets_with_subnets,
     has_dns_matchers,
     has_connection_sources,
+    cascade_section,
     subscription_url_child,
     subscription_update_enabled,
     subscription_update_interval,

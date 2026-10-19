@@ -423,10 +423,20 @@ export function currentLiveDynamicListValues(
 export function currentDraftOutboundNames(section_id: string) {
   const names: string[] = [];
 
-  currentSourceOptionValues(section_id, 'selector_proxy_links').forEach(
-    (value: unknown, index: number) => {
-      const name = getProxyUrlName(`${value || ''}`);
-      names.push(name || `Node #${index + 1}`);
+  const linkOption = outboundNameSourceOptions.get('connection_link');
+  const stagedLinks = linkOption
+    ? childPendingSettingsStore(linkOption, section_id)
+    : {};
+  currentSourceOptionValues(section_id, 'connection_link').forEach(
+    (value: string, index: number) => {
+      const name = `${
+        (isExistingChildItem(section_id, value, 'connection_link')
+          ? uci.get(FORKOP_UCI_PACKAGE, value, 'name')
+          : stagedLinks[value]?.name) ||
+        getProxyUrlName(value) ||
+        `Node #${index + 1}`
+      }`.trim();
+      names.push(name);
     },
   );
   currentSourceOptionValues(section_id, 'interfaces').forEach(

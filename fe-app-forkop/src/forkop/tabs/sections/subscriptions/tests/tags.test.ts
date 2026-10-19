@@ -233,7 +233,6 @@ function tagValidator(values: string[], option: CBIOption, ownerId: string) {
   };
 
   addSubscriptionUrlItemOptions(section as unknown as CBISection, {
-    remote: true,
     parentSectionId: () => SECTION,
     ownerId: () => ownerId,
     itemValue: () => (values.includes(ownerId) ? '' : ownerId),

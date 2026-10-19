@@ -5,7 +5,6 @@ import {
   getClashApiProxyProviders,
   setClashApiConfigSections,
 } from './clashApi';
-import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
 import { isCopyableProxyLink } from '../../../helpers/isCopyableProxyLink';
 import { ForkopShellMethods } from '../shell';
 import { DEFAULT_LATENCY_TEST_URL } from '../../../constants';
@@ -66,6 +65,7 @@ type SubscriptionTagConfig = {
 type ChildType =
   | 'subscription_url'
   | 'section_interface'
+  | 'connection_link'
   | 'urltest'
   | 'fallback_group'
   | 'fallback_level'
@@ -139,6 +139,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
   const fallbackGroups = childSections(configSections, 'fallback_group');
   const fallbackLevels = childSections(configSections, 'fallback_level');
   const tunnels = childSections(configSections, 'tunnel');
+  const links = childSections(configSections, 'connection_link');
 
   return configSections.map((section) => {
     if (section['.type'] !== 'section') {
@@ -151,6 +152,16 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
     const urltestItems = ownedChildSections(next, urltests);
     const fallbackGroupItems = ownedChildSections(next, fallbackGroups);
     const tunnelItems = ownedChildSections(next, tunnels);
+    const linkItems = ownedChildSections(next, links).sort(
+      (left, right) => Number(left.order || 0) - Number(right.order || 0),
+    );
+
+    if (linkItems.length) {
+      next.connection_links = linkItems.map((item) => ({
+        name: `${item.name || ''}`,
+        uri: `${item.uri || ''}`,
+      }));
+    }
 
     if (subscriptionUrlItems.length) {
       const settings: Record<string, ItemSettings> = {};
@@ -246,7 +257,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
 }
 
 function getManualProxyLinks(section: Forkop.ConfigSection) {
-  return getListValues(section.selector_proxy_links);
+  return section.connection_links || [];
 }
 
 function getConnectionInterfaces(section: Forkop.ConfigSection) {
@@ -356,22 +367,14 @@ function buildManualLinkByCode(
   section: Forkop.ConfigSection,
   selectorCodes: string[],
 ) {
-  const links = getManualProxyLinks(section);
   const available = new Set(selectorCodes);
-  const taken = new Set<string>();
   const sectionPrefix = `${getDisplayName(section)}/`;
 
   return new Map(
-    links.flatMap((link, index) => {
-      const name = getProxyUrlName(link) || `Node #${index + 1}`;
-      const base = `${sectionPrefix}${name}`;
-      let code = base;
-      for (let number = 2; taken.has(code); number += 1) {
-        code = `${base} #${number}`;
-      }
-      taken.add(code);
-      return available.has(code) && isCopyableProxyLink(link)
-        ? [[code, link] as const]
+    getManualProxyLinks(section).flatMap(({ name, uri }) => {
+      const code = `${sectionPrefix}${name}`;
+      return available.has(code) && isCopyableProxyLink(uri)
+        ? [[code, uri] as const]
         : [];
     }),
   );

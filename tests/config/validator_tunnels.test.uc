@@ -1,5 +1,6 @@
 let t = require("t");
 let v = require("validation");
+let fixture = require("fixture");
 
 function tunnels() {
     return {
@@ -82,7 +83,8 @@ t.test("a tunnel is refused on the values the dialog refuses", () => {
 // requested through the section that holds it would wait for itself.
 t.test("WARP profiles go through a section of their own choosing, never the one holding the tunnel", () => {
     let through = (target) => changed((d) => {
-        push(d.section, { ".name": "proxy", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ] });
+        push(d.section, { ".name": "proxy", enabled: "1", action: "connection" });
+        d.connection_link = fixture.links("proxy", [ "vless://u@a.example:443#A" ]);
         d.settings.warp_profiles_via_proxy = "1";
         if (target != null)
             d.settings.warp_profiles_via_proxy_section = target;

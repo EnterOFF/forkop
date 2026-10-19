@@ -18,6 +18,7 @@ import { normalizeDynamicListItems } from './listValues';
 // dns_detour_section and the other section references are not cleared when their
 // target is removed.
 const SECTION_ID_PREFIXES: Record<string, string> = {
+  connection_link: 'link',
   fallback_group: 'group',
   fallback_level: 'level',
   section: 'section',
@@ -72,7 +73,9 @@ export function getChildItemIds(
     .filter((item) => item[ownerKey] === section_id);
 
   if (
-    ['fallback_level', 'tunnel', 'tunnel_peer'].includes(typeName as string)
+    ['connection_link', 'fallback_level', 'tunnel', 'tunnel_peer'].includes(
+      typeName as string,
+    )
   ) {
     items.sort((a, b) => {
       const orderDiff = childItemOrder(a) - childItemOrder(b);

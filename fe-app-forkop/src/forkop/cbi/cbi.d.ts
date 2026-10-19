@@ -200,9 +200,6 @@ declare global {
   // What a dialog editing one child item is given: how to reach the section it
   // belongs to, the text the list shows for it, and the list itself.
   interface ChildItemDialogContext {
-    // A subscription that is a local file rather than a URL has no update
-    // interval and no headers, so the dialog leaves those fields out.
-    remote?: boolean;
     parentSectionId: (itemId?: string) => string;
     ownerId: () => string;
     itemValue: () => string;

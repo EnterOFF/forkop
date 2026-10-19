@@ -96,8 +96,6 @@ const CONNECTION_SECTION = [
     enabled: '1',
     label: 'proxy',
     destinations: 'example.com',
-    outbound_detour_enabled: '0',
-    selector_proxy_links: ['vless://a@example:1?type=tcp#node'],
     outbound_jsons: [
       '{"type":"socks","tag":"local","server":"127.0.0.1","server_port":1080}',
     ],
@@ -107,6 +105,16 @@ const CONNECTION_SECTION = [
 function connectionChildren() {
   return [
     CONNECTION_SECTION,
+    [
+      'connection_link',
+      'link1',
+      {
+        section: 'sec',
+        uri: 'vless://a@example:1?type=tcp#node',
+        name: 'node',
+        order: '0',
+      },
+    ],
     [
       'subscription_url',
       'sub1',
@@ -199,6 +207,7 @@ function connectionChildren() {
 }
 
 const CHILD_TYPES = [
+  'connection_link',
   'subscription_url',
   'section_interface',
   'tunnel',
@@ -207,7 +216,16 @@ const CHILD_TYPES = [
   'fallback_group',
   'fallback_level',
 ];
-const EVERY_CHILD = ['grp1', 'iface1', 'lvl1', 'peer1', 'sub1', 'tun1', 'ut1'];
+const EVERY_CHILD = [
+  'grp1',
+  'iface1',
+  'link1',
+  'lvl1',
+  'peer1',
+  'sub1',
+  'tun1',
+  'ut1',
+];
 
 function survivingChildren() {
   return CHILD_TYPES.flatMap((type) => itemsOfType(type)).sort();
@@ -252,11 +270,8 @@ describe('a list the dialog hides keeps its items', () => {
       }
 
       expect(survivingChildren()).toEqual(EVERY_CHILD);
-      // The two sources a section holds itself, next to the four it holds as
-      // child sections: pasted server URIs and hand-written outbound objects.
-      expect(
-        harness.uci.get('forkop', 'sec', 'selector_proxy_links'),
-      ).toBeTruthy();
+      // The one source a section holds itself, next to the five it holds as
+      // child sections: hand-written outbound objects.
       expect(harness.uci.get('forkop', 'sec', 'outbound_jsons')).toBeTruthy();
     },
   );
@@ -531,7 +546,6 @@ const LIVE_SECTION = [
     action: 'connection',
     enabled: '1',
     label: 'Live',
-    selector_proxy_links: ['vless://y@example:1#n'],
   },
 ];
 const target = (enabled) => [
@@ -541,7 +555,6 @@ const target = (enabled) => [
     action: 'connection',
     enabled,
     label: 'Target',
-    selector_proxy_links: ['vless://x@example:1#n'],
   },
 ];
 
@@ -570,30 +583,6 @@ describe.each([
     await parseEveryOption(sectionGrid(), 'sec');
 
     expect(harness.uci.get('forkop', 'sec', 'dns_detour_section')).toBe(
-      'target',
-    );
-  });
-
-  it('on a Connection section detour', async () => {
-    addSections([
-      [
-        'section',
-        'sec',
-        {
-          action: 'connection',
-          enabled: '1',
-          label: 'Section',
-          selector_proxy_links: ['vless://z@example:1#n'],
-          outbound_detour_enabled: '1',
-          outbound_detour_section: 'target',
-        },
-      ],
-      LIVE_SECTION,
-      ...extra,
-    ]);
-    await parseEveryOption(sectionGrid(), 'sec');
-
-    expect(harness.uci.get('forkop', 'sec', 'outbound_detour_section')).toBe(
       'target',
     );
   });
@@ -724,6 +713,46 @@ describe.each([
       'download_via_proxy_section',
     ],
     [
+      'subscription_url',
+      'subscription_url',
+      {
+        url: 'https://example.com/sub',
+        tag: 'sub1',
+        server_filter_mode: 'all',
+        subscription_update_enabled: '1',
+        subscription_update_interval: '1h',
+        download_via_proxy_enabled: '0',
+        show_dashboard_metadata: '1',
+        detour_section: 'target',
+      },
+      'detour_section',
+    ],
+    [
+      'connection_link',
+      'connection_link',
+      {
+        uri: 'vless://o@example:1#n',
+        name: 'n',
+        order: '0',
+        detour_section: 'target',
+      },
+      'detour_section',
+    ],
+    [
+      'tunnel',
+      'tunnels',
+      {
+        kind: 'warp',
+        name: 'warp',
+        order: '0',
+        warp_profile_id: 'id',
+        warp_profile_auth_token: 'token',
+        warp_profile_private_key: WG_KEY,
+        detour_section: 'target',
+      },
+      'detour_section',
+    ],
+    [
       'section_interface',
       'interfaces',
       {
@@ -761,7 +790,6 @@ describe.each([
           action: 'connection',
           enabled: '1',
           label: 'Owner',
-          selector_proxy_links: ['vless://o@example:1#n'],
         },
       ],
       [type, 'item', { section: 'owner', ...seed }],

@@ -16,7 +16,8 @@ function configuration(dir, extra) {
             service_listen_address: "127.0.0.1",
             ...(extra ?? {})
         }),
-        section: [ { ".name": "main", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ] } ]
+        section: [ { ".name": "main", action: "connection" } ],
+        connection_link: fixture.links("main", [ "vless://u@a.example:443#A" ])
     };
 }
 
@@ -164,7 +165,8 @@ const PROFILE = "{\"id\":\"profile-id\",\"auth_token\":\"auth-token\",\"private_
 function warp_settings(through_section) {
     fixture.seed({
         settings: through_section ? { warp_profiles_via_proxy: "1", warp_profiles_via_proxy_section: "proxy" } : {},
-        section: [ { ".name": "proxy", label: "Proxy", enabled: "1", action: "connection", selector_proxy_links: [ "vless://u@a.example:443#A" ] } ]
+        section: [ { ".name": "proxy", label: "Proxy", enabled: "1", action: "connection" } ],
+        connection_link: fixture.links("proxy", [ "vless://u@a.example:443#A" ])
     });
     require("config.connections").load();
 }

@@ -45,8 +45,10 @@ import {
   parseOpenVPNConfig,
 } from '../../../../helpers/parseOpenVPNConfig';
 import type { OpenVPNFiles } from '../../../../helpers/parseOpenVPNConfig';
+import { addCascadeOptions } from '../cascade';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
 import {
+  CASCADE_TUNNEL_KINDS,
   applyImportedTunnelEndpoint,
   createTunnelItem,
   defaultWireGuardPeerSettings,
@@ -774,6 +776,13 @@ export function showTunnelSettingsModal(
         ),
       );
   };
+
+  addCascadeOptions(
+    itemSection,
+    () => section_id,
+    _('Connect to the tunnel server through another section'),
+    CASCADE_TUNNEL_KINDS.map((kind) => ({ tunnel_type: kind })),
+  );
 
   const amneziaEnabledOption = itemSection.option(
     form.Flag,

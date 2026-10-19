@@ -51,6 +51,7 @@ const CHILD_ITEM_TYPES = [
     "server_client",
     "subscription_url",
     "section_interface",
+    "connection_link",
     "urltest",
     "fallback_group",
     "fallback_level",
@@ -1880,6 +1881,42 @@ function merge_destination_conditions(ctx) {
     }
 }
 
+// A released section kept the links it dials in its selector_proxy_links list, and
+// each link's server ran under the link's own name, or "Node #N" by its position,
+// made unique among the section's links. Every link is now a connection_link of
+// its own that stores that name, so a group or a filter naming the server keeps
+// finding it.
+function migrate_connection_links(ctx) {
+    for (let section in ctx.model.sections || []) {
+        let links = list_option(section, "selector_proxy_links");
+        let taken = {};
+        for (let i = 0; i < length(links); i++) {
+            let child = create_child_for_owner(ctx, section, "connection_link", "section");
+            let name = core_url.link_name(links[i]);
+            set_option(ctx, child, "uri", links[i]);
+            set_option(ctx, child, "name", unique_display_value(name != "" ? name : "Node #" + (i + 1), taken));
+            set_option(ctx, child, "order", as_string(i));
+        }
+        delete_option(ctx, section, "selector_proxy_links");
+    }
+}
+
+// A released section's cascade sent every link and subscription of the section
+// through another section, and nothing else it had. The cascade now belongs to
+// each link, subscription and tunnel, so the section's goes to its links and
+// subscriptions and leaves the section.
+function migrate_section_cascades(ctx) {
+    for (let section in ctx.model.sections || []) {
+        let target = bool_option(section, "outbound_detour_enabled", false) ? trim(option(section, "outbound_detour_section", "")) : "";
+        if (target != "")
+            for (let type_name in [ "connection_link", "subscription_url" ])
+                for (let child in child_sections_by_owner(ctx, type_name, "section", section_name(section)))
+                    set_option(ctx, child, "detour_section", target);
+        delete_option(ctx, section, "outbound_detour_enabled");
+        delete_option(ctx, section, "outbound_detour_section");
+    }
+}
+
 const CURRENT_TRANSFORMS = [
     remove_server_country_and_dashboard_filter,
     use_native_fallbacks,
@@ -1921,7 +1958,9 @@ const CURRENT_TRANSFORMS = [
     request_dnsmasq_restore,
     remove_dpi_provider_sections,
     migrate_native_protocol_json,
-    merge_destination_conditions
+    merge_destination_conditions,
+    migrate_connection_links,
+    migrate_section_cascades
 ];
 
 function migrate_to_current(ctx) {
@@ -2330,8 +2369,8 @@ const RELEASED_SECTION_TYPES = [
 
 const CURRENT_SECTION_TYPES = [
     "settings", "section", "server", "server_client", "subscription_url",
-    "section_interface", "urltest", "fallback_group", "fallback_level",
-    "tunnel", "tunnel_peer"
+    "section_interface", "connection_link", "urltest", "fallback_group",
+    "fallback_level", "tunnel", "tunnel_peer"
 ];
 
 function section_type_allowed(type_name, allowed) {

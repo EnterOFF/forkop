@@ -335,7 +335,7 @@ export const SettingsDynamicList = form.DynamicList.extend({
   // The text an entry shows and is looked up by. A saved entry is a child
   // section id and shows what that section stores under childValueOption; a
   // draft has no section yet and is its own text, which its dialog may have
-  // changed - a rename moves the list value with it, so the name the dialog
+  // changed - a rename moves the list value with it, so the value the dialog
   // holds is where the draft's settings are.
   //
   // A list with no childValueOption stores nothing to show: its entry is the
@@ -354,7 +354,8 @@ export const SettingsDynamicList = form.DynamicList.extend({
       this.ownerOption,
     );
     const staged = childPendingSettingsStore(this, ownerId)[inputValue];
-    return staged && staged.name ? `${staged.name}` : inputValue;
+    const renamed = staged ? staged[this.childValueOption] : null;
+    return renamed ? `${renamed}` : inputValue;
   },
 
   // What an entry's dialog has taken but not written yet, handed to the child

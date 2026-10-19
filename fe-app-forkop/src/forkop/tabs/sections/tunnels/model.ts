@@ -127,6 +127,16 @@ export function tunnelListItemLabel(sectionId: string, tunnelId: string) {
   );
 }
 
+// The kinds that dial their server through a cascade: a Tailscale tunnel reaches
+// its coordination server through a section of its own choosing, and a JSON
+// endpoint names its own detour.
+export const CASCADE_TUNNEL_KINDS = [
+  'wireguard',
+  'amneziawg',
+  'warp',
+  'openvpn-client',
+];
+
 // What a tunnel's kind option names; anything else, and none, is WireGuard.
 const STORED_KINDS = [
   'openvpn-client',
@@ -183,6 +193,7 @@ export function tunnelInitialSettings(
       tailscaleDetour,
       sectionId,
     ),
+    detour_section: `${tunnel.detour_section || ''}`,
     endpoint_json: kind === 'json' ? `${tunnel.endpoint_json || ''}` : '',
   };
 
@@ -214,6 +225,7 @@ function tunnelSettingsKeys() {
     'tailscale_accept_routes',
     'tailscale_exit_node',
     'tailscale_detour_section',
+    'detour_section',
     'endpoint_json',
     ...AMNEZIA_KEYS.map((key: string) => `amnezia_${key}`),
   ];
@@ -311,6 +323,11 @@ export function tunnelStorageSettings(settings: ChildSettings) {
       `${settings.tailscale_detour_enabled || ''}` === '1'
         ? `${settings.tailscale_detour_section || ''}`.trim()
         : '',
+    // The dialog drops the section along with its switch, so a section it
+    // still holds is one the switch is on for.
+    detour_section: CASCADE_TUNNEL_KINDS.includes(kind)
+      ? `${settings.detour_section || ''}`.trim()
+      : '',
     endpoint_json:
       kind === 'openvpn-client'
         ? JSON.stringify(openVPNEndpoint(settings))

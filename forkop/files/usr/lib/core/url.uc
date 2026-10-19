@@ -130,9 +130,43 @@ function path(value) {
     return value;
 }
 
+function vmess_name(value) {
+    let payload = substr(as_string(value), length("vmess://"));
+    if (substr(payload, 0, 1) != "{") {
+        let boundary = first_index_any(payload, [ "@", "?", "#" ], 0);
+        if (boundary >= 0)
+            payload = substr(payload, 0, boundary);
+        payload = replace(replace(payload, /-/g, "+"), /_/g, "/");
+        while (length(payload) % 4 != 0)
+            payload += "=";
+        try {
+            payload = b64dec(payload);
+        }
+        catch (e) {
+            payload = "";
+        }
+    }
+    try {
+        let parsed = json(payload);
+        return type(parsed) == "object" ? as_string(parsed.ps || "") : "";
+    }
+    catch (e) {
+        return "";
+    }
+}
+
+// The name a share link carries for its server: a VMess link's own "ps", and
+// otherwise its fragment. getProxyUrlName() on the page reads it the same way.
+function link_name(value) {
+    return scheme(value) == "vmess"
+        ? (vmess_name(value) || fragment(value))
+        : fragment(value);
+}
+
 return {
     scheme,
     fragment,
+    link_name,
     host,
     port,
     path

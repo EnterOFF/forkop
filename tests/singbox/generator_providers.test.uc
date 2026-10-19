@@ -8,15 +8,12 @@ function providers_config() {
         settings: { dns_server: [ "1.1.1.1" ], bootstrap_dns_server: [ "1.1.1.1" ] },
         section: [
             { ".name": "hop", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"socks\",\"tag\":\"hop-node\",\"server\":\"127.0.0.1\",\"server_port\":1080}" ] },
-            {
-                ".name": "proxy", enabled: "1", action: "connection",
-                selector_proxy_links: [ "vless://id@example.com:443?security=tls#Manual" ],
-                outbound_detour_enabled: "1", outbound_detour_section: "hop"
-            }
+            { ".name": "proxy", enabled: "1", action: "connection" }
         ],
+        connection_link: fixture.links("proxy", [ "vless://id@example.com:443?security=tls#Manual" ], { detour_section: "hop" }),
         subscription_url: [
             {
-                ".name": "source", section: "proxy", url: "https://example.com/subscription",
+                ".name": "source", section: "proxy", url: "https://example.com/subscription", detour_section: "hop",
                 header: [ "User-Agent: Happ", "X-HWID: router-hwid", "X-Device-OS: OpenWrt Linux", "X-Test: one", "x-test: two", "X-Empty:" ],
                 subscription_update_enabled: "0", download_via_proxy_enabled: "1", download_via_proxy_section: "hop",
                 tag: "premium", server_filter_mode: "include",
@@ -29,7 +26,8 @@ function providers_config() {
                 subscription_update_enabled: "1", subscription_update_interval: "invalid",
                 download_via_proxy_enabled: "1", download_via_proxy_section: "proxy",
                 header: [ "Broken Header" ], show_dashboard_metadata: "1",
-                tag: "local", server_filter_mode: "include", include_regex: "^Local", exclude_regex: "Expired"
+                tag: "local", server_filter_mode: "include", include_regex: "^Local", exclude_regex: "Expired",
+                detour_section: "hop"
             }
         ],
         urltest: [ { ".name": "fast", section: "proxy", name: "Fastest", server_filter_mode: "include", include_regex: "🇺🇸", exclude_regex: "slow" } ]
@@ -75,11 +73,12 @@ t.test("a subscription override carries the name changes, the cascade and the pa
     fixture.seed({
         settings: { dns_server: [ "1.1.1.1" ], bootstrap_dns_server: [ "1.1.1.1" ], service_listen_address: "127.0.0.1" },
         section: [
-            { ".name": "hop", enabled: "1", action: "connection", selector_proxy_links: [ "socks5://127.0.0.1:1080#Hop" ] },
-            { ".name": "proxy", enabled: "1", action: "connection", outbound_detour_enabled: "1", outbound_detour_section: "hop" }
+            { ".name": "hop", enabled: "1", action: "connection" },
+            { ".name": "proxy", enabled: "1", action: "connection" }
         ],
+        connection_link: fixture.links("hop", [ "socks5://127.0.0.1:1080#Hop" ]),
         subscription_url: [ {
-            ".name": "source", section: "proxy", url: "https://example.com/subscription", tag: "sub1",
+            ".name": "source", section: "proxy", url: "https://example.com/subscription", tag: "sub1", detour_section: "hop",
             override_prefix: "[Premium] ", override_suffix: " *",
             override_rename: [ "^HK-(.*)$ => Hong Kong $1", "-([0-9]+)$ => #$1" ],
             override_patch: "{\"packet_encoding\":\"xudp\",\"tls\":{\"insecure\":true},\"multiplex\":{\"enabled\":true,\"protocol\":\"h2mux\"}}"
@@ -89,7 +88,7 @@ t.test("a subscription override carries the name changes, the cascade and the pa
     let override = provider.override;
     t.eq([ override.prefix, override.suffix ], [ "[Premium] ", " *" ]);
     t.eq(override.rename, [ { pattern: "^HK-(.*)$", target: "Hong Kong $1" }, { pattern: "-([0-9]+)$", target: "#$1" } ]);
-    t.eq(override.detour, "hop", "the section cascade reaches the override");
+    t.eq(override.detour, "hop", "the subscription's cascade reaches the override");
     t.eq(override.patch, { packet_encoding: "xudp", tls: { insecure: true }, multiplex: { enabled: true, protocol: "h2mux" } });
     for (let key in [ "tcp_fast_open", "tcp_multi_path", "udp_fragment", "connect_timeout", "tls", "outbound_detour", "remove_emojis" ])
         t.ok(override[key] == null && provider[key] == null, "removed provider option " + key);
