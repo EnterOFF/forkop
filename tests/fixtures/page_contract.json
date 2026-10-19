@@ -121,6 +121,12 @@
     "interrupt_exist_connections": false
   },
   "state_wait_ms": 15000,
+  "action_openings": [
+    "Starting Forkop",
+    "Stopping Forkop",
+    "Applying configuration",
+    "Reapplying configuration"
+  ],
   "password_fields": {
     "amnezia_header_protection_key": "amnezia_header_protection_key",
     "hysteria2_obfs_password": "hysteria2_obfs_password",

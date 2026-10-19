@@ -27,6 +27,7 @@ import {
   URLTEST_DEFAULTS,
 } from '../src/forkop/methods/custom/getDashboardSections';
 import { FORKOP_WAIT_TIMEOUT_MS } from '../src/forkop/services/forkopWaitTransport';
+import { FORKOP_ACTION_OPENINGS } from '../src/forkop/services/logNotificationDeduper.service';
 import { tunnelStorageSettings } from '../src/forkop/tabs/sections/tunnels/model';
 import { AMNEZIA_PARAMETERS } from '../src/helpers/wireguard';
 
@@ -91,6 +92,10 @@ describe('the tables the page carries', () => {
   // sent right then must not be raced by the page giving up on it.
   it('wait for a parked request longer than the state service holds it', () => {
     expect(FORKOP_WAIT_TIMEOUT_MS).toBeGreaterThan(contract.state_wait_ms);
+  });
+
+  it('close the alerts of earlier actions at the line a new one opens with', () => {
+    expect(FORKOP_ACTION_OPENINGS).toEqual(contract.action_openings);
   });
 });
 

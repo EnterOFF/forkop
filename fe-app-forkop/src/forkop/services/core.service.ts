@@ -5,11 +5,8 @@ import {
   getForkopLogCursor,
   startForkopLogFeed,
 } from './forkopLogFeed.service';
-import {
-  getForkopLogNotification,
-  LogNotificationDeduper,
-  ForkopLogNotification,
-} from './logNotificationDeduper.service';
+import { ForkopLogNotification } from './logNotificationDeduper.service';
+import { LogAlerts } from './logAlerts.service';
 import {
   dropLogNotificationHandoff,
   saveLogNotificationHandoff,
@@ -41,11 +38,6 @@ function showLogNotification(notification: ForkopLogNotification) {
   );
 }
 
-// LuCI dismisses an alert by fading it out and then removing it.
-function isOpen(node: HTMLElement) {
-  return node.isConnected && !node.classList.contains('fade-out');
-}
-
 export function coreService() {
   TabServiceInstance.onChange((activeId, tabs) => {
     logger.info('[TAB]', activeId);
@@ -57,34 +49,14 @@ export function coreService() {
     });
   });
 
-  const logNotificationDeduper = new LogNotificationDeduper();
-  const shownLogNotifications: { line: string; node: HTMLElement }[] = [];
-
-  const show = (line: string) => {
-    const notification = getForkopLogNotification(line);
-    if (notification) {
-      shownLogNotifications.push({
-        line,
-        node: showLogNotification(notification),
-      });
-    }
-  };
-
+  const logAlerts = new LogAlerts(showLogNotification);
   const handoff = takeLogNotificationHandoff();
-  handoff?.lines.forEach(show);
-
-  const notifyLogLine = (line: string) => {
-    if (logNotificationDeduper.shouldNotify(line)) {
-      show(line);
-    }
-  };
+  logAlerts.reopen(handoff?.lines ?? []);
 
   window.addEventListener('pagehide', () => {
     saveLogNotificationHandoff({
       cursor: getForkopLogCursor() || handoff?.cursor || 0,
-      lines: shownLogNotifications
-        .filter(({ node }) => isOpen(node))
-        .map(({ line }) => line),
+      lines: logAlerts.openLines(),
     });
   });
   window.addEventListener('pageshow', (event) => {
@@ -93,7 +65,7 @@ export function coreService() {
     }
   });
 
-  startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0);
+  startForkopLogFeed((line) => logAlerts.read(line), handoff?.cursor ?? 0);
   window.setTimeout(() => {
     void ensureSystemInfo().catch(() => null);
   }, SYSTEM_INFO_PREFETCH_DELAY_MS);

@@ -4,6 +4,16 @@ const MAX_STORED_LOG_NOTIFICATIONS = 500;
 // A Forkop error as logread prints it: the date, the facility, the tag and the
 // level before the message the alert shows.
 const FORKOP_ERROR_LINE_PATTERN = /\bforkop(?:\[\d+\])?:\s+\[error\]\s+(.*)$/i;
+const FORKOP_INFO_LINE_PATTERN = /\bforkop(?:\[\d+\])?:\s+\[info\]\s+(.*)$/i;
+
+// The first line of each Forkop action: a start, a stop, an apply and a reapply.
+// A restart is a stop and a start.
+export const FORKOP_ACTION_OPENINGS = [
+  'Starting Forkop',
+  'Stopping Forkop',
+  'Applying configuration',
+  'Reapplying configuration',
+];
 
 export type ForkopLogNotification = {
   kind: 'error';
@@ -50,6 +60,14 @@ export function getForkopLogNotification(
 ): ForkopLogNotification | null {
   const error = line.match(FORKOP_ERROR_LINE_PATTERN);
   return error ? { kind: 'error', line, message: error[1].trim() } : null;
+}
+
+export function opensForkopAction(line: string) {
+  const info = line.match(FORKOP_INFO_LINE_PATTERN);
+  return (
+    !!info &&
+    FORKOP_ACTION_OPENINGS.some((opening) => info[1].startsWith(opening))
+  );
 }
 
 export function getLogNotificationKey(line: string) {

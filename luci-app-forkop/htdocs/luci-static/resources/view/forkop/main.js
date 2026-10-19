@@ -3943,6 +3943,13 @@ function getLocalStorage() {
 var LOG_NOTIFICATION_STORAGE_KEY = "forkop:shown-log-error-notifications:v1";
 var MAX_STORED_LOG_NOTIFICATIONS = 500;
 var FORKOP_ERROR_LINE_PATTERN = /\bforkop(?:\[\d+\])?:\s+\[error\]\s+(.*)$/i;
+var FORKOP_INFO_LINE_PATTERN = /\bforkop(?:\[\d+\])?:\s+\[info\]\s+(.*)$/i;
+var FORKOP_ACTION_OPENINGS = [
+  "Starting Forkop",
+  "Stopping Forkop",
+  "Applying configuration",
+  "Reapplying configuration"
+];
 function readStoredKeys(storage) {
   if (!storage) {
     return [];
@@ -3969,6 +3976,10 @@ function getForkopLogNotification(line) {
   const error = line.match(FORKOP_ERROR_LINE_PATTERN);
   return error ? { kind: "error", line, message: error[1].trim() } : null;
 }
+function opensForkopAction(line) {
+  const info = line.match(FORKOP_INFO_LINE_PATTERN);
+  return !!info && FORKOP_ACTION_OPENINGS.some((opening) => info[1].startsWith(opening));
+}
 function getLogNotificationKey(line) {
   return line.trim();
 }
@@ -3994,6 +4005,39 @@ var LogNotificationDeduper = class {
     }
     writeStoredKeys(this.storage, Array.from(this.seenKeys));
     return true;
+  }
+};
+
+// src/forkop/services/logAlerts.service.ts
+function isOpen(node) {
+  return node.isConnected && !node.classList.contains("fade-out");
+}
+var LogAlerts = class {
+  constructor(show, deduper = new LogNotificationDeduper()) {
+    this.shown = [];
+    this.show = show;
+    this.deduper = deduper;
+  }
+  // The alerts the page LuCI just reloaded still had open.
+  reopen(lines3) {
+    lines3.forEach((line) => this.raise(line));
+  }
+  read(line) {
+    if (opensForkopAction(line)) {
+      this.shown.splice(0).forEach(({ node }) => node.remove());
+    }
+    if (this.deduper.shouldNotify(line)) {
+      this.raise(line);
+    }
+  }
+  openLines() {
+    return this.shown.filter(({ node }) => isOpen(node)).map(({ line }) => line);
+  }
+  raise(line) {
+    const notification = getForkopLogNotification(line);
+    if (notification) {
+      this.shown.push({ line, node: this.show(notification) });
+    }
   }
 };
 
@@ -4609,9 +4653,6 @@ function showLogNotification(notification) {
     "fkp-log-error-notification"
   );
 }
-function isOpen(node) {
-  return node.isConnected && !node.classList.contains("fade-out");
-}
 function coreService() {
   TabServiceInstance.onChange((activeId, tabs) => {
     logger.info("[TAB]", activeId);
@@ -4622,28 +4663,13 @@ function coreService() {
       }
     });
   });
-  const logNotificationDeduper = new LogNotificationDeduper();
-  const shownLogNotifications = [];
-  const show = (line) => {
-    const notification = getForkopLogNotification(line);
-    if (notification) {
-      shownLogNotifications.push({
-        line,
-        node: showLogNotification(notification)
-      });
-    }
-  };
+  const logAlerts = new LogAlerts(showLogNotification);
   const handoff = takeLogNotificationHandoff();
-  handoff?.lines.forEach(show);
-  const notifyLogLine = (line) => {
-    if (logNotificationDeduper.shouldNotify(line)) {
-      show(line);
-    }
-  };
+  logAlerts.reopen(handoff?.lines ?? []);
   window.addEventListener("pagehide", () => {
     saveLogNotificationHandoff({
       cursor: getForkopLogCursor() || handoff?.cursor || 0,
-      lines: shownLogNotifications.filter(({ node }) => isOpen(node)).map(({ line }) => line)
+      lines: logAlerts.openLines()
     });
   });
   window.addEventListener("pageshow", (event) => {
@@ -4651,7 +4677,7 @@ function coreService() {
       dropLogNotificationHandoff();
     }
   });
-  startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0);
+  startForkopLogFeed((line) => logAlerts.read(line), handoff?.cursor ?? 0);
   window.setTimeout(() => {
     void ensureSystemInfo().catch(() => null);
   }, SYSTEM_INFO_PREFETCH_DELAY_MS);

@@ -5,6 +5,7 @@
 let t = require("t");
 let stub = require("stub");
 let fs = require("fs");
+let repo = require("repo");
 let validator = require("config.validator");
 let server = require("server.service");
 let runtime = require("singbox.runtime");
@@ -531,6 +532,23 @@ t.test("a forced reload says what set it off", () => {
     reloaded({}, "interface_up:wan");
     t.eq(world.logs[0], "[info] Reapplying configuration: interface 'wan' came up");
     t.eq(world.logs[length(world.logs) - 1], "[info] Configuration applied");
+});
+
+// The page closes the alerts of earlier actions at the first line of a new one.
+t.test("every action opens with a line the page knows", () => {
+    let contract = json(fs.readfile(repo.path("tests/fixtures/page_contract.json")));
+    let openings = [];
+    reset();
+    run(() => lifecycle.start());
+    push(openings, world.logs[0]);
+    running();
+    run(() => lifecycle.stop());
+    push(openings, world.logs[0]);
+    reloaded();
+    push(openings, world.logs[0]);
+    reloaded({}, "");
+    push(openings, world.logs[0]);
+    t.eq(openings, map(contract.action_openings, (opening) => "[info] " + opening));
 });
 
 t.test("autostart is the rc.d link and nothing else", () => {
