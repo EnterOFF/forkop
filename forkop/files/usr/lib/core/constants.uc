@@ -23,6 +23,7 @@ return {
     NFT_LOCALV4_SET_NAME: "localv4",
     NFT_LOCALV6_SET_NAME: "localv6",
     NFT_INTERFACE_SET_NAME: "forkop_interfaces",
+    NFT_PAUSE_CHAIN_NAME: "capture_pause",
     NFT_FAKEIP_MARK: "0x04000000",
     NFT_OUTBOUND_MARK: "0x08000000",
 

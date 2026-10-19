@@ -398,20 +398,21 @@ function restart_runtime() {
 }
 
 function capture(active) {
-    return exec.ok(active ? [ "nft", "add", "table", "inet", NFT_TABLE ] : [ "nft", "add", "table", "inet", NFT_TABLE, "{ flags dormant; }" ]);
+    return exec.ok(nft.capture_command(active));
 }
 
 // procd brings a crashed sing-box back a few seconds later. Until the new one
 // listens the capture pauses, as it does while a reload rebinds, so clients and
-// the router resolve and connect directly instead of at closed ports. An action
-// holding the lifecycle lock owns the runtime, so neither step waits for one.
+// the router resolve through the resolver instead of at closed ports, and their
+// traffic for sing-box waits for the new one. An action holding the lifecycle
+// lock owns the runtime, so neither step waits for one.
 function crash_pause() {
     let owner = common.own_pid();
     if (!lock.acquire(paths.lock, owner))
         return 0;
     if (fs.stat(paths.planned_stop) == null && nft_state.table_present(NFT_TABLE) && !health.sing_box_service_running()) {
         if (capture(false))
-            log("warn", "sing-box exited unexpectedly; traffic goes direct until procd restarts it");
+            log("warn", "sing-box exited unexpectedly; the capture is paused until procd restarts it");
         else
             log("error", "Failed to pause the traffic capture after sing-box exited");
     }
@@ -492,8 +493,8 @@ function reload_runtime(reason) {
         }
     }
 
-    // The capture pauses while sing-box rebinds, so traffic goes direct instead
-    // of at ports that are closed.
+    // The capture pauses while sing-box rebinds, so lookups and traffic do not
+    // reach ports that are closed.
     if (config_changed || forced) {
         if (!capture(false))
             return abort_reload("Failed to pause the traffic capture before reloading sing-box", true);
@@ -508,10 +509,11 @@ function reload_runtime(reason) {
             return abort_reload(NOT_CAPTURING, true);
     }
 
-    // A rebuilt table starts with empty sets, so the worker starts again and
-    // fills them. Otherwise a running worker keeps what it wrote and follows the
-    // core across its reload on its own; only a change to the providers a
-    // section reads starts it again.
+    // A rebuilt table keeps what the worker wrote, but a section's own
+    // addresses and ports in it may have changed, so the worker starts again
+    // and writes every section. Otherwise a running worker keeps what it wrote
+    // and follows the core across its reload on its own; only a change to the
+    // providers a section reads starts it again.
     let worker_changed = nft_changed || !rulesets.worker_current();
     if (worker_changed && !rulesets.start_worker())
         return abort_reload("Failed to start the rule-set sync worker", true);

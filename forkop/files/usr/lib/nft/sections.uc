@@ -130,6 +130,14 @@ function matchers(section) {
     };
 }
 
+// The sets the rule-set worker writes for a section a provider feeds. A rebuilt
+// table keeps them, so what the providers gave stays matched until the worker
+// writes it again.
+function provider_sets(m) {
+    let s = m.sets;
+    return length(m.subnet_tags) == 0 ? [] : [ s.subnets, s.subnets6, s.ip_ports, s.ip6_ports, s.proto_ports, s.proto6_ports ];
+}
+
 // The enabled sections that reach the table, each with its classification, in
 // configuration order. A duplicate name would have two sections claim the same
 // sets, so it is reported rather than silently applied twice.
@@ -160,5 +168,6 @@ function with_priority_sets(sections) {
 return {
     enabled,
     matchers,
+    provider_sets,
     with_priority_sets
 };

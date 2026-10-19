@@ -1,9 +1,11 @@
 let fs = require("fs");
 let common = require("core.common");
+let constants = require("core.constants");
 
 // The full iproute2: BusyBox ip neither reports nor removes the Forkop table
 // entries reliably.
 const IP_BIN = "/usr/libexec/ip-full";
+const PAUSE_CHAIN = constants.NFT_PAUSE_CHAIN_NAME;
 
 let as_string = common.as_string;
 let parse_mark_number = common.parse_number;
@@ -130,10 +132,10 @@ function tproxy_marking_rule6_present(table, mark) {
 
 // The status feed asks the same question behind every poll, and answering it
 // piecewise costs five `popen` round trips - five shells plus five binaries -
-// to read four short lists. One shell collects all of them instead. `nft list
-// tables inet` replaces `nft -t list table`: naming the table made nft walk and
-// filter the whole rule set to prove something the table index already knows,
-// and it measured four times slower on a real router.
+// to read four short lists. One shell collects all of them instead. nft lists
+// the pause chain rather than the table: naming the table made nft walk and
+// filter the whole rule set, and it measured four times slower on a real
+// router, while one chain is read without the sets.
 //
 // The route and rule output for a family arrive concatenated, without a
 // separator, because the two predicates below match disjoint shapes: a route
@@ -149,15 +151,15 @@ function batch_pipeline(family, table) {
         " | " + shell_quote(IP_BIN) + " " + family + " -batch - 2>/dev/null";
 }
 
-function list_tables_command(family, table) {
-    return "nft -j list tables " + shell_quote(as_string(family)) + " 2>/dev/null || " +
-        command_from_args([ "nft", "-t", "list", "table", family, table ]) + " 2>/dev/null";
+function pause_chain_command(table) {
+    let chain = [ "list", "chain", "inet", as_string(table), PAUSE_CHAIN ];
+    return command_from_args([ "nft", "-j", ...chain ]) + " 2>/dev/null || " + command_from_args([ "nft", ...chain ]) + " 2>/dev/null";
 }
 
 const SNAPSHOT_SEPARATOR = "@@forkop-runtime-snapshot@@";
 
 function runtime_snapshot_command(rt_table, nft_table) {
-    return list_tables_command("inet", nft_table) +
+    return pause_chain_command(nft_table) +
         "; echo " + shell_quote(SNAPSHOT_SEPARATOR) +
         "; " + batch_pipeline("-4", rt_table) +
         "; echo " + shell_quote(SNAPSHOT_SEPARATOR) +
@@ -173,17 +175,26 @@ function split_snapshot(output) {
     };
 }
 
-function table_active_output(output, family, table) {
-    let header = normalized_fields(split(trim(as_string(output)), "\n")[0]);
-    if (length(header) == 4 && header[0] == "table" && header[1] == family && header[2] == table && header[3] == "{")
-        return match(output, /\n[ \t]*flags[ \t]+[^\n]*\bdormant\b/) == null;
+// The table captures while its pause chain holds no rule. The listing comes
+// from nft with JSON output or, built without it, as text.
+function capture_active_output(output, table) {
+    let lines = filter(map(split(as_string(output), "\n"), (line) => join(" ", normalized_fields(line))), (line) => line != "");
+    if (length(lines) > 0 && lines[0] == "table inet " + table + " {")
+        return index(lines, "chain " + PAUSE_CHAIN + " {") == 1 &&
+            length(filter(lines, (line) => line != "}")) == 2;
 
     try {
+        let chain = false, rules = 0;
         for (let entry in json(output)?.nftables || []) {
-            let item = entry.table;
-            if (item?.family == family && item.name == table)
-                return index(item.flags || [], "dormant") < 0;
+            let item = entry.chain ?? entry.rule;
+            if (item?.family != "inet" || item.table != table)
+                continue;
+            if (entry.chain != null && item.name == PAUSE_CHAIN)
+                chain = true;
+            if (entry.rule != null && item.chain == PAUSE_CHAIN)
+                rules++;
         }
+        return chain && rules == 0;
     }
     catch (e) {
     }
@@ -193,7 +204,7 @@ function table_active_output(output, family, table) {
 function runtime_network_configured_snapshot(snapshot, nft_table, mark) {
     snapshot = type(snapshot) == "object" ? snapshot : {};
 
-    return table_active_output(snapshot.tables, "inet", nft_table) &&
+    return capture_active_output(snapshot.tables, nft_table) &&
         has_local_default_route_text(snapshot.inet4, 4) &&
         has_local_default_route_text(snapshot.inet6, 6) &&
         has_tproxy_marking_rule_text(snapshot.inet4, mark) &&

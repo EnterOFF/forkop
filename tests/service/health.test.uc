@@ -43,16 +43,23 @@ function snapshot(tables, route4, route6, rule4, rule6) {
     return nft_state.runtime_network_configured_snapshot({ tables, inet4: route4 + rule4, inet6: route6 + rule6 }, "ForkopTable", "0x04000000");
 }
 
-t.test("the runtime network is up when the table is active and both routes and rules exist", () => {
-    let json_tables = "{\"nftables\":[{\"table\":{\"family\":\"inet\",\"name\":\"fw4\"}},{\"table\":{\"family\":\"inet\",\"name\":\"ForkopTable\"}}]}";
+const META = "{\"metainfo\":{\"version\":\"1.1.6\",\"json_schema_version\":1}}";
+const PAUSE_CHAIN = "{\"chain\":{\"family\":\"inet\",\"table\":\"ForkopTable\",\"name\":\"capture_pause\",\"handle\":3}}";
+const PAUSE_RULE = "{\"rule\":{\"family\":\"inet\",\"table\":\"ForkopTable\",\"chain\":\"capture_pause\",\"handle\":6,\"expr\":[{\"accept\":null}]}}";
+
+t.test("the runtime network is up when the table captures and both routes and rules exist", () => {
+    let json_tables = "{\"nftables\":[" + META + "," + PAUSE_CHAIN + "]}";
     let route4 = "local default dev lo scope host\n";
     let route6 = "local default dev lo metric 1024 pref medium\n";
     t.ok(snapshot(json_tables, route4, route6, RULE4, RULE4));
-    t.ok(snapshot("table inet ForkopTable {\n}\n", route4, route6, RULE4, RULE4), "an nft built without JSON output");
-    t.ok(!snapshot("{\"nftables\":[{\"table\":{\"family\":\"inet\",\"name\":\"ForkopTable\",\"flags\":[\"dormant\"]}}]}", route4, route6, RULE4, RULE4),
-        "a table paused for a reload captures nothing");
-    t.ok(!snapshot("table inet ForkopTable {\n\tflags dormant\n}\n", route4, route6, RULE4, RULE4));
-    t.ok(!snapshot("{\"nftables\":[]}", route4, route6, RULE4, RULE4));
+    t.ok(snapshot("table inet ForkopTable {\n\tchain capture_pause {\n\t}\n}\n", route4, route6, RULE4, RULE4), "an nft built without JSON output");
+    t.ok(!snapshot("{\"nftables\":[" + META + "," + PAUSE_CHAIN + "," + PAUSE_RULE + "]}", route4, route6, RULE4, RULE4),
+        "a capture paused for a reload captures nothing");
+    t.ok(!snapshot("table inet ForkopTable {\n\tchain capture_pause {\n\t\tcounter packets 0 bytes 0 accept\n\t}\n}\n", route4, route6, RULE4, RULE4));
+    t.ok(!snapshot("{\"nftables\":[" + META + "]}", route4, route6, RULE4, RULE4), "no table");
+    t.ok(!snapshot("table inet ForkopTable {\n}\n", route4, route6, RULE4, RULE4), "a table without the pause chain");
+    t.ok(!snapshot("{\"nftables\":[" + META + "," + replace(PAUSE_CHAIN, "ForkopTable", "OtherTable") + "]}", route4, route6, RULE4, RULE4),
+        "the chain of another table");
     t.ok(!snapshot(json_tables, "", route6, RULE4, RULE4), "without the IPv4 route");
     t.ok(!snapshot(json_tables, route4, route6, "105:\tfrom all fwmark 0x2000000/0x2000000 lookup forkop\n", RULE4), "a rule for another mark");
     t.ok(snapshot(json_tables, route4, route6, RULE4, "105:\tfrom all fwmark 0x4000000/0x4000000 lookup podkop\n"),
@@ -64,12 +71,12 @@ t.test("the routing table registry entry is matched by id and name", () => {
     t.ok(!nft_state.rt_table_has_entry("105 podkop\n", "105", "forkop"));
 });
 
-t.test("the network check asks nft for the table index, not for the table", () => {
+t.test("the network check asks nft for the pause chain, not for the table", () => {
     stub.commands([ [ () => true, { stdout: "" } ] ]);
     nft_state.runtime_network_configured("ForkopTable", "forkop", "0x04000000");
     let command = stub.calls()[0].command;
     stub.restore();
-    t.contains(command, "nft -j list tables 'inet'");
+    t.contains(command, "'nft' '-j' 'list' 'chain' 'inet' 'ForkopTable' 'capture_pause'");
 });
 
 t.done();

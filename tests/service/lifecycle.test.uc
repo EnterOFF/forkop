@@ -127,12 +127,12 @@ function reset(options) {
             world.ports = false;
             return {};
         } ],
-        [ "nft add table inet ForkopTable { flags dormant; }", () => {
+        [ join(" ", nft.capture_command(false)), () => {
             event("capture paused");
             world.capture = false;
             return { status: world.pause_fails ? 1 : 0 };
         } ],
-        [ "nft add table inet ForkopTable", () => {
+        [ join(" ", nft.capture_command(true)), () => {
             if (world.ports)
                 event("capture resumed");
             else
@@ -436,7 +436,7 @@ t.test("a core procd is about to respawn pauses the capture until the new one li
     crashed();
     t.eq(run(() => lifecycle.crash_pause()).result, 0);
     t.eq(world.events, [ "capture paused" ]);
-    t.contains(world.logs, "[warn] sing-box exited unexpectedly; traffic goes direct until procd restarts it");
+    t.contains(world.logs, "[warn] sing-box exited unexpectedly; the capture is paused until procd restarts it");
 
     running({ capture: false });
     t.eq(run(() => lifecycle.crash_resume()).result, 0);

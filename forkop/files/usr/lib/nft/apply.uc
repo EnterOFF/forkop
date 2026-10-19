@@ -20,6 +20,7 @@ const RT_TABLE = constants.RT_TABLE_NAME;
 const LOCAL4 = constants.NFT_LOCALV4_SET_NAME;
 const LOCAL6 = constants.NFT_LOCALV6_SET_NAME;
 const INTERFACES = constants.NFT_INTERFACE_SET_NAME;
+const PAUSE_CHAIN = constants.NFT_PAUSE_CHAIN_NAME;
 const FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
 const OUTBOUND_MARK = constants.NFT_OUTBOUND_MARK;
 const FAKEIP4 = singbox_constants.FAKEIP_INET4_RANGE;
@@ -121,6 +122,29 @@ function tproxy_target(family, port) {
     return family == 6 ? core_ip.format_ipv6_tproxy_target(TPROXY6_ADDRESS, port) : ":" + port;
 }
 
+const CAPTURE_MARKED = [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK ];
+
+// A flow sing-box holds stays with it: its packets are marked from the flow,
+// whatever the sets hold at the moment. Only the first packet of a connection
+// is NATed, so one forwarded later would leave with the client's own address,
+// and flow offloading would then carry the whole connection past this table.
+function add_held_flow_rule(chain) {
+    add_rule(chain, [ "ct", "direction", "original", "ct", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK,
+        "meta", "mark", "set", FAKEIP_MARK, "counter", "accept" ]);
+}
+
+// The capture pauses while sing-box rebinds its listeners: lookups go to the
+// resolver they were sent to, and traffic for sing-box waits - dropped, so the
+// client sends it again - rather than going direct, where flow offloading would
+// keep it for good. One nft call, one transaction.
+function capture_command(active) {
+    let chain = [ "inet", TABLE, PAUSE_CHAIN ];
+    let commands = [ [ "flush", "chain", ...chain ] ];
+    if (!active)
+        push(commands, [ "add", "rule", ...chain, ...CAPTURE_MARKED, "counter", "drop" ], [ "add", "rule", ...chain, "counter", "accept" ]);
+    return [ "nft", join("; ", map(commands, (command) => join(" ", command))) ];
+}
+
 function add_base(settings, excluded_router, excluded) {
     let system_tproxy_port = singbox_constants.SYSTEM_TPROXY_INBOUND_PORT;
 
@@ -145,15 +169,18 @@ function add_base(settings, excluded_router, excluded) {
     add_chain("priority_output_rules", "{ }");
     add_rule("priority_output_rules", [ "meta", "mark", "!=", "0", "return" ]);
     add_chain("proxy", "{ type filter hook prerouting priority -100; policy accept; }");
+    add_chain(PAUSE_CHAIN, "{ }");
 
     // Client DNS capture: whatever resolver a client was configured with, its
     // queries land on the sing-box client DNS inbound. An excluded device keeps
     // its own resolver.
     add_chain("dns_redirect", "{ type nat hook prerouting priority -101; policy accept; }");
+    add_rule("dns_redirect", [ "jump", PAUSE_CHAIN ]);
     add_excluded_returns("dns_redirect", excluded);
     for (let proto in [ "tcp", "udp" ])
         add_rule("dns_redirect", [ "iifname", "@" + INTERFACES, proto, "dport", "53", "counter", "redirect", "to", ":" + singbox_constants.SOURCE_DNS_INBOUND_PORT ]);
 
+    add_held_flow_rule("mangle");
     add_excluded_returns("mangle", excluded);
     add_rule("mangle", [ "ct", "status", "dnat", "return" ]);
     // nft runs every nat chain at the NAT hook, after this chain, so a query a
@@ -166,6 +193,8 @@ function add_base(settings, excluded_router, excluded) {
         for (let proto in [ "tcp", "udp" ])
             add_rule("mangle", [ "iifname", "@" + INTERFACES, pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", FAKEIP_MARK, "counter" ]);
 
+    add_rule("proxy", [ "jump", PAUSE_CHAIN ]);
+    add_rule("proxy", [ ...CAPTURE_MARKED, "ct", "mark", "set", "ct", "mark", "|", FAKEIP_MARK ]);
     // The router's own traffic reaches the System inbound, and it is classified
     // before the generic inbound can take it.
     for (let family in [ 4, 6 ])
@@ -177,6 +206,7 @@ function add_base(settings, excluded_router, excluded) {
             add_rule("proxy", [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK, "meta", "l4proto", proto,
                 "tproxy", family == 6 ? "ip6" : "ip", "to", tproxy_target(family, TPROXY_PORT), "counter" ]);
 
+    add_held_flow_rule("mangle_output");
     if (excluded_router)
         add_rule("mangle_output", [ "counter", "return" ]);
     add_rule("mangle_output", [ "ip", "daddr", "@" + LOCAL4, "return" ]);
@@ -307,6 +337,7 @@ function add_fakeip_output() {
 // sing-box marks its own sockets, so its own questions to the resolver pass.
 function add_router_dns(excluded_router) {
     add_chain("system_dns_redirect", "{ type nat hook output priority -100; policy accept; }");
+    add_rule("system_dns_redirect", [ "jump", PAUSE_CHAIN ]);
     if (excluded_router)
         add_rule("system_dns_redirect", [ "counter", "return" ]);
     add_rule("system_dns_redirect", [ "meta", "mark", "!=", "0", "return" ]);
@@ -330,10 +361,8 @@ function fill_section_sets(section, m) {
         nft([ "add", "element", "inet", TABLE, s.ports, "{ " + m.ports + " }" ]);
 }
 
-// The whole table as { script, skipped }. The script replaces the live table in
-// one transaction: creating the table before deleting it keeps the replace
-// unconditional, because `delete table` on a missing table aborts the whole
-// transaction.
+// The whole table as { script, skipped, kept }: kept names the sets the
+// rule-set worker fills, which the script declares but leaves to the worker.
 function build() {
     let settings = uci.get_all(CONFIG_NAME, "settings") ?? {};
     let sections = uci.section_objects(CONFIG_NAME, "section");
@@ -342,7 +371,10 @@ function build() {
         die(planned.error);
 
     let excluded = excluded_devices(settings);
-    lines = [ "table inet " + TABLE, "delete table inet " + TABLE ];
+    let kept = [];
+    for (let entry in planned.sections)
+        push(kept, ...nft_sections.provider_sets(entry.matchers));
+    lines = [];
     skipped = [];
     add_base(settings, excluded.router, excluded.addresses);
     for (let entry in planned.sections)
@@ -352,9 +384,23 @@ function build() {
     for (let entry in planned.sections)
         fill_section_sets(entry.section, entry.matchers);
 
-    let result = { script: join("\n", lines) + "\n", skipped };
+    let result = { script: join("\n", lines) + "\n", skipped, kept };
     lines = null;
     skipped = null;
+    return result;
+}
+
+// The script replaces the live table in the same transaction: every rule goes,
+// every chain is defined again, and so is every set but the ones the worker
+// fills, which keep their addresses. Emptied, they would let traffic the
+// providers name go direct until the worker wrote them again.
+function reset_lines(kept) {
+    let result = [ "add table inet " + TABLE, "flush table inet " + TABLE ];
+    for (let line in split(exec.output([ "nft", "-t", "list", "table", "inet", TABLE ]) ?? "", "\n")) {
+        let item = match(trim(line), /^(set|chain) ([^ ]+) \{$/);
+        if (item != null && (item[1] == "chain" || index(kept, item[2]) < 0))
+            push(result, "delete " + item[1] + " inet " + TABLE + " " + item[2]);
+    }
     return result;
 }
 
@@ -416,7 +462,7 @@ function apply(built) {
     for (let message in built.skipped)
         exec.log("warn", message);
     ensure_tproxy_routing();
-    let result = exec.feed([ "nft", "-f", "-" ], built.script);
+    let result = exec.feed([ "nft", "-f", "-" ], join("\n", reset_lines(built.kept)) + "\n" + built.script);
     if (result.status != 0)
         die("nft refused the ruleset: " + refusal(result));
 }
@@ -432,4 +478,4 @@ function ensure_bridge_netfilter_disabled() {
     return true;
 }
 
-return { paths, build, apply, refusal, ensure_bridge_netfilter_disabled, remove_rt_table_entry };
+return { paths, build, apply, capture_command, refusal, ensure_bridge_netfilter_disabled, remove_rt_table_entry };

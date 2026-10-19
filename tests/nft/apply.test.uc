@@ -30,8 +30,7 @@ const T = "add rule inet ForkopTable ";
 
 t.test("the base table captures the source interfaces, FakeIP and the TProxy inbounds", () => {
     let lines = script_lines({ settings: { source_network_interfaces: "br-lan tun0", exclude_ntp: "1" } });
-    t.eq(slice(lines, 0, 3), [ "table inet ForkopTable", "delete table inet ForkopTable", "add table inet ForkopTable" ],
-        "the table is created, deleted and built again in one transaction");
+    t.eq(lines[0], "add table inet ForkopTable");
     has(lines, "add set inet ForkopTable localv4 { type ipv4_addr; flags interval; auto-merge; }");
     has(lines, "add set inet ForkopTable localv6 { type ipv6_addr; flags interval; auto-merge; }");
     t.ok(length(filter(lines, (l) => index(l, "add element inet ForkopTable localv4 { 0.0.0.0/8,10.0.0.0/8,127.0.0.0/8") == 0)) == 1);
@@ -70,6 +69,28 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
                 "the router's own FakeIP traffic");
     for (let absent in [ "forkop_subnets", "forkop_ports", "forkop_ip_ports", "forkop_dns_sources", "forkop_excluded" ])
         lacks(lines, absent);
+});
+
+t.test("a flow handed to sing-box stays captured whatever the sets hold, and a pause holds back what goes to it", () => {
+    let lines = script_lines({ settings: { routing_excluded_ips: "192.168.1.50 @system" } });
+    let held = "ct direction original ct mark & 0x04000000 == 0x04000000 meta mark set 0x04000000 counter accept";
+    for (let chain in [ "mangle", "mangle_output" ]) {
+        let first = filter(lines, (line) => index(line, T + chain + " ") == 0)[0];
+        t.eq(first, T + chain + " " + held, chain + ": a held flow is not matched against the sets or the exclusions");
+    }
+    has(lines, "add chain inet ForkopTable capture_pause { }");
+    for (let chain in [ "proxy", "dns_redirect", "system_dns_redirect" ]) {
+        let first = filter(lines, (line) => index(line, T + chain + " ") == 0)[0];
+        t.eq(first, T + chain + " jump capture_pause", chain + " asks the pause first");
+    }
+    before(lines, T + "proxy meta mark & 0x04000000 == 0x04000000 ct mark set ct mark | 0x04000000",
+        T + "proxy iifname lo meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1604 counter accept",
+        "the flow is marked before any TProxy rule accepts its packet");
+
+    t.eq(nft.capture_command(true), [ "nft", "flush chain inet ForkopTable capture_pause" ]);
+    t.eq(nft.capture_command(false), [ "nft", "flush chain inet ForkopTable capture_pause; " +
+        "add rule inet ForkopTable capture_pause meta mark & 0x04000000 == 0x04000000 counter drop; " +
+        "add rule inet ForkopTable capture_pause counter accept" ], "paused: traffic for sing-box waits, lookups go to their resolver");
 });
 
 t.test("excluded devices leave every capture before anything matches them", () => {
@@ -217,6 +238,7 @@ function routing(ip_state) {
         [ "/usr/libexec/ip-full -4 rule list table forkop", { stdout: ip_state?.rule4 ?? "" } ],
         [ "/usr/libexec/ip-full -6 rule list table forkop", { stdout: ip_state?.rule6 ?? "" } ],
         [ /'\/usr\/libexec\/ip-full'.* 'add' /, {} ],
+        [ "nft -t list table inet ForkopTable", { status: 1 } ],
         [ /^'nft' '-f' '-'/, { status: ip_state?.nft_status ?? 0 } ]
     ];
     return { dir, logs, handlers };
@@ -234,9 +256,9 @@ t.test("applying the table sets up its routing once and hands nft the whole scri
     for (let line in [ "/usr/libexec/ip-full route add local 0.0.0.0/0 dev lo table forkop", "/usr/libexec/ip-full -6 route add local ::/0 dev lo table forkop",
         "/usr/libexec/ip-full -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105", "/usr/libexec/ip-full -6 rule add fwmark 0x04000000/0x04000000 table forkop priority 105" ])
         t.contains(commands, line);
-    let transactions = filter(calls, (c) => c.argv[0] == "nft");
+    let transactions = filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f");
     t.eq(length(transactions), 1, "one transaction");
-    t.eq(split(transactions[0].stdin, "\n")[0], "table inet ForkopTable");
+    t.eq(split(transactions[0].stdin, "\n")[0], "add table inet ForkopTable");
     t.eq(r.logs, [], "setting the routing up is a routine step and is not reported");
 
     let present = routing({ route4: "local default dev lo scope host", route6: "local default dev lo metric 1024 pref medium",
@@ -248,6 +270,44 @@ t.test("applying the table sets up its routing once and hands nft the whole scri
     stub.restore();
     t.eq(filter(commands, (line) => index(line, " add ") >= 0), [], "routing that is in place is left alone");
     t.eq(present.logs, [], "and nothing is reported about it");
+});
+
+t.test("a rebuilt table keeps what the rule-set worker wrote and defines everything else again", () => {
+    fixture.seed({ settings: {}, section: [
+        { ".name": "fed", action: "proxy", community_lists: [ "telegram" ], destinations: "192.0.2.0/24" },
+        { ".name": "own", action: "proxy", destinations: "198.51.100.0/24" }
+    ] });
+    let result = nft.build();
+    let fed = [ "subnets", "subnets6", "ip_ports", "ip6_ports", "proto_ports", "proto6_ports" ];
+    t.eq(result.kept, map(fed, (suffix) => "forkop_rule_fed_" + suffix), "only a section a provider feeds has sets to keep");
+    t.eq(split(result.script, "\n")[0], "add table inet ForkopTable");
+
+    let live = "table inet ForkopTable {\n\tset localv4 {\n\t\ttype ipv4_addr\n\t}\n\tset forkop_rule_fed_subnets {\n\t\ttype ipv4_addr\n\t}\n" +
+        "\tset forkop_rule_fed_proto_ports {\n\t\ttype ipv4_addr . inet_proto . inet_service\n\t}\n\tset forkop_rule_own_subnets {\n\t}\n" +
+        "\tset forkop_rule_gone_subnets {\n\t}\n\tchain mangle {\n\t\ttype filter hook prerouting priority mangle + 1; policy accept;\n\t}\n" +
+        "\tchain priority_rules {\n\t}\n}\n";
+    let r = routing({ route4: "local default dev lo scope host", route6: "local default dev lo metric 1024 pref medium",
+        rule4: "105: from all fwmark 0x4000000/0x4000000 lookup forkop", rule6: "105: from all fwmark 0x4000000/0x4000000 lookup forkop" });
+    fs.writefile(nft.paths.rt_tables, "105 forkop\n");
+    stub.commands([ [ "nft -t list table inet ForkopTable", { stdout: live } ], ...r.handlers ]);
+    nft.apply(result);
+    let fed_script = filter(stub.calls(), (c) => c.argv[1] == "-f")[0].stdin;
+    stub.restore();
+    let lines = split(fed_script, "\n");
+    t.eq(slice(lines, 0, 7), [ "add table inet ForkopTable", "flush table inet ForkopTable",
+        "delete set inet ForkopTable localv4", "delete set inet ForkopTable forkop_rule_own_subnets", "delete set inet ForkopTable forkop_rule_gone_subnets",
+        "delete chain inet ForkopTable mangle", "delete chain inet ForkopTable priority_rules" ],
+        "the rules go, every chain is defined again, and a set goes unless the worker fills it");
+    has(lines, "add set inet ForkopTable forkop_rule_fed_subnets { type ipv4_addr; flags interval; auto-merge; }", "a kept set is declared as before");
+    lacks(lines, "flush set", "a kept set keeps its addresses");
+    t.eq(join("\n", slice(lines, 7)), result.script, "followed by the table as built");
+
+    stub.commands([ [ "nft -t list table inet ForkopTable", { status: 1 } ], ...r.handlers ]);
+    nft.apply(result);
+    fed_script = filter(stub.calls(), (c) => c.argv[1] == "-f")[0].stdin;
+    stub.restore();
+    t.eq(slice(split(fed_script, "\n"), 0, 3), [ "add table inet ForkopTable", "flush table inet ForkopTable", "add table inet ForkopTable" ],
+        "a missing table has nothing to take apart");
 });
 
 t.test("a value left out is a warning each time the table is applied", () => {
