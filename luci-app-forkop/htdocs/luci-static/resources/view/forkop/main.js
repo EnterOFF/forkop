@@ -20470,6 +20470,55 @@ function applyImportedOpenVPN(map, options, result) {
   map.checkDepends();
 }
 
+// src/forkop/tabs/sections/tunnels/warpGenerate.ts
+function warpGenerateBlockReason(viaSection, service) {
+  return viaSection && !service.loading && !service.failed && !service.data.singbox ? _("Start Forkop: WARP is requested through a section") : "";
+}
+function showWarpGenerateBlock(button, hint, readonly, reason) {
+  button.disabled = readonly || reason !== "";
+  button.title = reason;
+  hint.textContent = reason;
+  hint.style.display = reason ? "" : "none";
+}
+function keepWarpGenerateButtonCurrent(option2) {
+  const renderWidget2 = option2.renderWidget;
+  option2.renderWidget = function(sectionId, optionIndex, cfgvalue) {
+    const widget = renderWidget2.call(
+      this,
+      sectionId,
+      optionIndex,
+      cfgvalue
+    );
+    const button = widget.querySelector("button");
+    if (!button) {
+      return widget;
+    }
+    const hint = textE("div", { class: "cbi-value-description" });
+    const readonly = button.disabled;
+    const show = () => showWarpGenerateBlock(
+      button,
+      hint,
+      readonly,
+      warpGenerateBlockReason(
+        uci.get(FORKOP_UCI_PACKAGE, "settings", "warp_profiles_via_proxy") === "1",
+        store.get().servicesInfoWidget
+      )
+    );
+    show();
+    let shown2 = false;
+    const unsubscribe = store.subscribeKey("servicesInfoWidget", () => {
+      if (button.isConnected) {
+        shown2 = true;
+      } else if (shown2) {
+        unsubscribe();
+        return;
+      }
+      show();
+    });
+    return textE([widget, hint]);
+  };
+}
+
 // src/forkop/tabs/sections/tunnels/openconnectForm.ts
 var FLAVORS = [
   ["anyconnect", "Cisco AnyConnect, ocserv"],
@@ -21506,6 +21555,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   warpGenerateButton.inputtitle = _("Generate profile");
   warpGenerateButton.inputstyle = "apply";
   warpGenerateButton.depends("tunnel_type", "warp");
+  keepWarpGenerateButtonCurrent(warpGenerateButton);
   const tailscaleAuthKeyOption = itemSection.option(
     form.Value,
     "tailscale_auth_key",

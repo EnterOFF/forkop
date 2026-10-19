@@ -36,6 +36,7 @@ import { tunnelKindAvailable, tunnelKindCoreFeature } from '../coreSupport';
 import { missingCoreFeatureNote } from '../../../services/coreFeatures.service';
 import { parseOutboundJsonObject } from '../outboundJson';
 import { addOpenVPNOptions, applyImportedOpenVPN } from './openvpnForm';
+import { keepWarpGenerateButtonCurrent } from './warpGenerate';
 import {
   addOpenConnectOptions,
   applyImportedOpenConnect,
@@ -502,6 +503,7 @@ export function showTunnelSettingsModal(
   warpGenerateButton.inputtitle = _('Generate profile');
   warpGenerateButton.inputstyle = 'apply';
   warpGenerateButton.depends('tunnel_type', 'warp');
+  keepWarpGenerateButtonCurrent(warpGenerateButton);
 
   const tailscaleAuthKeyOption = itemSection.option(
     form.Value,
