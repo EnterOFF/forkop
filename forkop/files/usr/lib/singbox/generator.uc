@@ -166,7 +166,7 @@ function clash_api_config(settings, service_address) {
     };
     if (bool_option(settings, "enable_yacd", false)) {
         result.external_ui = "ui";
-        result.external_ui_download_detour = download_detour(settings, "lists");
+        result.external_ui_download_detour = runtime_constants.DIRECT_OUTBOUND_TAG;
         let secret = option(settings, "yacd_secret_key", "");
         if (secret != "")
             result.secret = secret;
@@ -310,7 +310,7 @@ function base_config(settings, service_address, runtime_context) {
             type: "api", tag: "forkop-api", listen: service_address || "127.0.0.1",
             listen_port: 9091, secret: option(settings, "native_api_secret", ""),
             dashboard: { enabled: true, path: "/tmp/sing-box/dashboard",
-                http_client: { detour: download_detour(settings, "lists") } }
+                http_client: { detour: runtime_constants.DIRECT_OUTBOUND_TAG } }
         }] : [],
         experimental: {
             unified_delay: {

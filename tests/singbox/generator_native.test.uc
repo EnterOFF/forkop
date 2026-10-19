@@ -77,8 +77,8 @@ t.test("the native API service is generated with its secret and dashboard", () =
     fixture.seed(openvpn_fixture({ enable_native_api: "1", native_api_secret: "test-secret",
         download_lists_via_proxy: "1", download_lists_via_proxy_section: "vpn" }));
     config = generator.build({ service_address: "127.0.0.1" });
-    t.eq(config.services[0].dashboard.http_client, { detour: "vpn" },
-        "the dashboard downloads through the lists section");
+    t.eq(config.services[0].dashboard.http_client, { detour: "direct-out" },
+        "the dashboard downloads direct, wherever the lists download");
 });
 
 function openvpn_server(server, clients) {

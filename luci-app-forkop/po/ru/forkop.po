@@ -755,6 +755,9 @@ msgstr "Скачивать списки через секцию"
 msgid "Download matching"
 msgstr "Скачать найденное"
 
+msgid "Download the built-in lists and remote rule sets through the selected section"
+msgstr "Скачивать встроенные списки и удалённые наборы правил через выбранную секцию"
+
 msgid "Download the profile"
 msgstr "Скачать профиль"
 
@@ -1831,9 +1834,6 @@ msgstr "Зарегистрировать устройство Cloudflare WARP и
 
 msgid "Regular expression must not contain spaces or commas"
 msgstr "Регулярное выражение не должно содержать пробелы или запятые"
-
-msgid "Remote lists, rule sets, YACD and the sing-box dashboard download through the selected section"
-msgstr "Удалённые списки, наборы правил, YACD и панель sing-box скачиваются через выбранную секцию"
 
 msgid "remote names no server"
 msgstr "remote: не указан сервер"

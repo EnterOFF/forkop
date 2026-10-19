@@ -744,7 +744,7 @@ t.test("WARP profile requests go through the chosen section: the tunnel names it
         "without a section the profile goes the way the router's own traffic goes");
 });
 
-t.test("the Clash API dashboard downloads its interface through the lists download section", () => {
+t.test("the Clash API dashboard downloads its interface direct, wherever the lists download", () => {
     let sections = [
         { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "example.org" },
         { ".name": "lists_proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "lists.example" }
@@ -754,9 +754,7 @@ t.test("the Clash API dashboard downloads its interface through the lists downlo
         section: sections
     });
     t.eq([ through_section.experimental.clash_api.external_ui, through_section.experimental.clash_api.external_ui_download_detour ],
-        [ "ui", "lists_proxy" ]);
-    let direct = build({ settings: settings({ enable_yacd: "1" }), section: sections });
-    t.eq(direct.experimental.clash_api.external_ui_download_detour, "direct-out");
+        [ "ui", "direct-out" ]);
     let without_ui = build({
         settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "lists_proxy" }),
         section: sections

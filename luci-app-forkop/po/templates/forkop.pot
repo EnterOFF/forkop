@@ -1426,6 +1426,11 @@ msgstr ""
 msgid "Download matching"
 msgstr ""
 
+#: fe-app-forkop/src/forkop/tabs/settings/form/updates.ts:78
+#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:27083
+msgid "Download the built-in lists and remote rule sets through the selected section"
+msgstr ""
+
 #: fe-app-forkop/src/forkop/tabs/servers/details.ts:314
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:24666
 msgid "Download the profile"
@@ -3427,11 +3432,6 @@ msgstr ""
 #: fe-app-forkop/src/forkop/tabs/sections/conditions.ts:159
 #: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:13390
 msgid "Regular expression must not contain spaces or commas"
-msgstr ""
-
-#: fe-app-forkop/src/forkop/tabs/settings/form/updates.ts:78
-#: luci-app-forkop/htdocs/luci-static/resources/view/forkop/main.js:27083
-msgid "Remote lists, rule sets, YACD and the sing-box dashboard download through the selected section"
 msgstr ""
 
 #: fe-app-forkop/src/helpers/parseOpenVPNConfig.ts:388

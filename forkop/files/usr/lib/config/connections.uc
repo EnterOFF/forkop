@@ -438,8 +438,8 @@ function destinations(section) {
     return rule_config.destination_conditions(option(section, "destinations", ""));
 }
 
-// Which section a download is routed through: rule sets, remote lists and the
-// dashboards take the lists section, WARP profiles name their own or none.
+// Which section a download is routed through: rule sets, built-in lists among
+// them, take the lists section, WARP profiles name their own or none.
 function download_via_proxy_flag_option(purpose) {
     purpose = as_string(purpose || "lists");
     if (purpose == "lists")

@@ -76,7 +76,7 @@ export function addUpdateOptions(section: CBISection) {
     'download_lists_via_proxy',
     _('Download lists through a section'),
     _(
-      'Remote lists, rule sets, YACD and the sing-box dashboard download through the selected section',
+      'Download the built-in lists and remote rule sets through the selected section',
     ),
   );
   configureDownloadViaProxyFlag(o, 'download_lists_via_proxy_section');
