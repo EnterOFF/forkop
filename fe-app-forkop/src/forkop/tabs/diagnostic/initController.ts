@@ -285,14 +285,14 @@ function renderDiagnosticRunActionWidget() {
   logger.debug('[DIAGNOSTIC]', 'renderDiagnosticRunActionWidget');
 
   const { loading, finished } = store.get().diagnosticsRunAction;
-  const { diagnosticsActions, servicesInfoWidget } = store.get();
+  const { diagnosticsActions, serviceState } = store.get();
   const capabilitiesLoaded =
     store.get().diagnosticsSystemInfo.capabilitiesLoaded;
   const container = document.getElementById('fkp_diagnostic-page-run-check');
   const disabled = shouldDisableDiagnosticRunAction({
     capabilitiesLoaded,
     operation: getServiceOperation({
-      busy: servicesInfoWidget.data.forkopBusy,
+      busy: serviceState.data.forkopBusy,
       localPending: getLocalPendingServiceOperation(diagnosticsActions),
     }),
   });
@@ -503,18 +503,18 @@ function handleShowSingBoxConfig() {
 
 function renderDiagnosticAvailableActionsWidget() {
   const diagnosticsActions = store.get().diagnosticsActions;
-  const servicesInfoWidget = store.get().servicesInfoWidget;
+  const serviceState = store.get().serviceState;
   logger.debug('[DIAGNOSTIC]', 'renderDiagnosticAvailableActionsWidget');
 
-  const forkopEnabled = Boolean(servicesInfoWidget.data.forkopEnabled);
-  const forkopRunning = Boolean(servicesInfoWidget.data.forkopRunning);
+  const forkopEnabled = Boolean(serviceState.data.forkopEnabled);
+  const forkopRunning = Boolean(serviceState.data.forkopRunning);
   const operation = getServiceOperation({
-    busy: servicesInfoWidget.data.forkopBusy,
+    busy: serviceState.data.forkopBusy,
     localPending: getLocalPendingServiceOperation(diagnosticsActions),
   });
   // The widget starts out loading with an empty snapshot; until the first one
   // arrives there is nothing to say about the service.
-  const stateKnown = !servicesInfoWidget.loading || servicesInfoWidget.failed;
+  const stateKnown = !serviceState.loading || serviceState.failed;
   const controls = getServiceControlsPresentation({
     running: forkopRunning,
     operation,
@@ -604,12 +604,12 @@ async function onStoreUpdate(
     diff.diagnosticsRunAction ||
     diff.diagnosticsSystemInfo ||
     diff.diagnosticsActions ||
-    diff.servicesInfoWidget
+    diff.serviceState
   ) {
     renderDiagnosticRunActionWidget();
   }
 
-  if (diff.diagnosticsActions || diff.servicesInfoWidget) {
+  if (diff.diagnosticsActions || diff.serviceState) {
     renderDiagnosticAvailableActionsWidget();
   }
 

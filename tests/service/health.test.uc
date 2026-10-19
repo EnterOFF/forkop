@@ -37,7 +37,24 @@ t.test("a process age is measured on the kernel tick scale and never runs backwa
     t.eq(health.process_age_seconds_from_ticks(786162159, 786161359), null);
 });
 
-const RULE4 = "105:\tfrom all fwmark 0x4000000/0x4000000 lookup forkop\n";
+// A command name may hold spaces and parentheses, so the fields are counted from
+// where it ends.
+const STAT = "4242 (sing) box) S 1 4242 4242 0 -1 4194560 15734 0 6 0 239 42 0 0 20 0 9 0 190694980 812421120 16851 4294967295\n";
+const STATUS = "Name:\tsing-box\nVmRSS:\t   67404 kB\nRssAnon:\t   25152 kB\nRssFile:\t   39436 kB\n";
+
+t.test("a process costs its processor time and the memory only it holds", () => {
+    health.paths.proc = stub.tmpdir();
+    fs.mkdir(health.paths.proc + "/4242");
+    fs.writefile(health.paths.proc + "/4242/stat", STAT);
+    fs.writefile(health.paths.proc + "/4242/status", STATUS);
+    t.eq(health.process_usage(4242), { started: 190694980, cpu_ticks: 281, memory_kb: 25152 });
+
+    fs.writefile(health.paths.proc + "/4242/status", "Name:\tsing-box\nVmRSS:\t   67404 kB\n");
+    t.eq(health.process_usage(4242), null, "a kernel that reports no anonymous pages");
+    t.eq(health.process_usage(4343), null, "a process that is gone");
+});
+
+const RULE4 ="105:\tfrom all fwmark 0x4000000/0x4000000 lookup forkop\n";
 
 function snapshot(tables, route4, route6, rule4, rule6) {
     return nft_state.runtime_network_configured_snapshot({ tables, inet4: route4 + rule4, inet6: route6 + rule6 }, "ForkopTable", "0x04000000");

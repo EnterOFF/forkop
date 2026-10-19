@@ -1,10 +1,10 @@
 import { ForkopShellMethods } from '../../../methods';
 import type { IDiagnosticsChecksItem } from '../../../services';
 import type { Forkop } from '../../../types';
+import { formatDuration } from '../../../helpers/formatDuration';
 import {
   CheckOutcome,
   finding,
-  formatDuration,
   formatMegabytes,
   outcome,
   unanswered,

@@ -1,6 +1,7 @@
 import type { IDiagnosticsChecksStoreItem, StoreType } from '../../services';
 import type { Forkop } from '../../types';
-import { formatDuration, formatMegabytes } from './checks/present';
+import { formatDuration } from '../../helpers/formatDuration';
+import { formatMegabytes } from './checks/present';
 
 const MARKS: Record<IDiagnosticsChecksStoreItem['state'], string> = {
   success: '✓',

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   subscribe: vi.fn(),
   disconnect: vi.fn(),
   resetAll: vi.fn(),
+  readCoreUsage: vi.fn(),
 }));
 
 vi.mock('../../../services/socket.service', () => ({
@@ -23,8 +24,9 @@ vi.mock('../../../methods', () => ({
 vi.mock('../../../methods/custom/getClashApiSecret', () => ({
   getClashApiSecret: async () => 'secret',
 }));
-vi.mock('../../../services/runtimeUiState.service', () => ({
-  refreshRuntimeUiState: vi.fn(),
+vi.mock('../coreUsage', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../coreUsage')>()),
+  readCoreUsage: mocks.readCoreUsage,
 }));
 
 // The dashboard's live widgets come from two Clash API sockets. They run while
@@ -39,6 +41,12 @@ beforeEach(() => {
   mocks.subscribe.mockReset();
   mocks.disconnect.mockReset();
   mocks.resetAll.mockReset();
+  mocks.readCoreUsage.mockReset();
+  mocks.readCoreUsage.mockResolvedValue({
+    success: false,
+    message: '',
+    unavailable: true,
+  });
   visibilityState = 'visible';
   visibilityListeners.clear();
   vi.stubGlobal('window', {
@@ -150,5 +158,66 @@ describe('the dashboard sockets', () => {
       '/traffic',
       '/connections',
     ]);
+  });
+});
+
+function reading(started: number, clockMs: number, cpuTicks: number) {
+  return {
+    success: true,
+    data: {
+      running: true,
+      started,
+      cpu_ticks: cpuTicks,
+      memory_kb: 25000,
+      cpus: 2,
+      clock_ms: clockMs,
+    },
+  };
+}
+
+describe('the core widgets', () => {
+  // The router measures the age; the page places the start on its own clock
+  // once per core process, so the age it counts on does not step back and
+  // forth by the time each answer spent on the way.
+  it('count the age from one start per core and the load between two readings of it', async () => {
+    mocks.readCoreUsage
+      .mockResolvedValueOnce(reading(100000, 1_060_000, 500))
+      .mockResolvedValueOnce(reading(100000, 1_062_100, 600))
+      .mockResolvedValueOnce(reading(200000, 2_005_000, 30));
+    await openDashboard();
+    const { store } = await import('../../../services/store.service');
+    const usage = () => store.get().coreUsageWidget;
+
+    const firstStart = Date.now() - 60000;
+    expect(usage()).toEqual({
+      loading: false,
+      failed: false,
+      data: { cpu: null, memory: 25_600_000, startedAt: firstStart },
+    });
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(usage().data.startedAt).toBe(firstStart);
+    expect(usage().data.cpu).toBeCloseTo(23.81, 2);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(usage().data).toEqual({
+      cpu: null,
+      memory: 25_600_000,
+      startedAt: Date.now() - 5000,
+    });
+  });
+
+  it('say the core is unavailable while it is not running', async () => {
+    mocks.readCoreUsage.mockResolvedValue({
+      success: true,
+      data: { running: false },
+    });
+    await openDashboard();
+    const { store } = await import('../../../services/store.service');
+
+    expect(store.get().coreUsageWidget).toMatchObject({
+      loading: false,
+      failed: true,
+    });
   });
 });

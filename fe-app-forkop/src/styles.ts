@@ -22,6 +22,41 @@ ${PartialStyles}
     font-weight: normal;
 }
 
+/* The service state after the version, muted like it; only the dot carries
+   the colour of the state, and it pulses while an operation runs. */
+.fkp_page-status {
+    margin-left: 0.4em;
+    white-space: nowrap;
+}
+
+.fkp_page-status__dot {
+    display: inline-block;
+    width: 0.55em;
+    height: 0.55em;
+    margin-right: 0.35em;
+    border-radius: 50%;
+    vertical-align: 0.1em;
+}
+
+.fkp_page-status--success .fkp_page-status__dot {
+    background: var(--success-color-medium, green);
+}
+
+.fkp_page-status--error .fkp_page-status__dot {
+    background: var(--error-color-medium, red);
+}
+
+.fkp_page-status--progress .fkp_page-status__dot {
+    background: var(--warn-color-medium, #b8860b);
+    animation: fkp_page-status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes fkp_page-status-pulse {
+    50% {
+        opacity: 0.3;
+    }
+}
+
 /* Hide extra H3 for settings tab */
 #cbi-${FORKOP_CBI_PREFIX}-settings > h3 {
     display: none;

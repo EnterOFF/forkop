@@ -141,7 +141,7 @@ function request(method, path, body) {
     return { status, body: join(STATUS_MARKER, slice(parts, 0, length(parts) - 1)) };
 }
 
-// The four numbers the Dashboard reads out of a snapshot that carries every open
+// The three numbers the Dashboard reads out of a snapshot that carries every open
 // connection, which through rpcd would be refused past about 256 KB. An answer
 // the controller gave as an error is passed on as it is.
 function summary() {
@@ -154,7 +154,6 @@ function summary() {
         body: sprintf("%J", {
             downloadTotal: payload.downloadTotal || 0,
             uploadTotal: payload.uploadTotal || 0,
-            memory: payload.memory || 0,
             connections: type(payload.connections) == "array" ? length(payload.connections) : 0
         })
     };

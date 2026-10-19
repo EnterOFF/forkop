@@ -110,7 +110,7 @@ t.test("the summary carries the totals and the count, never the connection list"
     controller(200, { "/connections": "{\"downloadTotal\":10,\"uploadTotal\":20,\"memory\":30,\"connections\":[{\"id\":\"a\",\"metadata\":{}},{\"id\":\"b\"}]}" });
     let result = call([ "clash_summary" ]);
     stub.restore();
-    t.eq(json(result.reply.body), { downloadTotal: 10, uploadTotal: 20, memory: 30, connections: 2 });
+    t.eq(json(result.reply.body), { downloadTotal: 10, uploadTotal: 20, connections: 2 });
     t.contains(join(" ", requests[0].argv), "-X GET");
 
 });

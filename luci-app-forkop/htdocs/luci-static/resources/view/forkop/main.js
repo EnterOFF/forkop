@@ -1318,7 +1318,7 @@ function renderDefaultState2({ title, items }) {
       (item) => textE(
         "div",
         {
-          class: `fkp_dashboard-page__widgets-section__item__row ${item?.attributes?.class || ""}`
+          class: "fkp_dashboard-page__widgets-section__item__row"
         },
         [
           textE(
@@ -1660,7 +1660,7 @@ function render() {
           ),
           textE(
             "div",
-            { id: "dashboard-widget-system-info" },
+            { id: "dashboard-widget-load" },
             renderWidget({
               loading: true,
               failed: false,
@@ -1670,7 +1670,7 @@ function render() {
           ),
           textE(
             "div",
-            { id: "dashboard-widget-service-info" },
+            { id: "dashboard-widget-core" },
             renderWidget({
               loading: true,
               failed: false,
@@ -2394,7 +2394,6 @@ function summarizeConnections(snapshot) {
   return {
     downloadTotal: snapshot?.downloadTotal || 0,
     uploadTotal: snapshot?.uploadTotal || 0,
-    memory: snapshot?.memory || 0,
     connections: snapshot?.connections?.length || 0
   };
 }
@@ -3565,12 +3564,17 @@ var initialStore = {
     failed: false,
     data: { downloadTotal: 0, uploadTotal: 0 }
   },
-  systemInfoWidget: {
+  connectionsWidget: {
     loading: true,
     failed: false,
-    data: { connections: 0, memory: 0 }
+    data: { connections: 0 }
   },
-  servicesInfoWidget: {
+  coreUsageWidget: {
+    loading: true,
+    failed: false,
+    data: { cpu: null, memory: 0, startedAt: 0 }
+  },
+  serviceState: {
     loading: true,
     failed: false,
     data: {
@@ -3991,7 +3995,7 @@ function applyServiceState(uiState) {
     server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
   };
   store.set({
-    servicesInfoWidget: {
+    serviceState: {
       loading: false,
       failed: false,
       data: {
@@ -4022,10 +4026,10 @@ function applyUiStateToStore(uiState) {
   applyActionState(uiState.actions);
 }
 function markUiStateUnavailable() {
-  const servicesInfoWidget = store.get().servicesInfoWidget;
+  const serviceState = store.get().serviceState;
   store.set({
-    servicesInfoWidget: {
-      ...servicesInfoWidget,
+    serviceState: {
+      ...serviceState,
       loading: false,
       failed: true
     }
@@ -4670,21 +4674,50 @@ function createPollChain(run, nextDelay) {
   };
 }
 
-// src/forkop/helpers/serviceStatusDisplay.ts
-var BUSY_LABELS = {
-  start: () => _("Starting..."),
-  stop: () => _("Stopping..."),
-  restart: () => _("Restarting..."),
-  apply: () => _("Applying...")
-};
-function getServiceStatusDisplay({
-  running,
-  busy
-}) {
-  if (busy) {
-    return { label: `\u27F3 ${BUSY_LABELS[busy]()}`, tone: "progress" };
+// src/forkop/helpers/formatDuration.ts
+function formatDuration(seconds3) {
+  const value = Math.max(0, Math.floor(seconds3));
+  const days = Math.floor(value / 86400);
+  const hours = Math.floor(value % 86400 / 3600);
+  const minutes = Math.floor(value % 3600 / 60);
+  if (days > 0) {
+    return hours > 0 ? `${_("%d d").format(days)} ${_("%d h").format(hours)}` : _("%d d").format(days);
   }
-  return running ? { label: _("\u2714 Running"), tone: "success" } : { label: _("\u2718 Stopped"), tone: "error" };
+  if (hours > 0) {
+    return minutes > 0 ? `${_("%d h").format(hours)} ${_("%d min").format(minutes)}` : _("%d h").format(hours);
+  }
+  return minutes > 0 ? _("%d min").format(minutes) : _("%d s").format(value);
+}
+
+// src/forkop/tabs/dashboard/coreUsage.ts
+var TICKS_PER_SECOND = 100;
+function cpuShare(previous, next) {
+  if (!previous || previous.started !== next.started) {
+    return null;
+  }
+  const seconds3 = (next.clock_ms - previous.clock_ms) / 1e3;
+  const used = (next.cpu_ticks - previous.cpu_ticks) / TICKS_PER_SECOND;
+  if (seconds3 <= 0 || used < 0) {
+    return null;
+  }
+  return used / seconds3 / Math.max(1, next.cpus) * 100;
+}
+function coreAgeSeconds(reading) {
+  return Math.max(
+    0,
+    reading.clock_ms / 1e3 - reading.started / TICKS_PER_SECOND
+  );
+}
+function formatCpuShare(percent) {
+  return `${percent < 10 ? percent.toFixed(1) : Math.round(percent)}%`;
+}
+function readCoreUsage() {
+  return callUbus({
+    object: FORKOP_SERVICE_OBJECT,
+    method: "usage",
+    timeoutMs: FORKOP_CALL_TIMEOUT_MS,
+    retryUnavailable: false
+  });
 }
 
 // src/forkop/tabs/dashboard/resolveOutboundProxyLink.ts
@@ -4890,13 +4923,10 @@ function applyWidgetsSnapshot(summary) {
         failed: false,
         data: { downloadTotal, uploadTotal }
       },
-      systemInfoWidget: {
+      connectionsWidget: {
         loading: false,
         failed: false,
-        data: {
-          connections: summary.connections,
-          memory: summary.memory
-        }
+        data: { connections: summary.connections }
       }
     }
   });
@@ -4918,10 +4948,10 @@ function reportWidgetsFailure() {
         failed: true,
         data: { downloadTotal: 0, uploadTotal: 0 }
       },
-      systemInfoWidget: {
+      connectionsWidget: {
         loading: false,
         failed: true,
-        data: { connections: 0, memory: 0 }
+        data: { connections: 0 }
       }
     }
   });
@@ -4980,6 +5010,70 @@ function stopWidgetsPolling() {
     clearTimeout(widgetsSocketGraceTimer);
     widgetsSocketGraceTimer = null;
   }
+}
+var CORE_USAGE_INTERVAL_MS = 2e3;
+var CORE_USAGE_BACKOFF_MAX_MS = 3e4;
+var CORE_AGE_TICK_MS = 1e3;
+var coreUsageFailures = 0;
+var lastCoreUsage = null;
+var coreStartedAt = 0;
+var coreAgeTimer = null;
+function reportCoreUsageFailure() {
+  coreUsageFailures += 1;
+  lastCoreUsage = null;
+  store.set({
+    coreUsageWidget: {
+      loading: false,
+      failed: true,
+      data: { cpu: null, memory: 0, startedAt: 0 }
+    }
+  });
+}
+function applyCoreUsage(reading) {
+  if (lastCoreUsage?.started !== reading.started) {
+    coreStartedAt = Date.now() - coreAgeSeconds(reading) * 1e3;
+  }
+  const cpu = cpuShare(lastCoreUsage, reading);
+  lastCoreUsage = reading;
+  store.set({
+    coreUsageWidget: {
+      loading: false,
+      failed: false,
+      data: { cpu, memory: reading.memory_kb * 1024, startedAt: coreStartedAt }
+    }
+  });
+}
+async function pollCoreUsage(dataUpdatesId) {
+  const response = await readCoreUsage();
+  if (!coreUsagePoll.active || dataUpdatesId !== dashboardDataUpdatesId) {
+    return;
+  }
+  if (!response.success || !response.data.running) {
+    reportCoreUsageFailure();
+    return;
+  }
+  coreUsageFailures = 0;
+  applyCoreUsage(response.data);
+}
+var coreUsagePoll = createPollChain(
+  () => pollCoreUsage(dashboardDataUpdatesId),
+  () => coreUsageFailures > 0 ? Math.min(
+    CORE_USAGE_INTERVAL_MS * 2 ** coreUsageFailures,
+    CORE_USAGE_BACKOFF_MAX_MS
+  ) : CORE_USAGE_INTERVAL_MS
+);
+function restartCoreUsagePollAfterFailure() {
+  if (coreUsageFailures === 0) {
+    return;
+  }
+  coreUsageFailures = 0;
+  coreUsagePoll.now();
+}
+function stopCoreUsagePolling() {
+  coreUsagePoll.stop();
+  coreUsageFailures = 0;
+  lastCoreUsage = null;
+  coreStartedAt = 0;
 }
 async function connectToClashSockets(dataUpdatesId) {
   const mountId = dashboardMountId;
@@ -5041,13 +5135,10 @@ async function connectToClashSockets(dataUpdatesId) {
             uploadTotal: parsedMsg.uploadTotal
           }
         },
-        systemInfoWidget: {
+        connectionsWidget: {
           loading: false,
           failed: false,
-          data: {
-            connections: parsedMsg.connections?.length,
-            memory: parsedMsg.memory
-          }
+          data: { connections: parsedMsg.connections?.length }
         }
       });
     },
@@ -5099,6 +5190,7 @@ function stopDashboardDataUpdates() {
   lastSectionsRefreshDurationMs = 0;
   sectionsRefreshQueued = false;
   stopWidgetsPolling();
+  stopCoreUsagePolling();
   trafficSocketLive = false;
   connectionsSocketLive = false;
   for (const url of [trafficSocketUrl, connectionsSocketUrl]) {
@@ -5126,6 +5218,7 @@ function startDashboardDataUpdates() {
     startWidgetsPolling(dataUpdatesId);
   }
   sectionsRefresh.start(SECTIONS_REFRESH_INTERVAL_MS);
+  coreUsagePoll.start(0);
 }
 async function handleChooseOutbound(sectionName, selector, tag) {
   const sectionsWidget = store.get().sectionsWidget;
@@ -5985,85 +6078,60 @@ async function renderTrafficTotalWidget() {
   });
   container.replaceChildren(renderedWidget);
 }
-async function renderSystemInfoWidget() {
-  logger.debug("[DASHBOARD]", "renderSystemInfoWidget");
-  const systemInfoWidget = store.get().systemInfoWidget;
-  const container = document.getElementById("dashboard-widget-system-info");
+async function renderLoadWidget() {
+  logger.debug("[DASHBOARD]", "renderLoadWidget");
+  const usage = store.get().coreUsageWidget;
+  const container = document.getElementById("dashboard-widget-load");
   if (!container) {
     return;
   }
-  if (systemInfoWidget.loading || systemInfoWidget.failed) {
-    const renderedWidget2 = renderWidget({
-      loading: systemInfoWidget.loading,
-      failed: systemInfoWidget.failed,
-      title: "",
-      items: []
-    });
-    return container.replaceChildren(renderedWidget2);
-  }
-  const renderedWidget = renderWidget({
-    loading: systemInfoWidget.loading,
-    failed: systemInfoWidget.failed,
-    title: _("System info"),
-    items: [
-      {
-        key: _("Active Connections"),
-        value: String(systemInfoWidget.data.connections)
-      },
-      {
-        key: _("Memory Usage"),
-        value: String(prettyBytes(systemInfoWidget.data.memory))
-      }
-    ]
-  });
-  container.replaceChildren(renderedWidget);
+  const loading3 = usage.loading || !usage.failed && usage.data.cpu === null;
+  container.replaceChildren(
+    renderWidget({
+      loading: loading3,
+      failed: usage.failed,
+      title: _("Load"),
+      items: [
+        {
+          key: _("CPU"),
+          value: usage.data.cpu === null ? "\u2014" : formatCpuShare(usage.data.cpu)
+        },
+        { key: _("Memory"), value: String(prettyBytes(usage.data.memory)) }
+      ]
+    })
+  );
 }
-async function renderServicesInfoWidget() {
-  logger.debug("[DASHBOARD]", "renderServicesInfoWidget");
-  const servicesInfoWidget = store.get().servicesInfoWidget;
-  const container = document.getElementById("dashboard-widget-service-info");
+var renderedCoreWidget = "";
+function renderCoreWidget() {
+  const connections = store.get().connectionsWidget;
+  const usage = store.get().coreUsageWidget;
+  const container = document.getElementById("dashboard-widget-core");
   if (!container) {
     return;
   }
-  if (servicesInfoWidget.loading || servicesInfoWidget.failed) {
-    const renderedWidget2 = renderWidget({
-      loading: servicesInfoWidget.loading,
-      failed: servicesInfoWidget.failed,
-      title: "",
-      items: []
-    });
-    return container.replaceChildren(renderedWidget2);
-  }
-  const forkopDisplay = getServiceStatusDisplay({
-    running: Boolean(servicesInfoWidget.data.forkopRunning),
-    busy: servicesInfoWidget.data.forkopBusy
-  });
-  const singBoxDisplay = getServiceStatusDisplay({
-    running: Boolean(servicesInfoWidget.data.singbox),
-    busy: servicesInfoWidget.data.forkopBusy
-  });
-  const renderedWidget = renderWidget({
-    loading: servicesInfoWidget.loading,
-    failed: servicesInfoWidget.failed,
-    title: _("Services info"),
+  const connectionsKnown = !connections.loading && !connections.failed;
+  const ageKnown = !usage.loading && !usage.failed;
+  const props = {
+    loading: connections.loading && usage.loading,
+    failed: connections.failed && usage.failed,
+    title: _("Core"),
     items: [
       {
-        key: "Forkop",
-        value: forkopDisplay.label,
-        attributes: {
-          class: `fkp_dashboard-page__widgets-section__item__row--${forkopDisplay.tone}`
-        }
+        key: _("Connections"),
+        value: connectionsKnown ? String(connections.data.connections) : "\u2014"
       },
       {
-        key: "Sing-box",
-        value: singBoxDisplay.label,
-        attributes: {
-          class: `fkp_dashboard-page__widgets-section__item__row--${singBoxDisplay.tone}`
-        }
+        key: _("Uptime"),
+        value: ageKnown ? formatDuration((Date.now() - usage.data.startedAt) / 1e3) : "\u2014"
       }
     ]
-  });
-  container.replaceChildren(renderedWidget);
+  };
+  const key = JSON.stringify(props);
+  if (key === renderedCoreWidget && container.firstChild) {
+    return;
+  }
+  renderedCoreWidget = key;
+  container.replaceChildren(renderWidget(props));
 }
 async function onStoreUpdate(next, prev, diff) {
   if (diff.sectionsWidget) {
@@ -6075,11 +6143,14 @@ async function onStoreUpdate(next, prev, diff) {
   if (diff.trafficTotalWidget) {
     renderTrafficTotalWidget();
   }
-  if (diff.systemInfoWidget) {
-    renderSystemInfoWidget();
+  if (diff.coreUsageWidget) {
+    renderLoadWidget();
   }
-  if (diff.servicesInfoWidget) {
-    renderServicesInfoWidget();
+  if (diff.connectionsWidget || diff.coreUsageWidget) {
+    renderCoreWidget();
+  }
+  if (diff.serviceState && next.serviceState.data.singbox) {
+    restartCoreUsagePollAfterFailure();
   }
 }
 async function onPageMount() {
@@ -6091,10 +6162,10 @@ async function onPageMount() {
   void renderSectionsWidget();
   void renderBandwidthWidget();
   void renderTrafficTotalWidget();
-  void renderSystemInfoWidget();
-  void renderServicesInfoWidget();
+  void renderLoadWidget();
+  renderCoreWidget();
+  coreAgeTimer = setInterval(renderCoreWidget, CORE_AGE_TICK_MS);
   startDashboardDataUpdates();
-  void refreshRuntimeUiState({ force: true });
 }
 function onPageUnmount() {
   dashboardMounted = false;
@@ -6102,8 +6173,17 @@ function onPageUnmount() {
   stopDashboardDataUpdates();
   sectionsRefreshQueued = false;
   sectionsRefreshPromise = null;
+  if (coreAgeTimer) {
+    clearInterval(coreAgeTimer);
+    coreAgeTimer = null;
+  }
   store.unsubscribe(onStoreUpdate);
-  store.reset(["bandwidthWidget", "trafficTotalWidget", "systemInfoWidget"]);
+  store.reset([
+    "bandwidthWidget",
+    "trafficTotalWidget",
+    "connectionsWidget",
+    "coreUsageWidget"
+  ]);
 }
 var dashboardLifecycleRegistered = false;
 var dashboardControllerInitialized = false;
@@ -6216,18 +6296,6 @@ var styles3 = `
     border-radius: 4px;
     padding: 10px;
     min-width: 0;
-}
-
-.fkp_dashboard-page__widgets-section__item__row--success .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--success-color-medium, green);
-}
-
-.fkp_dashboard-page__widgets-section__item__row--error .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--error-color-medium, red);
-}
-
-.fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--warn-color-medium, #b8860b);
 }
 
 .fkp_dashboard-page__toolbar {
@@ -7022,19 +7090,6 @@ function formatMs(ms) {
 }
 function formatMegabytes(kilobytes) {
   return _("%d MB").format(Math.round(kilobytes / 1024));
-}
-function formatDuration(seconds3) {
-  const value = Math.max(0, Math.floor(seconds3));
-  const days = Math.floor(value / 86400);
-  const hours = Math.floor(value % 86400 / 3600);
-  const minutes = Math.floor(value % 3600 / 60);
-  if (days > 0) {
-    return hours > 0 ? `${_("%d d").format(days)} ${_("%d h").format(hours)}` : _("%d d").format(days);
-  }
-  if (hours > 0) {
-    return minutes > 0 ? `${_("%d h").format(hours)} ${_("%d min").format(minutes)}` : _("%d h").format(hours);
-  }
-  return minutes > 0 ? _("%d min").format(minutes) : _("%d s").format(value);
 }
 
 // src/forkop/tabs/diagnostic/checks/service.ts
@@ -7989,13 +8044,13 @@ function renderDiagnosticsChecks() {
 function renderDiagnosticRunActionWidget() {
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticRunActionWidget");
   const { loading: loading3, finished } = store.get().diagnosticsRunAction;
-  const { diagnosticsActions, servicesInfoWidget } = store.get();
+  const { diagnosticsActions, serviceState } = store.get();
   const capabilitiesLoaded = store.get().diagnosticsSystemInfo.capabilitiesLoaded;
   const container = document.getElementById("fkp_diagnostic-page-run-check");
   const disabled = shouldDisableDiagnosticRunAction({
     capabilitiesLoaded,
     operation: getServiceOperation({
-      busy: servicesInfoWidget.data.forkopBusy,
+      busy: serviceState.data.forkopBusy,
       localPending: getLocalPendingServiceOperation(diagnosticsActions)
     })
   });
@@ -8145,15 +8200,15 @@ function handleShowSingBoxConfig() {
 }
 function renderDiagnosticAvailableActionsWidget() {
   const diagnosticsActions = store.get().diagnosticsActions;
-  const servicesInfoWidget = store.get().servicesInfoWidget;
+  const serviceState = store.get().serviceState;
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticAvailableActionsWidget");
-  const forkopEnabled = Boolean(servicesInfoWidget.data.forkopEnabled);
-  const forkopRunning = Boolean(servicesInfoWidget.data.forkopRunning);
+  const forkopEnabled = Boolean(serviceState.data.forkopEnabled);
+  const forkopRunning = Boolean(serviceState.data.forkopRunning);
   const operation = getServiceOperation({
-    busy: servicesInfoWidget.data.forkopBusy,
+    busy: serviceState.data.forkopBusy,
     localPending: getLocalPendingServiceOperation(diagnosticsActions)
   });
-  const stateKnown = !servicesInfoWidget.loading || servicesInfoWidget.failed;
+  const stateKnown = !serviceState.loading || serviceState.failed;
   const controls = getServiceControlsPresentation({
     running: forkopRunning,
     operation,
@@ -8221,10 +8276,10 @@ async function onStoreUpdate2(_next, _prev, diff) {
   if (diff.diagnosticsChecks) {
     renderDiagnosticsChecks();
   }
-  if (diff.diagnosticsRunAction || diff.diagnosticsSystemInfo || diff.diagnosticsActions || diff.servicesInfoWidget) {
+  if (diff.diagnosticsRunAction || diff.diagnosticsSystemInfo || diff.diagnosticsActions || diff.serviceState) {
     renderDiagnosticRunActionWidget();
   }
-  if (diff.diagnosticsActions || diff.servicesInfoWidget) {
+  if (diff.diagnosticsActions || diff.serviceState) {
     renderDiagnosticAvailableActionsWidget();
   }
   if (diff.diagnosticsSystemInfo) {
@@ -11154,6 +11209,41 @@ ${PartialStyles}
 #cbi-${FORKOP_UCI_PACKAGE} > h2 > small {
     color: var(--text-color-medium, #888);
     font-weight: normal;
+}
+
+/* The service state after the version, muted like it; only the dot carries
+   the colour of the state, and it pulses while an operation runs. */
+.fkp_page-status {
+    margin-left: 0.4em;
+    white-space: nowrap;
+}
+
+.fkp_page-status__dot {
+    display: inline-block;
+    width: 0.55em;
+    height: 0.55em;
+    margin-right: 0.35em;
+    border-radius: 50%;
+    vertical-align: 0.1em;
+}
+
+.fkp_page-status--success .fkp_page-status__dot {
+    background: var(--success-color-medium, green);
+}
+
+.fkp_page-status--error .fkp_page-status__dot {
+    background: var(--error-color-medium, red);
+}
+
+.fkp_page-status--progress .fkp_page-status__dot {
+    background: var(--warn-color-medium, #b8860b);
+    animation: fkp_page-status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes fkp_page-status-pulse {
+    50% {
+        opacity: 0.3;
+    }
 }
 
 /* Hide extra H3 for settings tab */
@@ -20501,12 +20591,12 @@ function keepWarpGenerateButtonCurrent(option2) {
       readonly,
       warpGenerateBlockReason(
         uci.get(FORKOP_UCI_PACKAGE, "settings", "warp_profiles_via_proxy") === "1",
-        store.get().servicesInfoWidget
+        store.get().serviceState
       )
     );
     show();
     let shown2 = false;
-    const unsubscribe = store.subscribeKey("servicesInfoWidget", () => {
+    const unsubscribe = store.subscribeKey("serviceState", () => {
       if (button.isConnected) {
         shown2 = true;
       } else if (shown2) {
@@ -27106,10 +27196,54 @@ function configureGridSection(sectionRef, type, title, addTitle, onSectionAdded)
   }
 }
 
+// src/forkop/helpers/serviceStatusDisplay.ts
+var BUSY_LABELS = {
+  start: () => _("starting..."),
+  stop: () => _("stopping..."),
+  restart: () => _("restarting..."),
+  apply: () => _("applying...")
+};
+function getServiceStatusDisplay({
+  running,
+  busy
+}) {
+  if (busy) {
+    return { label: BUSY_LABELS[busy](), tone: "progress" };
+  }
+  return running ? { label: _("running"), tone: "success" } : { label: _("stopped"), tone: "error" };
+}
+
 // src/forkop/entry/pageTitle.ts
+var PAGE_STATUS_ID = "fkp_page-status";
 function pageTitle(compiledVersion) {
   const version = normalizeCompiledVersion(compiledVersion);
-  return version === "dev" ? "Forkop" : `Forkop <small>${version}</small>`;
+  const status = `<small id="${PAGE_STATUS_ID}"></small>`;
+  return version === "dev" ? `Forkop ${status}` : `Forkop <small>${version}</small> ${status}`;
+}
+
+// src/forkop/entry/pageStatus.ts
+function renderPageStatus(node, state) {
+  if (state.loading || state.failed) {
+    node.className = "";
+    node.replaceChildren();
+    return;
+  }
+  const display = getServiceStatusDisplay({
+    running: Boolean(state.data.forkopRunning),
+    busy: state.data.forkopBusy
+  });
+  const dot = document.createElement("span");
+  dot.className = "fkp_page-status__dot";
+  node.className = `fkp_page-status fkp_page-status--${display.tone}`;
+  node.replaceChildren(dot, display.label);
+}
+function mountPageStatus(root) {
+  const node = root.querySelector(`#${PAGE_STATUS_ID}`);
+  if (!node) {
+    return;
+  }
+  renderPageStatus(node, store.get().serviceState);
+  store.subscribeKey("serviceState", (state) => renderPageStatus(node, state));
 }
 
 // src/forkop/entry/view.ts
@@ -27192,6 +27326,7 @@ var ForkopView = {
     addMountedTab(forkopMap, "monitoring", _("Monitoring"), MonitoringTab);
     addMountedTab(forkopMap, "logs", _("Logs"), LogsTab);
     const rendered = await forkopMap.render();
+    mountPageStatus(rendered);
     coreService();
     return rendered;
   }

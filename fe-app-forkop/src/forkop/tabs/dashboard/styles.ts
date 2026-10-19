@@ -74,18 +74,6 @@ export const styles = `
     min-width: 0;
 }
 
-.fkp_dashboard-page__widgets-section__item__row--success .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--success-color-medium, green);
-}
-
-.fkp_dashboard-page__widgets-section__item__row--error .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--error-color-medium, red);
-}
-
-.fkp_dashboard-page__widgets-section__item__row--progress .fkp_dashboard-page__widgets-section__item__row__value {
-    color: var(--warn-color-medium, #b8860b);
-}
-
 .fkp_dashboard-page__toolbar {
     margin-top: 10px;
     display: flex;

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 19:16+0300\n"
-"PO-Revision-Date: 2026-10-19 19:16+0300\n"
+"POT-Creation-Date: 2026-10-19 19:28+0300\n"
+"PO-Revision-Date: 2026-10-19 19:28+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -116,12 +116,6 @@ msgstr "+ Добавить туннель"
 msgid "+ Add URLTest"
 msgstr "+ Добавить URLTest"
 
-msgid "✔ Running"
-msgstr "✔ Работает"
-
-msgid "✘ Stopped"
-msgstr "✘ Остановлен"
-
 msgid "0 switches it off (mssfix in the profile)"
 msgstr "0 отключает (mssfix в профиле)"
 
@@ -202,9 +196,6 @@ msgstr "Действие"
 
 msgid "Active"
 msgstr "Активные"
-
-msgid "Active Connections"
-msgstr "Активные соединения"
 
 msgid "Add"
 msgstr "Добавить"
@@ -364,6 +355,9 @@ msgstr "Секрет API"
 
 msgid "Applies WARP+ to the profile account"
 msgstr "Применяет WARP+ к аккаунту профиля"
+
+msgid "applying..."
+msgstr "применяет настройки..."
 
 msgid "Applying..."
 msgstr "Применение..."
@@ -602,6 +596,9 @@ msgstr "Таймаут подключения"
 msgid "Connection URI"
 msgstr "URI подключения"
 
+msgid "Connections"
+msgstr "Соединения"
+
 msgid "Connections are unavailable"
 msgstr "Подключения недоступны"
 
@@ -635,6 +632,9 @@ msgstr "Скопировать ссылку прокси"
 msgid "Copy the profile"
 msgstr "Скопировать профиль"
 
+msgid "Core"
+msgstr "Ядро"
+
 msgid "Could not disable autostart"
 msgstr "Не удалось отключить автостарт"
 
@@ -643,6 +643,9 @@ msgstr "Не удалось включить автостарт"
 
 msgid "Could not generate a Reality key pair"
 msgstr "Не удалось сгенерировать пару ключей Reality"
+
+msgid "CPU"
+msgstr "Процессор"
 
 msgid "Create and fetch Cloudflare WARP profiles through the selected section. The tunnels' own traffic does not go through it"
 msgstr "Создавать и получать профили Cloudflare WARP через выбранную секцию. Трафик самих туннелей через неё не идёт"
@@ -1409,6 +1412,9 @@ msgstr "Порт"
 msgid "Lists updated"
 msgstr "Списки успешно обновлены"
 
+msgid "Load"
+msgstr "Нагрузка"
+
 msgid "Load from a file"
 msgstr "Загрузить из файла"
 
@@ -1471,9 +1477,6 @@ msgstr "Максимальное время ожидания ответа DNS"
 
 msgid "Memory"
 msgstr "Память"
-
-msgid "Memory Usage"
-msgstr "Использование памяти"
 
 msgid "Memory: %s of %s free"
 msgstr "Память: свободно %s из %s"
@@ -1937,6 +1940,9 @@ msgstr "резолвит мимо Forkop"
 msgid "Restart"
 msgstr "Перезапустить"
 
+msgid "restarting..."
+msgstr "перезапускается..."
+
 msgid "Restarting..."
 msgstr "Перезапуск..."
 
@@ -2156,9 +2162,6 @@ msgstr "Действие сервиса не выполнено"
 msgid "Service list"
 msgstr "Список сервисов"
 
-msgid "Services info"
-msgstr "Информация о сервисах"
-
 msgid "Session cookie"
 msgstr "Cookie сессии"
 
@@ -2243,6 +2246,9 @@ msgstr "Запустите Forkop: WARP запрашивается через с
 msgid "Start of the common name (name-prefix)"
 msgstr "Начало имени CN (name-prefix)"
 
+msgid "starting..."
+msgstr "запускается..."
+
 msgid "Starting..."
 msgstr "Запуск..."
 
@@ -2260,6 +2266,12 @@ msgstr "Статус"
 
 msgid "Stop"
 msgstr "Остановить"
+
+msgid "stopped"
+msgstr "остановлен"
+
+msgid "stopping..."
+msgstr "останавливается..."
 
 msgid "Stopping..."
 msgstr "Остановка..."
@@ -2308,9 +2320,6 @@ msgstr "Порог переключения в мс, при которой пе�
 
 msgid "System"
 msgstr "Система"
-
-msgid "System info"
-msgstr "Системная информация"
 
 msgid "System information"
 msgstr "Системная информация"
@@ -2686,6 +2695,9 @@ msgstr "Исходящий"
 
 msgid "Uploaded"
 msgstr "Отдано"
+
+msgid "Uptime"
+msgstr "Работает"
 
 msgid "URL for the shared latency test of section nodes"
 msgstr "URL для общего тестирования задержки узлов секции"

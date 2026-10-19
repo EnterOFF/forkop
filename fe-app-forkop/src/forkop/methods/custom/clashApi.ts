@@ -10,7 +10,6 @@ import { DEFAULT_LATENCY_TEST_URL } from '../../../constants';
 type ClashConnectionsSnapshot = {
   downloadTotal?: number;
   uploadTotal?: number;
-  memory?: number;
   connections?: unknown[];
 };
 
@@ -437,16 +436,15 @@ function summarizeConnections(
   return {
     downloadTotal: snapshot?.downloadTotal || 0,
     uploadTotal: snapshot?.uploadTotal || 0,
-    memory: snapshot?.memory || 0,
     connections: snapshot?.connections?.length || 0,
   };
 }
 
-// The Dashboard widgets want four numbers out of a snapshot that carries every
+// The Dashboard widgets want three numbers out of a snapshot that carries every
 // open connection. A browser that reaches the controller can read them out of
 // the whole thing for the cost of one local request; one that cannot would drag
 // that snapshot across ubus first, where rpcd refuses a reply past about 256KB,
-// so the router is asked for the four numbers instead.
+// so the router is asked for the three numbers instead.
 export async function getClashApiConnectionsSummary(): Promise<
   Forkop.MethodResponse<Forkop.ClashConnectionsSummary>
 > {

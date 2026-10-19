@@ -34,7 +34,7 @@ export function render() {
           ),
           E(
             'div',
-            { id: 'dashboard-widget-system-info' },
+            { id: 'dashboard-widget-load' },
             renderWidget({
               loading: true,
               failed: false,
@@ -44,7 +44,7 @@ export function render() {
           ),
           E(
             'div',
-            { id: 'dashboard-widget-service-info' },
+            { id: 'dashboard-widget-core' },
             renderWidget({
               loading: true,
               failed: false,

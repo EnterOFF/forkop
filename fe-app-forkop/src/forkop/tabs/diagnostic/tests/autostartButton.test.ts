@@ -121,7 +121,7 @@ function flush() {
 // autostart stands where the caller says.
 function publishAutostart(enabled: number) {
   store.set({
-    servicesInfoWidget: {
+    serviceState: {
       loading: false,
       failed: false,
       data: {

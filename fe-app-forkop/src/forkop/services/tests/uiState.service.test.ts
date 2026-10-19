@@ -61,7 +61,7 @@ describe('applyUiStateToStore', () => {
 
     const state = store.get();
 
-    expect(state.servicesInfoWidget).toMatchObject({
+    expect(state.serviceState).toMatchObject({
       loading: false,
       failed: false,
       data: {
@@ -156,7 +156,7 @@ describe('applyUiStateToStore', () => {
 
     const state = store.get();
 
-    expect(state.servicesInfoWidget.data).toMatchObject({
+    expect(state.serviceState.data).toMatchObject({
       forkopRunning: 1,
       forkopBusy: 'apply',
     });
@@ -172,6 +172,6 @@ describe('applyUiStateToStore', () => {
       ),
     );
 
-    expect(store.get().servicesInfoWidget.data.forkopBusy).toBeNull();
+    expect(store.get().serviceState.data.forkopBusy).toBeNull();
   });
 });

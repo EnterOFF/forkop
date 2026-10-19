@@ -7,9 +7,6 @@ interface IRenderWidgetProps {
   items: Array<{
     key: string;
     value: string;
-    attributes?: {
-      class?: string;
-    };
   }>;
 }
 
@@ -48,7 +45,7 @@ function renderDefaultState({ title, items }: IRenderWidgetProps) {
       E(
         'div',
         {
-          class: `fkp_dashboard-page__widgets-section__item__row ${item?.attributes?.class || ''}`,
+          class: 'fkp_dashboard-page__widgets-section__item__row',
         },
         [
           E(

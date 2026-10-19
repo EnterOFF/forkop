@@ -140,12 +140,20 @@ export interface StoreType {
     failed: boolean;
     data: { downloadTotal: number; uploadTotal: number };
   };
-  systemInfoWidget: {
+  connectionsWidget: {
     loading: boolean;
     failed: boolean;
-    data: { connections: number; memory: number };
+    data: { connections: number };
   };
-  servicesInfoWidget: {
+  // The core's load and age from the state service. The load needs two
+  // readings, so it is null after the first; the start is a moment on this
+  // browser's clock, which the age counts from between readings.
+  coreUsageWidget: {
+    loading: boolean;
+    failed: boolean;
+    data: { cpu: number | null; memory: number; startedAt: number };
+  };
+  serviceState: {
     loading: boolean;
     failed: boolean;
     data: {
@@ -206,12 +214,17 @@ const initialStore: StoreType = {
     failed: false,
     data: { downloadTotal: 0, uploadTotal: 0 },
   },
-  systemInfoWidget: {
+  connectionsWidget: {
     loading: true,
     failed: false,
-    data: { connections: 0, memory: 0 },
+    data: { connections: 0 },
   },
-  servicesInfoWidget: {
+  coreUsageWidget: {
+    loading: true,
+    failed: false,
+    data: { cpu: null, memory: 0, startedAt: 0 },
+  },
+  serviceState: {
     loading: true,
     failed: false,
     data: {

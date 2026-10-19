@@ -18,6 +18,7 @@ import {
 } from '../tabs/servers';
 import { createSettingsContent } from '../tabs/settings';
 import { configureGridSection } from './gridSection';
+import { mountPageStatus } from './pageStatus';
 import { pageTitle } from './pageTitle';
 
 // A tab that renders itself rather than declaring CBI options: one anonymous
@@ -116,6 +117,7 @@ export const ForkopView = {
     addMountedTab(forkopMap, 'logs', _('Logs'), LogsTab);
 
     const rendered = await forkopMap.render();
+    mountPageStatus(rendered);
     coreService();
 
     return rendered;

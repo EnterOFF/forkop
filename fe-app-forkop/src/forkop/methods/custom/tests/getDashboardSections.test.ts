@@ -915,14 +915,13 @@ describe('getDashboardSections', () => {
       clashApiJson(200, {
         downloadTotal: 10,
         uploadTotal: 20,
-        memory: 30,
         connections: 2,
       }),
     );
 
     expect(await getClashApiConnectionsSummary()).toEqual({
       success: true,
-      data: { downloadTotal: 10, uploadTotal: 20, memory: 30, connections: 2 },
+      data: { downloadTotal: 10, uploadTotal: 20, connections: 2 },
     });
     expect(mocks.clashApi).not.toHaveBeenCalled();
     resetClashApiTransport();
@@ -1135,7 +1134,7 @@ describe('getDashboardSections', () => {
     );
   });
 
-  // A browser that reaches the controller reads the four numbers out of the
+  // A browser that reaches the controller reads the three numbers out of the
   // whole snapshot: nothing crosses ubus, so nothing has to be narrowed first.
   it('summarises the snapshot the browser fetched itself', async () => {
     await primeClashApi();
@@ -1160,7 +1159,6 @@ describe('getDashboardSections', () => {
       data: {
         downloadTotal: 10,
         uploadTotal: 20,
-        memory: 30,
         connections: 2,
       },
     });
@@ -1177,7 +1175,6 @@ describe('getDashboardSections', () => {
       clashApiJson(200, {
         downloadTotal: 10,
         uploadTotal: 20,
-        memory: 30,
         connections: 2,
       }),
     );
@@ -1187,7 +1184,6 @@ describe('getDashboardSections', () => {
       data: {
         downloadTotal: 10,
         uploadTotal: 20,
-        memory: 30,
         connections: 2,
       },
     });

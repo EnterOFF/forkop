@@ -452,6 +452,15 @@ function object_methods() {
             },
             args: { ubus_rpc_session: "" }
         },
+        // What the core costs the router now and how long it has run. The
+        // dashboard asks every few seconds while it is shown, so the answer is
+        // read from /proc by the process already running, not by a CLI start.
+        usage: {
+            call: function(request) {
+                return health.sing_box_usage();
+            },
+            args: { ubus_rpc_session: "" }
+        },
         // For a caller that has just changed something and does not want to wait
         // for the watch to notice - an apply.
         refresh: {

@@ -417,6 +417,21 @@ export namespace Forkop {
     status: string;
   }
 
+  // What the state service's `usage` reads about the core: the processor time it
+  // has used and its start, both in kernel ticks, the memory only it holds, and
+  // the moment of the reading on the router's monotonic clock, which counts
+  // from boot like the start does.
+  export type CoreUsage =
+    | { running: false }
+    | {
+        running: true;
+        started: number;
+        cpu_ticks: number;
+        memory_kb: number;
+        cpus: number;
+        clock_ms: number;
+      };
+
   export interface GetSystemInfo {
     forkop_version: string;
     luci_app_version: string;
@@ -497,7 +512,6 @@ export namespace Forkop {
   export interface ClashConnectionsSummary {
     downloadTotal: number;
     uploadTotal: number;
-    memory: number;
     connections: number;
   }
 }

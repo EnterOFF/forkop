@@ -23,14 +23,20 @@ import { sectionLatencyTarget } from './sectionLatencyTarget';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { resetClashApiTransport } from '../../methods/custom/clashApi';
 import { Forkop } from '../../types';
-import { refreshRuntimeUiState } from '../../services/runtimeUiState.service';
 import { getLocalStorage } from '../../services/browserStorage.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { isDocumentVisible } from '../../../helpers/isDocumentVisible';
 import { createTabLifecycle } from '../../helpers/tabLifecycle';
 import { pollDelayForDuration } from '../../helpers/pollDelay';
 import { createPollChain } from '../../helpers/pollChain';
-import { getServiceStatusDisplay } from '../../helpers/serviceStatusDisplay';
+import { formatDuration } from '../../helpers/formatDuration';
+import {
+  coreAgeSeconds,
+  cpuShare,
+  formatCpuShare,
+  readCoreUsage,
+} from './coreUsage';
+import type { CoreUsageReading } from './coreUsage';
 import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 import { E } from '../../../helpers/element';
 
@@ -55,11 +61,11 @@ const SECTIONS_REFRESH_DUTY_MAX_MS = 30000;
 // reach - the same numbers are polled out of the /connections snapshot the CLI
 // transport can fetch. That snapshot is the whole connection list, which costs
 // the router about 0.13 ms and 6.5 KB of garbage per connection to build, and the
-// widgets read four numbers out of it, so the socket and the poll alike ask for
+// widgets read three numbers out of it, so the socket and the poll alike ask for
 // it every five seconds. The speed comes from /traffic every second.
 const WIDGETS_SNAPSHOT_INTERVAL_MS = 5000;
 const WIDGETS_POLL_BACKOFF_MAX_MS = 30000;
-// A connection snapshot the widgets read four numbers out of is not worth
+// A connection snapshot the widgets read three numbers out of is not worth
 // crowding the router for, so an expensive one spaces the poll out further.
 const WIDGETS_POLL_DUTY_MAX_MS = 20000;
 // A socket to a port that silently drops packets neither connects nor fails for
@@ -317,13 +323,10 @@ function applyWidgetsSnapshot(summary: Forkop.ClashConnectionsSummary) {
             failed: false,
             data: { downloadTotal, uploadTotal },
           },
-          systemInfoWidget: {
+          connectionsWidget: {
             loading: false,
             failed: false,
-            data: {
-              connections: summary.connections,
-              memory: summary.memory,
-            },
+            data: { connections: summary.connections },
           },
         }),
   });
@@ -351,10 +354,10 @@ function reportWidgetsFailure() {
             failed: true,
             data: { downloadTotal: 0, uploadTotal: 0 },
           },
-          systemInfoWidget: {
+          connectionsWidget: {
             loading: false,
             failed: true,
-            data: { connections: 0, memory: 0 },
+            data: { connections: 0 },
           },
         }),
   });
@@ -429,6 +432,91 @@ function stopWidgetsPolling() {
     clearTimeout(widgetsSocketGraceTimer);
     widgetsSocketGraceTimer = null;
   }
+}
+
+// The load is what the core used between two readings, so the readings come
+// close enough together to follow it. Each is a ubus call to a process that is
+// already running and reads a few files under /proc.
+const CORE_USAGE_INTERVAL_MS = 2000;
+const CORE_USAGE_BACKOFF_MAX_MS = 30000;
+// The age is counted on this browser's clock between readings.
+const CORE_AGE_TICK_MS = 1000;
+let coreUsageFailures = 0;
+let lastCoreUsage: CoreUsageReading | null = null;
+let coreStartedAt = 0;
+let coreAgeTimer: ReturnType<typeof setInterval> | null = null;
+
+function reportCoreUsageFailure() {
+  coreUsageFailures += 1;
+  lastCoreUsage = null;
+  store.set({
+    coreUsageWidget: {
+      loading: false,
+      failed: true,
+      data: { cpu: null, memory: 0, startedAt: 0 },
+    },
+  });
+}
+
+// The start is placed on this browser's clock once per core process, from the
+// age the router measured; anchoring every reading anew would let the age shown
+// step back and forth by the time each answer spent on the way.
+function applyCoreUsage(reading: CoreUsageReading) {
+  if (lastCoreUsage?.started !== reading.started) {
+    coreStartedAt = Date.now() - coreAgeSeconds(reading) * 1000;
+  }
+  const cpu = cpuShare(lastCoreUsage, reading);
+  lastCoreUsage = reading;
+  store.set({
+    coreUsageWidget: {
+      loading: false,
+      failed: false,
+      data: { cpu, memory: reading.memory_kb * 1024, startedAt: coreStartedAt },
+    },
+  });
+}
+
+async function pollCoreUsage(dataUpdatesId: number) {
+  const response = await readCoreUsage();
+
+  if (!coreUsagePoll.active || dataUpdatesId !== dashboardDataUpdatesId) {
+    return;
+  }
+
+  if (!response.success || !response.data.running) {
+    reportCoreUsageFailure();
+    return;
+  }
+
+  coreUsageFailures = 0;
+  applyCoreUsage(response.data);
+}
+
+const coreUsagePoll = createPollChain(
+  () => pollCoreUsage(dashboardDataUpdatesId),
+  () =>
+    coreUsageFailures > 0
+      ? Math.min(
+          CORE_USAGE_INTERVAL_MS * 2 ** coreUsageFailures,
+          CORE_USAGE_BACKOFF_MAX_MS,
+        )
+      : CORE_USAGE_INTERVAL_MS,
+);
+
+function restartCoreUsagePollAfterFailure() {
+  if (coreUsageFailures === 0) {
+    return;
+  }
+
+  coreUsageFailures = 0;
+  coreUsagePoll.now();
+}
+
+function stopCoreUsagePolling() {
+  coreUsagePoll.stop();
+  coreUsageFailures = 0;
+  lastCoreUsage = null;
+  coreStartedAt = 0;
 }
 
 async function connectToClashSockets(dataUpdatesId: number) {
@@ -509,13 +597,10 @@ async function connectToClashSockets(dataUpdatesId: number) {
             uploadTotal: parsedMsg.uploadTotal,
           },
         },
-        systemInfoWidget: {
+        connectionsWidget: {
           loading: false,
           failed: false,
-          data: {
-            connections: parsedMsg.connections?.length,
-            memory: parsedMsg.memory,
-          },
+          data: { connections: parsedMsg.connections?.length },
         },
       });
     },
@@ -580,6 +665,7 @@ function stopDashboardDataUpdates() {
   lastSectionsRefreshDurationMs = 0;
   sectionsRefreshQueued = false;
   stopWidgetsPolling();
+  stopCoreUsagePolling();
   trafficSocketLive = false;
   connectionsSocketLive = false;
   for (const url of [trafficSocketUrl, connectionsSocketUrl]) {
@@ -616,6 +702,7 @@ function startDashboardDataUpdates() {
   }
 
   sectionsRefresh.start(SECTIONS_REFRESH_INTERVAL_MS);
+  coreUsagePoll.start(0);
 }
 
 // Handlers
@@ -1734,100 +1821,76 @@ async function renderTrafficTotalWidget() {
   container.replaceChildren(renderedWidget);
 }
 
-async function renderSystemInfoWidget() {
-  logger.debug('[DASHBOARD]', 'renderSystemInfoWidget');
-  const systemInfoWidget = store.get().systemInfoWidget;
+async function renderLoadWidget() {
+  logger.debug('[DASHBOARD]', 'renderLoadWidget');
+  const usage = store.get().coreUsageWidget;
 
-  const container = document.getElementById('dashboard-widget-system-info');
+  const container = document.getElementById('dashboard-widget-load');
 
   if (!container) {
     return;
   }
 
-  if (systemInfoWidget.loading || systemInfoWidget.failed) {
-    const renderedWidget = renderWidget({
-      loading: systemInfoWidget.loading,
-      failed: systemInfoWidget.failed,
-      title: '',
-      items: [],
-    });
+  // The load takes two readings; a widget that has nothing to show until the
+  // second one waits for it rather than flashing a dash.
+  const loading = usage.loading || (!usage.failed && usage.data.cpu === null);
 
-    return container.replaceChildren(renderedWidget);
-  }
-
-  const renderedWidget = renderWidget({
-    loading: systemInfoWidget.loading,
-    failed: systemInfoWidget.failed,
-    title: _('System info'),
-    items: [
-      {
-        key: _('Active Connections'),
-        value: String(systemInfoWidget.data.connections),
-      },
-      {
-        key: _('Memory Usage'),
-        value: String(prettyBytes(systemInfoWidget.data.memory)),
-      },
-    ],
-  });
-
-  container.replaceChildren(renderedWidget);
+  container.replaceChildren(
+    renderWidget({
+      loading,
+      failed: usage.failed,
+      title: _('Load'),
+      items: [
+        {
+          key: _('CPU'),
+          value: usage.data.cpu === null ? '—' : formatCpuShare(usage.data.cpu),
+        },
+        { key: _('Memory'), value: String(prettyBytes(usage.data.memory)) },
+      ],
+    }),
+  );
 }
 
-async function renderServicesInfoWidget() {
-  logger.debug('[DASHBOARD]', 'renderServicesInfoWidget');
-  const servicesInfoWidget = store.get().servicesInfoWidget;
+let renderedCoreWidget = '';
 
-  const container = document.getElementById('dashboard-widget-service-info');
+// Rendered every second for the age, and redrawn only when what it says changed.
+function renderCoreWidget() {
+  const connections = store.get().connectionsWidget;
+  const usage = store.get().coreUsageWidget;
+
+  const container = document.getElementById('dashboard-widget-core');
 
   if (!container) {
     return;
   }
 
-  if (servicesInfoWidget.loading || servicesInfoWidget.failed) {
-    const renderedWidget = renderWidget({
-      loading: servicesInfoWidget.loading,
-      failed: servicesInfoWidget.failed,
-      title: '',
-      items: [],
-    });
-
-    return container.replaceChildren(renderedWidget);
-  }
-
-  const forkopDisplay = getServiceStatusDisplay({
-    running: Boolean(servicesInfoWidget.data.forkopRunning),
-    busy: servicesInfoWidget.data.forkopBusy,
-  });
-  // sing-box has no operation of its own to report; it is cycled by Forkop's.
-  const singBoxDisplay = getServiceStatusDisplay({
-    running: Boolean(servicesInfoWidget.data.singbox),
-    busy: servicesInfoWidget.data.forkopBusy,
-  });
-
-  const renderedWidget = renderWidget({
-    loading: servicesInfoWidget.loading,
-    failed: servicesInfoWidget.failed,
-    title: _('Services info'),
+  const connectionsKnown = !connections.loading && !connections.failed;
+  const ageKnown = !usage.loading && !usage.failed;
+  const props = {
+    loading: connections.loading && usage.loading,
+    failed: connections.failed && usage.failed,
+    title: _('Core'),
     items: [
       {
-        key: 'Forkop',
-        value: forkopDisplay.label,
-        attributes: {
-          class: `fkp_dashboard-page__widgets-section__item__row--${forkopDisplay.tone}`,
-        },
+        key: _('Connections'),
+        value: connectionsKnown ? String(connections.data.connections) : '—',
       },
       {
-        key: 'Sing-box',
-        value: singBoxDisplay.label,
-        attributes: {
-          class: `fkp_dashboard-page__widgets-section__item__row--${singBoxDisplay.tone}`,
-        },
+        key: _('Uptime'),
+        value: ageKnown
+          ? formatDuration((Date.now() - usage.data.startedAt) / 1000)
+          : '—',
       },
     ],
-  });
+  };
+  const key = JSON.stringify(props);
 
-  container.replaceChildren(renderedWidget);
+  if (key === renderedCoreWidget && container.firstChild) {
+    return;
+  }
+
+  renderedCoreWidget = key;
+  container.replaceChildren(renderWidget(props));
 }
 
 async function onStoreUpdate(
@@ -1847,12 +1910,18 @@ async function onStoreUpdate(
     renderTrafficTotalWidget();
   }
 
-  if (diff.systemInfoWidget) {
-    renderSystemInfoWidget();
+  if (diff.coreUsageWidget) {
+    renderLoadWidget();
   }
 
-  if (diff.servicesInfoWidget) {
-    renderServicesInfoWidget();
+  if (diff.connectionsWidget || diff.coreUsageWidget) {
+    renderCoreWidget();
+  }
+
+  // A core that has just come up is asked about at once rather than when the
+  // backed-off poll comes round.
+  if (diff.serviceState && next.serviceState.data.singbox) {
+    restartCoreUsagePollAfterFailure();
   }
 }
 
@@ -1869,13 +1938,10 @@ async function onPageMount() {
   void renderSectionsWidget();
   void renderBandwidthWidget();
   void renderTrafficTotalWidget();
-  void renderSystemInfoWidget();
-  void renderServicesInfoWidget();
+  void renderLoadWidget();
+  renderCoreWidget();
+  coreAgeTimer = setInterval(renderCoreWidget, CORE_AGE_TICK_MS);
   startDashboardDataUpdates();
-
-  // The service widget is the only part of the page that reads the service state,
-  // so it is fetched after the Clash API is already being asked.
-  void refreshRuntimeUiState({ force: true });
 }
 
 function onPageUnmount() {
@@ -1885,10 +1951,19 @@ function onPageUnmount() {
   stopDashboardDataUpdates();
   sectionsRefreshQueued = false;
   sectionsRefreshPromise = null;
+  if (coreAgeTimer) {
+    clearInterval(coreAgeTimer);
+    coreAgeTimer = null;
+  }
   // Remove old listener
   store.unsubscribe(onStoreUpdate);
   // Clear store
-  store.reset(['bandwidthWidget', 'trafficTotalWidget', 'systemInfoWidget']);
+  store.reset([
+    'bandwidthWidget',
+    'trafficTotalWidget',
+    'connectionsWidget',
+    'coreUsageWidget',
+  ]);
 }
 
 let dashboardLifecycleRegistered = false;

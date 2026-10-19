@@ -223,7 +223,7 @@ describe('refreshRuntimeUiState', () => {
       args: ['get_ui_state'],
       timeout: 3000,
     });
-    expect(store.get().servicesInfoWidget.data).toMatchObject({
+    expect(store.get().serviceState.data).toMatchObject({
       forkopRunning: 0,
       forkopEnabled: 1,
     });

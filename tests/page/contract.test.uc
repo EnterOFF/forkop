@@ -83,6 +83,13 @@ t.test("the state service parks a request as long as the page expects", () => {
     t.eq(state_service.MAX_WAIT_MS, contract.state_wait_ms);
 });
 
+// rpcd refuses a method the page's ACL does not list, and the page sees only
+// that the call failed.
+t.test("the page may call every method the state service publishes", () => {
+    let acl = json(fs.readfile(repo.path("luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json")));
+    t.eq(sort(acl["luci-app-forkop"].read.ubus.forkop), sort(keys(state_service.object_methods())));
+});
+
 t.test("the option every password field is stored in is masked in diagnostics", () => {
     for (let field, stored in contract.password_fields) {
         let masked = mask.forkop_config("config tunnel 'probe'\n\toption " + stored + " 'secret-value'\n");

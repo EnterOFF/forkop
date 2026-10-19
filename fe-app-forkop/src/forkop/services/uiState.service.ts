@@ -32,7 +32,7 @@ function applyServiceState(uiState: Forkop.UiState) {
   };
 
   store.set({
-    servicesInfoWidget: {
+    serviceState: {
       loading: false,
       failed: false,
       data: {
@@ -71,16 +71,16 @@ export function applyUiStateToStore(uiState: Forkop.UiState) {
   applyActionState(uiState.actions);
 }
 
-// Both transports failed, so nothing is going to fill the widget in. Saying so
+// Both transports failed, so nothing is going to fill the state in. Saying so
 // is what lets the page distinguish "state unknown" from "state on its way" -
 // an empty store reads as a stopped, disabled service, and offering controls
 // for that would act on a state nobody has seen.
 export function markUiStateUnavailable() {
-  const servicesInfoWidget = store.get().servicesInfoWidget;
+  const serviceState = store.get().serviceState;
 
   store.set({
-    servicesInfoWidget: {
-      ...servicesInfoWidget,
+    serviceState: {
+      ...serviceState,
       loading: false,
       failed: true,
     },

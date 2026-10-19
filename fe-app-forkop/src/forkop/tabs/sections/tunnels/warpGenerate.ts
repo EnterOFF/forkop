@@ -8,7 +8,7 @@ import type { StoreType } from '../../../services/store.service';
 // state the page has not read yet blocks nothing: the router still answers.
 export function warpGenerateBlockReason(
   viaSection: boolean,
-  service: StoreType['servicesInfoWidget'],
+  service: StoreType['serviceState'],
 ) {
   return viaSection &&
     !service.loading &&
@@ -60,12 +60,12 @@ export function keepWarpGenerateButtonCurrent(option: CBIOption) {
         warpGenerateBlockReason(
           uci.get(FORKOP_UCI_PACKAGE, 'settings', 'warp_profiles_via_proxy') ===
             '1',
-          store.get().servicesInfoWidget,
+          store.get().serviceState,
         ),
       );
     show();
     let shown = false;
-    const unsubscribe = store.subscribeKey('servicesInfoWidget', () => {
+    const unsubscribe = store.subscribeKey('serviceState', () => {
       if (button.isConnected) {
         shown = true;
       } else if (shown) {

@@ -4,6 +4,7 @@ let nft_state = require("nft.state");
 let runtime_constants = require("singbox.constants");
 
 let paths = {
+    proc: "/proc",
     tcp: "/proc/net/tcp",
     tcp6: "/proc/net/tcp6",
     udp6: "/proc/net/udp6"
@@ -108,21 +109,64 @@ function pid_is_sing_box(pid) {
     }
 }
 
-function process_start_ticks(stat) {
+// The fields of /proc/<pid>/stat after the command name, which may hold spaces
+// and parentheses of its own: fields[0] is the state, fields[11] and [12] the
+// user and system time, fields[19] the start time.
+function stat_fields(stat) {
     stat = as_string(stat);
-    let marker = index(stat, ") ");
+    let marker = rindex(stat, ") ");
     if (marker < 0)
         return null;
 
     let fields = split(trim(substr(stat, marker + 2)), /[ \t\r\n]+/);
-    if (length(fields) < 20 || match(fields[19], /^[0-9]+$/) == null)
-        return null;
-    return int(fields[19]);
+    for (let i in [ 11, 12, 19 ])
+        if (match(fields[i] ?? "", /^[0-9]+$/) == null)
+            return null;
+    return fields;
+}
+
+function process_start_ticks(stat) {
+    let fields = stat_fields(stat);
+    return fields == null ? null : int(fields[19]);
 }
 
 // When the process started, in ticks since boot, or null once it is gone.
 function start_ticks(pid) {
     return process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
+}
+
+// What a process costs the router: the processor time it has used, in kernel
+// ticks, and the memory only it holds - its anonymous pages. The resident total
+// also counts the pages of its binary, a cache of the file the kernel drops
+// under pressure, and for sing-box that is more than half of it.
+function process_usage(pid) {
+    let dir = paths.proc + "/" + pid;
+    let fields = stat_fields(fs.readfile(dir + "/stat"));
+    let anon = match(fs.readfile(dir + "/status") ?? "", /(^|\n)RssAnon:[ \t]*([0-9]+) kB/);
+    if (fields == null || anon == null)
+        return null;
+    return { started: int(fields[19]), cpu_ticks: int(fields[11]) + int(fields[12]), memory_kb: int(anon[2]) };
+}
+
+function cpu_count() {
+    let count = 0;
+    for (let line in split(fs.readfile(paths.proc + "/stat") ?? "", "\n"))
+        if (match(line, /^cpu[0-9]+ /))
+            count++;
+    return count || 1;
+}
+
+// The core's usage and the moment it was read, on the monotonic clock: a load
+// worked out from two readings is timed by the router rather than by the
+// network to the page, and the kernel stamps a process start on that same
+// scale, in ticks since boot, so one reading also tells the core's age.
+function sing_box_usage() {
+    let pid = sing_box_service_pid_runtime();
+    let usage = pid > 0 && pid_is_sing_box(pid) ? process_usage(pid) : null;
+    if (usage == null)
+        return { running: false };
+    let now = clock(true);
+    return { running: true, ...usage, cpus: cpu_count(), clock_ms: now[0] * 1000 + int(now[1] / 1000000) };
 }
 
 function process_age_seconds_from_ticks(start_ticks, current_ticks) {
@@ -225,6 +269,8 @@ return {
     sing_box_service_pid_runtime,
     pid_is_sing_box,
     start_ticks,
+    process_usage,
+    sing_box_usage,
     process_age_seconds,
     process_age_seconds_from_ticks,
     sing_box_service_running,

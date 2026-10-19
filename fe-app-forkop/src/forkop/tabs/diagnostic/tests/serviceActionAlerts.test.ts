@@ -101,7 +101,7 @@ describe('service action alerts', () => {
     await initController();
     store.set({
       tabService: { current: 'diagnostic', all: [] },
-      servicesInfoWidget: {
+      serviceState: {
         loading: false,
         failed: false,
         data: {
