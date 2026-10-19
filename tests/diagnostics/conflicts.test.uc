@@ -71,12 +71,14 @@ t.test("a transparent proxy of another table is a conflict wherever its chain is
     t.eq(conflicts.find(listing), [ { table: "inet PodkopTable", kind: "tproxy" } ], "a chain no hook reaches redirects nothing");
 });
 
-t.test("a DNS redirect counts only when it runs before Forkop's", () => {
+t.test("a DNS redirect counts when it can run before Forkop's", () => {
     let redirect = (hook, priority, rule) => sprintf("table ip other {\n\tchain c {\n\t\ttype nat hook %s priority %s; policy accept;\n\t\t%s\n\t}\n}\n", hook, priority, rule);
     t.eq(conflicts.find(redirect("prerouting", "dstnat - 5", "meta l4proto udp th dport 53 redirect to :5353")), [ { table: "ip other", kind: "dns" } ]);
     t.eq(conflicts.find(redirect("prerouting", "dstnat - 5", "udp dport { 53, 853 } dnat to 10.0.0.1")), [ { table: "ip other", kind: "dns" } ], "a port set");
     t.eq(conflicts.find(redirect("prerouting", "dstnat - 5", "udp dport 50-60 redirect to :5353")), [ { table: "ip other", kind: "dns" } ], "a port range");
-    t.eq(conflicts.find(redirect("prerouting", "dstnat - 1", "udp dport 53 redirect to :5353")), [], "the same priority runs after Forkop's");
+    t.eq(conflicts.find(redirect("prerouting", "dstnat - 1", "udp dport 53 redirect to :5353")), [ { table: "ip other", kind: "dns" } ],
+        "the same priority runs first once its table is loaded after Forkop's");
+    t.eq(conflicts.find(redirect("prerouting", "dstnat", "udp dport 53 redirect to :5353")), [], "a later priority");
     t.eq(conflicts.find(redirect("prerouting", "dstnat - 5", "udp dport 5353 redirect to :53")), [], "another port");
     t.eq(conflicts.find(redirect("output", "-150", "udp dport 53 redirect to :5353")), [ { table: "ip other", kind: "dns" } ], "the router's own queries");
 });

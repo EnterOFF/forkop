@@ -28,6 +28,15 @@ t.test("hand-written outbounds are masked, however many lines they take", () => 
     t.contains(masked, "option label 'Main'", "the line after a masked JSON value is kept");
 });
 
+t.test("what a section routes is masked, however many lines it takes", () => {
+    let masked = mask.forkop_config("config section 'main'\n\toption destinations 'keyword:private\nsite.example\n203.0.113.0/24'\n" +
+        "\toption label 'Main'\n\tlist community_lists 'telegram'\n");
+    for (let secret in [ "private", "site.example", "203.0.113.0/24" ])
+        t.excludes(masked, secret);
+    for (let kept in [ "option destinations 'MASKED'", "option label 'Main'", "list community_lists 'telegram'" ])
+        t.contains(masked, kept);
+});
+
 t.test("the sing-box dump hides the subscription behind a provider and a private resolver's account", () => {
     let masked = mask.sing_box_config({
         providers: [ { tag: "Main/sub1", type: "remote", url: "https://panel.example/sub?token=sub-secret", headers: { "X-HWID": "hwid-secret" } } ],
@@ -162,6 +171,13 @@ t.test("the credentials of a native endpoint are masked in the sing-box dump wit
     }
 });
 
+t.test("an AmneziaWG server keeps its obfuscation settings and loses its header protection key", () => {
+    let masked = mask.sing_box_config({ endpoints: [ { type: "amneziawg", tag: "Server", private_key: "server-private=",
+        amnezia: { jc: 6, h1: 335028323, header_protection_key: "header-secret=" } } ] });
+    t.excludes(sprintf("%J", masked), "header-secret");
+    t.eq([ masked.endpoints[0].amnezia.jc, masked.endpoints[0].amnezia.h1 ], [ 6, 335028323 ]);
+});
+
 t.test("a public address keeps what tells it apart, and a local one stays as it is", () => {
     t.eq(map([ "194.76.146.236", "2a02:6b8:c0e:500:1:2:3:4", "2a00:1450::1", "192.168.1.1", "127.0.0.42", "198.18.0.7", "fc00::7", "::1" ], mask.address),
         [ "X.X.X.236", "2a02:6b8:c0e:XXXX:XXXX:XXXX:XXXX:XXXX", "2a00:1450:0:XXXX:XXXX:XXXX:XXXX:XXXX", "192.168.1.1", "127.0.0.42", "198.18.0.7", "fc00::7", "::1" ]);
@@ -190,13 +206,14 @@ t.test("free text loses URL paths and credentials, the given hosts and public ad
         "Mon Oct 19 17:05:01 2026 user.err forkop: [error] Failed to download https://user:pw@panel.example/sub?token=secret for 'Main'",
         "Mon Oct 19 17:05:02 2026 daemon.err sing-box[42]: ERROR[0330] outbound/vless[Main/node.example]: dial tcp 185.199.108.9:443: i/o timeout",
         "Mon Oct 19 17:05:03 2026 daemon.err sing-box[42]: ERROR[0331] dial [2a00:1450::1]:443 from 192.168.1.140 via 127.0.0.42:53",
-        "Mon Oct 19 17:05:04 2026 user.info forkop: [info] Loaded 1.14.1 rule sets from https://github.com/"
+        "Mon Oct 19 17:05:04 2026 user.info forkop: [info] Loaded 1.14.1 rule sets from https://github.com/",
+        "Mon Oct 19 17:05:05 2026 user.err forkop: [error] Failed to download https://lists.example?key=query-secret#part"
     ]);
     let masked = mask.text(log, [ "panel.example", "node.example" ]);
-    for (let secret in [ "secret", "user:pw", "panel.example", "node.example", "185.199.108.9", "2a00:1450::1" ])
+    for (let secret in [ "secret", "user:pw", "panel.example", "node.example", "185.199.108.9", "2a00:1450::1", "query-secret", "#part" ])
         t.excludes(masked, secret);
     for (let kept in [ "https://MASKED@MASKED/MASKED for 'Main'", "Main/MASKED", "X.X.X.9:443", "[2a00:1450:0:XXXX:XXXX:XXXX:XXXX:XXXX]:443",
-        "192.168.1.140", "127.0.0.42:53", "17:05:04", "1.14.1", "https://github.com/" ])
+        "192.168.1.140", "127.0.0.42:53", "17:05:04", "1.14.1", "https://github.com/\nMon Oct 19 17:05:05", "https://lists.example/MASKED" ])
         t.contains(masked, kept);
 });
 

@@ -9,22 +9,9 @@ t.test("a listener needs the firewall when WAN traffic can reach it", () => {
     t.ok(!inbounds.listen_requires_firewall("203.0.113.2", ""), "a documentation address");
 });
 
-t.test("an OpenVPN server is an endpoint of its own type, found where Tailscale is", () => {
-    t.eq([ inbounds.runtime_type("openvpn"), inbounds.runtime_kind("openvpn") ], [ "openvpn-server", "endpoints" ]);
-    t.eq([ inbounds.runtime_type("vless"), inbounds.runtime_kind("vless") ], [ "vless", "inbounds" ]);
-    t.eq(inbounds.runtime_kind("tailscale"), "endpoints");
-    t.eq(inbounds.runtime_ok("openvpn", "1", "openvpn-server", "::", "1194", "openvpn-server", "::", "1194"), 1,
-        "its listener is compared like any other");
-    t.eq(inbounds.runtime_ok("openvpn", "1", "openvpn-server", "::", "1195", "openvpn-server", "::", "1194"), 0);
-});
-
-t.test("a WireGuard server is an endpoint whose listener is its port on every address", () => {
-    for (let protocol in [ "wireguard", "amneziawg" ]) {
-        t.eq([ inbounds.runtime_type(protocol), inbounds.runtime_kind(protocol) ], [ protocol, "endpoints" ]);
-        t.eq(inbounds.runtime_ok(protocol, "1", protocol, "", "51820", protocol, "::", "51820"), 1,
-            "the endpoint names no listen address");
-        t.eq(inbounds.runtime_ok(protocol, "1", protocol, "", "51821", protocol, "::", "51820"), 0);
-    }
+t.test("a server with a listener of its own is found among the inbounds or, for a tunnel protocol, the endpoints", () => {
+    t.eq(map([ "vless", "mixed", "openvpn", "wireguard", "amneziawg", "tailscale" ], inbounds.runtime_kind),
+        [ "inbounds", "inbounds", "endpoints", "endpoints", "endpoints", "endpoints" ]);
 });
 
 t.test("the public host of a server is judged against the WAN", () => {

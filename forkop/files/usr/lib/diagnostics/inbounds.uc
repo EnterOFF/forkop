@@ -1,8 +1,7 @@
-// The rules the server inbound check reasons with, separated from the
-// commands that collect the facts: which transport a protocol needs, which
-// sing-box inbound type it becomes, when a listen address is exposed to WAN,
-// and how the generated inbound and the advertised public host compare with
-// what UCI asks for.
+// The rules the server check reasons with, separated from the commands that
+// collect the facts: where the generated configuration keeps a server, when a
+// listen address is exposed to WAN, and how the advertised public host compares
+// with the WAN.
 
 let core_ip = require("core.ip");
 let servers = require("singbox.servers");
@@ -24,17 +23,6 @@ function contains(values, needle) {
     return false;
 }
 
-// A JSON inbound declares its own listeners, so nothing is required of it.
-// Everything else is TCP unless the protocol is UDP-only or its transport
-// option says otherwise. Shadowsocks is the one that carries both without being
-// asked: its listener takes the default network, which is TCP and UDP, and the
-// UDP half is how a client relays datagrams.
-// The `type` the generator writes into the sing-box inbound or endpoint.
-function runtime_type(protocol) {
-    protocol = as_string(protocol);
-    return protocol == "json_inbound" ? "" : servers.core_type(protocol);
-}
-
 // Where the generated configuration keeps it: Tailscale, OpenVPN and WireGuard
 // are endpoints, all but Tailscale with a listener of their own.
 function runtime_kind(protocol) {
@@ -52,30 +40,6 @@ function listen_requires_firewall(listen, wan_ip) {
         if (ip == listen)
             return true;
     return false;
-}
-
-// The generated inbound has to exist and describe the same listener as UCI. A
-// JSON inbound carries its own listen settings, and a Tailscale endpoint has
-// no listener of its own, so for both only existence and type are compared; a
-// WireGuard endpoint binds its port on every address and names none.
-function runtime_ok(protocol, runtime_exists, runtime_type_value, runtime_listen, runtime_port,
-                    expected_type, listen, listen_port) {
-    if (as_string(runtime_exists) != "1")
-        return 0;
-
-    if (protocol == "json_inbound")
-        return 1;
-
-    if (as_string(runtime_type_value) != as_string(expected_type))
-        return 0;
-
-    if (protocol == "tailscale")
-        return 1;
-    if (protocol == "wireguard" || protocol == "amneziawg")
-        return as_string(runtime_port) == as_string(listen_port) ? 1 : 0;
-
-    return as_string(runtime_listen) == as_string(listen) &&
-        as_string(runtime_port) == as_string(listen_port) ? 1 : 0;
 }
 
 // How usable the advertised public host is, as three flags that stay -1 when
@@ -115,9 +79,7 @@ function public_host_flags(public_host, public_host_ips, wan_ip, wan_public) {
 }
 
 return {
-    runtime_type,
     runtime_kind,
     listen_requires_firewall,
-    runtime_ok,
     public_host_flags
 };

@@ -102,15 +102,18 @@ function redirects_dns(rule) {
     return ports != null && port_listed(ports[1], 53) && match(rule, /(^|[ \t])(redirect|dnat)([ \t]|$)/) != null;
 }
 
-// A DNS redirect counts when it is hooked where one of Forkop's is and runs
-// first; a later one never sees a query Forkop already redirected.
+// A DNS redirect counts when it is hooked where one of Forkop's is and can run
+// first; a later one never sees a query Forkop already redirected. Of two nat
+// chains at the same priority the one loaded last runs first, so a redirect at
+// Forkop's own priority takes the queries whenever its table is loaded again
+// after Forkop's.
 function dns_redirect_first(entry) {
     if (entry.priority == null)
         return false;
     if (entry.hook == "prerouting")
-        return entry.priority < constants.NFT_DNS_REDIRECT_PRIORITY;
+        return entry.priority <= constants.NFT_DNS_REDIRECT_PRIORITY;
     if (entry.hook == "output")
-        return entry.priority < constants.NFT_SYSTEM_DNS_REDIRECT_PRIORITY;
+        return entry.priority <= constants.NFT_SYSTEM_DNS_REDIRECT_PRIORITY;
     return false;
 }
 

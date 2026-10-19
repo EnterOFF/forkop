@@ -50,9 +50,10 @@ function delete_token_space(line, token) {
     return space_pos < length(line) && is_space_char(substr(line, space_pos, 1));
 }
 
-// The options whose value can span several lines: JSON, and the certificates
-// and keys of an OpenVPN server and its clients and of a TLS server.
-const MULTILINE_OPTIONS = [ "option outbound_json", "list outbound_jsons", "option endpoint_json", "option inbound_json",
+// The options whose value can span several lines: what a section routes, JSON,
+// and the certificates and keys of an OpenVPN server and its clients and of a
+// TLS server.
+const MULTILINE_OPTIONS = [ "option destinations", "option outbound_json", "list outbound_jsons", "option endpoint_json", "option inbound_json",
     "option openvpn_certificate", "option openvpn_key", "option openvpn_tls_crypt_key",
     "option tls_certificate", "option tls_key", "option tls_self_signed_certificate", "option tls_self_signed_key" ];
 
@@ -209,6 +210,7 @@ const SING_BOX_MASKED_KEYS = {
     port: true,
     allowed_ips: true,
     pre_shared_key: true,
+    header_protection_key: true,
     reserved: true,
     id: true,
     auth_token: true,
@@ -376,7 +378,7 @@ function names(value, host_names) {
 // host names, and public addresses other than the kept ones.
 function text(value, host_names, kept) {
     let mask_address = (token) => index(kept ?? [], token) >= 0 ? token : address(token);
-    value = replace(as_string(value), /([a-z][a-z0-9+.-]*):\/\/([^\/ \t'"<>]+)([^ \t'"<>]*)/g, (all, scheme, authority, rest) => {
+    value = replace(as_string(value), /([a-z][a-z0-9+.-]*):\/\/([^\/?# \t\r\n'"<>]+)([^ \t\r\n'"<>]*)/g, (all, scheme, authority, rest) => {
         let at = rindex(authority, "@");
         return scheme + "://" + (at >= 0 ? "MASKED@" + substr(authority, at + 1) : authority) + (rest == "" || rest == "/" ? rest : "/MASKED");
     });
