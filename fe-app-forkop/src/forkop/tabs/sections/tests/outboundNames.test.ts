@@ -226,21 +226,14 @@ describe('the draft names of a section', () => {
       interfaceOption as unknown as CBIOption,
       'main',
     ).new_interface = { display_name: 'Draft interface' };
-    // A pasted link whose dialog gave it another name than the link carries.
-    childPendingSettingsStore(linkOption as unknown as CBIOption, 'main')[
-      'vless://renamed.test#Draft%20URL'
-    ] = { name: 'Renamed draft' };
 
     return values;
   }
 
   const SOURCES = {
-    connection_link: [
-      'saved_link',
-      'vless://renamed.test#Draft%20URL',
-      'vless://example.test#Draft%20URL',
-      'trojan://unnamed.test',
-    ],
+    // A link is a section the moment it is added, so a link in the list is
+    // one; text still in the add field is named after the link it holds.
+    connection_link: ['saved_link', 'vless://example.test#Draft%20URL'],
     interfaces: ['saved_interface', 'new_interface'],
     outbound_jsons: [
       '{"type":"socks","tag":"Leaf JSON"}',
@@ -254,9 +247,7 @@ describe('the draft names of a section', () => {
 
     expect(currentDraftOutboundNames('main')).toEqual([
       'Stored name',
-      'Renamed draft',
       'Draft URL',
-      'Node #4',
       'Renamed interface',
       'Draft interface',
       'Leaf JSON',

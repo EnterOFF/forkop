@@ -2659,25 +2659,12 @@ function hydrateConfigSections(configSections) {
         uri: `${item.uri || ""}`
       }));
     }
-    if (subscriptionUrlItems.length) {
-      const settings = {};
-      next.subscription_urls = subscriptionUrlItems.map((item) => item.url || "").filter(Boolean);
-      subscriptionUrlItems.forEach((item) => {
-        if (!item.url) {
-          return;
-        }
-        settings[item.url] = {
-          subscription_update_enabled: item.subscription_update_enabled,
-          subscription_update_interval: item.subscription_update_interval,
-          download_via_proxy_enabled: item.download_via_proxy_enabled,
-          download_via_proxy_section: item.download_via_proxy_section,
-          user_agent: item.user_agent,
-          header: item.header,
-          show_dashboard_metadata: item.show_dashboard_metadata,
-          tag: item.tag
-        };
-      });
-      next.subscription_url_settings = compactSettingsMap(settings);
+    const subscriptions = subscriptionUrlItems.filter((item) => item.url).map((item) => ({
+      tag: `${item.tag || ""}`,
+      show_dashboard_metadata: item.show_dashboard_metadata
+    }));
+    if (subscriptions.length) {
+      next.subscriptions = subscriptions;
     }
     if (interfaceItems.length) {
       next.interfaces = interfaceItems.map((item) => item.name || "").filter(Boolean);
@@ -2766,7 +2753,7 @@ function hasSubscriptionSources(section) {
   return getSubscriptionSourceCount(section) > 0;
 }
 function getSubscriptionSourceCount(section) {
-  return getListValues(section.subscription_urls).length;
+  return (section.subscriptions || []).length;
 }
 function hasConfiguredUrlTestList(section) {
   return getListValues(section.urltests).length > 0;
@@ -3282,15 +3269,12 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
   };
 }
 function isSubscriptionMetadataVisible(section, sourceIndex) {
-  const sourceEntry = getListValues(section.subscription_urls)[sourceIndex - 1];
-  const settings = itemSettingsMap(section.subscription_url_settings)[sourceEntry];
-  return settings?.show_dashboard_metadata !== "0";
+  return (section.subscriptions || [])[sourceIndex - 1]?.show_dashboard_metadata !== "0";
 }
 function getSectionSubscriptionTags(section, providers) {
   const sectionDisplayName = getDisplayName(section);
-  const settings = itemSettingsMap(section.subscription_url_settings);
-  return getListValues(section.subscription_urls).map((source) => {
-    const displayTag = itemSettingString(settings[source], "tag").trim();
+  return (section.subscriptions || []).map((subscription) => {
+    const displayTag = subscription.tag.trim();
     const runtimeTag = `${sectionDisplayName}/${displayTag}`;
     return {
       runtimeTag,
@@ -12467,7 +12451,10 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
     });
   },
   addItem(dl, value, text6, flash) {
-    if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
+    if (flash && typeof this.options.createItem === "function") {
+      value = this.options.createItem(value);
+      text6 = null;
+    } else if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
@@ -12624,6 +12611,24 @@ var SettingsDynamicList = form.DynamicList.extend({
   clearStagedChildSettings(ownerId) {
     clearChildPendingSettings(this, ownerId);
   },
+  childItemOptions(ownerId) {
+    return {
+      typeName: this.childType,
+      valueOption: this.childValueOption,
+      ownerOption: this.ownerOption,
+      createId: this.createId,
+      defaults: this.childDefaults,
+      stagedSettings: (itemValue) => this.stagedChildSettings(ownerId, itemValue)
+    };
+  },
+  // What a typed entry of a list whose entries are sections becomes the moment
+  // it is added: its section, created with the text and the defaults, and the
+  // list holds the id. Two entries may hold the same text that way, a link
+  // dialled through two different cascades say, each with a name of its own.
+  createTypedItem(section_id, inputValue) {
+    const ownerId = this.childOwner(section_id);
+    return createChildItem(ownerId, this.childItemOptions(ownerId), inputValue).value;
+  },
   // Every entry the user has started has something to configure. A list whose
   // entry has to be well formed first - a subscription is an address before it
   // is anything - says so for itself.
@@ -12687,6 +12692,7 @@ var SettingsDynamicList = form.DynamicList.extend({
         return text6;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
+      createItem: this.entriesAreSections && !this.buttonAdd ? (inputValue) => this.createTypedItem(section_id, inputValue) : null,
       hasEquivalentValue: (itemValue, dl) => {
         const inputValueForItem = (value2) => `${this.inputValueForItem(this.childOwner(section_id), `${value2 || ""}`) || ""}`.trim();
         const normalized = inputValueForItem(itemValue);
@@ -12733,14 +12739,7 @@ var SettingsDynamicList = form.DynamicList.extend({
       const ownerId = this.childOwner(section_id);
       const { itemIds, resolved } = materializeChildItems(
         ownerId,
-        {
-          typeName: this.childType,
-          valueOption: this.childValueOption,
-          ownerOption: this.ownerOption,
-          createId: this.createId,
-          defaults: this.childDefaults,
-          stagedSettings: (itemValue) => this.stagedChildSettings(ownerId, itemValue)
-        },
+        this.childItemOptions(ownerId),
         value
       );
       adoptMaterializedChildItems(this, section_id, resolved);
@@ -14309,14 +14308,11 @@ function liveListValues(option2, sectionId) {
   }
   return Array.isArray(values) ? values.map((value) => `${value || ""}`.trim()).filter(Boolean) : null;
 }
-function listedSubscriptionTag(sectionId, option2, value) {
-  if (isExistingChildItem(sectionId, value, "subscription_url")) {
-    return `${uci.get(FORKOP_UCI_PACKAGE, value, "tag") || ""}`.trim();
-  }
-  return `${childPendingSettingsStore(option2, sectionId)[value]?.tag || ""}`.trim();
+function listedSubscriptionTag(sectionId, value) {
+  return isExistingChildItem(sectionId, value, "subscription_url") ? `${uci.get(FORKOP_UCI_PACKAGE, value, "tag") || ""}`.trim() : "";
 }
 function configuredSubscriptionTags(sectionId, option2, excluded = [], values = listedSubscriptionValues(sectionId, option2)) {
-  return values.filter((value) => !excluded.includes(value)).map((value) => listedSubscriptionTag(sectionId, option2, value)).filter(Boolean);
+  return values.filter((value) => !excluded.includes(value)).map((value) => listedSubscriptionTag(sectionId, value)).filter(Boolean);
 }
 function nextSubscriptionTag(sectionId, option2, values = listedSubscriptionValues(sectionId, option2)) {
   const taken = new Set(
@@ -14328,42 +14324,12 @@ function nextSubscriptionTag(sectionId, option2, values = listedSubscriptionValu
   }
   return `sub${Date.now()}`;
 }
-function listedSubscriptionSource(sectionId, option2, value) {
-  if (isExistingChildItem(sectionId, value, "subscription_url")) {
-    return childItemInputValue(sectionId, value, "subscription_url", "url");
-  }
-  return `${childPendingSettingsStore(option2, sectionId)[value]?.url || value}`;
-}
-function listedSubscriptionSources(sectionId, option2, excluded = []) {
-  return listedSubscriptionValues(sectionId, option2).filter((value) => !excluded.includes(value)).map((value) => listedSubscriptionSource(sectionId, option2, value).trim());
-}
-function subscriptionListItemLabel(sectionId, option2, value) {
-  let tag = listedSubscriptionTag(sectionId, option2, value);
-  if (!tag && !isExistingChildItem(sectionId, value, "subscription_url")) {
-    const store2 = childPendingSettingsStore(option2, sectionId);
-    tag = nextSubscriptionTag(sectionId, option2);
-    store2[value] = Object.assign({}, store2[value], { tag });
-  }
+function subscriptionListItemLabel(sectionId, value) {
   return textE(
     "span",
     { class: "fkp-dynlist-label" },
-    tag || listedSubscriptionSource(sectionId, option2, value)
+    listedSubscriptionTag(sectionId, value) || childItemInputValue(sectionId, value, "subscription_url", "url")
   );
-}
-function reserveSubscriptionTags(sectionId, option2, values) {
-  const store2 = childPendingSettingsStore(option2, sectionId);
-  const drafts = values.filter(
-    (value) => !isExistingChildItem(sectionId, value, "subscription_url")
-  );
-  Object.keys(store2).forEach((value) => {
-    if (!drafts.includes(value)) delete store2[value];
-  });
-  drafts.forEach((value) => {
-    if (listedSubscriptionTag(sectionId, option2, value)) return;
-    store2[value] = Object.assign({}, store2[value], {
-      tag: nextSubscriptionTag(sectionId, option2, values)
-    });
-  });
 }
 function parseSubscriptionUrlEntry(value) {
   const normalized = value ? `${value}`.trim() : "";
@@ -18026,11 +17992,9 @@ function currentLiveDynamicListValues(section_id, optionName) {
 }
 function currentDraftOutboundNames(section_id) {
   const names = [];
-  const linkOption = outboundNameSourceOptions.get("connection_link");
-  const stagedLinks = linkOption ? childPendingSettingsStore(linkOption, section_id) : {};
   currentSourceOptionValues(section_id, "connection_link").forEach(
     (value, index) => {
-      const name = `${(isExistingChildItem(section_id, value, "connection_link") ? uci.get(FORKOP_UCI_PACKAGE, value, "name") : stagedLinks[value]?.name) || getProxyUrlName(value) || `Node #${index + 1}`}`.trim();
+      const name = `${(isExistingChildItem(section_id, value, "connection_link") ? uci.get(FORKOP_UCI_PACKAGE, value, "name") : "") || getProxyUrlName(value) || `Node #${index + 1}`}`.trim();
       names.push(name);
     }
   );
@@ -19074,20 +19038,17 @@ function listedLinkValues(sectionId, option2) {
   }
   return Array.isArray(values) ? values.map((value) => `${value || ""}`.trim()).filter(Boolean) : getChildItemIds(sectionId, "connection_link");
 }
-function listedLinkName(sectionId, option2, value) {
-  if (isExistingChildItem(sectionId, value, "connection_link")) {
-    return `${uci.get(FORKOP_UCI_PACKAGE, value, "name") || ""}`.trim();
-  }
-  return `${childPendingSettingsStore(option2, sectionId)[value]?.name || ""}`.trim();
+function listedLinkName(sectionId, value) {
+  return isExistingChildItem(sectionId, value, "connection_link") ? `${uci.get(FORKOP_UCI_PACKAGE, value, "name") || ""}`.trim() : "";
 }
-function nextLinkName(sectionId, option2, link, values = listedLinkValues(sectionId, option2)) {
+function nextLinkName(sectionId, option2, link) {
   const taken = new Set(
-    values.filter((value) => value !== link).map((value) => listedLinkName(sectionId, option2, value)).filter(Boolean)
+    listedLinkValues(sectionId, option2).map((value) => listedLinkName(sectionId, value)).filter(Boolean)
   );
   const own = getProxyUrlName(link).trim();
   if (own) {
     let name = own;
-    for (let number4 = 2; taken.has(name); number4 += 1) {
+    for (let number4 = 1; taken.has(name); number4 += 1) {
       name = `${own} #${number4}`;
     }
     return name;
@@ -19097,36 +19058,12 @@ function nextLinkName(sectionId, option2, link, values = listedLinkValues(sectio
   }
   return `Node #${Date.now()}`;
 }
-function savedLinkName(sectionId, option2, link) {
-  const values = listedLinkValues(sectionId, option2);
-  const stored = getChildItemIds(sectionId, "connection_link").filter(
-    (itemId) => !values.includes(itemId)
-  );
-  return nextLinkName(sectionId, option2, link, [...stored, ...values]);
-}
-function connectionLinkName(sectionId, option2, value) {
-  const listed = listedLinkName(sectionId, option2, value);
-  if (listed || isExistingChildItem(sectionId, value, "connection_link")) {
-    return listed;
-  }
-  const store2 = childPendingSettingsStore(option2, sectionId);
-  store2[value] = Object.assign({}, store2[value], {
-    name: nextLinkName(sectionId, option2, value)
-  });
-  return `${store2[value].name}`;
-}
-function connectionLinkListItemLabel(sectionId, option2, value) {
+function connectionLinkListItemLabel(sectionId, value) {
   return textE(
     "span",
     { class: "fkp-dynlist-label" },
-    connectionLinkName(sectionId, option2, value)
+    listedLinkName(sectionId, value)
   );
-}
-function forgetRemovedLinkDrafts(sectionId, option2, values) {
-  const store2 = childPendingSettingsStore(option2, sectionId);
-  Object.keys(store2).forEach((value) => {
-    if (!values.includes(value)) delete store2[value];
-  });
 }
 function connectionLinkSettingsKeys() {
   return ["name", "uri", "detour_section"];
@@ -19135,7 +19072,7 @@ function writeTrimmed(itemId, value) {
   return form.Value.prototype.write.call(this, itemId, `${value ?? ""}`.trim());
 }
 function showConnectionLinkSettingsModal(sectionId, itemValue, option2, widget, itemNode) {
-  const name = connectionLinkName(sectionId, option2, `${itemValue ?? ""}`);
+  const name = listedLinkName(sectionId, `${itemValue ?? ""}`);
   return showChildItemSettingsModal(sectionId, itemValue, option2, {
     typeName: "connection_link",
     valueOption: "uri",
@@ -19465,16 +19402,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
   o.rmempty = false;
   o.validate = function(itemId, value) {
     const source = `${value || ""}`.trim();
-    if (!source) return _("Enter a subscription URL or local path");
-    const result = validateSubscriptionUrlEntry(itemId, source);
-    if (result !== true) return result;
-    const sectionId = parentSectionForItem(itemId);
-    const ownerId = typeof options.ownerId === "function" ? options.ownerId() : "";
-    const inputValue = typeof options.itemValue === "function" ? options.itemValue() : "";
-    return listedSubscriptionSources(sectionId, options.listOption, [
-      ownerId === sectionId ? "" : ownerId,
-      inputValue
-    ]).includes(source) ? _("This subscription is already in the section") : true;
+    return source ? validateSubscriptionUrlEntry(itemId, source) : _("Enter a subscription URL or local path");
   };
   addCascadeOptions(
     itemSection,
@@ -19582,7 +19510,7 @@ function addSubscriptionUrlItemOptions(itemSection, options = {}) {
 }
 function showSubscriptionUrlSettingsModal(sectionId, itemValue, option2, _widget, itemNode) {
   const value = `${itemValue ?? ""}`;
-  const tag = listedSubscriptionTag(sectionId, option2, value);
+  const tag = listedSubscriptionTag(sectionId, value);
   const storedRemote = isExistingChildItem(sectionId, value, "subscription_url") && isRemoteSubscriptionSource(
     childItemInputValue(sectionId, value, "subscription_url", "url")
   );
@@ -22430,31 +22358,29 @@ function createSectionContent(section) {
   links.rmempty = true;
   links.modalonly = true;
   links.childType = "connection_link";
+  links.entriesAreSections = true;
   links.childValueOption = "uri";
   links.createId = () => nextSectionId("connection_link");
   links.childDefaults = {
-    // The list names an entry when it is added, so this is the last resort: a
-    // link typed into the add field and left there is materialized by the save
-    // without ever having been an entry.
-    name: (value, sectionId) => savedLinkName(sectionId, links, `${value ?? ""}`)
+    name: (value, sectionId) => nextLinkName(sectionId, links, `${value ?? ""}`)
   };
   links.renderItemSettingsModal = showConnectionLinkSettingsModal;
   links.hasItemSettings = function(section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    return isExistingChildItem(section_id, normalized, "connection_link") || this.validate(section_id, normalized) === true;
+    return isExistingChildItem(
+      section_id,
+      `${value || ""}`.trim(),
+      "connection_link"
+    );
   };
   links.renderListItemLabel = function(section_id, value) {
-    return connectionLinkListItemLabel(section_id, this, value);
+    return connectionLinkListItemLabel(section_id, value);
   };
   links.validate = function(section_id, value) {
     return validateConnectionLink(
       childItemInputValue(section_id, value, "connection_link", "uri")
     );
   };
-  links.onListChange = (section_id, values) => {
-    forgetRemovedLinkDrafts(section_id, links, values);
-    refreshDashboardFilterChoiceWidgets(section_id);
-  };
+  links.onListChange = refreshDashboardFilterChoiceWidgets;
   links.afterMaterializeChildItems = orderChildItemsByPosition;
   links.liveDynamicListNodes = /* @__PURE__ */ new Map();
   const renderLinks = links.renderWidget;
@@ -22480,6 +22406,7 @@ function createSectionContent(section) {
   subscriptions.rmempty = true;
   subscriptions.modalonly = true;
   subscriptions.childType = "subscription_url";
+  subscriptions.entriesAreSections = true;
   subscriptions.childValueOption = "url";
   subscriptions.createId = () => nextSectionId("subscription_url");
   subscriptions.childDefaults = Object.assign(
@@ -22490,24 +22417,16 @@ function createSectionContent(section) {
       download_via_proxy_enabled: (value) => isRemoteSubscriptionSource(value) ? "0" : null,
       header: (value) => isRemoteSubscriptionSource(value) ? defaultSubscriptionHeaderLines.slice() : null,
       show_dashboard_metadata: (value) => isRemoteSubscriptionSource(value) ? "1" : null,
-      // The list names an entry when it is added, so this is the last resort: a
-      // link typed into the add field and left there is materialized by the save
-      // without ever having been an entry.
-      tag: (_value, sectionId) => nextSubscriptionTag(
-        sectionId,
-        subscriptions,
-        getChildItemIds(sectionId, "subscription_url")
-      )
+      tag: (_value, sectionId) => nextSubscriptionTag(sectionId, subscriptions)
     }
   );
-  subscriptions.onListChange = (sectionId, values) => reserveSubscriptionTags(sectionId, subscriptions, values);
   subscriptions.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
   subscriptions.hasItemSettings = function(section_id, value) {
-    const normalized = `${value || ""}`.trim();
-    if (isExistingChildItem(section_id, normalized, "subscription_url")) {
-      return true;
-    }
-    return this.validate(section_id, normalized) === true;
+    return isExistingChildItem(
+      section_id,
+      `${value || ""}`.trim(),
+      "subscription_url"
+    );
   };
   subscriptions.afterMaterializeChildItems = function(_section_id, itemIds) {
     itemIds.forEach((itemId) => {
@@ -22523,7 +22442,7 @@ function createSectionContent(section) {
     });
   };
   subscriptions.renderListItemLabel = function(section_id, itemId) {
-    return subscriptionListItemLabel(section_id, this, itemId);
+    return subscriptionListItemLabel(section_id, itemId);
   };
   subscriptions.validate = function(section_id, value) {
     return validateSubscriptionUrlEntry(

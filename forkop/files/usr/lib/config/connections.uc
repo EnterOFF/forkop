@@ -227,8 +227,19 @@ function is_connections_action(action) {
     return action == "connection" || is_legacy_connection_action(action);
 }
 
-function subscription_urls(section) {
-    return child_values(section, "subscription_url", "url");
+// The subscriptions a section fetches, in configuration order. Two of them may
+// fetch one address, each a provider of its own with a name, a filter and a
+// cascade of its own, so a subscription is its item and never its address.
+function subscription_items(section) {
+    let result = [];
+    for (let child in child_items(section, "subscription_url"))
+        if (option(child, "url", "") != "")
+            push(result, child);
+    return result;
+}
+
+function subscription_source(subscription) {
+    return option(subscription, "url", "");
 }
 
 function subscription_source_type(value) {
@@ -468,7 +479,7 @@ function has_dns_matchers(section) {
 
 function has_connection_sources(section) {
     return length(connection_link_items(section)) > 0 ||
-        length(subscription_urls(section)) > 0 ||
+        length(subscription_items(section)) > 0 ||
         length(interfaces(section)) > 0 ||
         length(outbound_jsons(section)) > 0 ||
         length(tunnels(section)) > 0;
@@ -478,10 +489,6 @@ function has_connection_sources(section) {
 // it connects on its own.
 function cascade_section(item) {
     return trim(option(item, "detour_section", ""));
-}
-
-function subscription_url_child(section, value) {
-    return child_item_by_value(section, "subscription_url", "url", value);
 }
 
 function interface_child(section, value) {
@@ -526,36 +533,37 @@ function urltest_child(section, value) {
     return owned_child_section(section, "urltest", value);
 }
 
-function subscription_update_enabled(section, value) {
-    if (subscription_source_type(value) != "remote")
-        return false;
-    return bool_option(subscription_url_child(section, value), "subscription_update_enabled", true);
+function subscription_remote(subscription) {
+    return subscription_source_type(subscription_source(subscription)) == "remote";
 }
 
-function subscription_update_interval(section, value) {
-    if (subscription_source_type(value) != "remote")
-        return "";
-    return option(subscription_url_child(section, value), "subscription_update_interval", "1h");
+function subscription_update_enabled(subscription) {
+    return subscription_remote(subscription) &&
+        bool_option(subscription, "subscription_update_enabled", true);
 }
 
-function subscription_headers(section, value) {
-    if (subscription_source_type(value) != "remote")
-        return [];
-    return list_value(subscription_url_child(section, value), "header");
+function subscription_update_interval(subscription) {
+    return subscription_remote(subscription)
+        ? option(subscription, "subscription_update_interval", "1h")
+        : "";
 }
 
-function stored_subscription_tag(section, value) {
-    return trim(option(subscription_url_child(section, value), "tag", ""));
+function subscription_headers(subscription) {
+    return subscription_remote(subscription) ? list_value(subscription, "header") : [];
+}
+
+function subscription_tag(subscription) {
+    return trim(option(subscription, "tag", ""));
 }
 
 // The provider a subscription becomes is addressed by its tag, so the validator
 // refuses a section whose subscriptions lack one or share one.
 function subscription_tags(section) {
-    return map(subscription_urls(section), (source) => stored_subscription_tag(section, source));
+    return map(subscription_items(section), (subscription) => subscription_tag(subscription));
 }
 
-function subscription_exclude_types(section, value) {
-    return list_value(subscription_url_child(section, value), "exclude_types");
+function subscription_exclude_types(subscription) {
+    return list_value(subscription, "exclude_types");
 }
 
 // A rename rule is stored the way it is written: "pattern => replacement".
@@ -573,23 +581,19 @@ function parse_rename_rule(value) {
     return { pattern, target: trim(substr(value, separator + 2)) };
 }
 
-function subscription_override(section, value) {
-    let child = subscription_url_child(section, value);
+function subscription_override(subscription) {
     return {
-        prefix: option(child, "override_prefix", ""),
-        suffix: option(child, "override_suffix", ""),
-        rename: list_value(child, "override_rename"),
-        patch: option(child, "override_patch", "")
+        prefix: option(subscription, "override_prefix", ""),
+        suffix: option(subscription, "override_suffix", ""),
+        rename: list_value(subscription, "override_rename"),
+        patch: option(subscription, "override_patch", "")
     };
 }
 
-function subscription_download_section(section, value) {
-    if (subscription_source_type(value) != "remote")
+function subscription_download_section(subscription) {
+    if (!subscription_remote(subscription) || !bool_option(subscription, "download_via_proxy_enabled", false))
         return "";
-    let child = subscription_url_child(section, value);
-    if (!bool_option(child, "download_via_proxy_enabled", false))
-        return "";
-    return option(child, "download_via_proxy_section", "");
+    return option(subscription, "download_via_proxy_section", "");
 }
 
 function urltest_check_interval(section, value) {
@@ -726,7 +730,8 @@ return {
     load,
     is_connections_action,
     connection_link_items,
-    subscription_urls,
+    subscription_items,
+    subscription_source,
     subscription_source_type,
     interfaces,
     outbound_jsons,
@@ -741,13 +746,13 @@ return {
     has_dns_matchers,
     has_connection_sources,
     cascade_section,
-    subscription_url_child,
     subscription_update_enabled,
     subscription_update_interval,
     subscription_headers,
     subscription_exclude_types,
     subscription_override,
     parse_rename_rule,
+    subscription_tag,
     subscription_tags,
     subscription_download_section,
     interface_display_name,

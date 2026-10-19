@@ -423,16 +423,12 @@ export function currentLiveDynamicListValues(
 export function currentDraftOutboundNames(section_id: string) {
   const names: string[] = [];
 
-  const linkOption = outboundNameSourceOptions.get('connection_link');
-  const stagedLinks = linkOption
-    ? childPendingSettingsStore(linkOption, section_id)
-    : {};
   currentSourceOptionValues(section_id, 'connection_link').forEach(
     (value: string, index: number) => {
       const name = `${
         (isExistingChildItem(section_id, value, 'connection_link')
           ? uci.get(FORKOP_UCI_PACKAGE, value, 'name')
-          : stagedLinks[value]?.name) ||
+          : '') ||
         getProxyUrlName(value) ||
         `Node #${index + 1}`
       }`.trim();

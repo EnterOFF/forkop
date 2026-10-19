@@ -162,15 +162,6 @@ function validate_runtime_display_names(sections, kind, seen) {
 }
 
 function validate_subscription_tags(section) {
-    // A subscription's settings, its tag among them, are found by its address, so
-    // a second one with the same address would run with the first one's.
-    let sources = {};
-    for (let source in connections.subscription_urls(section)) {
-        if (sources[source])
-            fail_validation("Section '" + section_label(section) + "' has the same subscription twice");
-        sources[source] = true;
-    }
-
     let seen = {};
     for (let tag_name in connections.subscription_tags(section)) {
         if (trim(tag_name) == "")
@@ -255,10 +246,8 @@ function section_cascades(section) {
     };
     for (let link in connections.connection_link_items(section))
         add("The cascade of link '" + option(link, "name", "") + "'" + owner, connections.cascade_section(link));
-    for (let source in connections.subscription_urls(section)) {
-        let subscription = connections.subscription_url_child(section, source);
+    for (let subscription in connections.subscription_items(section))
         add("The cascade of subscription '" + option(subscription, "tag", "") + "'" + owner, connections.cascade_section(subscription));
-    }
     for (let tunnel in connections.tunnel_items(section))
         if (CASCADE_TUNNEL_KINDS[tunnel_kind(tunnel)])
             add("The cascade of tunnel '" + option(tunnel, "name", "") + "'" + owner, connections.cascade_section(tunnel));
@@ -915,23 +904,23 @@ function validate_json_inbound_values() {
     }
 }
 
-function subscription_update_interval_for_source(section, entry) {
-    if (!connections.subscription_update_enabled(section, entry))
+function subscription_update_interval_for_source(subscription) {
+    if (!connections.subscription_update_enabled(subscription))
         return "";
-    let value = connections.subscription_update_interval(section, entry);
+    let value = connections.subscription_update_interval(subscription);
     return value != "" ? value : "1h";
 }
 
-function validate_subscription_request_profile(section, entry) {
+function validate_subscription_request_profile(section, subscription) {
     let parsed = subscription_headers_module.parse_header_lines(
-        connections.subscription_headers(section, entry)
+        connections.subscription_headers(subscription)
     );
     if (!parsed.valid)
         fail_validation("A subscription in section '" + section_label(section) + "' has invalid " + parsed.message);
 }
 
-function validate_subscription_override(section, entry) {
-    let settings = connections.subscription_override(section, entry);
+function validate_subscription_override(section, subscription) {
+    let settings = connections.subscription_override(subscription);
     let context = "a subscription in section '" + section_label(section) + "'";
 
     for (let value in array_or_empty(settings.rename)) {
@@ -978,9 +967,8 @@ function validate_subscription_override(section, entry) {
     }
 }
 
-function validate_subscription_filter(section, entry) {
+function validate_subscription_filter(section, subscription) {
     let owner = "a subscription in section '" + section_label(section) + "'";
-    let subscription = connections.subscription_url_child(section, entry);
     let mode = option(subscription, "server_filter_mode", "all");
     validate_server_filter_mode(mode, owner, false);
     validate_server_filter_regexes(
@@ -990,7 +978,7 @@ function validate_subscription_filter(section, entry) {
         owner
     );
     validate_server_filter_types(
-        connections.subscription_exclude_types(section, entry),
+        connections.subscription_exclude_types(subscription),
         singbox_constants.FILTERABLE_PROVIDER_TYPES,
         owner
     );
@@ -1117,12 +1105,12 @@ function validate_rule(section, sections, context) {
         }
 
         validate_connection_links(section);
-        for (let value in connections.subscription_urls(section)) {
-            validate_subscription_source_entry_value(value, name);
-            validate_subscription_request_profile(section, value);
-            validate_subscription_filter(section, value);
-            validate_subscription_override(section, value);
-            let subscription_update_interval = subscription_update_interval_for_source(section, value);
+        for (let subscription in connections.subscription_items(section)) {
+            validate_subscription_source_entry_value(connections.subscription_source(subscription), name);
+            validate_subscription_request_profile(section, subscription);
+            validate_subscription_filter(section, subscription);
+            validate_subscription_override(section, subscription);
+            let subscription_update_interval = subscription_update_interval_for_source(subscription);
             if (subscription_update_interval != "")
                 validate_required_duration_option(subscription_update_interval, "'Update interval' of a subscription in section '" + section_label(section) + "'");
         }
@@ -1148,8 +1136,8 @@ function validate_subscription_download_sections(sections, context) {
             continue;
 
         let name = section_name(section);
-        for (let entry in connections.subscription_urls(section)) {
-            let target = connections.subscription_download_section(section, entry);
+        for (let subscription in connections.subscription_items(section)) {
+            let target = connections.subscription_download_section(subscription);
             if (target == "")
                 continue;
 

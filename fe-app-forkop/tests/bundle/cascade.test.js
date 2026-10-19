@@ -117,14 +117,14 @@ describe.each(ITEMS)('the cascade of %s', (_label, type, listName, values) => {
   });
 });
 
-// A pasted link has no section of its own until the section is saved, so what
-// its dialog took is staged and written whole: the switch must not be in it.
+// A pasted link is a section from the moment it is added, and its dialog writes
+// what it took into that section: the switch must not be in it.
 it('a pasted link keeps its cascade once the section is saved', async () => {
   const links = list('connection_link');
   const link = 'vless://u@a.example:443#A';
-  links.formvalue = () => [link];
-  links.renderListItemLabel('sec', link);
-  const dialog = await harness.openDialog(links, 'sec', link);
+  const itemId = links.createTypedItem('sec', link);
+  links.formvalue = () => [itemId];
+  const dialog = await harness.openDialog(links, 'sec', itemId);
   const fields = dialog.map.children[0].children;
   const field = (name) => fields.find((option) => option.option === name);
   field('_cascade').formvalue = () => '1';

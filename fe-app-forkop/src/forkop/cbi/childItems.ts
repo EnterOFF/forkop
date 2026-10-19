@@ -134,7 +134,7 @@ export function isExistingChildItem(
   );
 }
 
-function createChildItem(
+export function createChildItem(
   section_id: string,
   options: ChildItemOptions,
   inputValue: unknown,

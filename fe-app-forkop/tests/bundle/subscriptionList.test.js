@@ -1,6 +1,7 @@
 // The subscriptions of a Connection section, driven through the shipped bundle.
-// The list shows a subscription by its tag, and its dialog is where the address
-// is changed, between a URL and a local file included.
+// A pasted address is a subscription of its own from the moment it is added, the
+// list shows it by its tag, and its dialog is where the address is changed,
+// between a URL and a local file included.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -29,6 +30,15 @@ function subscriptionList() {
   delete grid.load;
   harness.bundle.createSectionContent(grid);
   return grid.children.find((option) => option.option === 'subscription_url');
+}
+
+// What the widget does when the user adds an address: the address becomes its
+// subscription, and the entry holding its id is rendered with its label.
+function paste(list, values, source) {
+  const itemId = list.createTypedItem('sec', source);
+  const label = list.renderListItemLabel('sec', itemId).textContent;
+  values.push(itemId);
+  return label;
 }
 
 function storeSubscription(id, values) {
@@ -70,15 +80,49 @@ describe('the subscription list', () => {
     const values = [];
     list.formvalue = () => values.slice();
     const labels = ['https://a.example/sub', '/etc/forkop/b.txt'].map(
-      (source) => {
-        const label = list.renderListItemLabel('sec', source).textContent;
-        values.push(source);
-        list.onListChange('sec', values.slice());
-        return label;
-      },
+      (source) => paste(list, values, source),
     );
 
     expect(labels).toEqual(['sub1', 'sub2']);
+  });
+
+  // The same account split by two filters, or fetched through two cascades, is
+  // the same address added twice, and each is a provider of its own.
+  it('adds the same address twice as two subscriptions', async () => {
+    // The Sections table loads the default headers before any dialog opens.
+    const map = new harness.form.Map('forkop');
+    const grid = map.section(harness.form.GridSection, 'section');
+    harness.bundle.configureSectionSection(grid);
+    harness.bundle.createSectionContent(grid);
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    const list = grid.children.find(
+      (option) => option.option === 'subscription_url',
+    );
+    list.cfgvalue('sec', list.load('sec'));
+    const values = [];
+    list.formvalue = () => values.slice();
+    const source = 'https://a.example/sub';
+
+    expect([paste(list, values, source), paste(list, values, source)]).toEqual([
+      'sub1',
+      'sub2',
+    ]);
+    await list.parse('sec');
+
+    expect(
+      harness.uci
+        .sections('forkop', 'subscription_url')
+        .map(({ section, url, tag, header }) => ({
+          section,
+          url,
+          tag,
+          header,
+        })),
+    ).toEqual([
+      { section: 'sec', url: source, tag: 'sub1', header: DEFAULT_HEADERS },
+      { section: 'sec', url: source, tag: 'sub2', header: DEFAULT_HEADERS },
+    ]);
   });
 
   it('shows a stored subscription by its tag', () => {
@@ -143,7 +187,7 @@ describe('the address in the subscription dialog', () => {
     });
   });
 
-  it('refuses the address another subscription of the section has', async () => {
+  it('takes the address another subscription of the section has', async () => {
     storeSubscription('sub_a', REMOTE);
     storeSubscription('sub_b', {
       ...REMOTE,
@@ -153,9 +197,7 @@ describe('the address in the subscription dialog', () => {
     const dialog = await openSubscription('sub_b', ['sub_a', 'sub_b']);
     const check = (value) => dialog.field('url').validate('sub_b', value);
 
-    expect(check('https://example.com/sub')).toBe(
-      'This subscription is already in the section',
-    );
+    expect(check('https://example.com/sub')).toBe(true);
     expect(check('https://b.example/sub')).toBe(true);
     expect(check('')).toBe('Enter a subscription URL or local path');
   });

@@ -306,6 +306,57 @@ describe('getDashboardSections', () => {
     ]);
   });
 
+  // The same account split two ways is two subscriptions of one address, and
+  // each is its own provider with its own tag and its own metadata switch.
+  it('shows two subscriptions of one address under their own tags', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      section(),
+      child('subscription_url', 'subscription1', {
+        url: 'https://example.com/subscription',
+        tag: 'sub1',
+        show_dashboard_metadata: '0',
+      }),
+      child('subscription_url', 'subscription2', {
+        url: 'https://example.com/subscription',
+        tag: 'sub2',
+        show_dashboard_metadata: '1',
+      }),
+    ]);
+    setClashProxies({
+      Office: proxy('Selector', {
+        name: 'Office',
+        now: 'Office/sub1/DE',
+        all: ['Office/sub1/DE', 'Office/sub2/DE'],
+      }),
+      'Office/sub1/DE': proxy('HTTP'),
+      'Office/sub2/DE': proxy('HTTP'),
+    });
+    const provider = (tag: string) => ({
+      name: `Office/${tag}`,
+      type: 'Remote',
+      vehicleType: 'HTTP',
+      proxies: [proxy('HTTP', { name: `Office/${tag}/DE` })],
+      subscriptionInfo: { upload: 10, download: 20, total: 100, expire: 200 },
+    });
+    setClashProviders({
+      'Office/sub1': provider('sub1'),
+      'Office/sub2': provider('sub2'),
+    });
+
+    const [dashboardSection] = (await getDashboardSections()).data;
+
+    expect(dashboardSection.subscriptionProviderTags).toEqual([
+      'Office/sub1',
+      'Office/sub2',
+    ]);
+    expect(
+      dashboardSection.outbounds.map((outbound) => outbound.subscriptionTag),
+    ).toEqual(['sub1', 'sub2']);
+    expect(
+      dashboardSection.subscriptionMetadata?.map((item) => item.sourceSection),
+    ).toEqual(['Office/sub2']);
+  });
+
   it('does not classify a static slash name as a subscription node', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section(),
@@ -395,7 +446,11 @@ describe('getDashboardSections', () => {
     mocks.getConfigSections.mockResolvedValue([
       // A group arranges the servers of its own section, so a section that has
       // groups always has a source for them as well.
-      section({ subscription_urls: ['https://office.example/sub'] }),
+      section(),
+      child('subscription_url', 'office', {
+        url: 'https://office.example/sub',
+        tag: 'sub1',
+      }),
       child('urltest', 'fast', {
         name: 'Fast',
         testing_url: 'https://fast.example/204',

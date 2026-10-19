@@ -119,7 +119,8 @@ declare global {
     createId?: (inputValue?: string, sectionId?: string) => string;
     // Every entry is a child section from the moment it is added, where other
     // lists stage an entry until the section is saved: a tunnel's dialog writes
-    // the tunnel when it closes.
+    // the tunnel when it closes, and a link typed into its list is a section as
+    // soon as it is added.
     entriesAreSections?: boolean;
     // Where the per-entry settings of this list are stored on the owning section.
     // Entries are added through a dialog rather than by typing into the list.
@@ -174,6 +175,8 @@ declare global {
       value: unknown,
     ) => ChildSettings | null;
     clearStagedChildSettings?: (sectionId: string) => void;
+    childItemOptions?: (ownerId: string) => ChildItemOptions;
+    createTypedItem?: (sectionId: string, inputValue: string) => string;
 
     // The rendered list nodes, by section, for a list whose choices are refreshed
     // while the dialog is open.
@@ -296,6 +299,9 @@ declare global {
     hasEquivalentValue?: (value: string, node: HTMLElement) => boolean;
     itemLabel?: (value: string, text?: string | null) => string | Node;
     hasSettings?: (value: string) => boolean;
+    // The value an entry typed into the list is added under, for a list whose
+    // entries are sections: the id of the section it becomes.
+    createItem?: ((inputValue: string) => string) | null;
     settingsHandler?: (
       value: string,
       item: Element | null,

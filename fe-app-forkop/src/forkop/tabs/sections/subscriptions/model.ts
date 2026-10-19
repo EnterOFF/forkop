@@ -7,7 +7,6 @@ import {
   getChildItemIds,
   isExistingChildItem,
 } from '../../../cbi/childItems';
-import { childPendingSettingsStore } from '../../../cbi/itemSettings';
 import { modalOptionFormValue } from '../../../cbi/modal';
 import { E } from '../../../../helpers/element';
 import { subscriptionOverrideKeys } from './overrides';
@@ -172,23 +171,15 @@ function liveListValues(option: CBIOption, sectionId: string) {
     : null;
 }
 
-// The tag one entry carries: what its section stores, or - while the entry is
-// still a draft the section has never been saved with - what the list is holding
-// for it.
-export function listedSubscriptionTag(
-  sectionId: string,
-  option: CBIOption,
-  value: string,
-) {
-  if (isExistingChildItem(sectionId, value, 'subscription_url')) {
-    return `${uci.get(FORKOP_UCI_PACKAGE, value, 'tag') || ''}`.trim();
-  }
-
-  return `${childPendingSettingsStore(option, sectionId)[value]?.tag || ''}`.trim();
+// The tag one entry carries, which its section stores. An address still in the
+// add field is no entry yet and holds no tag.
+export function listedSubscriptionTag(sectionId: string, value: string) {
+  return isExistingChildItem(sectionId, value, 'subscription_url')
+    ? `${uci.get(FORKOP_UCI_PACKAGE, value, 'tag') || ''}`.trim()
+    : '';
 }
 
-// Every tag the section's subscriptions hold, including the one a subscription
-// whose dialog was never opened carries from the moment its link was added.
+// Every tag the section's subscriptions hold.
 export function configuredSubscriptionTags(
   sectionId: string,
   option: CBIOption,
@@ -197,7 +188,7 @@ export function configuredSubscriptionTags(
 ) {
   return values
     .filter((value) => !excluded.includes(value))
-    .map((value) => listedSubscriptionTag(sectionId, option, value))
+    .map((value) => listedSubscriptionTag(sectionId, value))
     .filter(Boolean);
 }
 
@@ -219,80 +210,14 @@ export function nextSubscriptionTag(
   return `sub${Date.now()}`;
 }
 
-// The address one entry fetches: what its section stores, or - for a draft -
-// what its dialog changed it to, or the entry itself.
-function listedSubscriptionSource(
-  sectionId: string,
-  option: CBIOption,
-  value: string,
-) {
-  if (isExistingChildItem(sectionId, value, 'subscription_url')) {
-    return childItemInputValue(sectionId, value, 'subscription_url', 'url');
-  }
-
-  return `${childPendingSettingsStore(option, sectionId)[value]?.url || value}`;
-}
-
-// Every address the section's subscriptions fetch, so a dialog can refuse the
-// one another subscription already has: the runtime finds a subscription's
-// settings by its address.
-export function listedSubscriptionSources(
-  sectionId: string,
-  option: CBIOption,
-  excluded: string[] = [],
-) {
-  return listedSubscriptionValues(sectionId, option)
-    .filter((value) => !excluded.includes(value))
-    .map((value) => listedSubscriptionSource(sectionId, option, value).trim());
-}
-
-// What the list shows for one subscription, which is its tag. A subscription is
-// named the moment its address is added, so the label is where a new one gets
-// its tag.
-export function subscriptionListItemLabel(
-  sectionId: string,
-  option: CBIOption,
-  value: string,
-) {
-  let tag = listedSubscriptionTag(sectionId, option, value);
-  if (!tag && !isExistingChildItem(sectionId, value, 'subscription_url')) {
-    const store = childPendingSettingsStore(option, sectionId);
-    tag = nextSubscriptionTag(sectionId, option);
-    store[value] = Object.assign({}, store[value], { tag });
-  }
-
+// What the list shows for one subscription, which is its tag.
+export function subscriptionListItemLabel(sectionId: string, value: string) {
   return E(
     'span',
     { class: 'fkp-dynlist-label' },
-    tag || listedSubscriptionSource(sectionId, option, value),
+    listedSubscriptionTag(sectionId, value) ||
+      childItemInputValue(sectionId, value, 'subscription_url', 'url'),
   );
-}
-
-// Names every entry of the list that has no name yet, which is how a subscription
-// gets its tag the moment its link is added rather than when someone opens its
-// dialog: the dialog then shows the name it will be saved under, the uniqueness
-// check counts it, and the section's save writes it. A link taken back out of the
-// list gives its name up again, along with everything else its dialog had staged.
-export function reserveSubscriptionTags(
-  sectionId: string,
-  option: CBIOption,
-  values: string[],
-) {
-  const store = childPendingSettingsStore(option, sectionId);
-  const drafts = values.filter(
-    (value) => !isExistingChildItem(sectionId, value, 'subscription_url'),
-  );
-
-  Object.keys(store).forEach((value) => {
-    if (!drafts.includes(value)) delete store[value];
-  });
-
-  drafts.forEach((value) => {
-    if (listedSubscriptionTag(sectionId, option, value)) return;
-    store[value] = Object.assign({}, store[value], {
-      tag: nextSubscriptionTag(sectionId, option, values),
-    });
-  });
 }
 
 function parseSubscriptionUrlEntry(

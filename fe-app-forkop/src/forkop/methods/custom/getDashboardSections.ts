@@ -163,27 +163,16 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
       }));
     }
 
-    if (subscriptionUrlItems.length) {
-      const settings: Record<string, ItemSettings> = {};
-      next.subscription_urls = subscriptionUrlItems
-        .map((item) => item.url || '')
-        .filter(Boolean);
-      subscriptionUrlItems.forEach((item) => {
-        if (!item.url) {
-          return;
-        }
-        settings[item.url] = {
-          subscription_update_enabled: item.subscription_update_enabled,
-          subscription_update_interval: item.subscription_update_interval,
-          download_via_proxy_enabled: item.download_via_proxy_enabled,
-          download_via_proxy_section: item.download_via_proxy_section,
-          user_agent: item.user_agent,
-          header: item.header,
-          show_dashboard_metadata: item.show_dashboard_metadata,
-          tag: item.tag,
-        };
-      });
-      next.subscription_url_settings = compactSettingsMap(settings);
+    // In configuration order, which is the order of the providers; two of them
+    // may fetch the same address.
+    const subscriptions = subscriptionUrlItems
+      .filter((item) => item.url)
+      .map((item) => ({
+        tag: `${item.tag || ''}`,
+        show_dashboard_metadata: item.show_dashboard_metadata,
+      }));
+    if (subscriptions.length) {
+      next.subscriptions = subscriptions;
     }
 
     if (interfaceItems.length) {
@@ -299,7 +288,7 @@ function hasSubscriptionSources(section: Forkop.ConfigSection) {
 }
 
 function getSubscriptionSourceCount(section: Forkop.ConfigSection) {
-  return getListValues(section.subscription_urls).length;
+  return (section.subscriptions || []).length;
 }
 
 function hasConfiguredUrlTestList(section: Forkop.ConfigSection) {
@@ -1024,12 +1013,10 @@ function isSubscriptionMetadataVisible(
   section: Forkop.ConfigSection,
   sourceIndex: number,
 ) {
-  const sourceEntry = getListValues(section.subscription_urls)[sourceIndex - 1];
-  const settings = itemSettingsMap(section.subscription_url_settings)[
-    sourceEntry
-  ];
-
-  return settings?.show_dashboard_metadata !== '0';
+  return (
+    (section.subscriptions || [])[sourceIndex - 1]?.show_dashboard_metadata !==
+    '0'
+  );
 }
 
 function getSectionSubscriptionTags(
@@ -1037,10 +1024,9 @@ function getSectionSubscriptionTags(
   providers: Record<string, ClashAPI.ProxyProvider>,
 ) {
   const sectionDisplayName = getDisplayName(section);
-  const settings = itemSettingsMap(section.subscription_url_settings);
 
-  return getListValues(section.subscription_urls).map((source) => {
-    const displayTag = itemSettingString(settings[source], 'tag').trim();
+  return (section.subscriptions || []).map((subscription) => {
+    const displayTag = subscription.tag.trim();
     const runtimeTag = `${sectionDisplayName}/${displayTag}`;
     return {
       runtimeTag,

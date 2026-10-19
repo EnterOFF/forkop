@@ -232,11 +232,13 @@ export namespace Forkop {
     update_interval?: string;
     proxy_string?: string;
     connection_links?: Array<{ name: string; uri: string }>;
-    subscription_urls?: string[];
+    subscriptions?: Array<{
+      tag: string;
+      show_dashboard_metadata?: '0' | '1';
+    }>;
     interfaces?: string[];
     tunnels?: string[];
     outbound_jsons?: string[];
-    subscription_url_settings?: string;
     urltests?: string[];
     urltest_settings?: string;
     fallback_groups?: string[];

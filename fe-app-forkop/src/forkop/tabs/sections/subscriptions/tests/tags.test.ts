@@ -2,35 +2,22 @@ import { describe, expect, it } from 'vitest';
 
 import { installUciStub } from '../../../../../helpers/tests/luciStubs';
 import { addSubscriptionUrlItemOptions } from '../options';
-import {
-  configuredSubscriptionTags,
-  nextSubscriptionTag,
-  reserveSubscriptionTags,
-} from '../model';
+import { configuredSubscriptionTags, nextSubscriptionTag } from '../model';
 
 // Every subscription of a section carries a tag, because the runtime turns it
 // into the provider name "<section>/<tag>" and sing-box refuses a configuration
-// holding two providers under one name. Nobody has to type it: the list names an
-// entry the moment its link is added.
+// holding two providers under one name. Nobody has to type it: a subscription is
+// a section the moment its link is added, and it is named then.
 //
 // The list the numbering counts is the one the user is looking at, not the stored
-// one: an entry added or taken out is only written when the section is saved, so
-// until then a removed subscription must stop holding its number and an added one
-// must already hold its own.
+// one: a subscription taken out of the list is deleted only when the section is
+// saved, so until then it must stop holding its number.
 
 const SECTION = 'section_probe';
 
-// The list option, as far as the tag rules are concerned: the entries it shows
-// and the staged settings it keeps for the ones with no section yet.
+// The list option, as far as the tag rules are concerned: the entries it shows.
 function listOption(values: string[]) {
-  return {
-    formvalue: () => values,
-    pendingChildSettings: {},
-  } as unknown as CBIOption;
-}
-
-function stagedTag(option: CBIOption, value: string) {
-  return option.pendingChildSettings?.[SECTION]?.[value]?.tag;
+  return { formvalue: () => values } as unknown as CBIOption;
 }
 
 // A stored subscription of the probe section.
@@ -48,26 +35,21 @@ function storedSubscription(
   return itemId;
 }
 
-describe('naming a subscription that was just added', () => {
+describe('naming a subscription that is being added', () => {
   it('names the first one of a section sub1', () => {
     installUciStub({});
-    const option = listOption(['https://example.com/first']);
 
-    reserveSubscriptionTags(SECTION, option, ['https://example.com/first']);
-
-    expect(stagedTag(option, 'https://example.com/first')).toBe('sub1');
+    expect(nextSubscriptionTag(SECTION, listOption([]))).toBe('sub1');
   });
 
   it('numbers it after the subscriptions the section already has', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
     installUciStub(sections);
-    const values = ['sub_first', 'https://example.com/second'];
-    const option = listOption(values);
 
-    reserveSubscriptionTags(SECTION, option, values);
-
-    expect(stagedTag(option, 'https://example.com/second')).toBe('sub2');
+    expect(nextSubscriptionTag(SECTION, listOption(['sub_first']))).toBe(
+      'sub2',
+    );
   });
 
   // Numbering counts rather than looking for a hole, so a section whose
@@ -77,37 +59,10 @@ describe('naming a subscription that was just added', () => {
     storedSubscription(sections, 'sub_first', 'sub2');
     storedSubscription(sections, 'sub_second', 'sub3');
     installUciStub(sections);
-    const values = ['sub_first', 'sub_second', 'https://example.com/new'];
-    const option = listOption(values);
 
-    reserveSubscriptionTags(SECTION, option, values);
-
-    expect(stagedTag(option, 'https://example.com/new')).toBe('sub4');
-  });
-
-  it('names two links added in a row differently', () => {
-    installUciStub({});
-    const first = ['https://example.com/a'];
-    const both = ['https://example.com/a', 'https://example.com/b'];
-    const option = listOption(first);
-
-    reserveSubscriptionTags(SECTION, option, first);
-    option.formvalue = () => both;
-    reserveSubscriptionTags(SECTION, option, both);
-
-    expect(stagedTag(option, 'https://example.com/a')).toBe('sub1');
-    expect(stagedTag(option, 'https://example.com/b')).toBe('sub2');
-  });
-
-  it('leaves the name an entry already has alone', () => {
-    installUciStub({});
-    const values = ['https://example.com/a'];
-    const option = listOption(values);
-
-    reserveSubscriptionTags(SECTION, option, values);
-    reserveSubscriptionTags(SECTION, option, values);
-
-    expect(stagedTag(option, 'https://example.com/a')).toBe('sub1');
+    expect(
+      nextSubscriptionTag(SECTION, listOption(['sub_first', 'sub_second'])),
+    ).toBe('sub4');
   });
 
   // The section is not saved yet, so the removed subscriptions are still stored.
@@ -118,12 +73,8 @@ describe('naming a subscription that was just added', () => {
     storedSubscription(sections, 'sub_first', 'sub1');
     storedSubscription(sections, 'sub_second', 'sub2');
     installUciStub(sections);
-    const values = ['https://example.com/new'];
-    const option = listOption(values);
 
-    reserveSubscriptionTags(SECTION, option, values);
-
-    expect(stagedTag(option, 'https://example.com/new')).toBe('sub1');
+    expect(nextSubscriptionTag(SECTION, listOption([]))).toBe('sub1');
   });
 
   it('moves past a number a subscription still in the list holds', () => {
@@ -132,26 +83,25 @@ describe('naming a subscription that was just added', () => {
     storedSubscription(sections, 'sub_second', 'sub2');
     storedSubscription(sections, 'sub_third', 'sub3');
     installUciStub(sections);
-    const values = ['sub_first', 'sub_third', 'https://example.com/new'];
-    const option = listOption(values);
 
-    reserveSubscriptionTags(SECTION, option, values);
-
-    expect(stagedTag(option, 'https://example.com/new')).toBe('sub4');
+    expect(
+      nextSubscriptionTag(SECTION, listOption(['sub_first', 'sub_third'])),
+    ).toBe('sub4');
   });
 
-  it('gives the name up again when the link is taken back', () => {
-    installUciStub({});
-    const option = listOption(['https://example.com/a']);
+  // LuCI hands the text still in the add field to the save as one more entry;
+  // it is no subscription yet and holds no number.
+  it('does not count an address still in the add field', () => {
+    const sections: Record<string, Record<string, string>> = {};
+    storedSubscription(sections, 'sub_first', 'sub1');
+    installUciStub(sections);
 
-    reserveSubscriptionTags(SECTION, option, ['https://example.com/a']);
-    option.formvalue = () => [];
-    reserveSubscriptionTags(SECTION, option, []);
-    option.formvalue = () => ['https://example.com/b'];
-    reserveSubscriptionTags(SECTION, option, ['https://example.com/b']);
-
-    expect(stagedTag(option, 'https://example.com/a')).toBeUndefined();
-    expect(stagedTag(option, 'https://example.com/b')).toBe('sub1');
+    expect(
+      nextSubscriptionTag(
+        SECTION,
+        listOption(['sub_first', 'https://example.com/typed']),
+      ),
+    ).toBe('sub2');
   });
 
   // A list that has not rendered - a parse with no dialog on screen - answers
@@ -161,9 +111,10 @@ describe('naming a subscription that was just added', () => {
     storedSubscription(sections, 'sub_first', 'sub1');
     storedSubscription(sections, 'sub_second', 'sub2');
     installUciStub(sections);
-    const option = { pendingChildSettings: {} } as unknown as CBIOption;
 
-    expect(nextSubscriptionTag(SECTION, option)).toBe('sub3');
+    expect(nextSubscriptionTag(SECTION, {} as unknown as CBIOption)).toBe(
+      'sub3',
+    );
   });
 });
 
@@ -173,16 +124,6 @@ describe('the tags a section counts as taken', () => {
     storedSubscription(sections, 'sub_first', 'sub1');
     installUciStub(sections);
     const option = listOption(['sub_first']);
-
-    expect(configuredSubscriptionTags(SECTION, option)).toEqual(['sub1']);
-  });
-
-  it('includes one staged for a link whose dialog was never opened', () => {
-    installUciStub({});
-    const values = ['https://example.com/a'];
-    const option = listOption(values);
-
-    reserveSubscriptionTags(SECTION, option, values);
 
     expect(configuredSubscriptionTags(SECTION, option)).toEqual(['sub1']);
   });
@@ -211,7 +152,7 @@ describe('the tags a section counts as taken', () => {
 });
 
 // The dialog's own field, driven the way the modal drives it.
-function tagValidator(values: string[], option: CBIOption, ownerId: string) {
+function tagValidator(option: CBIOption, ownerId: string) {
   let validate: ((itemId: string, value: unknown) => true | string) | undefined;
   const section = {
     map: {},
@@ -235,7 +176,7 @@ function tagValidator(values: string[], option: CBIOption, ownerId: string) {
   addSubscriptionUrlItemOptions(section as unknown as CBISection, {
     parentSectionId: () => SECTION,
     ownerId: () => ownerId,
-    itemValue: () => (values.includes(ownerId) ? '' : ownerId),
+    itemValue: () => '',
     listOption: option,
   });
 
@@ -248,27 +189,11 @@ describe('typing a tag by hand', () => {
     storedSubscription(sections, 'sub_first', 'sub1');
     storedSubscription(sections, 'sub_second', 'sub2');
     installUciStub(sections);
-    const values = ['sub_first', 'sub_second'];
-    const option = listOption(values);
+    const option = listOption(['sub_first', 'sub_second']);
 
-    expect(
-      tagValidator(values, option, 'sub_second')('settings', 'sub1'),
-    ).toMatch(/unique/);
-  });
-
-  // The other subscription is only a link in the list, so nothing anywhere shows
-  // the name it is going to be saved under.
-  it('is refused when a link with no dialog opened holds it', () => {
-    const sections: Record<string, Record<string, string>> = {};
-    storedSubscription(sections, 'sub_first', 'sub1');
-    installUciStub(sections);
-    const values = ['sub_first', 'https://example.com/new'];
-    const option = listOption(values);
-    reserveSubscriptionTags(SECTION, option, values);
-
-    expect(
-      tagValidator(values, option, 'sub_first')('settings', 'sub2'),
-    ).toMatch(/unique/);
+    expect(tagValidator(option, 'sub_second')('settings', 'sub1')).toMatch(
+      /unique/,
+    );
   });
 
   it('is accepted when the subscription holding it was removed from the list', () => {
@@ -276,31 +201,25 @@ describe('typing a tag by hand', () => {
     storedSubscription(sections, 'sub_first', 'sub1');
     storedSubscription(sections, 'sub_second', 'sub2');
     installUciStub(sections);
-    const values = ['sub_first'];
-    const option = listOption(values);
+    const option = listOption(['sub_first']);
 
-    expect(tagValidator(values, option, 'sub_first')('settings', 'sub2')).toBe(
-      true,
-    );
+    expect(tagValidator(option, 'sub_first')('settings', 'sub2')).toBe(true);
   });
 
   it('is accepted when only the subscription itself holds it', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
     installUciStub(sections);
-    const values = ['sub_first'];
-    const option = listOption(values);
+    const option = listOption(['sub_first']);
 
-    expect(tagValidator(values, option, 'sub_first')('settings', 'sub1')).toBe(
-      true,
-    );
+    expect(tagValidator(option, 'sub_first')('settings', 'sub1')).toBe(true);
   });
 
   it('refuses a name that would split the provider tag', () => {
     installUciStub({});
     const option = listOption([]);
 
-    expect(tagValidator([], option, SECTION)('settings', 'a/b')).toMatch(
+    expect(tagValidator(option, SECTION)('settings', 'a/b')).toMatch(
       /must not contain/,
     );
   });

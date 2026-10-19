@@ -397,16 +397,16 @@ t.test("subscription request profiles, filters and a local source pass", () => {
     });
 });
 
-t.test("a section holds a subscription once", () => {
-    let data = (second) => ({
+// One address may be two subscriptions of a section, the same account split by
+// two filters or dialled through two cascades: each is a provider of its own.
+t.test("a section may hold one subscription twice", () => {
+    v.accepts({
         section: [ { ".name": "proxy", label: "Main", enabled: "1", action: "connection" } ],
         subscription_url: [
             { ".name": "one", section: "proxy", url: "https://one.example/sub", tag: "sub1" },
-            { ".name": "two", section: "proxy", url: second, tag: "sub2" }
+            { ".name": "two", section: "proxy", url: "https://one.example/sub", tag: "sub2" }
         ]
     });
-    v.accepts(data("https://two.example/sub"));
-    v.refuses(data("https://one.example/sub"), "Section 'Main' has the same subscription twice");
 });
 
 t.done();

@@ -363,17 +363,33 @@ describe('the destinations of a section', () => {
 /* ------------------------------ a subscription is named when it is added */
 
 // A subscription becomes a provider named "<section>/<tag>" in the running
-// configuration, so it needs a tag. Nobody has to type one: the list names an
-// entry the moment its link is added, and the section's save writes that name out
-// with the rest of the entry.
+// configuration, so it needs a tag. Nobody has to type one: a subscription is a
+// section of its own the moment its link is added, and it is named then.
 describe('a subscription is named when its link is added', () => {
   const LINKS = ['https://a.example/sub', 'https://b.example/sub'];
 
-  async function saveSection(grid, values) {
-    widgetAnswers(grid, { subscription_url: values });
-    grid.children
-      .find((option) => option.option === 'subscription_url')
-      .onListChange('sec', values);
+  async function subscriptionList(sections) {
+    addSections(sections);
+    const grid = sectionGrid();
+    grid.cfgsections = () => ['sec'];
+    await grid.load();
+    const list = grid.children.find(
+      (option) => option.option === 'subscription_url',
+    );
+    const values = [...list.cfgvalue('sec')];
+    list.formvalue = () => values.slice();
+    return {
+      grid,
+      list,
+      values,
+      add(source) {
+        values.push(list.createTypedItem('sec', source));
+        return values[values.length - 1];
+      },
+    };
+  }
+
+  async function saveSection(grid) {
     for (const option of grid.children) {
       await Promise.resolve()
         .then(() => option.parse('sec'))
@@ -388,72 +404,54 @@ describe('a subscription is named when its link is added', () => {
   }
 
   it('writes a tag for a link whose dialog was never opened', async () => {
-    addSections([CONNECTION_SECTION]);
-    const grid = sectionGrid();
-    grid.cfgsections = () => ['sec'];
-    await grid.load();
+    const { grid, add } = await subscriptionList([CONNECTION_SECTION]);
+    LINKS.forEach(add);
 
-    await saveSection(grid, LINKS);
+    await saveSection(grid);
 
     expect(storedTags()).toEqual(['sub1', 'sub2']);
   });
 
   it('numbers a new link after the subscription the section has', async () => {
-    addSections(connectionChildren());
-    const grid = sectionGrid();
-    grid.cfgsections = () => ['sec'];
-    await grid.load();
+    const { grid, add } = await subscriptionList(connectionChildren());
+    add(LINKS[0]);
 
-    await saveSection(grid, ['sub1', LINKS[0]]);
+    await saveSection(grid);
 
     expect(storedTags().sort()).toEqual(['sub1', 'sub2']);
+  });
+
+  // LuCI hands the text still in the add field to the save as one more entry,
+  // which the save names after the subscriptions in the list.
+  it('names a link typed and saved without being added', async () => {
+    const { grid, list, values, add } = await subscriptionList([
+      CONNECTION_SECTION,
+    ]);
+    add(LINKS[0]);
+    list.formvalue = () => [...values, LINKS[1]];
+
+    await saveSection(grid);
+
+    expect(storedTags()).toEqual(['sub1', 'sub2']);
   });
 
   // sing-box refuses a configuration holding two providers under one name, so the
-  // whole section fails to start. The dialog and the save have to hand out the
-  // same names: whatever the dialog showed for one entry is what the save must
-  // avoid for its siblings.
+  // whole section fails to start: the tag the dialog shows is the one its
+  // siblings avoid.
   it('does not name two subscriptions the same', async () => {
-    addSections([CONNECTION_SECTION]);
-    const grid = sectionGrid();
-    grid.cfgsections = () => ['sec'];
-    await grid.load();
-    const list = grid.children.find(
-      (option) => option.option === 'subscription_url',
-    );
-    widgetAnswers(grid, { subscription_url: LINKS });
-    list.onListChange('sec', LINKS);
+    const { grid, list, add } = await subscriptionList([CONNECTION_SECTION]);
+    add(LINKS[0]);
+    const second = add(LINKS[1]);
 
-    const dialog = await harness.openDialog(list, 'sec', LINKS[1]);
-    await dialog.save();
-    for (const option of grid.children) {
-      await Promise.resolve()
-        .then(() => option.parse('sec'))
-        .catch(() => {});
-    }
-
-    expect(storedTags().sort()).toEqual(['sub1', 'sub2']);
-  });
-
-  // The dialog has to agree with the save: it shows the name the entry is going
-  // to be stored under, so pressing Save in it cannot rename the subscription.
-  it('shows the same tag in the dialog of a link that has no section yet', async () => {
-    addSections([CONNECTION_SECTION]);
-    const grid = sectionGrid();
-    grid.cfgsections = () => ['sec'];
-    await grid.load();
-    const list = grid.children.find(
-      (option) => option.option === 'subscription_url',
-    );
-    widgetAnswers(grid, { subscription_url: LINKS });
-    list.onListChange('sec', LINKS);
-
-    const dialog = await harness.openDialog(list, 'sec', LINKS[1]);
+    const dialog = await harness.openDialog(list, 'sec', second);
     const tag = dialog.map.children[0].children.find(
       (option) => option.option === 'tag',
     );
-
     expect(tag.cfgvalue('settings')).toBe('sub2');
+    await dialog.save();
+    await saveSection(grid);
+
+    expect(storedTags().sort()).toEqual(['sub1', 'sub2']);
   });
 });
 
@@ -1015,7 +1013,6 @@ describe('a check behind a switch turned on in the same dialog', () => {
   }
 
   it('refuses a subscription requested through no section', async () => {
-    const links = ['https://a.example/sub'];
     addSections([CONNECTION_SECTION]);
     const grid = sectionGrid();
     grid.cfgsections = () => ['sec'];
@@ -1023,9 +1020,9 @@ describe('a check behind a switch turned on in the same dialog', () => {
     const list = grid.children.find(
       (option) => option.option === 'subscription_url',
     );
-    widgetAnswers(grid, { subscription_url: links });
-    list.onListChange('sec', links);
-    const dialog = await harness.openDialog(list, 'sec', links[0]);
+    const itemId = list.createTypedItem('sec', 'https://a.example/sub');
+    widgetAnswers(grid, { subscription_url: [itemId] });
+    const dialog = await harness.openDialog(list, 'sec', itemId);
     turnOn(dialog, 'download_via_proxy_enabled');
 
     expect(

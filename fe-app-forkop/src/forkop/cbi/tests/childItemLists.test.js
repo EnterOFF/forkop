@@ -139,13 +139,12 @@ describe('child item lists', () => {
     },
   );
 
-  // A half-typed subscription is not an address yet, so it has nothing to
-  // configure; every other list takes any entry the user has started.
-  it('offers no dialog for a subscription that is not an address', () => {
+  // A subscription is a section from the moment it is added, so an address
+  // that is no entry of the section yet has nothing to configure.
+  it('offers no dialog for a subscription address that is no entry', () => {
     const option = listOption('subscription_url');
 
-    expect(hasDialog(option, 'vpn', 'https://example.com/other')).toBe(true);
-    expect(hasDialog(option, 'vpn', 'not a url')).toBe(false);
+    expect(hasDialog(option, 'vpn', 'https://example.com/other')).toBe(false);
   });
 
   it.each([

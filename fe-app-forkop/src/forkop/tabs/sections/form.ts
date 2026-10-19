@@ -3,7 +3,6 @@ import { FORKOP_UCI_PACKAGE, RESERVED_RUNTIME_TAGS } from '../../../constants';
 import { validateOutboundJson } from '../../../validators/validateOutboundJson';
 import {
   childItemInputValue,
-  getChildItemIds,
   isExistingChildItem,
   nextSectionId,
   orderChildItemsByPosition,
@@ -55,8 +54,7 @@ import {
 } from './interfaces';
 import {
   connectionLinkListItemLabel,
-  forgetRemovedLinkDrafts,
-  savedLinkName,
+  nextLinkName,
   showConnectionLinkSettingsModal,
   validateConnectionLink,
 } from './links';
@@ -90,7 +88,6 @@ import {
   defaultSubscriptionUrlSettings,
   isRemoteSubscriptionSource,
   nextSubscriptionTag,
-  reserveSubscriptionTags,
   subscriptionListItemLabel,
   validateSubscriptionUrlEntry,
 } from './subscriptions/model';
@@ -259,35 +256,30 @@ export function createSectionContent(section: CBISection) {
   links.rmempty = true;
   links.modalonly = true;
   links.childType = 'connection_link';
+  links.entriesAreSections = true;
   links.childValueOption = 'uri';
   links.createId = () => nextSectionId('connection_link');
   links.childDefaults = {
-    // The list names an entry when it is added, so this is the last resort: a
-    // link typed into the add field and left there is materialized by the save
-    // without ever having been an entry.
     name: (value: unknown, sectionId: string) =>
-      savedLinkName(sectionId, links, `${value ?? ''}`),
+      nextLinkName(sectionId, links, `${value ?? ''}`),
   };
   links.renderItemSettingsModal = showConnectionLinkSettingsModal;
   links.hasItemSettings = function (section_id: string, value: unknown) {
-    const normalized = `${value || ''}`.trim();
-    return (
-      isExistingChildItem(section_id, normalized, 'connection_link') ||
-      this.validate(section_id, normalized) === true
+    return isExistingChildItem(
+      section_id,
+      `${value || ''}`.trim(),
+      'connection_link',
     );
   };
   links.renderListItemLabel = function (section_id: string, value: string) {
-    return connectionLinkListItemLabel(section_id, this, value);
+    return connectionLinkListItemLabel(section_id, value);
   };
   links.validate = function (section_id: string, value: string) {
     return validateConnectionLink(
       childItemInputValue(section_id, value, 'connection_link', 'uri'),
     );
   };
-  links.onListChange = (section_id: string, values: string[]) => {
-    forgetRemovedLinkDrafts(section_id, links, values);
-    refreshDashboardFilterChoiceWidgets(section_id);
-  };
+  links.onListChange = refreshDashboardFilterChoiceWidgets;
   links.afterMaterializeChildItems = orderChildItemsByPosition;
   links.liveDynamicListNodes = new Map();
   const renderLinks = links.renderWidget;
@@ -321,6 +313,7 @@ export function createSectionContent(section: CBISection) {
   subscriptions.rmempty = true;
   subscriptions.modalonly = true;
   subscriptions.childType = 'subscription_url';
+  subscriptions.entriesAreSections = true;
   subscriptions.childValueOption = 'url';
   subscriptions.createId = () => nextSectionId('subscription_url');
   subscriptions.childDefaults = Object.assign(
@@ -338,30 +331,20 @@ export function createSectionContent(section: CBISection) {
           : null,
       show_dashboard_metadata: (value: unknown) =>
         isRemoteSubscriptionSource(value) ? '1' : null,
-      // The list names an entry when it is added, so this is the last resort: a
-      // link typed into the add field and left there is materialized by the save
-      // without ever having been an entry.
       tag: (_value: unknown, sectionId: string) =>
-        nextSubscriptionTag(
-          sectionId,
-          subscriptions,
-          getChildItemIds(sectionId, 'subscription_url'),
-        ),
+        nextSubscriptionTag(sectionId, subscriptions),
     },
   );
-  subscriptions.onListChange = (sectionId: string, values: string[]) =>
-    reserveSubscriptionTags(sectionId, subscriptions, values);
   subscriptions.renderItemSettingsModal = showSubscriptionUrlSettingsModal;
   subscriptions.hasItemSettings = function (
     section_id: string,
     value: unknown,
   ) {
-    const normalized = `${value || ''}`.trim();
-    if (isExistingChildItem(section_id, normalized, 'subscription_url')) {
-      return true;
-    }
-
-    return this.validate(section_id, normalized) === true;
+    return isExistingChildItem(
+      section_id,
+      `${value || ''}`.trim(),
+      'subscription_url',
+    );
   };
   subscriptions.afterMaterializeChildItems = function (
     _section_id: string,
@@ -383,7 +366,7 @@ export function createSectionContent(section: CBISection) {
     section_id: string,
     itemId: string,
   ) {
-    return subscriptionListItemLabel(section_id, this, itemId);
+    return subscriptionListItemLabel(section_id, itemId);
   };
   subscriptions.validate = function (section_id: string, value: string) {
     return validateSubscriptionUrlEntry(

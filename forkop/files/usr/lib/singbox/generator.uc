@@ -327,9 +327,9 @@ function base_config(settings, service_address, runtime_context) {
     };
 }
 
-function subscription_headers(section, source) {
+function subscription_headers(subscription) {
     let parsed = subscription_headers_module.parse_header_lines(
-        connections.subscription_headers(section, source)
+        connections.subscription_headers(subscription)
     );
     if (!parsed.valid)
         runtime_generate_unsupported("invalid subscription request " + parsed.message);
@@ -412,13 +412,12 @@ function merge_object(target, source) {
     return target;
 }
 
-function subscription_provider_filter(section, source) {
-    let subscription = connections.subscription_url_child(section, source);
+function subscription_provider_filter(subscription) {
     return native_filter_options(
         option(subscription, "server_filter_mode", "all"),
         list_option(subscription, "include_outbounds"), option(subscription, "include_regex", ""),
         list_option(subscription, "exclude_outbounds"), option(subscription, "exclude_regex", ""),
-        connections.subscription_exclude_types(section, source)
+        connections.subscription_exclude_types(subscription)
     );
 }
 
@@ -582,8 +581,8 @@ function override_patch_object(raw) {
     return parsed;
 }
 
-function subscription_override_options(section, source) {
-    let settings = connections.subscription_override(section, source);
+function subscription_override_options(subscription) {
+    let settings = connections.subscription_override(subscription);
     let result = {};
 
     let prefix = as_string(settings.prefix);
@@ -596,7 +595,7 @@ function subscription_override_options(section, source) {
     if (length(rename) > 0)
         result.rename = rename;
 
-    let detour = cascade_tag(connections.subscription_url_child(section, source));
+    let detour = cascade_tag(subscription);
     if (detour != "")
         result.detour = detour;
 
@@ -607,27 +606,28 @@ function subscription_override_options(section, source) {
     return result;
 }
 
-function add_subscription_provider(config, section, subscription_tag, source) {
-    let tag_name = child_outbound_tag(section, subscription_tag);
+function add_subscription_provider(config, section, subscription) {
+    let tag_name = child_outbound_tag(section, connections.subscription_tag(subscription));
+    let source = connections.subscription_source(subscription);
     let source_type = connections.subscription_source_type(source);
     if (source_type == "")
         runtime_generate_unsupported("subscription source is not supported by sing-box config generation");
 
-    let provider = merge_object({ type: source_type, tag: tag_name }, subscription_provider_filter(section, source));
+    let provider = merge_object({ type: source_type, tag: tag_name }, subscription_provider_filter(subscription));
     if (source_type == "local") {
         provider.path = source;
     }
     else {
         provider.url = source;
-        provider.headers = subscription_headers(section, source);
-        if (connections.subscription_update_enabled(section, source))
-            provider.update_interval = connections.subscription_update_interval(section, source);
+        provider.headers = subscription_headers(subscription);
+        if (connections.subscription_update_enabled(subscription))
+            provider.update_interval = connections.subscription_update_interval(subscription);
 
-        let download_section = connections.subscription_download_section(section, source);
+        let download_section = connections.subscription_download_section(subscription);
         if (download_section != "")
             provider.download_detour = outbound_tag(download_section);
     }
-    let override = subscription_override_options(section, source);
+    let override = subscription_override_options(subscription);
     if (length(keys(override)) > 0)
         provider.override = override;
     push(config.providers, provider);
@@ -636,10 +636,8 @@ function add_subscription_provider(config, section, subscription_tag, source) {
 
 function add_subscription_providers(config, section) {
     let result = [];
-    let sources = connections.subscription_urls(section);
-    let tags = connections.subscription_tags(section);
-    for (let i = 0; i < length(sources); i++)
-        push(result, add_subscription_provider(config, section, tags[i], sources[i]));
+    for (let subscription in connections.subscription_items(section))
+        push(result, add_subscription_provider(config, section, subscription));
     return result;
 }
 

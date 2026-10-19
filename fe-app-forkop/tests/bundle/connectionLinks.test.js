@@ -1,6 +1,7 @@
 // The links a Connection section dials, driven through the shipped bundle. A
-// pasted link is shown and stored under a name rather than as the link itself,
-// and its dialog is where the name and the link are changed.
+// pasted link is a section of its own from the moment it is added, shown and
+// stored under a name rather than as the link itself, and its dialog is where
+// the name and the link are changed.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -19,19 +20,27 @@ beforeEach(() => {
   });
 });
 
+// The list as the section dialog renders it: what it loaded is what a save
+// compares the entries against.
 function linkList() {
   const map = new harness.form.Map('forkop');
   const grid = map.section(harness.form.GridSection, 'section');
   delete grid.load;
   harness.bundle.createSectionContent(grid);
-  return grid.children.find((option) => option.option === 'connection_link');
+  const list = grid.children.find(
+    (option) => option.option === 'connection_link',
+  );
+  list.cfgvalue('sec', list.load('sec'));
+  return list;
 }
 
-// What the widget does when the user adds a link: the entry is rendered with its
-// label while the list still holds the entries before it, then the list changes.
+// What the widget does when the user adds a link: the link becomes its section,
+// the entry holding the section id is rendered with its label, then the list
+// changes.
 function paste(list, values, link) {
-  const label = list.renderListItemLabel('sec', link).textContent;
-  values.push(link);
+  const itemId = list.createTypedItem('sec', link);
+  const label = list.renderListItemLabel('sec', itemId).textContent;
+  values.push(itemId);
   list.onListChange('sec', values.slice());
   return label;
 }
@@ -58,7 +67,7 @@ describe('a pasted link', () => {
             JSON.stringify({ ps: 'VMess node', add: 'd.example' }),
           ).toString('base64'),
       ].map((link) => paste(list, values, link)),
-    ).toEqual(['USA', 'Node #2', 'USA #2', 'VMess node']);
+    ).toEqual(['USA', 'Node #2', 'USA #1', 'VMess node']);
   });
 
   it('is saved as a link of the section under the name the list shows', async () => {
@@ -86,26 +95,64 @@ describe('a pasted link', () => {
     ]);
   });
 
+  // The same server dialled two ways - directly and through a cascade, say - is
+  // the same link added twice, and each is a server of its own.
+  it('pasted twice is two servers told apart by name', async () => {
+    const list = linkList();
+    const values = [];
+    list.formvalue = () => values.slice();
+    const link = 'vless://a@a.example:443#USA';
+
+    expect([paste(list, values, link), paste(list, values, link)]).toEqual([
+      'USA',
+      'USA #1',
+    ]);
+    await list.parse('sec');
+
+    expect(storedLinks()).toEqual([
+      { section: 'sec', uri: link, name: 'USA', order: '0' },
+      { section: 'sec', uri: link, name: 'USA #1', order: '1' },
+    ]);
+  });
+
+  // A number tells two names apart, not two links: the stored copy of the link
+  // has another name by now, so the new one keeps the one the link carries.
+  it('takes the name the link carries when the link already in the list was renamed', () => {
+    const link = 'vless://a@a.example:443#test1';
+    harness.uci.add('forkop', 'connection_link', 'link1');
+    Object.assign(harness.store.get('link1'), {
+      section: 'sec',
+      uri: link,
+      name: 'test2',
+      order: '0',
+    });
+    const list = linkList();
+    const values = ['link1'];
+    list.formvalue = () => values.slice();
+
+    expect(paste(list, values, link)).toBe('test1');
+  });
+
+  // LuCI hands the text still in the add field to the save as one more entry.
   it('typed and saved without being added still gets a name of its own', async () => {
     const list = linkList();
-    list.formvalue = () => [
-      'vless://a@a.example:443#Same',
-      'vless://b@b.example:443#Same',
-    ];
+    const values = [];
+    paste(list, values, 'vless://a@a.example:443#Same');
+    list.formvalue = () => [...values, 'vless://b@b.example:443#Same'];
 
     await list.parse('sec');
 
-    expect(storedLinks().map((link) => link.name)).toEqual(['Same', 'Same #2']);
+    expect(storedLinks().map((link) => link.name)).toEqual(['Same', 'Same #1']);
   });
 
-  it('takes the name its dialog gave it before the section is saved', async () => {
+  it('takes the name its dialog gave it', async () => {
     const list = linkList();
     const values = [];
     list.formvalue = () => values.slice();
     const link = 'vless://a@a.example:443#USA';
     paste(list, values, link);
 
-    const dialog = await harness.openDialog(list, 'sec', link);
+    const dialog = await harness.openDialog(list, 'sec', values[0]);
     const fields = dialog.map.children[0].children;
     fields.find((option) => option.option === 'name').formvalue = () =>
       ' New York ';
@@ -115,6 +162,27 @@ describe('a pasted link', () => {
     expect(storedLinks()).toEqual([
       { section: 'sec', uri: link, name: 'New York', order: '0' },
     ]);
+  });
+
+  // Taken out again, the list holds what it loaded, and its save still has to
+  // delete the section the link became.
+  it('taken out again is gone after the save', async () => {
+    harness.uci.add('forkop', 'connection_link', 'link1');
+    Object.assign(harness.store.get('link1'), {
+      section: 'sec',
+      uri: 'vless://a@a.example:443#USA',
+      name: 'USA',
+      order: '0',
+    });
+    const list = linkList();
+    const values = ['link1'];
+    list.formvalue = () => values.slice();
+    paste(list, values, 'trojan://p@b.example:443#Other');
+    values.pop();
+
+    await list.parse('sec');
+
+    expect(storedLinks().map((link) => link.name)).toEqual(['USA']);
   });
 });
 

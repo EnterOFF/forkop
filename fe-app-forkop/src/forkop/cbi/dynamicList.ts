@@ -3,6 +3,7 @@ import {
   adoptMaterializedChildItems,
   childItemInputValue,
   cleanupRemovedChildItems,
+  createChildItem,
   getChildItemIds,
   materializeChildItems,
 } from './childItems';
@@ -152,8 +153,16 @@ const SettingsUIDynamicList = ui.DynamicList.extend({
     });
   },
 
-  addItem(dl: HTMLElement, value: string, text: string, flash?: boolean) {
-    if (
+  addItem(
+    dl: HTMLElement,
+    value: string,
+    text: string | null,
+    flash?: boolean,
+  ) {
+    if (flash && typeof this.options.createItem === 'function') {
+      value = this.options.createItem(value);
+      text = null;
+    } else if (
       flash &&
       typeof this.options.hasEquivalentValue === 'function' &&
       this.options.hasEquivalentValue(value, dl)
@@ -371,6 +380,28 @@ export const SettingsDynamicList = form.DynamicList.extend({
     clearChildPendingSettings(this, ownerId);
   },
 
+  childItemOptions(ownerId: string): ChildItemOptions {
+    return {
+      typeName: this.childType,
+      valueOption: this.childValueOption,
+      ownerOption: this.ownerOption,
+      createId: this.createId,
+      defaults: this.childDefaults,
+      stagedSettings: (itemValue: unknown) =>
+        this.stagedChildSettings!(ownerId, itemValue),
+    };
+  },
+
+  // What a typed entry of a list whose entries are sections becomes the moment
+  // it is added: its section, created with the text and the defaults, and the
+  // list holds the id. Two entries may hold the same text that way, a link
+  // dialled through two different cascades say, each with a name of its own.
+  createTypedItem(section_id: string, inputValue: string) {
+    const ownerId = this.childOwner(section_id);
+    return createChildItem(ownerId, this.childItemOptions!(ownerId), inputValue)
+      .value;
+  },
+
   // Every entry the user has started has something to configure. A list whose
   // entry has to be well formed first - a subscription is an address before it
   // is anything - says so for itself.
@@ -455,6 +486,11 @@ export const SettingsDynamicList = form.DynamicList.extend({
       },
       hasSettings: (itemValue: string) =>
         this.hasItemSettings!(this.childOwner(section_id), `${itemValue}`),
+      createItem:
+        this.entriesAreSections && !this.buttonAdd
+          ? (inputValue: string) =>
+              this.createTypedItem!(section_id, inputValue)
+          : null,
       hasEquivalentValue: (itemValue: string, dl: HTMLElement) => {
         const inputValueForItem = (value: unknown) =>
           `${this.inputValueForItem!(this.childOwner(section_id), `${value || ''}`) || ''}`.trim();
@@ -513,15 +549,7 @@ export const SettingsDynamicList = form.DynamicList.extend({
       const ownerId = this.childOwner(section_id);
       const { itemIds, resolved } = materializeChildItems(
         ownerId,
-        {
-          typeName: this.childType,
-          valueOption: this.childValueOption,
-          ownerOption: this.ownerOption,
-          createId: this.createId,
-          defaults: this.childDefaults,
-          stagedSettings: (itemValue: unknown) =>
-            this.stagedChildSettings!(ownerId, itemValue),
-        },
+        this.childItemOptions!(ownerId),
         value,
       );
       adoptMaterializedChildItems(this, section_id, resolved);

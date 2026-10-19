@@ -94,6 +94,31 @@ t.test("a subscription override carries the name changes, the cascade and the pa
         t.ok(override[key] == null && provider[key] == null, "removed provider option " + key);
 });
 
+// The same account dialled two ways is two subscriptions of one address, and
+// each takes its own name, filter, cascade and schedule into its provider.
+t.test("two subscriptions of one address are two providers", () => {
+    fixture.seed({
+        settings: { dns_server: [ "1.1.1.1" ], bootstrap_dns_server: [ "1.1.1.1" ], service_listen_address: "127.0.0.1" },
+        section: [
+            { ".name": "hop", enabled: "1", action: "connection" },
+            { ".name": "proxy", enabled: "1", action: "connection" }
+        ],
+        connection_link: fixture.links("hop", [ "socks5://127.0.0.1:1080#Hop" ]),
+        subscription_url: [
+            { ".name": "direct", section: "proxy", url: "https://example.com/sub", tag: "sub1", server_filter_mode: "include", include_regex: "^US" },
+            { ".name": "cascaded", section: "proxy", url: "https://example.com/sub", tag: "sub2", detour_section: "hop", subscription_update_enabled: "0" }
+        ]
+    });
+    let config = generator.build({ service_address: "127.0.0.1" });
+    t.eq(q.tags(config.providers), [ "proxy/sub1", "proxy/sub2" ]);
+    let direct = q.provider(config, "proxy/sub1");
+    let cascaded = q.provider(config, "proxy/sub2");
+    t.eq([ direct.url, cascaded.url ], [ "https://example.com/sub", "https://example.com/sub" ]);
+    t.eq([ direct.include, cascaded.include ], [ "(?:(?:^US))", null ]);
+    t.eq([ direct.override, cascaded.override.detour ], [ null, "hop" ]);
+    t.eq([ direct.update_interval, cascaded.update_interval ], [ "1h", null ]);
+});
+
 t.test("the section selector and its groups consume every provider", () => {
     let config = providers_config();
     let manual = q.outbound(config, "proxy/Manual");

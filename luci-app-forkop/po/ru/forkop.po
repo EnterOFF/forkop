@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 12:20+0300\n"
-"PO-Revision-Date: 2026-10-19 12:20+0300\n"
+"POT-Creation-Date: 2026-10-19 12:34+0300\n"
+"PO-Revision-Date: 2026-10-19 12:34+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -2527,9 +2527,6 @@ msgstr "Этот протокол не поддерживает выбранны
 
 msgid "This section name is reserved by Forkop"
 msgstr "Это название секции зарезервировано Forkop"
-
-msgid "This subscription is already in the section"
-msgstr "Эта подписка уже есть в секции"
 
 msgid "Time"
 msgstr "Время"

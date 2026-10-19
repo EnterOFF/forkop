@@ -27,7 +27,6 @@ import {
   defaultSubscriptionUrlSettings,
   isRemoteSubscriptionSource,
   currentOptionValue,
-  listedSubscriptionSources,
   listedSubscriptionTag,
   loadDefaultSubscriptionHeaders,
   nextSubscriptionTag,
@@ -82,20 +81,9 @@ export function addSubscriptionUrlItemOptions(
   o.rmempty = false;
   o.validate = function (itemId: string, value: unknown) {
     const source = `${value || ''}`.trim();
-    if (!source) return _('Enter a subscription URL or local path');
-    const result = validateSubscriptionUrlEntry(itemId, source);
-    if (result !== true) return result;
-    const sectionId = parentSectionForItem(itemId);
-    const ownerId =
-      typeof options.ownerId === 'function' ? options.ownerId() : '';
-    const inputValue =
-      typeof options.itemValue === 'function' ? options.itemValue() : '';
-    return listedSubscriptionSources(sectionId, options.listOption!, [
-      ownerId === sectionId ? '' : ownerId,
-      inputValue,
-    ]).includes(source)
-      ? _('This subscription is already in the section')
-      : true;
+    return source
+      ? validateSubscriptionUrlEntry(itemId, source)
+      : _('Enter a subscription URL or local path');
   };
 
   addCascadeOptions(
@@ -225,7 +213,7 @@ export function showSubscriptionUrlSettingsModal(
   itemNode: Element | null,
 ) {
   const value = `${itemValue ?? ''}`;
-  const tag = listedSubscriptionTag(sectionId, option, value);
+  const tag = listedSubscriptionTag(sectionId, value);
   const storedRemote =
     isExistingChildItem(sectionId, value, 'subscription_url') &&
     isRemoteSubscriptionSource(

@@ -12,7 +12,7 @@ const TYPES = [
 ];
 
 // The connection_link children a section dials, named the way the page names a
-// pasted link: after the link itself, or "Node #N" by its position, and "#2" on
+// pasted link: after the link itself, or "Node #N" by its position, and "#1" on
 // for a name an earlier link already took.
 function links(section_name, uris, extra) {
     let result = [];
@@ -20,7 +20,7 @@ function links(section_name, uris, extra) {
     for (let i = 0; i < length(uris); i++) {
         let base = core_url.link_name(uris[i]) || "Node #" + (i + 1);
         let name = base;
-        for (let number = 2; taken[name]; number++)
+        for (let number = 1; taken[name]; number++)
             name = base + " #" + number;
         taken[name] = true;
         push(result, {
