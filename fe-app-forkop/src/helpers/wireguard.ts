@@ -76,6 +76,40 @@ function randomInt(min: number, max: number) {
   return min + Math.floor(Math.random() * (max - min + 1));
 }
 
+const SIGNATURE_NAMES = [
+  'yandex.ru',
+  'vk.com',
+  'mail.ru',
+  'ok.ru',
+  'avito.ru',
+  'ozon.ru',
+  'google.com',
+  'apple.com',
+  'icloud.com',
+  'microsoft.com',
+  'wikipedia.org',
+  'github.com',
+];
+
+function hexByte(value: number) {
+  return value.toString(16).padStart(2, '0');
+}
+
+// A DNS query for an A record of an everyday name, with a new ID before every
+// handshake.
+function dnsQuerySignature() {
+  const name = SIGNATURE_NAMES[randomInt(0, SIGNATURE_NAMES.length - 1)];
+  const labels = name
+    .split('.')
+    .map(
+      (label) =>
+        hexByte(label.length) +
+        [...label].map((char) => hexByte(char.charCodeAt(0))).join(''),
+    )
+    .join('');
+  return `<r 2><b 0x01000001000000000000${labels}0000010001>`;
+}
+
 // A fresh AmneziaWG 3.1 parameter set, drawn the way 3x-ui draws one for every
 // inbound, so that no two servers share the fingerprint a fixed set would give
 // them all. The paddings start at the 12 bytes header protection needs, and S1
@@ -85,6 +119,12 @@ function randomInt(min: number, max: number) {
 // The timings stay around WireGuard's own, every rekey 30 seconds before the
 // earliest rejection, and the content padding stays within 64 bytes, as the
 // junk on a full data packet has to.
+//
+// I1 alone is not 3x-ui's random packet. Behind a filtering ISP a WireGuard
+// handshake to WARP passed only after junk led by a packet that reads as a
+// known protocol, as Amnezia's own DNS packet does; behind random bytes, or
+// with either half missing, it never did. So I1 is a DNS query, its name
+// drawn from everyday ones.
 export function generateAmneziaParameters(): Record<string, string> {
   const jmin = randomInt(40, 89);
   const s1 = randomInt(15, 150);
@@ -115,7 +155,7 @@ export function generateAmneziaParameters(): Record<string, string> {
     h2,
     h3,
     h4,
-    i1: `<r ${randomInt(32, 256)}>`,
+    i1: dnsQuerySignature(),
     i2: '',
     i3: '',
     i4: '',

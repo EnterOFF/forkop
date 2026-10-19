@@ -160,7 +160,7 @@ describe('the obfuscation generate button', () => {
       ONE_SIDED_AMNEZIA_KEYS.map((key) => `amnezia_${key}`).sort(),
     );
     expect(data.amnezia_jc).toMatch(/^[3-6]$/u);
-    expect(data.amnezia_i1).toMatch(/^<r \d+>$/u);
+    expect(data.amnezia_i1).toMatch(/^<r 2><b 0x0100[0-9a-f]+>$/u);
     expect(data.amnezia_i2).toBe('');
   });
 });
