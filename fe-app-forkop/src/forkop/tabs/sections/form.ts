@@ -544,6 +544,7 @@ export function createSectionContent(section: CBISection) {
     _('Domains and IPs'),
     DESTINATION_CONDITION_PLACEHOLDER,
     analyzeDestinationText,
+    _('Match destination domains and addresses'),
   );
   dependsOnRoutingAction(destinationOption);
 

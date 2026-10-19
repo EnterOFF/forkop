@@ -13414,8 +13414,14 @@ function addLocalDeviceSubnetDynamicField(section, config) {
   };
   return o;
 }
-function addDestinationField(section, name, label, placeholder, analyze) {
-  const o = section.taboption("conditions", form.TextValue, name, label);
+function addDestinationField(section, name, label, placeholder, analyze, description) {
+  const o = section.taboption(
+    "conditions",
+    form.TextValue,
+    name,
+    label,
+    description
+  );
   o.ucioption = "destinations";
   o.retain = true;
   o.rows = 8;
@@ -20603,7 +20609,8 @@ function createSectionContent(section) {
     "destinations",
     _("Domains and IPs"),
     DESTINATION_CONDITION_PLACEHOLDER,
-    analyzeDestinationText
+    analyzeDestinationText,
+    _("Match destination domains and addresses")
   );
   dependsOnRoutingAction(destinationOption);
   const dnsDestinationOption = addDestinationField(

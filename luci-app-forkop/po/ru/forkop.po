@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 05:38+0300\n"
-"PO-Revision-Date: 2026-10-19 05:38+0300\n"
+"POT-Creation-Date: 2026-10-19 07:02+0300\n"
+"PO-Revision-Date: 2026-10-19 07:02+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1306,6 +1306,9 @@ msgstr "Управление соединениями и интерактивн�
 
 msgid "Masquerade"
 msgstr "Маскировка"
+
+msgid "Match destination domains and addresses"
+msgstr "Совпадение по доменам и адресам назначения"
 
 msgid "Match destination ports"
 msgstr "Совпадение по портам назначения"

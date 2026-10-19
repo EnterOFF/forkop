@@ -328,8 +328,15 @@ export function addDestinationField(
   label: string,
   placeholder: string,
   analyze: TextAnalyzer,
+  description?: string,
 ) {
-  const o = section.taboption('conditions', form.TextValue, name, label);
+  const o = section.taboption(
+    'conditions',
+    form.TextValue,
+    name,
+    label,
+    description,
+  );
 
   o.ucioption = 'destinations';
   o.retain = true;
