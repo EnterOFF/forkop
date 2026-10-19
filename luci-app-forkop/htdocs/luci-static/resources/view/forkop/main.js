@@ -27219,7 +27219,11 @@ function configureGridSection(sectionRef, type, title, addTitle, onSectionAdded)
     const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
     prevMap.addedSection = sectionId;
     onSectionAdded?.(sectionId);
-    return this.renderMoreOptionsModal(sectionId);
+    return this.renderMoreOptionsModal(sectionId).catch((error) => {
+      this.map.data.remove(this.uciconfig || this.map.config, sectionId);
+      delete prevMap.addedSection;
+      throw error;
+    });
   };
   let unsaved = null;
   sectionRef.renderMoreOptionsModal = function(section_id, ev) {

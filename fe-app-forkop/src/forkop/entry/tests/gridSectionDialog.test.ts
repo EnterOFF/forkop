@@ -44,12 +44,49 @@ beforeEach(() => {
   };
 });
 
-function grid() {
-  const sectionRef = { map: {}, titleFn: () => '' } as unknown as CBISection;
+function grid(map: object = {}) {
+  const sectionRef = {
+    map,
+    titleFn: () => '',
+    sectiontype: 'section',
+    getPreviousModalMap: () => null,
+  } as unknown as CBISection;
   configureGridSection(sectionRef, 'section', 'Section', 'Add');
   return sectionRef as CBISection & {
+    handleAdd: () => Promise<void>;
     handleModalCancel: (map: unknown, ev: Event, isSaving?: boolean) => unknown;
   };
+}
+
+// The sections of the page's map, as LuCI's map data holds them.
+function mapData() {
+  const sections: Record<string, Record<string, unknown>> = {};
+  return {
+    sections,
+    data: {
+      sections: (_config: string, type: string) =>
+        Object.values(sections).filter((section) => section['.type'] === type),
+      add: (_config: string, type: string, name: string) => {
+        sections[name] = { '.type': type, '.name': name };
+        return name;
+      },
+      set: (_config: string, id: string, option: string, value: unknown) => {
+        sections[id][option] = value;
+      },
+      remove: (_config: string, id: string) => {
+        delete sections[id];
+      },
+    },
+  };
+}
+
+function opening(result: Promise<void>) {
+  const prototype = (
+    globalThis as unknown as {
+      form: { GridSection: { prototype: Record<string, unknown> } };
+    }
+  ).form.GridSection.prototype;
+  prototype.renderMoreOptionsModal = () => result;
 }
 
 // What a tunnel dialog leaves behind when it is saved inside a section dialog.
@@ -72,6 +109,33 @@ describe('a section dialog', () => {
       ['open', 'sec'],
       ['close', false],
     ]);
+  });
+
+  it('opened by Add holds the new section until it is closed', async () => {
+    opening(Promise.resolve());
+    const { sections, data } = mapData();
+    const map = { config: 'forkop', data } as { addedSection?: string };
+
+    await grid(map).handleAdd();
+
+    expect(sections).toEqual({
+      x: { '.type': 'section', '.name': 'x', label: 'Section #1' },
+    });
+    expect(map.addedSection).toBe('x');
+  });
+
+  // LuCI reports a dialog that could not load what it shows and leaves the
+  // section it was opened for, empty, for the next save of the page to write.
+  it('that fails to open takes the section Add created back', async () => {
+    const failure = new Error('XHR request timed out');
+    opening(Promise.reject(failure));
+    const { sections, data } = mapData();
+    const map = { config: 'forkop', data } as { addedSection?: string };
+
+    await expect(grid(map).handleAdd()).rejects.toBe(failure);
+
+    expect(sections).toEqual({});
+    expect(map.addedSection).toBeUndefined();
   });
 
   it('keeps them when it closes by saving', async () => {

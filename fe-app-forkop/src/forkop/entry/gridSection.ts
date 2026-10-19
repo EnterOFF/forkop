@@ -96,6 +96,9 @@ export function configureGridSection(
   sectionRef.renderSectionAdd = function (extraClass?: string) {
     return renderSectionAdd(sectionRef, extraClass);
   };
+  // A dialog that fails to open - its data did not load - is reported by LuCI,
+  // which leaves the section it was opened for where the next save of the page
+  // would write it out empty.
   sectionRef.handleAdd = function () {
     const sectionId = addLabeledSection(this);
     const mapNode = this.getPreviousModalMap();
@@ -105,7 +108,11 @@ export function configureGridSection(
 
     prevMap.addedSection = sectionId;
     onSectionAdded?.(sectionId);
-    return this.renderMoreOptionsModal(sectionId);
+    return this.renderMoreOptionsModal(sectionId).catch((error: unknown) => {
+      this.map.data.remove(this.uciconfig || this.map.config, sectionId);
+      delete prevMap.addedSection;
+      throw error;
+    });
   };
 
   // A nested dialog writes its item into uci when it closes, ahead of the
