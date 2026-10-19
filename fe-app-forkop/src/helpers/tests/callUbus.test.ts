@@ -90,6 +90,27 @@ describe('callUbus', () => {
     expect(call).toHaveBeenCalledOnce();
   });
 
+  // LuCI joins the calls of one animation frame into a single HTTP request, and
+  // uhttpd answers it only once every call in it is done.
+  it('keeps a call out of LuCI batches only when asked to', async () => {
+    const call = vi.fn().mockResolvedValue({ revision: 3 });
+    const rpc = stubRpc(call);
+
+    await callUbus({ object: 'forkop', method: 'state', timeoutMs: 1000 });
+    await callUbus({
+      object: 'forkop',
+      method: 'state_wait',
+      params: { revision: 3 },
+      timeoutMs: 1000,
+      nobatch: true,
+    });
+
+    expect(rpc.declare.mock.calls.map(([options]) => options.nobatch)).toEqual([
+      undefined,
+      true,
+    ]);
+  });
+
   it('reports rpc being absent as an absence, without retrying it', async () => {
     const result = await callUbus({
       object: 'forkop',

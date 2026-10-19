@@ -2123,7 +2123,8 @@ async function callUbusOnce({
   object,
   method,
   params = {},
-  timeoutMs
+  timeoutMs,
+  nobatch
 }) {
   const rpc2 = rpcModule();
   if (!rpc2) {
@@ -2132,7 +2133,7 @@ async function callUbusOnce({
   alignLuciRpcTimeout(timeoutMs);
   try {
     const names = Object.keys(params);
-    const request = rpc2.declare({ object, method, params: names });
+    const request = rpc2.declare({ object, method, params: names, nobatch });
     const call = request(...names.map((name) => params[name]));
     const data = await withTimeout(call, timeoutMs, `${object}.${method}`);
     if (data === null || data === void 0) {
@@ -3815,25 +3816,6 @@ var initialStore = {
 };
 var store = new StoreService(initialStore);
 
-// src/helpers/isDocumentVisible.ts
-function isDocumentVisible() {
-  return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
-}
-function whenDocumentVisible(callback) {
-  if (isDocumentVisible()) {
-    callback();
-    return;
-  }
-  const onChange = () => {
-    if (!isDocumentVisible()) {
-      return;
-    }
-    document.removeEventListener("visibilitychange", onChange);
-    callback();
-  };
-  document.addEventListener("visibilitychange", onChange);
-}
-
 // src/forkop/services/forkopWaitTransport.ts
 var FORKOP_SERVICE_OBJECT = "forkop";
 var FORKOP_CALL_TIMEOUT_MS = 5e3;
@@ -3841,69 +3823,50 @@ var FORKOP_WAIT_TIMEOUT_MS = 2e4;
 var FORKOP_WAIT_RETRY_MS = 3e3;
 
 // src/forkop/services/forkopLogFeed.service.ts
-var FORKOP_LOG_RETRY_MS = 5e3;
-var running = false;
-var cursor = 0;
-function adopt(reply) {
-  if (typeof reply.cursor === "number") {
-    cursor = reply.cursor;
-  }
-  return reply.lines || [];
-}
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+var started = false;
+var cursor;
+var onLine = () => {
+};
 function getForkopLogCursor() {
   return cursor;
 }
 function startForkopLogFeed(onNewLog, resumeFrom = 0) {
-  if (running) {
+  if (started) {
     return;
   }
-  running = true;
-  void (async () => {
-    let started = resumeFrom > 0;
-    if (started) {
-      cursor = resumeFrom;
+  started = true;
+  onLine = onNewLog;
+  if (resumeFrom > 0) {
+    cursor = resumeFrom;
+  }
+}
+async function placeForkopLogFeed() {
+  if (!started || cursor !== void 0) {
+    return;
+  }
+  const response = await callUbus({
+    object: FORKOP_SERVICE_OBJECT,
+    method: "logs",
+    timeoutMs: FORKOP_CALL_TIMEOUT_MS
+  });
+  if (response.success) {
+    cursor = response.data.cursor ?? 0;
+    return;
+  }
+  logger.info("[LOG_FEED]", "log position unknown", response.message);
+}
+function takeForkopLogLines(reply) {
+  if (cursor === void 0 || typeof reply.cursor !== "number") {
+    return;
+  }
+  cursor = reply.cursor;
+  for (const line of reply.lines || []) {
+    try {
+      onLine(line);
+    } catch (error) {
+      logger.error("[LOG_FEED]", "listener failed", error);
     }
-    for (; ; ) {
-      if (!isDocumentVisible()) {
-        await sleep(FORKOP_WAIT_RETRY_MS);
-        continue;
-      }
-      const response = started ? await callUbus({
-        object: FORKOP_SERVICE_OBJECT,
-        method: "logs_wait",
-        params: { cursor },
-        timeoutMs: FORKOP_WAIT_TIMEOUT_MS
-      }) : await callUbus({
-        object: FORKOP_SERVICE_OBJECT,
-        method: "logs",
-        timeoutMs: FORKOP_CALL_TIMEOUT_MS
-      });
-      if (response.success) {
-        const lines3 = adopt(response.data);
-        if (started) {
-          for (const line of lines3) {
-            try {
-              onNewLog(line);
-            } catch (error) {
-              logger.error("[LOG_FEED]", "listener failed", error);
-            }
-          }
-        }
-        started = true;
-        continue;
-      }
-      if (response.unavailable) {
-        logger.info("[LOG_FEED]", "log feed went away", response.message);
-        await sleep(FORKOP_LOG_RETRY_MS);
-        continue;
-      }
-      logger.error("[LOG_FEED]", "log wait failed", response.message);
-      await sleep(FORKOP_WAIT_RETRY_MS);
-    }
-  })();
+  }
 }
 
 // src/forkop/services/browserStorage.service.ts
@@ -4026,6 +3989,25 @@ function takeLogNotificationHandoff(storage = getSessionStorage(), now = Date.no
   } catch {
     return null;
   }
+}
+
+// src/helpers/isDocumentVisible.ts
+function isDocumentVisible() {
+  return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
+}
+function whenDocumentVisible(callback) {
+  if (isDocumentVisible()) {
+    callback();
+    return;
+  }
+  const onChange = () => {
+    if (!isDocumentVisible()) {
+      return;
+    }
+    document.removeEventListener("visibilitychange", onChange);
+    callback();
+  };
+  document.addEventListener("visibilitychange", onChange);
 }
 
 // src/forkop/services/localActionOverlay.service.ts
@@ -4382,17 +4364,21 @@ async function runWaitLoop() {
   waitLoopStop = false;
   try {
     while (!waitLoopStop && isDocumentVisible() && transport === "ubus") {
+      await placeForkopLogFeed();
+      const cursor2 = getForkopLogCursor();
       const response = await callUbus({
         object: FORKOP_SERVICE_OBJECT,
         method: "state_wait",
-        params: { revision: stateRevision },
-        timeoutMs: FORKOP_WAIT_TIMEOUT_MS
+        params: cursor2 === void 0 ? { revision: stateRevision } : { revision: stateRevision, cursor: cursor2 },
+        timeoutMs: FORKOP_WAIT_TIMEOUT_MS,
+        nobatch: true
       });
       if (waitLoopStop) {
         break;
       }
       if (response.success) {
         adoptUbusState(response.data);
+        takeForkopLogLines(response.data);
         continue;
       }
       if (response.unavailable) {
@@ -4562,7 +4548,6 @@ async function ensureSystemInfo({
 }
 
 // src/forkop/services/core.service.ts
-var LOG_FEED_START_DELAY_MS = 5e3;
 var SYSTEM_INFO_PREFETCH_DELAY_MS = 2e3;
 function showLogNotification(notification) {
   return ui.addNotification(
@@ -4614,10 +4599,7 @@ function coreService() {
       dropLogNotificationHandoff();
     }
   });
-  window.setTimeout(
-    () => startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0),
-    LOG_FEED_START_DELAY_MS
-  );
+  startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0);
   window.setTimeout(() => {
     void ensureSystemInfo().catch(() => null);
   }, SYSTEM_INFO_PREFETCH_DELAY_MS);
@@ -4784,7 +4766,7 @@ function isActiveLuciTab(tabId) {
 var TAB_HIDDEN_GRACE_MS = 1e4;
 function createTabLifecycle(options) {
   const graceMs = options.graceMs ?? TAB_HIDDEN_GRACE_MS;
-  let running2 = false;
+  let running = false;
   let stopTimer = null;
   const cancelStop = () => {
     if (stopTimer) {
@@ -4796,19 +4778,19 @@ function createTabLifecycle(options) {
     update() {
       if (options.shown()) {
         cancelStop();
-        if (!running2) {
-          running2 = true;
+        if (!running) {
+          running = true;
           options.start();
         }
         return;
       }
-      if (!running2 || stopTimer) {
+      if (!running || stopTimer) {
         return;
       }
       stopTimer = setTimeout(() => {
         stopTimer = null;
         if (!options.shown()) {
-          running2 = false;
+          running = false;
           options.stop();
         }
       }, graceMs);
@@ -4832,15 +4814,15 @@ function pollDelayForDuration(baseIntervalMs, durationMs, maxIntervalMs) {
 function createPollChain(run, nextDelay) {
   let generation = 0;
   let active = false;
-  let running2 = false;
+  let running = false;
   let timer = null;
   const request = (current) => {
-    if (current !== generation || running2) {
+    if (current !== generation || running) {
       return;
     }
-    running2 = true;
+    running = true;
     void Promise.resolve().then(run).catch(() => void 0).finally(() => {
-      running2 = false;
+      running = false;
       if (current === generation) {
         schedule(nextDelay(), current);
       }
@@ -4873,13 +4855,13 @@ function createPollChain(run, nextDelay) {
     stop() {
       active = false;
       generation += 1;
-      running2 = false;
+      running = false;
       clearTimer();
     },
     // Asks now instead of waiting out the delay. A request already on its way
     // is left to finish; it schedules the next one itself.
     now() {
-      if (!active || running2) {
+      if (!active || running) {
         return;
       }
       clearTimer();
@@ -4896,13 +4878,13 @@ var BUSY_LABELS = {
   apply: () => _("Applying...")
 };
 function getServiceStatusDisplay({
-  running: running2,
+  running,
   busy
 }) {
   if (busy) {
     return { label: `\u27F3 ${BUSY_LABELS[busy]()}`, tone: "progress" };
   }
-  return running2 ? { label: _("\u2714 Running"), tone: "success" } : { label: _("\u2718 Stopped"), tone: "error" };
+  return running ? { label: _("\u2714 Running"), tone: "success" } : { label: _("\u2718 Stopped"), tone: "error" };
 }
 
 // src/forkop/tabs/dashboard/resolveOutboundProxyLink.ts
@@ -8115,7 +8097,7 @@ function getServiceOperation({
   return busy || localPending || null;
 }
 function getServiceControlsPresentation({
-  running: running2,
+  running,
   operation,
   known = true
 }) {
@@ -8133,17 +8115,17 @@ function getServiceControlsPresentation({
   return {
     restart: {
       mode: applying ? "apply" : "restart",
-      visible: restarting || running2 && idle,
+      visible: restarting || running && idle,
       loading: restarting,
       disabled: restarting
     },
     start: {
-      visible: operation === "start" || !running2 && idle,
+      visible: operation === "start" || !running && idle,
       loading: operation === "start",
       disabled: operation === "start"
     },
     stop: {
-      visible: operation === "stop" || idle && running2,
+      visible: operation === "stop" || idle && running,
       loading: operation === "stop",
       disabled: operation === "stop"
     }

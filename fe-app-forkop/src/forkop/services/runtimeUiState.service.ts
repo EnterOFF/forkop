@@ -11,6 +11,12 @@ import {
   FORKOP_WAIT_TIMEOUT_MS,
 } from './forkopWaitTransport';
 import { applyUiStateToStore, markUiStateUnavailable } from './uiState.service';
+import {
+  getForkopLogCursor,
+  placeForkopLogFeed,
+  takeForkopLogLines,
+} from './forkopLogFeed.service';
+import type { LogReply } from './forkopLogFeed.service';
 
 const RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 10000;
@@ -233,7 +239,10 @@ function scheduleRuntimeUiStatePoll(delay = getNextPollDelay()) {
 // One request parked on the router for as long as nothing changes, answered the
 // moment something does. An idle page costs one open request instead of a
 // refresh every ten seconds, and a change reaches the browser in the time it
-// takes to serialise it rather than on the next tick.
+// takes to serialise it rather than on the next tick. The log feed's lines come
+// back on the same request: a browser keeps six connections to a host, and a
+// second parked request per page made three open pages enough to hold every
+// other request of every LuCI tab behind them.
 async function runWaitLoop() {
   if (waitLoopRunning) {
     return;
@@ -244,11 +253,17 @@ async function runWaitLoop() {
 
   try {
     while (!waitLoopStop && isDocumentVisible() && transport === 'ubus') {
-      const response = await callUbus<UbusState>({
+      await placeForkopLogFeed();
+      const cursor = getForkopLogCursor();
+      const response = await callUbus<UbusState & LogReply>({
         object: FORKOP_SERVICE_OBJECT,
         method: 'state_wait',
-        params: { revision: stateRevision },
+        params:
+          cursor === undefined
+            ? { revision: stateRevision }
+            : { revision: stateRevision, cursor },
         timeoutMs: FORKOP_WAIT_TIMEOUT_MS,
+        nobatch: true,
       });
 
       if (waitLoopStop) {
@@ -257,6 +272,7 @@ async function runWaitLoop() {
 
       if (response.success) {
         adoptUbusState(response.data);
+        takeForkopLogLines(response.data);
         continue;
       }
 

@@ -24,9 +24,13 @@
 //     table dropped by hand - is still picked up.
 //
 // `state_wait` is what removes polling from the page as well: it holds the
-// request until the state actually differs from what the caller last saw, so a
-// change reaches the browser in the time it takes to serialise it, and an idle
-// page costs one parked request instead of a refresh every ten seconds.
+// request until the state actually differs from what the caller last saw, or a
+// log line arrives the caller has not seen, so a change reaches the browser in
+// the time it takes to serialise it, and an idle page costs one parked request
+// instead of a refresh every ten seconds. One, because a browser keeps six
+// connections to a host and lets every other request of every tab wait behind
+// them: a page that parked a request for the log beside the one for the state
+// made three open pages enough to stall the whole of LuCI.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -114,7 +118,6 @@ let state = { revision: 0, payload: null, text: "" };
 let system_info = { value: null, signature: "" };
 let log_lines = [];
 let log_cursor = 0;
-let log_waiters = [];
 let last_log_interest_ms = 0;
 let last_log_poll_ms = 0;
 let waiters = [];
@@ -170,16 +173,52 @@ function log_reply(cursor) {
     return { cursor: log_cursor, lines };
 }
 
-function wake_log_waiters() {
-    let pending = log_waiters;
-    log_waiters = [];
+function reply_payload() {
+    let payload = state.payload == null ? {} : state.payload;
+    return {
+        revision: state.revision,
+        service: payload.service,
+        capabilities: payload.capabilities,
+        actions: payload.actions
+    };
+}
+
+// A caller that sends no cursor waits for the state alone.
+function follows_log(waiter) {
+    return waiter.cursor != null;
+}
+
+function wait_reply(waiter) {
+    let reply = reply_payload();
+    if (follows_log(waiter)) {
+        let log = log_reply(waiter.cursor);
+        reply.cursor = log.cursor;
+        reply.lines = log.lines;
+    }
+    return reply;
+}
+
+function answer_waiters(pending) {
     for (let waiter in pending) {
         try {
-            waiter.request.reply(log_reply(waiter.cursor));
+            waiter.request.reply(wait_reply(waiter));
         }
         catch (e) {
         }
     }
+}
+
+function wake_waiters() {
+    let pending = waiters;
+    waiters = [];
+    answer_waiters(pending);
+}
+
+// A new line answers only the requests that asked for the log.
+function wake_log_waiters() {
+    let pending = filter(waiters, follows_log);
+    waiters = filter(waiters, (waiter) => !follows_log(waiter));
+    answer_waiters(pending);
 }
 
 // The interval is the log's clock and reads on every tick; a request reads only
@@ -202,7 +241,7 @@ function log_interest() {
 }
 
 function log_is_watched() {
-    return length(log_waiters) > 0 ||
+    return length(filter(waiters, follows_log)) > 0 ||
         monotonic_ms() - last_log_interest_ms < LOG_INTEREST_MS;
 }
 
@@ -249,28 +288,6 @@ function needs_close_refresh(now, busy, deadline, last_refresh) {
 function state_is_busy() {
     let payload = state.payload;
     return payload != null && payload.service.forkop.busy != null;
-}
-
-function reply_payload() {
-    let payload = state.payload == null ? {} : state.payload;
-    return {
-        revision: state.revision,
-        service: payload.service,
-        capabilities: payload.capabilities,
-        actions: payload.actions
-    };
-}
-
-function wake_waiters() {
-    let pending = waiters;
-    waiters = [];
-    for (let waiter in pending) {
-        try {
-            waiter.reply(reply_payload());
-        }
-        catch (e) {
-        }
-    }
 }
 
 // Whether a freshly observed "not running" is believed yet, given what was
@@ -391,19 +408,27 @@ function object_methods() {
             args: { ubus_rpc_session: "" }
         },
         // Held until the state differs from the revision the caller already has,
-        // or until the ceiling, whichever comes first. A caller that is already
-        // behind is answered at once.
+        // until a line arrives past the log cursor it sent, or until the
+        // ceiling, whichever comes first. A caller that is already behind is
+        // answered at once. One ahead of the log holds a cursor from before this
+        // process started, and is handed the current one to wait from.
         state_wait: {
             call: function(request) {
-                let want = int(request.args.revision || 0);
-                if (state.payload == null || state.revision != want)
-                    return reply_payload();
+                let waiter = { request, cursor: null };
+                if (request.args.cursor != null) {
+                    log_interest();
+                    waiter.cursor = int(request.args.cursor);
+                }
+
+                if (state.payload == null || state.revision != int(request.args.revision || 0) ||
+                    (follows_log(waiter) && waiter.cursor != log_cursor))
+                    return wait_reply(waiter);
 
                 request.defer();
-                push(waiters, request);
+                push(waiters, waiter);
                 return null;
             },
-            args: { revision: 0, ubus_rpc_session: "" }
+            args: { revision: 0, cursor: 0, ubus_rpc_session: "" }
         },
         // Where the log of Forkop and sing-box lines stands now, for a page to
         // wait from. What it held before is history the page does not show.
@@ -414,25 +439,6 @@ function object_methods() {
                 return { cursor: log_cursor };
             },
             args: { ubus_rpc_session: "" }
-        },
-        // Held until there is a line the caller has not seen. A caller ahead of
-        // the buffer holds a cursor from before this process started, and is
-        // handed the current one to wait from.
-        logs_wait: {
-            call: function(request) {
-                log_interest();
-
-                let want = int(request.args.cursor || 0);
-                if (want > log_cursor)
-                    return { cursor: log_cursor, lines: [] };
-                if (want < log_cursor)
-                    return log_reply(want);
-
-                request.defer();
-                push(log_waiters, { request, cursor: want });
-                return null;
-            },
-            args: { cursor: 0, ubus_rpc_session: "" }
         },
         // Installed versions and the device it all runs on. Worked out once and
         // held until the installed packages change, which is what the page used
@@ -508,7 +514,6 @@ function run() {
     // somewhere less forgiving.
     uloop.interval(MAX_WAIT_MS, function() {
         wake_waiters();
-        wake_log_waiters();
     });
 
     uloop.run();

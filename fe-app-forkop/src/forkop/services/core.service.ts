@@ -22,8 +22,6 @@ import {
 import { ensureSystemInfo } from './systemInfo.service';
 import { E } from '../../helpers/element';
 
-const LOG_FEED_START_DELAY_MS = 5000;
-
 // Collecting the installed versions takes seconds - opkg is asked about every
 // package and the core binary about itself. Warming them once per page lets the
 // Status tab open with the numbers already there, and a page that never visits
@@ -95,10 +93,7 @@ export function coreService() {
     }
   });
 
-  window.setTimeout(
-    () => startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0),
-    LOG_FEED_START_DELAY_MS,
-  );
+  startForkopLogFeed(notifyLogLine, handoff?.cursor ?? 0);
   window.setTimeout(() => {
     void ensureSystemInfo().catch(() => null);
   }, SYSTEM_INFO_PREFETCH_DELAY_MS);

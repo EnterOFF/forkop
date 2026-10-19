@@ -70,31 +70,75 @@ t.test("a stop that arrives while the service starts up ends it as soon as its l
     t.eq(result, { status: 0, looped: false });
 });
 
-function wait(service, cursor) {
-    let deferred = false;
-    let request = { args: { cursor }, defer: () => { deferred = true; } };
-    stub.commands([ [ "logread", { stdout: "" } ] ]);
-    let reply = service.object_methods().logs_wait.call(request);
-    stub.restore();
-    return { reply, deferred };
+function revision() {
+    return ubus.__invoke("forkop", "state", {}).replied.revision;
+}
+
+function wait(args) {
+    return ubus.__invoke("forkop", "state_wait", args);
+}
+
+function fire_interval(ms) {
+    for (let entry in uloop.__timers())
+        if (entry.kind == "interval" && entry.ms == ms)
+            entry.callback();
 }
 
 // A quiet router has no line yet, and a page that has seen everything waits
 // for the next one instead of asking again at once, round after round.
 t.test("a reader that has seen every line waits, however few lines there are", () => {
-    let service = fresh_service();
-    t.eq(wait(service, 0), { reply: null, deferred: true }, "no line yet and nothing seen");
-
-    service.remember_log_line("forkop: first");
-    t.eq(wait(service, 1), { reply: null, deferred: true });
+    let parked = {};
+    started((service) => {
+        parked.nothing_seen = wait({ revision: revision(), cursor: 0 }).deferred;
+        service.remember_log_line("forkop: first");
+        parked.all_seen = wait({ revision: revision(), cursor: 1 }).deferred;
+    });
+    t.eq(parked, { nothing_seen: true, all_seen: true });
 });
 
 t.test("a reader behind is answered at once, and one ahead of a restarted service resumes from its cursor", () => {
-    let service = fresh_service();
-    service.remember_log_line("forkop: first");
-    service.remember_log_line("forkop: second");
-    t.eq(wait(service, 1), { reply: { cursor: 2, lines: [ "forkop: second" ] }, deferred: false });
-    t.eq(wait(service, 40), { reply: { cursor: 2, lines: [] }, deferred: false }, "a cursor from before the restart");
+    let replies = {};
+    started((service) => {
+        service.remember_log_line("forkop: first");
+        service.remember_log_line("forkop: second");
+        let behind = wait({ revision: revision(), cursor: 1 });
+        let ahead = wait({ revision: revision(), cursor: 40 });
+        replies.behind = [ behind.deferred, behind.replied.cursor, behind.replied.lines ];
+        replies.ahead = [ ahead.deferred, ahead.replied.cursor, ahead.replied.lines ];
+    });
+    t.eq(replies, { behind: [ false, 2, [ "forkop: second" ] ], ahead: [ false, 2, [] ] });
+});
+
+// A browser keeps six connections to the router, and every other request of
+// every tab waits behind the ones held open. A page parks one, for both.
+t.test("a page's one parked request is answered by a new line and by a new state", () => {
+    let answers = {};
+    started((service) => {
+        let cursor = ubus.__invoke("forkop", "logs", {}).replied.cursor;
+        let first = wait({ revision: revision(), cursor });
+        fire_interval(service.LOG_POLL_MS);
+        answers.line = [ first.replied.revision, first.replied.lines ];
+
+        let second = wait({ revision: revision(), cursor: first.replied.cursor });
+        runtime.running = 0;
+        ubus.__notify("service", "instance.stop", { service: "sing-box", instance: "instance1" });
+        answers.state = [ second.replied.revision - first.replied.revision, second.replied.service.forkop.running, second.replied.lines ];
+    });
+    runtime.running = 1;
+    t.eq(answers, { line: [ 1, [ "forkop: line 2" ] ], state: [ 1, 0, [] ] });
+});
+
+t.test("a request that sends no cursor waits for the state alone", () => {
+    let seen = {};
+    started((service) => {
+        ubus.__invoke("forkop", "logs", {});
+        let request = wait({ revision: revision() });
+        fire_interval(service.LOG_POLL_MS);
+        seen.after_line = request.replied;
+        fire_interval(service.MAX_WAIT_MS);
+        seen.at_ceiling = [ request.replied.revision, request.replied.cursor, request.replied.lines ];
+    });
+    t.eq(seen, { after_line: null, at_ceiling: [ 1, null, null ] });
 });
 
 // A page's first log answer only places its feed: the lines held before it

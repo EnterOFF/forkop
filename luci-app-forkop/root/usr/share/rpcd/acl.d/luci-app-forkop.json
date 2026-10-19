@@ -13,7 +13,6 @@
           "state_wait",
           "system_info",
           "logs",
-          "logs_wait",
           "refresh"
         ],
         "luci-rpc": [

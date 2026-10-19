@@ -74,6 +74,9 @@ describe('the state wait loop', () => {
       (call) => (call[0] as { method: string }).method === 'state_wait',
     );
     expect(waits).toHaveLength(2);
-    expect(waits[1][0]).toMatchObject({ params: { revision: 2 } });
+    expect(waits[1][0]).toMatchObject({
+      params: { revision: 2 },
+      nobatch: true,
+    });
   });
 });

@@ -16,6 +16,7 @@ function rpcModule() {
           object: string;
           method: string;
           params?: string[];
+          nobatch?: boolean;
         }) => (...args: unknown[]) => Promise<unknown>;
       }
     | undefined;
@@ -55,12 +56,18 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// LuCI sends every call made within one animation frame as a single HTTP
+// request, and uhttpd runs the calls of such a batch one after another and
+// answers when the last is done. A call the service parks is sent on its own:
+// in a batch it holds every call beside it until it is released, and two parked
+// calls in one batch wait one after the other, past any timeout set for one.
 export async function callUbus<T>(options: {
   object: string;
   method: string;
   params?: Record<string, unknown>;
   timeoutMs: number;
   retryUnavailable?: boolean;
+  nobatch?: boolean;
 }): Promise<UbusCallResult<T>> {
   const attempts =
     options.retryUnavailable === false ? 1 : UNAVAILABLE_RETRIES + 1;
@@ -83,11 +90,13 @@ async function callUbusOnce<T>({
   method,
   params = {},
   timeoutMs,
+  nobatch,
 }: {
   object: string;
   method: string;
   params?: Record<string, unknown>;
   timeoutMs: number;
+  nobatch?: boolean;
 }): Promise<UbusCallResult<T>> {
   const rpc = rpcModule();
   if (!rpc) {
@@ -98,7 +107,7 @@ async function callUbusOnce<T>({
 
   try {
     const names = Object.keys(params);
-    const request = rpc.declare({ object, method, params: names });
+    const request = rpc.declare({ object, method, params: names, nobatch });
     const call = request(...names.map((name) => params[name])) as Promise<T>;
     const data = await withTimeout(call, timeoutMs, `${object}.${method}`);
 
