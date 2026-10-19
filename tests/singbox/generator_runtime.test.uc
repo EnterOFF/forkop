@@ -111,7 +111,7 @@ t.test("tunnels become native endpoints with the fields their kind allows", () =
     t.eq(warp.type, "warp");
     t.eq(warp.profile.license_key, "license-key");
     t.eq(warp.profile.recreate, null, "the core keys its profile cache by the profile, so one it already fetched is not asked for again");
-    t.eq(warp.amnezia, { jc: 7, i1: "<r 1>", content_padding_addition: "8-16", disable_cookies: true },
+    t.eq(warp.amnezia, { jc: 7, i1: "<r 1>", content_padding_addition: "8-16" },
         "WARP carries only the obfuscation a plain peer ignores");
 
     let amnezia = q.endpoint(config, "tunnels/Amnezia");
@@ -120,7 +120,7 @@ t.test("tunnels become native endpoints with the fields their kind allows", () =
 
     let plain = q.endpoint(config, "tunnels/Plain");
     t.eq(plain.type, "wireguard");
-    t.eq(plain.amnezia, { jc: 3, i1: "<r 2>", disable_cookies: true },
+    t.eq(plain.amnezia, { jc: 3, i1: "<r 2>" },
         "a WireGuard endpoint carries only one-sided Amnezia fields");
     for (let endpoint in config.endpoints)
         t.ok(endpoint.amnezia == null || length(keys(endpoint.amnezia)) > 0, "empty Amnezia block on " + endpoint.tag);

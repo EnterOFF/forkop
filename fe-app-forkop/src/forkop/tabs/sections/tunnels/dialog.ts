@@ -8,7 +8,7 @@ import {
 } from '../../../../helpers/parseWireGuardConfig';
 import {
   AMNEZIA_PARAMETERS,
-  amneziaParameter,
+  amneziaDescription,
   validateAmneziaValue,
   validateWireGuardKey,
 } from '../../../../helpers/wireguard';
@@ -86,27 +86,6 @@ import {
 } from './validate';
 import { E } from '../../../../helpers/element';
 
-// A field AmneziaWG names in its configuration is labelled with that name, and
-// one whose name is a sentence gets a label of its own and the name under it,
-// so a value can be copied from a server's configuration.
-function amneziaFieldTitle(key: string): [string, string?] {
-  const conf = amneziaParameter(key)!.conf;
-  const labels: Record<string, string> = {
-    header_protection_key: _('Header protection key'),
-    content_padding_addition: _('Additional packet padding'),
-    rekey_after_time: _('Rekey interval'),
-    rekey_timeout: _('Rekey timeout'),
-    reject_after_time: _('Data rejection timeout'),
-    keepalive_timeout: _('Keepalive timeout'),
-    max_handshake_attempts: _('Maximum handshake attempts'),
-    random_trailers: _('Random trailers'),
-    disable_cookies: _('Disable cookies'),
-  };
-  return labels[key]
-    ? [labels[key], _('%s in the configuration').format(conf)]
-    : [conf];
-}
-
 function addWireGuardPeerItemOptions(section: CBISection) {
   let o = section.option(form.Value, 'address', _('Server address'));
   o.rmempty = false;
@@ -153,9 +132,7 @@ function addWireGuardPeerItemOptions(section: CBISection) {
     form.Value,
     'persistent_keepalive_interval',
     _('Persistent keepalive'),
-    _(
-      'Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none',
-    ),
+    _('Seconds, or a range such as 25-35'),
   );
   o.validate = function (_itemId: string, value: unknown) {
     return validateAmneziaRange(value);
@@ -557,9 +534,7 @@ export function showTunnelSettingsModal(
     form.Value,
     'tailscale_control_url',
     _('Coordination server'),
-    _(
-      'Address of the coordination server. Change it if you use a custom server',
-    ),
+    _('For a server of your own, such as Headscale'),
   );
   tailscaleControlUrlOption.default = TAILSCALE_CONTROL_URL;
   tailscaleControlUrlOption.rmempty = false;
@@ -585,7 +560,6 @@ export function showTunnelSettingsModal(
     form.ListValue,
     'tailscale_detour_section',
     _('Coordination server through'),
-    _('Required. The section that carries the control-plane traffic'),
   );
   refreshOutboundDetourSectionOptionValues(
     tailscaleDetourSectionOption,
@@ -658,21 +632,11 @@ export function showTunnelSettingsModal(
   const openvpnOptions = addOpenVPNOptions(itemSection);
   const openconnectOptions = addOpenConnectOptions(itemSection);
 
-  o = itemSection.option(
-    form.Value,
-    'warp_address',
-    _('WARP server address'),
-    _('Empty: the one the profile names'),
-  );
+  o = itemSection.option(form.Value, 'warp_address', _('WARP server address'));
   o.depends('tunnel_type', 'warp');
   o.rmempty = true;
   o.datatype = 'host';
-  o = itemSection.option(
-    form.Value,
-    'warp_port',
-    _('WARP server port'),
-    _('Empty: the one the profile names'),
-  );
+  o = itemSection.option(form.Value, 'warp_port', _('WARP server port'));
   o.depends('tunnel_type', 'warp');
   o.rmempty = true;
   o.datatype = 'port';
@@ -709,8 +673,7 @@ export function showTunnelSettingsModal(
   const listenPortOption = itemSection.option(
     form.Value,
     'listen_port',
-    _('Listen port'),
-    _('Empty: a random port'),
+    _('Local port'),
   );
   listenPortOption.datatype = 'port';
   listenPortOption.rmempty = true;
@@ -783,9 +746,7 @@ export function showTunnelSettingsModal(
     form.Value,
     'warp_keepalive',
     _('Persistent keepalive'),
-    _(
-      'Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none',
-    ),
+    _('Seconds, or a range such as 25-35'),
   );
   o.validate = function (_itemId: string, value: unknown) {
     return validateAmneziaRange(value);
@@ -858,7 +819,7 @@ export function showTunnelSettingsModal(
     'accept_server_dns',
     _('Accept server DNS'),
     _(
-      'Names in the domains the server declares are resolved by its DNS for connections through this tunnel. Add those domains to the section so that devices reach them through the tunnel',
+      "Use the tunnel's DNS for the domains its server declares. Add those domains to the section so that devices reach them through the tunnel",
     ),
   );
   serverDnsOption.default = '1';
@@ -879,7 +840,7 @@ export function showTunnelSettingsModal(
     'amnezia_enabled',
     _('Traffic obfuscation'),
     _(
-      'AmneziaWG junk and signature packets before every handshake, which any WireGuard server ignores',
+      'Add AmneziaWG junk and signature packets. Makes the traffic harder to recognize',
     ),
   );
   amneziaEnabledOption.default = '0';
@@ -896,15 +857,17 @@ export function showTunnelSettingsModal(
     }
   };
 
-  AMNEZIA_PARAMETERS.forEach(({ key, kind, oneSided }) => {
+  AMNEZIA_PARAMETERS.forEach(({ key, conf, kind, oneSided }) => {
     const option = itemSection.option(
       kind === 'flag' ? form.Flag : form.Value,
       `amnezia_${key}`,
-      ...amneziaFieldTitle(key),
+      conf,
+      amneziaDescription(key),
     );
     if (kind === 'flag') {
       option.default = '0';
     } else {
+      option.password = kind === 'key';
       option.validate = function (_itemId: string, value: unknown) {
         return validateAmneziaValue(key, value);
       };

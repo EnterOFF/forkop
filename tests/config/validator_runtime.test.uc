@@ -1493,13 +1493,12 @@ t.test("a protected AmneziaWG header needs every padding of at least 12 bytes", 
     v.accepts(amnezia_tunnel("amnezia_header_protection_key", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="), "the all-zero key disables protection");
 });
 
-t.test("AmneziaWG flags are 0 or 1 on every kind that carries them", () => {
-    v.refuses(amnezia_tunnel("amnezia_random_trailers", "maybe"), "invalid AmneziaWG random_trailers flag");
-    for (let flag in [ "random_trailers", "disable_cookies" ])
+t.test("AmneziaWG flags are 0 or 1", () => {
+    for (let flag in [ "random_trailers", "disable_cookies" ]) {
+        v.refuses(amnezia_tunnel("amnezia_" + flag, "maybe"), "invalid AmneziaWG " + flag + " flag");
         for (let value in [ "0", "1" ])
             v.accepts(amnezia_tunnel("amnezia_" + flag, value));
-    for (let kind in [ "wireguard", "warp" ])
-        v.refuses(amnezia_tunnel("amnezia_disable_cookies", "maybe", kind), "invalid AmneziaWG disable_cookies flag");
+    }
 });
 
 // The core accepts both in its check and fails the whole service when the

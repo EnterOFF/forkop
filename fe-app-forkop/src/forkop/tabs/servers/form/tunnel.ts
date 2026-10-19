@@ -134,11 +134,7 @@ export function addTunnelOptions(section: CBISection) {
     form.DynamicList,
     'tunnel_address',
     _('Tunnel subnet'),
-    _(
-      "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it",
-    ),
   );
-  o.placeholder = 'fd00:8::1/64';
   o.modalonly = true;
   o.rmempty = false;
   autofill(o, (sectionId: string) => {
@@ -159,9 +155,7 @@ export function addTunnelOptions(section: CBISection) {
     form.Flag,
     'tunnel_all_traffic',
     _('All traffic through the server'),
-    _(
-      'Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below',
-    ),
+    _("All of the clients' traffic goes to the selected routing mode"),
   );
   o.default = '1';
   o.rmempty = false;
@@ -169,7 +163,6 @@ export function addTunnelOptions(section: CBISection) {
   onTunnel(o);
 
   o = section.option(form.DynamicList, 'tunnel_routes', _('Routes'));
-  o.placeholder = '192.168.1.0/24';
   o.modalonly = true;
   o.rmempty = true;
   o.validate = (_sectionId: string, value: string) =>

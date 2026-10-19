@@ -25,9 +25,9 @@ const CLIENT = {
   flow: '',
 };
 
-// What prepare leaves in the configuration the router holds for an AmneziaWG
-// server: the reference parameters, the junk the dialog filled in, and a key
-// pair, a pre-shared key and an address in each subnet for the client.
+// What the router holds for an AmneziaWG server once applied: the parameters
+// its dialog starts from, and a key pair, a pre-shared key and an address in
+// each subnet for the client.
 const AMNEZIA = {
   amnezia_jc: '5',
   amnezia_jmin: '10',
@@ -244,11 +244,15 @@ describe('an AmneziaWG profile', () => {
     });
   });
 
-  it('waits for the parameters the router issues', () => {
+  it('leaves out header protection the server does not use', () => {
     load({ protocol: 'amneziawg' });
-    expect(buildWireGuardProfile('home', CLIENT, material())).toEqual({
-      missing: 'keys',
-    });
+    const { profile } = buildWireGuardProfile(
+      'home',
+      CLIENT,
+      material({ ...AMNEZIA, amnezia_header_protection_key: '' }),
+    );
+    expect(profile).toContain('S1 = 12');
+    expect(profile).not.toContain('HeaderProtectionKey');
   });
 
   // The longest profile the dialog makes: every parameter, a signature packet

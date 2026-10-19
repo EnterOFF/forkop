@@ -71,7 +71,6 @@ export function addOpenConnectOptions(section: CBISection) {
       ),
     ),
   );
-  o.placeholder = 'vpn.example.com';
   o.rmempty = false;
   o.validate = (_sectionId: string, value: unknown) =>
     validateOpenConnectServer(value);
@@ -93,9 +92,7 @@ export function addOpenConnectOptions(section: CBISection) {
         form.Value,
         'openconnect_auth_group',
         _('Login group'),
-        _(
-          'The group, realm or gateway the server offers at sign-in. Empty: the one it offers first',
-        ),
+        _('The group, realm or gateway the server offers at sign-in'),
       ),
     ),
   );
@@ -246,7 +243,7 @@ export function addOpenConnectOptions(section: CBISection) {
         'openconnect_ca',
         _('CA certificate'),
         _(
-          'Empty: the authorities the router trusts. Add the one that issued the certificate of a server of your own',
+          'For a server of your own: the authority that issued its certificate',
         ),
       ),
     ),
@@ -265,7 +262,6 @@ export function addOpenConnectOptions(section: CBISection) {
       ),
     ),
   );
-  o.placeholder = 'pin-sha256:';
   o.rmempty = true;
   o.validate = (_sectionId: string, value: unknown) =>
     validateOpenConnectFingerprint(value);
@@ -323,7 +319,6 @@ export function addOpenConnectOptions(section: CBISection) {
       advanced,
     ),
   );
-  o.placeholder = 'main:secondary_username=alice';
   o.rmempty = true;
   o.validate = (_sectionId: string, value: unknown) => validateFormEntry(value);
 
@@ -334,7 +329,7 @@ export function addOpenConnectOptions(section: CBISection) {
         'openconnect_browser',
         _('Browser sign-in'),
         _(
-          'SSO and SAML through the sing-box dashboard, which the tunnel waits for at every connection. Off: the server is not offered it',
+          'SSO and SAML through the sing-box dashboard, which the tunnel waits for at every connection',
         ),
       ),
       advanced,
@@ -365,12 +360,7 @@ export function addOpenConnectOptions(section: CBISection) {
 
   o = add(
     onKind(
-      section.option(
-        form.Value,
-        'openconnect_user_agent',
-        _('User-Agent'),
-        _("Empty: the one of the protocol's own client"),
-      ),
+      section.option(form.Value, 'openconnect_user_agent', _('User-Agent')),
       advanced,
     ),
   );
@@ -396,7 +386,7 @@ export function addOpenConnectOptions(section: CBISection) {
         form.Value,
         'openconnect_local_hostname',
         _('Device name'),
-        _('The name the router reports to the server. Empty: its hostname'),
+        _('The name the router reports to the server'),
       ),
       advanced,
     ),
@@ -425,7 +415,6 @@ export function addOpenConnectOptions(section: CBISection) {
         form.Value,
         'openconnect_server_name',
         _('Server name (SNI)'),
-        _('Empty: the host of the server address'),
       ),
       advanced,
     ),
@@ -507,15 +496,7 @@ export function addOpenConnectOptions(section: CBISection) {
   o.rmempty = true;
 
   o = add(
-    onKind(
-      section.option(
-        form.Value,
-        'openconnect_mtu',
-        _('MTU'),
-        _('Empty: what the server offers'),
-      ),
-      advanced,
-    ),
+    onKind(section.option(form.Value, 'openconnect_mtu', _('MTU')), advanced),
   );
   o.datatype = 'range(576,65535)';
   o.rmempty = true;
@@ -543,7 +524,6 @@ export function addOpenConnectOptions(section: CBISection) {
         form.Value,
         'openconnect_dpd',
         _('Dead peer detection, seconds'),
-        _('Empty: the interval the server asks for'),
       ),
       advanced,
     ),

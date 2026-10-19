@@ -3,10 +3,7 @@
 // is wrapped. The tuning of the connection follows behind one switch, and the
 // static key mode only when asked for.
 
-import {
-  OPENVPN_DEFAULT_DATA_CIPHERS,
-  OPENVPN_DEFAULT_PORT,
-} from '../../../../helpers/parseOpenVPNConfig';
+import { OPENVPN_DEFAULT_DATA_CIPHERS } from '../../../../helpers/parseOpenVPNConfig';
 import type { OpenVPNImportResult } from '../../../../helpers/parseOpenVPNConfig';
 import { normalizeOptionValues } from '../../../cbi/listValues';
 import { setModalOptionValue } from '../../../cbi/modal';
@@ -64,7 +61,6 @@ export function addOpenVPNOptions(section: CBISection) {
       ),
     ),
   );
-  o.placeholder = `vpn.example.com:${OPENVPN_DEFAULT_PORT}`;
   o.rmempty = false;
   o.validate = function (_sectionId: string, value: unknown) {
     if (!trimmed(value)) {
@@ -255,7 +251,6 @@ export function addOpenVPNOptions(section: CBISection) {
       staticKey,
     ),
   );
-  o.placeholder = '10.8.0.2/32';
   o.rmempty = false;
   o.validate = (_sectionId: string, value: unknown) =>
     trimmed(value) ? validateAddress(value) : true;
@@ -437,7 +432,6 @@ export function addOpenVPNOptions(section: CBISection) {
       { ...tls, ...advanced },
     ),
   );
-  o.placeholder = 'TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256';
   o.rmempty = true;
 
   o = add(
@@ -447,13 +441,12 @@ export function addOpenVPNOptions(section: CBISection) {
         form.MultiValue,
         'openvpn_data_ciphers',
         _('Data ciphers'),
-        _('Empty: %s (data-ciphers in the profile)').format(
-          OPENVPN_DEFAULT_DATA_CIPHERS.join(', '),
-        ),
+        _('data-ciphers in the profile'),
       ),
       { ...tls, ...advanced },
     ),
   );
+  o.placeholder = OPENVPN_DEFAULT_DATA_CIPHERS.join(', ');
   DATA_CIPHERS.forEach((cipher) => o.value(cipher, cipher));
   o.create = true;
   o.rmempty = true;

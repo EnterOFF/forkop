@@ -122,6 +122,7 @@
   },
   "state_wait_ms": 15000,
   "password_fields": {
+    "amnezia_header_protection_key": "amnezia_header_protection_key",
     "hysteria2_obfs_password": "hysteria2_obfs_password",
     "native_api_secret": "native_api_secret",
     "openconnect_cookie": "endpoint_json",
@@ -307,6 +308,6 @@
     { "key": "keepalive_timeout", "kind": "range", "one_sided": true },
     { "key": "max_handshake_attempts", "kind": "range", "one_sided": true },
     { "key": "random_trailers", "kind": "flag", "one_sided": false },
-    { "key": "disable_cookies", "kind": "flag", "one_sided": true }
+    { "key": "disable_cookies", "kind": "flag", "one_sided": false }
   ]
 }

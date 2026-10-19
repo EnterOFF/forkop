@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 14:43+0300\n"
-"PO-Revision-Date: 2026-10-19 14:43+0300\n"
+"POT-Creation-Date: 2026-10-19 15:37+0300\n"
+"PO-Revision-Date: 2026-10-19 15:37+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -25,9 +25,6 @@ msgstr "%s (секция недоступна)"
 
 msgid "%s has an invalid port %s"
 msgstr "%s: неверный порт %s"
-
-msgid "%s in the configuration"
-msgstr "%s в конфигурации"
 
 msgid "%s is set by the cascade connection of the subscription"
 msgstr "%s задаётся каскадным подключением подписки"
@@ -170,6 +167,9 @@ msgstr "Добавьте секцию чтобы настроить маршру
 msgid "Add a server inbound"
 msgstr "Добавить серверный inbound"
 
+msgid "Add AmneziaWG junk and signature packets. Makes the traffic harder to recognize"
+msgstr "Добавить мусорные и сигнатурные пакеты AmneziaWG. Затрудняет распознавание трафика"
+
 msgid "Add an IPv4 subnet"
 msgstr "Добавьте подсеть IPv4"
 
@@ -233,12 +233,6 @@ msgstr "Добавляется перед именем каждого серве
 msgid "Additional marking rules found"
 msgstr "Найдены дополнительные правила маркировки"
 
-msgid "Additional packet padding"
-msgstr "Дополнительное заполнение пакета"
-
-msgid "Address of the coordination server. Change it if you use a custom server"
-msgstr "Адрес сервера координации. Меняйте, если используете свой"
-
 msgid "Advanced settings"
 msgstr "Дополнительные параметры"
 
@@ -250,6 +244,9 @@ msgstr "Все устройства"
 
 msgid "All except selected"
 msgstr "Кроме выбранных"
+
+msgid "All of the clients' traffic goes to the selected routing mode"
+msgstr "Весь трафик клиентов уходит в выбранный режим маршрутизации"
 
 msgid "All remaining"
 msgstr "Все оставшиеся"
@@ -280,9 +277,6 @@ msgstr "Также deflate"
 
 msgid "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
 msgstr "Поля I1-I5 AmneziaWG должны содержать теги Custom Protocol Signature, например <b 0xdeadbeef><r 4>"
-
-msgid "AmneziaWG junk and signature packets before every handshake, which any WireGuard server ignores"
-msgstr "Мусорные и сигнатурные пакеты AmneziaWG перед каждым рукопожатием; любой сервер WireGuard их отбрасывает"
 
 msgid "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
 msgstr "Диапазоны AmneziaWG должны быть от 0 до 4294967295, а начало не может быть больше конца"
@@ -479,9 +473,6 @@ msgstr "Клиент: %s"
 msgid "Clients"
 msgstr "Клиенты"
 
-msgid "Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below"
-msgstr "Клиенты отправляют весь трафик через роутер, а дальше его направляет режим маршрутизации. Если выключено, через сервер идут только маршруты ниже"
-
 msgid "Close"
 msgstr "Закрыть"
 
@@ -605,6 +596,9 @@ msgstr "Не удалось включить автостарт"
 msgid "Could not generate a Reality key pair"
 msgstr "Не удалось сгенерировать пару ключей Reality"
 
+msgid "Create and fetch Cloudflare WARP profiles through the selected section. The tunnels' own traffic does not go through it"
+msgstr "Создавать и получать профили Cloudflare WARP через выбранную секцию. Трафик самих туннелей через неё не идёт"
+
 msgid "Current section cannot be used as its own transit section"
 msgstr "Текущую секцию нельзя использовать как транзит для самой себя"
 
@@ -623,8 +617,8 @@ msgstr "Дашборд сейчас недоступен"
 msgid "Data ciphers"
 msgstr "Шифры канала данных"
 
-msgid "Data rejection timeout"
-msgstr "Таймаут отклонения данных"
+msgid "data-ciphers in the profile"
+msgstr "data-ciphers в профиле"
 
 msgid "Dead peer detection, seconds"
 msgstr "Проверка связи (DPD), секунд"
@@ -679,9 +673,6 @@ msgstr "Напрямую"
 
 msgid "Disable autostart"
 msgstr "Отключить автостарт"
-
-msgid "Disable cookies"
-msgstr "Отключить cookie-ответы"
 
 msgid "Disable QUIC"
 msgstr "Отключить QUIC"
@@ -787,30 +778,6 @@ msgstr "Редактировать"
 
 msgid "Edit rule action"
 msgstr "Изменить"
-
-msgid "Empty: %s (data-ciphers in the profile)"
-msgstr "Пусто: %s (data-ciphers в профиле)"
-
-msgid "Empty: a random port"
-msgstr "Пусто: случайный порт"
-
-msgid "Empty: the authorities the router trusts. Add the one that issued the certificate of a server of your own"
-msgstr "Пусто: центры сертификации, которым доверяет роутер. Для своего сервера добавьте тот, что выпустил его сертификат"
-
-msgid "Empty: the host of the server address"
-msgstr "Пусто: хост из адреса сервера"
-
-msgid "Empty: the interval the server asks for"
-msgstr "Пусто: интервал, который задаёт сервер"
-
-msgid "Empty: the one of the protocol's own client"
-msgstr "Пусто: как у штатного клиента протокола"
-
-msgid "Empty: the one the profile names"
-msgstr "Пусто: из профиля"
-
-msgid "Empty: what the server offers"
-msgstr "Пусто: что предложит сервер"
 
 msgid "Enable"
 msgstr "Включить"
@@ -1043,6 +1010,12 @@ msgstr "Flow"
 msgid "For a field the server asks besides the login, as openconnect --form-entry takes it: FORM:NAME=VALUE"
 msgstr "Для поля, которое сервер спрашивает помимо логина, в формате openconnect --form-entry: ФОРМА:ИМЯ=ЗНАЧЕНИЕ"
 
+msgid "For a server of your own, such as Headscale"
+msgstr "Для своего сервера, например Headscale"
+
+msgid "For a server of your own: the authority that issued its certificate"
+msgstr "Для своего сервера: центр сертификации, выпустивший его сертификат"
+
 msgid "For a server that admits only some systems"
 msgstr "Для сервера, который пускает только некоторые системы"
 
@@ -1111,9 +1084,6 @@ msgstr "Название заголовка"
 
 msgid "Header name contains invalid characters"
 msgstr "Название заголовка содержит недопустимые символы"
-
-msgid "Header protection key"
-msgstr "Ключ защиты заголовка"
 
 msgid "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
 msgstr "Для защиты заголовков значения S1, S2, S3 и S4 должны быть не меньше 12 байт"
@@ -1328,11 +1298,11 @@ msgstr "JSON outbound должен содержать непустое поле 
 msgid "JSON outbound: %s"
 msgstr "JSON outbound: %s"
 
-msgid "Junk packets clients send before every handshake, Jmin to Jmax bytes each"
-msgstr "Мусорные пакеты, которые клиенты шлют перед каждым рукопожатием, по Jmin–Jmax байт"
+msgid "Junk bytes at the start of packets: S1 to S3 of the handshake, S4 of data"
+msgstr "Байты мусора в начале пакетов: S1–S3 у рукопожатия, S4 у данных"
 
-msgid "Keepalive timeout"
-msgstr "Таймаут keepalive"
+msgid "Junk packets before every handshake, Jmin to Jmax bytes each"
+msgstr "Мусорные пакеты перед каждым рукопожатием, по Jmin–Jmax байт"
 
 msgid "Key"
 msgstr "Ключ"
@@ -1403,6 +1373,9 @@ msgstr "Загрузка подключений..."
 msgid "Loading logs..."
 msgstr "Загрузка логов..."
 
+msgid "Local port"
+msgstr "Локальный порт"
+
 msgid "Local resolver"
 msgstr "Локальный резолвер"
 
@@ -1441,9 +1414,6 @@ msgstr "Макс. скорость от клиента, Мбит/с"
 
 msgid "Max speed to a client, Mbps"
 msgstr "Макс. скорость к клиенту, Мбит/с"
-
-msgid "Maximum handshake attempts"
-msgstr "Максимум попыток рукопожатия"
 
 msgid "Maximum time to wait for a DNS response"
 msgstr "Максимальное время ожидания ответа DNS"
@@ -1504,9 +1474,6 @@ msgstr "Суффикс имени"
 
 msgid "Name the address of the server in the subnet, such as %s rather than the subnet itself"
 msgstr "Укажите адрес сервера в подсети, например %s, а не саму подсеть"
-
-msgid "Names in the domains the server declares are resolved by its DNS for connections through this tunnel. Add those domains to the section so that devices reach them through the tunnel"
-msgstr "Имена в доменах, которые объявляет сервер, разрешает его DNS — для соединений через этот туннель. Добавьте эти домены в раздел, чтобы устройства ходили к ним через туннель"
 
 msgid "Network"
 msgstr "Сеть"
@@ -1670,8 +1637,8 @@ msgstr "Переопределить маршрутизацию"
 msgid "Packet authentication"
 msgstr "Аутентификация пакетов"
 
-msgid "Packets clients send before every handshake, I1 first"
-msgstr "Пакеты, которые клиенты шлют перед каждым рукопожатием, начиная с I1"
+msgid "Packet headers: a number or a range, each its own"
+msgstr "Заголовки пакетов: число или диапазон, у каждого свой"
 
 msgid "Padding"
 msgstr "Padding"
@@ -1805,9 +1772,6 @@ msgstr "Процесс запущен"
 msgid "Profile"
 msgstr "Профиль"
 
-msgid "Profile generation and Cloudflare WARP tunnels make their requests through the selected section"
-msgstr "Создание профиля и туннели Cloudflare WARP обращаются через выбранную секцию"
-
 msgid "Profile ID"
 msgstr "Идентификатор профиля"
 
@@ -1834,9 +1798,6 @@ msgstr "QR-код"
 
 msgid "Random server order"
 msgstr "Случайный порядок серверов"
-
-msgid "Random trailers"
-msgstr "Случайные хвосты пакетов"
 
 msgid "Reach the coordination server through a section instead of the WAN"
 msgstr "Подключаться к серверу координации через секцию, а не напрямую"
@@ -1871,12 +1832,6 @@ msgstr "Зарегистрировать устройство Cloudflare WARP и
 msgid "Regular expression must not contain spaces or commas"
 msgstr "Регулярное выражение не должно содержать пробелы или запятые"
 
-msgid "Rekey interval"
-msgstr "Интервал обновления ключа"
-
-msgid "Rekey timeout"
-msgstr "Таймаут обновления ключа"
-
 msgid "Remote lists, rule sets, YACD and the sing-box dashboard download through the selected section"
 msgstr "Удалённые списки, наборы правил, YACD и панель sing-box скачиваются через выбранную секцию"
 
@@ -1901,17 +1856,14 @@ msgstr "Запрашивать через"
 msgid "Request through a section"
 msgstr "Запрашивать через секцию"
 
-msgid "Request WARP profiles through"
-msgstr "Запрашивать профили WARP через"
+msgid "Request WARP through"
+msgstr "Запрашивать WARP через"
 
-msgid "Request WARP profiles through a section"
-msgstr "Запрашивать профили WARP через секцию"
+msgid "Request WARP through a section"
+msgstr "Запрашивать WARP через секцию"
 
 msgid "Required. Checked from top to bottom until the first working server"
 msgstr "Обязательно. Проверяются сверху вниз до первого рабочего сервера"
-
-msgid "Required. The section that carries the control-plane traffic"
-msgstr "Обязательно. Секция, через которую идёт трафик к серверу координации"
 
 msgid "Resolve the addresses of the main DNS servers and proxies. Several servers give automatic failover. The protocol is set by a prefix: %s"
 msgstr "Резолвят адреса основных DNS-серверов и прокси. Несколько серверов дают автоматическое переключение при сбоях. Протокол задаётся префиксом: %s"
@@ -2003,8 +1955,8 @@ msgstr "Сохранить"
 msgid "Search"
 msgstr "Поиск"
 
-msgid "Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none"
-msgstr "Секунды между пакетами, которые держат туннель открытым, или диапазон, например 25-35. Пусто: не отправлять"
+msgid "Seconds, or a range such as 25-35"
+msgstr "Секунды или диапазон, например 25-35"
 
 msgid "Secret key for authenticating remote access to YACD when WAN access is enabled"
 msgstr "Секретный ключ для аутентификации удаленного доступа к YACD при включенном доступе через WAN"
@@ -2186,6 +2138,9 @@ msgstr "Отображать блок метаданных в дашборде"
 msgid "Sign in with a certificate, alone or together with the login"
 msgstr "Вход по сертификату, отдельно или вместе с логином"
 
+msgid "Signature packets before every handshake, I1 first"
+msgstr "Сигнатурные пакеты перед каждым рукопожатием, начиная с I1"
+
 msgid "sing-box API"
 msgstr "API sing-box"
 
@@ -2228,8 +2183,8 @@ msgstr "Сетевой интерфейс источника"
 msgid "Specify a directory after file://"
 msgstr "Укажите каталог после file://"
 
-msgid "SSO and SAML through the sing-box dashboard, which the tunnel waits for at every connection. Off: the server is not offered it"
-msgstr "SSO и SAML через панель sing-box: туннель будет ждать входа при каждом подключении. Выключено: сервер о нём не спрашивается"
+msgid "SSO and SAML through the sing-box dashboard, which the tunnel waits for at every connection"
+msgstr "SSO и SAML через панель sing-box: туннель будет ждать входа при каждом подключении"
 
 msgid "Start"
 msgstr "Запустить"
@@ -2375,8 +2330,8 @@ msgstr "В подключении не указан шлюз"
 msgid "The group joins as the single node it has selected"
 msgstr "Группа участвует как один выбранный узел"
 
-msgid "The group, realm or gateway the server offers at sign-in. Empty: the one it offers first"
-msgstr "Группа, realm или шлюз, которые сервер предлагает при входе. Пусто: первый из предложенных"
+msgid "The group, realm or gateway the server offers at sign-in"
+msgstr "Группа, realm или шлюз, которые сервер предлагает при входе"
 
 msgid "the installed sing-box lacks %s"
 msgstr "в установленном sing-box нет %s"
@@ -2408,8 +2363,8 @@ msgstr "MTU маршрута до сервера, под который подг
 msgid "The name must not contain /"
 msgstr "Имя не должно содержать /"
 
-msgid "The name the router reports to the server. Empty: its hostname"
-msgstr "Имя, которое роутер сообщает серверу. Пусто: имя хоста роутера"
+msgid "The name the router reports to the server"
+msgstr "Имя, которое роутер сообщает серверу"
 
 msgid "The name this device appears under in the Tailscale console"
 msgstr "Под этим именем устройство видно в консоли Tailscale"
@@ -2482,9 +2437,6 @@ msgstr "Адрес сервера не может содержать пробе�
 
 msgid "The server is reached over HTTPS: use https:// or no scheme"
 msgstr "Сервер доступен только по HTTPS: укажите https:// или адрес без схемы"
-
-msgid "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it"
-msgstr "Адрес самого сервера с префиксом, например 10.8.0.1/24; клиенты получают остальные адреса подсети. Рядом можно добавить подсеть IPv6"
 
 msgid "The servers that are imported"
 msgstr "Серверы, которые импортируются"
@@ -2773,6 +2725,9 @@ msgstr "Использовать подсети, анонсированные д
 
 msgid "Use the pattern => replacement form"
 msgstr "Используйте форму шаблон => замена"
+
+msgid "Use the tunnel's DNS for the domains its server declares. Add those domains to the section so that devices reach them through the tunnel"
+msgstr "Использовать DNS туннеля для доменов, которые объявляет его сервер. Добавьте эти домены в секцию, чтобы устройства ходили к ним через туннель"
 
 msgid "Used by"
 msgstr "Используется"

@@ -96,9 +96,9 @@ export function addUpdateOptions(section: CBISection) {
   o = section.option(
     form.Flag,
     'warp_profiles_via_proxy',
-    _('Request WARP profiles through a section'),
+    _('Request WARP through a section'),
     _(
-      'Profile generation and Cloudflare WARP tunnels make their requests through the selected section',
+      "Create and fetch Cloudflare WARP profiles through the selected section. The tunnels' own traffic does not go through it",
     ),
   );
   configureDownloadViaProxyFlag(o, 'warp_profiles_via_proxy_section');
@@ -111,7 +111,7 @@ export function addUpdateOptions(section: CBISection) {
   o = section.option(
     form.ListValue,
     'warp_profiles_via_proxy_section',
-    _('Request WARP profiles through'),
+    _('Request WARP through'),
   );
   o.depends('warp_profiles_via_proxy', '1');
   o.retain = true;

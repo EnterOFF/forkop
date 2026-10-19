@@ -377,20 +377,18 @@ t.test("a WireGuard server gets its key, and every client a key pair, a pre-shar
     t.eq(value("home", "amnezia_header_protection_key"), "", "a WireGuard server has nothing of AmneziaWG");
 });
 
-t.test("an AmneziaWG server is also issued the parameters its clients have to match, and keeps its own junk", () => {
+t.test("an AmneziaWG server keeps the parameters the dialog gave it and is issued none", () => {
     fresh_paths();
     prepared(wireguard_configuration("amneziawg"), WIREGUARD_TOOLS);
-    t.eq(length(b64dec(value("home", "amnezia_header_protection_key"))), 32);
-    t.eq(map([ "s1", "s4", "h1", "h4", "random_trailers", "disable_cookies", "rekey_after_time", "max_handshake_attempts" ],
-        (key) => value("home", "amnezia_" + key)), [ "12", "12", "1", "4", "1", "1", "100-120", "15-20" ]);
-    t.eq([ value("home", "amnezia_jc"), value("home", "amnezia_i1"), value("home", "amnezia_jmin") ], [ "5", "<r 2>", "" ],
-        "the junk and signature packets are the dialog's");
+    t.eq(map([ "jc", "i1", "jmin", "s1", "h1", "header_protection_key", "random_trailers" ],
+        (key) => value("home", "amnezia_" + key)), [ "5", "<r 2>", "", "", "", "", "" ],
+        "an empty parameter stays off, header protection included");
 });
 
 t.test("a WireGuard server prepared once keeps every key and address it was given", () => {
     fresh_paths();
     prepared(wireguard_configuration("amneziawg"), WIREGUARD_TOOLS);
-    let paths = [ "home.wireguard_private_key", "home.amnezia_header_protection_key", "phone.wireguard_private_key",
+    let paths = [ "home.wireguard_private_key", "phone.wireguard_private_key",
         "phone.wireguard_pre_shared_key", "laptop.wireguard_address" ];
     let before = map(paths, (path) => core_uci.get("forkop." + path));
     uci.__seed("forkop", uci.__sections("forkop"));

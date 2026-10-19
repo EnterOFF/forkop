@@ -1,6 +1,8 @@
 // The AmneziaWG parameters as UCI holds them, on a tunnel or a server, one row
-// each: how the value is written and whether a peer speaking plain WireGuard can
-// ignore it. The page carries the same table (fe-app-forkop/src/helpers/wireguard.ts)
+// each: how the value is written and whether a tunnel to a peer speaking plain
+// WireGuard uses it, which the peer then ignores. DisableCookies is not among
+// those: it only changes what a server under load answers. The page carries the
+// same table (fe-app-forkop/src/helpers/wireguard.ts)
 // and tests/fixtures/page_contract.json holds the two to each other.
 
 let common = require("core.common");
@@ -30,7 +32,7 @@ const PARAMETERS = [
     { key: "keepalive_timeout", kind: "range", one_sided: true },
     { key: "max_handshake_attempts", kind: "range", one_sided: true },
     { key: "random_trailers", kind: "flag", one_sided: false },
-    { key: "disable_cookies", kind: "flag", one_sided: true }
+    { key: "disable_cookies", kind: "flag", one_sided: false }
 ];
 
 const KEYS = map(PARAMETERS, (entry) => entry.key);

@@ -208,24 +208,11 @@ function wireguard_keypair() {
     return private_key == null || public_key == null ? null : { private_key: private_key[2], public_key: public_key[2] };
 }
 
-// A WireGuard pre-shared or header protection key: 32 random bytes in base64.
+// A WireGuard pre-shared key: 32 random bytes in base64.
 function random_key() {
     let bytes = random_bytes(32);
     return bytes == null ? "" : b64enc(bytes);
 }
-
-// What the Amnezia client installs a fresh AmneziaWG 3.1 server with, apart from
-// the junk and signature packets the dialog fills in: paddings as short as the
-// header protection nonce allows, the WireGuard message types as headers, which
-// the header protection key hides, random trailers, no cookie replies, and its
-// timings. Both ends have to hold the same, so they are issued once, like a key.
-const AMNEZIA_SERVER_PARAMETERS = {
-    s1: "12", s2: "12", s3: "12", s4: "12",
-    h1: "1", h2: "2", h3: "3", h4: "4",
-    random_trailers: "1", disable_cookies: "1",
-    rekey_after_time: "100-120", rekey_timeout: "3-7", reject_after_time: "150-180",
-    keepalive_timeout: "5-15", max_handshake_attempts: "15-20"
-};
 
 function address_bytes(value) {
     return iptoarr(split(value, "/")[0]);
@@ -294,8 +281,7 @@ function client_address(pool, current, taken) {
 // The key of the server and, for every client, its key pair, a pre-shared key
 // and an address in each of the server's subnets. A client is its key: the
 // server accepts only the keys it issued, so removing a client revokes it.
-// An AmneziaWG server also gets the parameters both ends have to match.
-function prepare_wireguard(name, protocol) {
+function prepare_wireguard(name) {
     if (get(name, "wireguard_private_key") == "" || get(name, "wireguard_public_key") == "") {
         let pair = wireguard_keypair();
         if (pair == null)
@@ -303,15 +289,6 @@ function prepare_wireguard(name, protocol) {
         set_value(name, "wireguard_private_key", pair.private_key);
         set_value(name, "wireguard_public_key", pair.public_key);
         exec.log("info", "Issued the WireGuard key of server '" + label(name) + "'");
-    }
-    if (protocol == "amneziawg" && get(name, "amnezia_header_protection_key") == "") {
-        let protection_key = random_key();
-        if (protection_key == "")
-            die("Failed to issue the AmneziaWG header protection key of server '" + label(name) + "'");
-        set_value(name, "amnezia_header_protection_key", protection_key);
-        for (let key, value in AMNEZIA_SERVER_PARAMETERS)
-            set_if_empty(name, "amnezia_" + key, value);
-        exec.log("info", "Issued the AmneziaWG parameters of server '" + label(name) + "'");
     }
 
     let pools = tunnel_pools(name);
@@ -399,7 +376,7 @@ function prepare_server(name) {
     // address, so it is given none.
     if (protocol == "wireguard" || protocol == "amneziawg") {
         prepare_clients(name, protocol);
-        prepare_wireguard(name, protocol);
+        prepare_wireguard(name);
         return;
     }
 

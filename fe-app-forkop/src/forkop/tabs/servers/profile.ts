@@ -138,13 +138,7 @@ export function buildWireGuardProfile(
     subnets.every((subnet) =>
       addresses.some((address) => subnetContains(subnet, address)),
     );
-  if (
-    !serverKey ||
-    !privateKey ||
-    !preSharedKey ||
-    !current ||
-    (amnezia && !text(server.amnezia_header_protection_key))
-  ) {
+  if (!serverKey || !privateKey || !preSharedKey || !current) {
     return { missing: 'keys' };
   }
 

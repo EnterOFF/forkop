@@ -19,7 +19,9 @@ export interface AmneziaParameter {
   kind: AmneziaKind;
   // Obfuscation one side adds on its own: junk and signature packets any peer
   // drops as unknown UDP, content padding trimmed away with the rest of the
-  // plaintext, and local timings. The rest describes the wire both ends read.
+  // plaintext, and local timings. The rest describes the wire both ends read,
+  // except DisableCookies, which only changes what a server under load answers
+  // and so does nothing for a tunnel.
   oneSided: boolean;
 }
 
@@ -55,10 +57,29 @@ export const AMNEZIA_PARAMETERS: AmneziaParameter[] = [
   row('keepalive_timeout', 'KeepaliveTimeout', 'range', true),
   row('max_handshake_attempts', 'MaxHandshakeAttempts', 'range', true),
   row('random_trailers', 'RandomTrailers', 'flag', false),
-  row('disable_cookies', 'DisableCookies', 'flag', true),
+  row('disable_cookies', 'DisableCookies', 'flag', false),
 ];
 
 export const AMNEZIA_KEYS = AMNEZIA_PARAMETERS.map(({ key }) => key);
+
+// What the first field of a parameter family says under it; every other
+// parameter is known by its name.
+export function amneziaDescription(key: string) {
+  switch (key) {
+    case 'jc':
+      return _('Junk packets before every handshake, Jmin to Jmax bytes each');
+    case 's1':
+      return _(
+        'Junk bytes at the start of packets: S1 to S3 of the handshake, S4 of data',
+      );
+    case 'h1':
+      return _('Packet headers: a number or a range, each its own');
+    case 'i1':
+      return _('Signature packets before every handshake, I1 first');
+    default:
+      return undefined;
+  }
+}
 
 export const ONE_SIDED_AMNEZIA_KEYS = AMNEZIA_PARAMETERS.filter(
   ({ oneSided }) => oneSided,
@@ -84,8 +105,8 @@ export function amneziaParameter(key: string) {
 // A tunnel gets them with its obfuscation switch, which exists only where there
 // is nothing to transcribe: every field of an AmneziaWG tunnel is copied from
 // the server's configuration, junk and signature packets included, and a
-// filled-in transcription target is how a field gets skipped. An AmneziaWG
-// server hands the junk and signature packets to its clients.
+// filled-in transcription target is how a field gets skipped. A new AmneziaWG
+// server starts from them as well.
 export const ONE_SIDED_AMNEZIA_DEFAULTS: Record<string, string> = {
   jc: '5',
   jmin: '10',

@@ -55,7 +55,7 @@ describe('AmneziaWG header protection', () => {
 });
 
 it.each(['wireguard', 'warp'])(
-  'passes DisableCookies to %s without random trailers',
+  'passes %s only the obfuscation a plain peer ignores',
   (kind) => {
     const endpoint = endpointFromSettings({
       tunnel_type: kind,
@@ -64,11 +64,11 @@ it.each(['wireguard', 'warp'])(
       private_key: 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=',
       peer_ids: [],
       amnezia_enabled: '1',
+      amnezia_jc: '5',
       amnezia_disable_cookies: '1',
       amnezia_random_trailers: '1',
     });
-    expect(endpoint?.amnezia).toMatchObject({ disable_cookies: true });
-    expect(endpoint?.amnezia).not.toHaveProperty('random_trailers');
+    expect(endpoint?.amnezia).toEqual({ jc: 5 });
   },
 );
 

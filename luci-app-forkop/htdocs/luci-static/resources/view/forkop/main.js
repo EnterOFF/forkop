@@ -17150,9 +17150,25 @@ var AMNEZIA_PARAMETERS = [
   row("keepalive_timeout", "KeepaliveTimeout", "range", true),
   row("max_handshake_attempts", "MaxHandshakeAttempts", "range", true),
   row("random_trailers", "RandomTrailers", "flag", false),
-  row("disable_cookies", "DisableCookies", "flag", true)
+  row("disable_cookies", "DisableCookies", "flag", false)
 ];
 var AMNEZIA_KEYS = AMNEZIA_PARAMETERS.map(({ key }) => key);
+function amneziaDescription(key) {
+  switch (key) {
+    case "jc":
+      return _("Junk packets before every handshake, Jmin to Jmax bytes each");
+    case "s1":
+      return _(
+        "Junk bytes at the start of packets: S1 to S3 of the handshake, S4 of data"
+      );
+    case "h1":
+      return _("Packet headers: a number or a range, each its own");
+    case "i1":
+      return _("Signature packets before every handshake, I1 first");
+    default:
+      return void 0;
+  }
+}
 var ONE_SIDED_AMNEZIA_KEYS = AMNEZIA_PARAMETERS.filter(
   ({ oneSided }) => oneSided
 ).map(({ key }) => key);
@@ -17245,8 +17261,8 @@ function rangeBounds(value) {
 }
 function validateAmneziaSet(values) {
   const text6 = (key) => `${values[key] ?? ""}`.trim();
-  const protectionKey = text6("header_protection_key");
-  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text6(key) || 0) < 12)) {
+  const protectionKey2 = text6("header_protection_key");
+  if (protectionKey2 && !/^A{43}=$/u.test(protectionKey2) && ["s1", "s2", "s3", "s4"].some((key) => Number(text6(key) || 0) < 12)) {
     return _(
       "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
     );
@@ -20196,7 +20212,6 @@ function addOpenVPNOptions(section) {
       )
     )
   );
-  o.placeholder = `vpn.example.com:${OPENVPN_DEFAULT_PORT}`;
   o.rmempty = false;
   o.validate = function(_sectionId, value) {
     if (!trimmed(value)) {
@@ -20360,7 +20375,6 @@ function addOpenVPNOptions(section) {
       staticKey
     )
   );
-  o.placeholder = "10.8.0.2/32";
   o.rmempty = false;
   o.validate = (_sectionId, value) => trimmed(value) ? validateAddress(value) : true;
   o = add(
@@ -20526,7 +20540,6 @@ function addOpenVPNOptions(section) {
       { ...tls, ...advanced }
     )
   );
-  o.placeholder = "TLS-ECDHE-ECDSA-WITH-AES-128-GCM-SHA256";
   o.rmempty = true;
   o = add(
     "openvpn_data_ciphers",
@@ -20535,13 +20548,12 @@ function addOpenVPNOptions(section) {
         form.MultiValue,
         "openvpn_data_ciphers",
         _("Data ciphers"),
-        _("Empty: %s (data-ciphers in the profile)").format(
-          OPENVPN_DEFAULT_DATA_CIPHERS.join(", ")
-        )
+        _("data-ciphers in the profile")
       ),
       { ...tls, ...advanced }
     )
   );
+  o.placeholder = OPENVPN_DEFAULT_DATA_CIPHERS.join(", ");
   DATA_CIPHERS.forEach((cipher) => o.value(cipher, cipher));
   o.create = true;
   o.rmempty = true;
@@ -20749,7 +20761,6 @@ function addOpenConnectOptions(section) {
       )
     )
   );
-  o.placeholder = "vpn.example.com";
   o.rmempty = false;
   o.validate = (_sectionId, value) => validateOpenConnectServer(value);
   o = add(
@@ -20767,9 +20778,7 @@ function addOpenConnectOptions(section) {
         form.Value,
         "openconnect_auth_group",
         _("Login group"),
-        _(
-          "The group, realm or gateway the server offers at sign-in. Empty: the one it offers first"
-        )
+        _("The group, realm or gateway the server offers at sign-in")
       )
     )
   );
@@ -20906,7 +20915,7 @@ function addOpenConnectOptions(section) {
         "openconnect_ca",
         _("CA certificate"),
         _(
-          "Empty: the authorities the router trusts. Add the one that issued the certificate of a server of your own"
+          "For a server of your own: the authority that issued its certificate"
         )
       )
     )
@@ -20924,7 +20933,6 @@ function addOpenConnectOptions(section) {
       )
     )
   );
-  o.placeholder = "pin-sha256:";
   o.rmempty = true;
   o.validate = (_sectionId, value) => validateOpenConnectFingerprint(value);
   o = add(
@@ -20977,7 +20985,6 @@ function addOpenConnectOptions(section) {
       advanced
     )
   );
-  o.placeholder = "main:secondary_username=alice";
   o.rmempty = true;
   o.validate = (_sectionId, value) => validateFormEntry(value);
   o = add(
@@ -20987,7 +20994,7 @@ function addOpenConnectOptions(section) {
         "openconnect_browser",
         _("Browser sign-in"),
         _(
-          "SSO and SAML through the sing-box dashboard, which the tunnel waits for at every connection. Off: the server is not offered it"
+          "SSO and SAML through the sing-box dashboard, which the tunnel waits for at every connection"
         )
       ),
       advanced
@@ -21016,12 +21023,7 @@ function addOpenConnectOptions(section) {
   o.rmempty = true;
   o = add(
     onKind2(
-      section.option(
-        form.Value,
-        "openconnect_user_agent",
-        _("User-Agent"),
-        _("Empty: the one of the protocol's own client")
-      ),
+      section.option(form.Value, "openconnect_user_agent", _("User-Agent")),
       advanced
     )
   );
@@ -21045,7 +21047,7 @@ function addOpenConnectOptions(section) {
         form.Value,
         "openconnect_local_hostname",
         _("Device name"),
-        _("The name the router reports to the server. Empty: its hostname")
+        _("The name the router reports to the server")
       ),
       advanced
     )
@@ -21071,8 +21073,7 @@ function addOpenConnectOptions(section) {
       section.option(
         form.Value,
         "openconnect_server_name",
-        _("Server name (SNI)"),
-        _("Empty: the host of the server address")
+        _("Server name (SNI)")
       ),
       advanced
     )
@@ -21148,15 +21149,7 @@ function addOpenConnectOptions(section) {
   o.default = "0";
   o.rmempty = true;
   o = add(
-    onKind2(
-      section.option(
-        form.Value,
-        "openconnect_mtu",
-        _("MTU"),
-        _("Empty: what the server offers")
-      ),
-      advanced
-    )
+    onKind2(section.option(form.Value, "openconnect_mtu", _("MTU")), advanced)
   );
   o.datatype = "range(576,65535)";
   o.rmempty = true;
@@ -21181,8 +21174,7 @@ function addOpenConnectOptions(section) {
       section.option(
         form.Value,
         "openconnect_dpd",
-        _("Dead peer detection, seconds"),
-        _("Empty: the interval the server asks for")
+        _("Dead peer detection, seconds")
       ),
       advanced
     )
@@ -21426,21 +21418,6 @@ function validateTunnelItemsBeforeSave(section_id, values) {
 }
 
 // src/forkop/tabs/sections/tunnels/dialog.ts
-function amneziaFieldTitle(key) {
-  const conf = amneziaParameter(key).conf;
-  const labels = {
-    header_protection_key: _("Header protection key"),
-    content_padding_addition: _("Additional packet padding"),
-    rekey_after_time: _("Rekey interval"),
-    rekey_timeout: _("Rekey timeout"),
-    reject_after_time: _("Data rejection timeout"),
-    keepalive_timeout: _("Keepalive timeout"),
-    max_handshake_attempts: _("Maximum handshake attempts"),
-    random_trailers: _("Random trailers"),
-    disable_cookies: _("Disable cookies")
-  };
-  return labels[key] ? [labels[key], _("%s in the configuration").format(conf)] : [conf];
-}
 function addWireGuardPeerItemOptions(section) {
   let o = section.option(form.Value, "address", _("Server address"));
   o.rmempty = false;
@@ -21478,9 +21455,7 @@ function addWireGuardPeerItemOptions(section) {
     form.Value,
     "persistent_keepalive_interval",
     _("Persistent keepalive"),
-    _(
-      "Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none"
-    )
+    _("Seconds, or a range such as 25-35")
   );
   o.validate = function(_itemId, value) {
     return validateAmneziaRange(value);
@@ -21796,9 +21771,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Value,
     "tailscale_control_url",
     _("Coordination server"),
-    _(
-      "Address of the coordination server. Change it if you use a custom server"
-    )
+    _("For a server of your own, such as Headscale")
   );
   tailscaleControlUrlOption.default = TAILSCALE_CONTROL_URL;
   tailscaleControlUrlOption.rmempty = false;
@@ -21818,8 +21791,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const tailscaleDetourSectionOption = itemSection.option(
     form.ListValue,
     "tailscale_detour_section",
-    _("Coordination server through"),
-    _("Required. The section that carries the control-plane traffic")
+    _("Coordination server through")
   );
   refreshOutboundDetourSectionOptionValues(
     tailscaleDetourSectionOption,
@@ -21880,21 +21852,11 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   configureTextareaOption(endpointJsonOption);
   const openvpnOptions = addOpenVPNOptions(itemSection);
   const openconnectOptions = addOpenConnectOptions(itemSection);
-  o = itemSection.option(
-    form.Value,
-    "warp_address",
-    _("WARP server address"),
-    _("Empty: the one the profile names")
-  );
+  o = itemSection.option(form.Value, "warp_address", _("WARP server address"));
   o.depends("tunnel_type", "warp");
   o.rmempty = true;
   o.datatype = "host";
-  o = itemSection.option(
-    form.Value,
-    "warp_port",
-    _("WARP server port"),
-    _("Empty: the one the profile names")
-  );
+  o = itemSection.option(form.Value, "warp_port", _("WARP server port"));
   o.depends("tunnel_type", "warp");
   o.rmempty = true;
   o.datatype = "port";
@@ -21926,8 +21888,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const listenPortOption = itemSection.option(
     form.Value,
     "listen_port",
-    _("Listen port"),
-    _("Empty: a random port")
+    _("Local port")
   );
   listenPortOption.datatype = "port";
   listenPortOption.rmempty = true;
@@ -21988,9 +21949,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Value,
     "warp_keepalive",
     _("Persistent keepalive"),
-    _(
-      "Seconds between the packets that keep the tunnel open, or a range such as 25-35. Empty: none"
-    )
+    _("Seconds, or a range such as 25-35")
   );
   o.validate = function(_itemId, value) {
     return validateAmneziaRange(value);
@@ -22051,7 +22010,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     "accept_server_dns",
     _("Accept server DNS"),
     _(
-      "Names in the domains the server declares are resolved by its DNS for connections through this tunnel. Add those domains to the section so that devices reach them through the tunnel"
+      "Use the tunnel's DNS for the domains its server declares. Add those domains to the section so that devices reach them through the tunnel"
     )
   );
   serverDnsOption.default = "1";
@@ -22070,7 +22029,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     "amnezia_enabled",
     _("Traffic obfuscation"),
     _(
-      "AmneziaWG junk and signature packets before every handshake, which any WireGuard server ignores"
+      "Add AmneziaWG junk and signature packets. Makes the traffic harder to recognize"
     )
   );
   amneziaEnabledOption.default = "0";
@@ -22082,15 +22041,17 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
       fillOneSidedAmneziaDefaults(map, amneziaOptions);
     }
   };
-  AMNEZIA_PARAMETERS.forEach(({ key, kind, oneSided }) => {
+  AMNEZIA_PARAMETERS.forEach(({ key, conf, kind, oneSided }) => {
     const option3 = itemSection.option(
       kind === "flag" ? form.Flag : form.Value,
       `amnezia_${key}`,
-      ...amneziaFieldTitle(key)
+      conf,
+      amneziaDescription(key)
     );
     if (kind === "flag") {
       option3.default = "0";
     } else {
+      option3.password = kind === "key";
       option3.validate = function(_itemId, value) {
         return validateAmneziaValue(key, value);
       };
@@ -22972,49 +22933,6 @@ var PROTOCOLS = [
     link: "socks5"
   },
   {
-    id: "tailscale",
-    label: "Tailscale",
-    kind: "endpoint",
-    securities: ["none"],
-    credentials: []
-  },
-  {
-    id: "openvpn",
-    label: "OpenVPN",
-    kind: "endpoint",
-    coreType: "openvpn-server",
-    listener: true,
-    securities: ["none"],
-    credentials: [],
-    clients: true,
-    profile: true,
-    tunnel: true
-  },
-  {
-    id: "wireguard",
-    label: "WireGuard",
-    kind: "endpoint",
-    listener: true,
-    anyAddress: true,
-    securities: ["none"],
-    credentials: [],
-    clients: true,
-    profile: true,
-    tunnel: true
-  },
-  {
-    id: "amneziawg",
-    label: "AmneziaWG",
-    kind: "endpoint",
-    listener: true,
-    anyAddress: true,
-    securities: ["none"],
-    credentials: [],
-    clients: true,
-    profile: true,
-    tunnel: true
-  },
-  {
     id: "vless",
     label: "VLESS",
     kind: "inbound",
@@ -23094,6 +23012,49 @@ var PROTOCOLS = [
     login: true,
     credentials: ["password"],
     link: "mierus"
+  },
+  {
+    id: "tailscale",
+    label: "Tailscale",
+    kind: "endpoint",
+    securities: ["none"],
+    credentials: []
+  },
+  {
+    id: "wireguard",
+    label: "WireGuard",
+    kind: "endpoint",
+    listener: true,
+    anyAddress: true,
+    securities: ["none"],
+    credentials: [],
+    clients: true,
+    profile: true,
+    tunnel: true
+  },
+  {
+    id: "amneziawg",
+    label: "AmneziaWG",
+    kind: "endpoint",
+    listener: true,
+    anyAddress: true,
+    securities: ["none"],
+    credentials: [],
+    clients: true,
+    profile: true,
+    tunnel: true
+  },
+  {
+    id: "openvpn",
+    label: "OpenVPN",
+    kind: "endpoint",
+    coreType: "openvpn-server",
+    listener: true,
+    securities: ["none"],
+    credentials: [],
+    clients: true,
+    profile: true,
+    tunnel: true
   },
   {
     id: "json_inbound",
@@ -23937,12 +23898,8 @@ function addTunnelOptions(section) {
   let o = section.option(
     form.DynamicList,
     "tunnel_address",
-    _("Tunnel subnet"),
-    _(
-      "The server's own address with a prefix, such as 10.8.0.1/24; clients get the other addresses of the subnet. An IPv6 subnet can go beside it"
-    )
+    _("Tunnel subnet")
   );
-  o.placeholder = "fd00:8::1/64";
   o.modalonly = true;
   o.rmempty = false;
   autofill(o, (sectionId) => {
@@ -23961,16 +23918,13 @@ function addTunnelOptions(section) {
     form.Flag,
     "tunnel_all_traffic",
     _("All traffic through the server"),
-    _(
-      "Clients send all of their traffic through the router, where the routing mode decides where it goes. Off, they send only the routes below"
-    )
+    _("All of the clients' traffic goes to the selected routing mode")
   );
   o.default = "1";
   o.rmempty = false;
   o.modalonly = true;
   onTunnel(o);
   o = section.option(form.DynamicList, "tunnel_routes", _("Routes"));
-  o.placeholder = "192.168.1.0/24";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = (_sectionId, value) => isEmptyValue(value) || isValidCidr(`${value}`.trim()) ? true : _("Use a subnet like 192.168.1.0/24");
@@ -24064,7 +24018,7 @@ function buildWireGuardProfile(sectionId, client, material5) {
   const current = addresses.length === subnets.length && subnets.every(
     (subnet) => addresses.some((address) => subnetContains(subnet, address))
   );
-  if (!serverKey || !privateKey || !preSharedKey || !current || amnezia && !text5(server2.amnezia_header_protection_key)) {
+  if (!serverKey || !privateKey || !preSharedKey || !current) {
     return { missing: "keys" };
   }
   const allTraffic = option(sectionId, "tunnel_all_traffic") !== "0";
@@ -26278,40 +26232,79 @@ function addOpenVPNServerOptions(section) {
 }
 
 // src/forkop/tabs/servers/form/amnezia.ts
-var CLIENT_KEYS2 = ["jc", "jmin", "jmax", "i1", "i2", "i3", "i4", "i5"];
-function hasAmneziaParameters(sectionId) {
-  const section = uci.get(
-    FORKOP_UCI_PACKAGE,
-    sectionId
+var SERVER_DEFAULTS = {
+  ...ONE_SIDED_AMNEZIA_DEFAULTS,
+  s1: "12",
+  s2: "12",
+  s3: "12",
+  s4: "12",
+  h1: "1",
+  h2: "2",
+  h3: "3",
+  h4: "4",
+  content_padding_addition: "",
+  random_trailers: "1",
+  disable_cookies: "1"
+};
+var GROUPS = [
+  ["jmin", "jmax"],
+  ["s1", "s2", "s3", "s4", "header_protection_key"],
+  ["h1", "h2", "h3", "h4"]
+];
+function protectionKey() {
+  return generatePresharedKey(32);
+}
+function initialValue(sectionId, key) {
+  if (option(sectionId, "protocol") === "amneziawg") {
+    return option(sectionId, `amnezia_${key}`);
+  }
+  return key === "header_protection_key" ? protectionKey() : SERVER_DEFAULTS[key] || "";
+}
+function revalidate(sectionId, keys) {
+  window.setTimeout(
+    () => keys.forEach((key) => {
+      const node = widgetNode(sectionId, `amnezia_${key}`);
+      const element3 = node ? dom.findClassInstance(node) : null;
+      element3?.triggerValidation?.();
+    })
   );
-  return Object.keys(section || {}).some((key) => key.startsWith("amnezia_"));
 }
 function addAmneziaServerOptions(section) {
-  CLIENT_KEYS2.forEach((key) => {
-    const description = key === "jc" ? _(
-      "Junk packets clients send before every handshake, Jmin to Jmax bytes each"
-    ) : key === "i1" ? _("Packets clients send before every handshake, I1 first") : void 0;
+  AMNEZIA_PARAMETERS.forEach(({ key, conf, kind }) => {
     const o = section.option(
-      form.Value,
+      kind === "flag" ? form.Flag : form.Value,
       `amnezia_${key}`,
-      amneziaParameter(key).conf,
-      description
+      conf,
+      amneziaDescription(key)
     );
     o.modalonly = true;
     o.rmempty = true;
     o.depends("protocol", "amneziawg");
-    autofill(
-      o,
-      (sectionId) => option(sectionId, `amnezia_${key}`) || (hasAmneziaParameters(sectionId) ? "" : ONE_SIDED_AMNEZIA_DEFAULTS[key] || "")
-    );
+    autofill(o, (sectionId) => initialValue(sectionId, key));
+    if (kind === "flag") return;
+    const group = GROUPS.find((keys) => keys.includes(key));
     o.validate = (sectionId, value) => {
       const valid = validateAmneziaValue(key, value);
-      if (valid !== true || key !== "jmin" && key !== "jmax") return valid;
-      return validateAmneziaSet({
-        jmin: key === "jmin" ? value : liveOption(sectionId, "amnezia_jmin"),
-        jmax: key === "jmax" ? value : liveOption(sectionId, "amnezia_jmax")
-      });
+      if (valid !== true || !group) return valid;
+      return validateAmneziaSet(
+        Object.fromEntries(
+          group.map((other) => [
+            other,
+            other === key ? value : liveOption(sectionId, `amnezia_${other}`)
+          ])
+        )
+      );
     };
+    if (group) {
+      o.onchange = (_ev, sectionId) => revalidate(
+        sectionId,
+        group.filter((other) => other !== key)
+      );
+    }
+    if (kind === "key") {
+      o.password = true;
+      addGenerateButton(o, () => protectionKey());
+    }
   });
 }
 
@@ -27103,9 +27096,9 @@ function addUpdateOptions(section) {
   o = section.option(
     form.Flag,
     "warp_profiles_via_proxy",
-    _("Request WARP profiles through a section"),
+    _("Request WARP through a section"),
     _(
-      "Profile generation and Cloudflare WARP tunnels make their requests through the selected section"
+      "Create and fetch Cloudflare WARP profiles through the selected section. The tunnels' own traffic does not go through it"
     )
   );
   configureDownloadViaProxyFlag(o, "warp_profiles_via_proxy_section");
@@ -27116,7 +27109,7 @@ function addUpdateOptions(section) {
   o = section.option(
     form.ListValue,
     "warp_profiles_via_proxy_section",
-    _("Request WARP profiles through")
+    _("Request WARP through")
   );
   o.depends("warp_profiles_via_proxy", "1");
   o.retain = true;
