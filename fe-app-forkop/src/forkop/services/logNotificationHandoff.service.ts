@@ -1,4 +1,4 @@
-import { getSessionStorage } from './sessionStorage.service';
+import { getSessionStorage } from './browserStorage.service';
 
 // LuCI reloads the page a moment after it applied a change, so the alerts an
 // apply raised and the lines written while the next page loads would be lost

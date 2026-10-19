@@ -69,7 +69,7 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
         [ "PUT", "/proxies/main-out", "{\"name\":\"main-1-out\"}" ],
         [ "PUT", "/proxies/fallback-out", "{\"name\":\"\"}" ],
         [ "PUT", "/providers/rules", "" ],
-        [ "PUT", "/providers/rules/geosite%2Fextra", "" ],
+        [ "PUT", "/providers/proxies/main%2Fsub1", "" ],
         [ "DELETE", "/connections/abc-123", "" ]
     ]) {
         let result = call([ "clash_api", ...request ]);
@@ -88,7 +88,7 @@ t.test("anything else is refused before it reaches the controller", () => {
     for (let request in [ [ "GET", "/configs", "" ], [ "PUT", "/configs", "{\"mode\":\"global\"}" ], [ "POST", "/proxies", "{\"name\":\"x\"}" ],
         [ "GET", "/proxies/../configs", "" ], [ "PUT", "/proxies/main-out", "{\"name\":\"x\",\"extra\":1}" ], [ "PUT", "/proxies/main-out", "not-json" ],
         [ "GET", "/proxies/main-out/delay?url=x&timeout=abc", "" ], [ "DELETE", "/connections", "{\"all\":true}" ],
-        [ "PUT", "/providers/rules", "{\"name\":\"geosite\"}" ], [ "PUT", "/providers/rules/a/b", "" ] ]) {
+        [ "PUT", "/providers/rules", "{\"name\":\"geosite\"}" ], [ "PUT", "/providers/rules/geosite", "" ] ]) {
         let result = call([ "clash_api", ...request ]);
         t.eq([ result.status, result.reply ], [ 1, null ], join(" ", request));
         t.contains(result.stderr, "not allowlisted");
@@ -122,7 +122,7 @@ t.test("read deadlines are short while delay sweeps and updates retain their bud
         [ "GET", "/proxies", "5" ],
         [ "GET", "/connections", "5" ],
         [ "GET", "/group/main/delay?url=https%3A%2F%2Fexample.com&timeout=40000", "50" ],
-        [ "PUT", "/providers/rules/main", "60" ]
+        [ "PUT", "/providers/rules", "60" ]
     ]) {
         clash.request(pair[0], pair[1], "");
         let argv = requests[length(requests) - 1].argv;

@@ -392,34 +392,18 @@ export async function updateClashApiProxyProviders(providerTags: string[]) {
   );
 }
 
-// Refreshing a rule-set downloads a file, so it needs the ceiling the
-// router-side transport allows rather than the mutation one.
+// Refreshing rule-sets downloads files, so it needs the ceiling the router-side
+// transport allows rather than the mutation one.
 const CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS = 60000;
 
-// One request per rule-set rather than the bulk endpoint: a section owns a few
-// named rule-sets, and refreshing the rest of the router's lists is not what
-// the button offers. A tag shared by two sections is one rule-set in the
-// runtime, so refreshing it from either section refreshes it once.
-export async function updateClashApiRuleProviders(providerTags: string[]) {
-  if (!providerTags.length) {
-    return { success: true as const, data: undefined };
-  }
-
-  const responses = await Promise.all(
-    providerTags.map((tag) =>
-      requestClashApi<undefined>(
-        `/providers/rules/${encodeURIComponent(tag)}`,
-        { method: 'PUT' },
-        CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS,
-      ),
-    ),
-  );
-
-  return (
-    responses.find((response) => !response.success) || {
-      success: true as const,
-      data: undefined,
-    }
+// The bulk endpoint refreshes every remote rule-set the runtime holds, those of
+// the DNS, bypass and block sections the dashboard does not show included, five
+// downloads at a time.
+export function updateClashApiRuleProviders() {
+  return requestClashApi<undefined>(
+    '/providers/rules',
+    { method: 'PUT' },
+    CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS,
   );
 }
 

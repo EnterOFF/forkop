@@ -1,4 +1,4 @@
-import { getSessionStorage } from './sessionStorage.service';
+import { getSessionStorage } from './browserStorage.service';
 const LOG_NOTIFICATION_STORAGE_KEY = 'forkop:shown-log-error-notifications:v1';
 const MAX_STORED_LOG_NOTIFICATIONS = 500;
 // A Forkop error as logread prints it: the date, the facility, the tag and the

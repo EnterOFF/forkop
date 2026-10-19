@@ -11,23 +11,20 @@ import { showToast } from '../../../helpers/showToast';
 import { prettyBytes } from '../../../helpers/prettyBytes';
 import { renderCopyIcon24, renderPinIcon24 } from '../../../icons';
 import { CustomForkopMethods } from '../../methods';
-import {
-  logger,
-  setLocalSubscriptionAction,
-  socket,
-  store,
-  StoreType,
-} from '../../services';
+import { logger, socket, store, StoreType } from '../../services';
 import {
   renderFlagEmojis,
   renderSections,
   renderSectionsPlaceholder,
+  renderToolbar,
   renderWidget,
 } from './partials';
+import { sectionLatencyTarget } from './sectionLatencyTarget';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { resetClashApiTransport } from '../../methods/custom/clashApi';
 import { Forkop } from '../../types';
 import { refreshRuntimeUiState } from '../../services/runtimeUiState.service';
+import { getLocalStorage } from '../../services/browserStorage.service';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { isDocumentVisible } from '../../../helpers/isDocumentVisible';
 import { createTabLifecycle } from '../../helpers/tabLifecycle';
@@ -38,6 +35,7 @@ import { resolveOutboundProxyLink } from './resolveOutboundProxyLink';
 import { E } from '../../../helpers/element';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
+const COLLAPSED_SECTIONS_STORAGE_KEY = 'forkop:dashboard-collapsed-sections:v1';
 // A latency test fills the router's own delay records in one at a time, and the
 // section refresh is how the page sees them: it is what turns a test of fifty
 // nodes from a button that sits still for half a minute into a list filling up
@@ -87,14 +85,49 @@ let lastPolledTotals: { at: number; up: number; down: number } | null = null;
 let pageUnloading = false;
 const latencyRequests = new Set<string>();
 const latencySortedSections = new Set<string>();
-const collapsedSections = new Set<string>();
+const collapsedSections = readCollapsedSections();
 const selectorRequests = new Set<string>();
+const toolbarActions = new Set<'testAll' | 'subscriptions' | 'lists'>();
 const fallbackPinRequests = new Set<string>();
 let activeFallbackModal: {
   code: string;
   container: HTMLElement;
   unsubscribe: () => void;
 } | null = null;
+
+// What a reader folded away stays folded on the next visit: with many sections
+// folding is how the page is kept to the ones that matter, and it was undone
+// by every reload.
+function readCollapsedSections() {
+  try {
+    const stored = JSON.parse(
+      getLocalStorage()?.getItem(COLLAPSED_SECTIONS_STORAGE_KEY) || '[]',
+    );
+    return new Set<string>(
+      Array.isArray(stored)
+        ? stored.filter((name): name is string => typeof name === 'string')
+        : [],
+    );
+  } catch {
+    return new Set<string>();
+  }
+}
+
+// Only sections the page still shows are written back, so a removed or
+// renamed one does not stay in the store for good.
+function writeCollapsedSections() {
+  const shown = new Set(
+    store.get().sectionsWidget.data.map((section) => section.sectionName),
+  );
+  try {
+    getLocalStorage()?.setItem(
+      COLLAPSED_SECTIONS_STORAGE_KEY,
+      JSON.stringify([...collapsedSections].filter((name) => shown.has(name))),
+    );
+  } catch {
+    // Folding still works for this visit when the browser refuses to store it.
+  }
+}
 
 function sectionLatencyRequestKey(sectionName: string) {
   return `section:${sectionName}`;
@@ -128,7 +161,8 @@ async function fetchDashboardSectionsOnce(mountId: number) {
   });
 
   try {
-    const { data, success } = await CustomForkopMethods.getDashboardSections();
+    const { data, success, hasRemoteLists } =
+      await CustomForkopMethods.getDashboardSections();
 
     if (!dashboardMounted || mountId !== dashboardMountId) {
       return false;
@@ -146,6 +180,7 @@ async function fetchDashboardSectionsOnce(mountId: number) {
         loading: false,
         failed: false,
         data,
+        hasRemoteLists,
       },
     });
 
@@ -208,34 +243,6 @@ async function fetchDashboardSections(options: { force?: boolean } = {}) {
   }
 }
 
-function setSubscriptionUpdating(
-  sectionName: string,
-  updating: boolean,
-  local = false,
-) {
-  if (local || !updating) {
-    setLocalSubscriptionAction(sectionName, updating && local);
-  }
-
-  const sectionsWidget = store.get().sectionsWidget;
-  const subscriptionUpdatingSections = {
-    ...sectionsWidget.subscriptionUpdatingSections,
-  };
-
-  if (updating) {
-    subscriptionUpdatingSections[sectionName] = true;
-  } else {
-    delete subscriptionUpdatingSections[sectionName];
-  }
-
-  store.set({
-    sectionsWidget: {
-      ...sectionsWidget,
-      subscriptionUpdatingSections,
-    },
-  });
-}
-
 function handleSortByLatency(sectionName: string, enabled: boolean) {
   if (enabled) {
     latencySortedSections.add(sectionName);
@@ -252,6 +259,7 @@ function handleCollapsedChange(sectionName: string, collapsed: boolean) {
   } else {
     collapsedSections.delete(sectionName);
   }
+  writeCollapsedSections();
 
   void renderSectionsWidget();
 }
@@ -735,7 +743,8 @@ function applyLatencyResult(
 //
 // A result needs no message: the cards show the delays, and a node that failed
 // its test loses its delay with the next refresh. Only a controller that gave no
-// answer at all leaves the page as it was, so that is the failure reported.
+// answer at all leaves the page as it was, so that is the failure reported, and
+// what the test answers to whoever runs several in a row.
 async function handleTestLatency(
   latencyType: 'group' | 'proxy',
   section: Forkop.OutboundGroup,
@@ -743,8 +752,10 @@ async function handleTestLatency(
   requestKey: string,
 ) {
   if (latencyRequests.has(requestKey)) {
-    return;
+    return true;
   }
+
+  let answered = true;
 
   latencyRequests.add(requestKey);
   void renderSectionsWidget();
@@ -759,6 +770,7 @@ async function handleTestLatency(
           );
     if (!response.success) {
       if (response.status === undefined) {
+        answered = false;
         showToast(
           _('Latency test failed: the Clash API did not answer'),
           'error',
@@ -780,6 +792,20 @@ async function handleTestLatency(
     void renderSectionsWidget();
     void fetchDashboardSections({ force: true });
   }
+
+  return answered;
+}
+
+function handleTestSectionLatency(section: Forkop.OutboundGroup) {
+  const target = sectionLatencyTarget(section);
+  return target
+    ? handleTestLatency(
+        target.type,
+        section,
+        target.tag,
+        sectionLatencyRequestKey(section.sectionName),
+      )
+    : Promise.resolve(true);
 }
 
 async function handleCopyOutbound(outbound: Forkop.Outbound) {
@@ -1418,87 +1444,92 @@ function handleShowFallbackInfo(outbound: Forkop.Outbound) {
   );
 }
 
-function setRuleSetUpdating(sectionName: string, updating: boolean) {
-  const sectionsWidget = store.get().sectionsWidget;
-  const ruleSetUpdatingSections = {
-    ...sectionsWidget.ruleSetUpdatingSections,
-  };
-
-  if (updating) {
-    ruleSetUpdatingSections[sectionName] = true;
-  } else {
-    delete ruleSetUpdatingSections[sectionName];
+async function runToolbarAction(
+  action: 'testAll' | 'subscriptions' | 'lists',
+  run: () => Promise<void>,
+) {
+  if (toolbarActions.has(action)) {
+    return;
   }
 
-  store.set({
-    sectionsWidget: {
-      ...sectionsWidget,
-      ruleSetUpdatingSections,
-    },
+  toolbarActions.add(action);
+  void renderSectionsWidget();
+  try {
+    await run();
+  } finally {
+    toolbarActions.delete(action);
+    void renderSectionsWidget();
+  }
+}
+
+// One section after another, as many presses of their own buttons would: a
+// router sweeping every group at once dials them all together. A controller
+// that did not answer one will not answer the next, so that ends the run.
+function handleTestAllSections() {
+  return runToolbarAction('testAll', async () => {
+    for (const section of store.get().sectionsWidget.data) {
+      if (!dashboardMounted || !(await handleTestSectionLatency(section))) {
+        return;
+      }
+    }
   });
+}
+
+function subscriptionProviderTags() {
+  return [
+    ...new Set(
+      store
+        .get()
+        .sectionsWidget.data.flatMap(
+          (section) => section.subscriptionProviderTags || [],
+        ),
+    ),
+  ];
 }
 
 // Both refresh endpoints answer 204 on success and 503 naming what failed, so
 // the outcome is reportable rather than guessed at. Anything less than every
 // target succeeding is reported as a failure: a partially refreshed set of
 // lists is not what the button promised.
-async function handleUpdateRuleSets(section: Forkop.OutboundGroup) {
-  if (store.get().sectionsWidget.ruleSetUpdatingSections[section.sectionName]) {
-    return;
-  }
+function handleUpdateLists() {
+  return runToolbarAction('lists', async () => {
+    const response = await CustomForkopMethods.updateClashApiRuleProviders();
 
-  setRuleSetUpdating(section.sectionName, true);
-
-  try {
-    const response = await CustomForkopMethods.updateClashApiRuleProviders(
-      section.ruleSetProviderTags || [],
-    );
-
-    if (!response.success) {
-      throw new Error(response.error);
+    if (response.success) {
+      showToast(_('Lists updated'), 'success');
+      return;
     }
 
-    showToast(_('Lists updated'), 'success');
-  } catch (error) {
-    logger.error('[DASHBOARD]', 'handleUpdateRuleSets: failed', error);
+    logger.error('[DASHBOARD]', 'handleUpdateLists: failed', response.error);
     showToast(_('Failed to update lists'), 'error');
-  } finally {
-    setRuleSetUpdating(section.sectionName, false);
-  }
+  });
 }
 
-async function handleUpdateSubscription(section: Forkop.OutboundGroup) {
-  if (
-    store.get().sectionsWidget.subscriptionUpdatingSections[section.sectionName]
-  ) {
-    return;
-  }
-
-  setSubscriptionUpdating(section.sectionName, true, true);
-
-  try {
+function handleUpdateSubscriptions() {
+  return runToolbarAction('subscriptions', async () => {
     const response = await CustomForkopMethods.updateClashApiProxyProviders(
-      section.subscriptionProviderTags || [],
+      subscriptionProviderTags(),
     );
 
-    if (!response.success) {
-      throw new Error(response.error);
-    }
     if (!pageUnloading) {
       void fetchDashboardSections({ force: true });
-      void refreshRuntimeUiState({ force: true });
     }
 
-    showToast(_('Subscriptions updated'), 'success');
-  } catch (error) {
-    logger.error('[DASHBOARD]', 'handleUpdateSubscription: failed', error);
+    if (response.success) {
+      showToast(_('Subscriptions updated'), 'success');
+      return;
+    }
+
+    logger.error(
+      '[DASHBOARD]',
+      'handleUpdateSubscriptions: failed',
+      response.error,
+    );
     showToast(_('Failed to update subscriptions'), 'error');
-  } finally {
-    setSubscriptionUpdating(section.sectionName, false);
-  }
+  });
 }
 
-// Renderer
+// // Renderer
 
 async function renderSectionsWidget() {
   logger.debug('[DASHBOARD]', 'renderSectionsWidget');
@@ -1509,6 +1540,8 @@ async function renderSectionsWidget() {
     return;
   }
 
+  const toolbar = document.getElementById('dashboard-sections-toolbar');
+
   if (sectionsWidget.loading || sectionsWidget.failed) {
     const renderedWidget = renderSectionsPlaceholder({
       loading: sectionsWidget.loading,
@@ -1516,9 +1549,32 @@ async function renderSectionsWidget() {
     });
 
     return preserveScrollForPage(() => {
+      toolbar?.replaceChildren();
       container.replaceChildren(renderedWidget);
     });
   }
+
+  const renderedToolbar = renderToolbar({
+    testAll:
+      sectionsWidget.data.length > 1
+        ? {
+            busy: toolbarActions.has('testAll'),
+            onClick: () => void handleTestAllSections(),
+          }
+        : undefined,
+    updateSubscriptions: subscriptionProviderTags().length
+      ? {
+          busy: toolbarActions.has('subscriptions'),
+          onClick: () => void handleUpdateSubscriptions(),
+        }
+      : undefined,
+    updateLists: sectionsWidget.hasRemoteLists
+      ? {
+          busy: toolbarActions.has('lists'),
+          onClick: () => void handleUpdateLists(),
+        }
+      : undefined,
+  });
 
   // A lone section has nothing to be folded out of the way of.
   const collapsible = sectionsWidget.data.length > 1;
@@ -1542,24 +1598,10 @@ async function renderSectionsWidget() {
             ),
           ),
       ),
-      subscriptionUpdating: Boolean(
-        sectionsWidget.subscriptionUpdatingSections[section.sectionName],
-      ),
-      ruleSetUpdating: Boolean(
-        sectionsWidget.ruleSetUpdatingSections[section.sectionName],
-      ),
-      onUpdateRuleSets: (target: Forkop.OutboundGroup) => {
-        void handleUpdateRuleSets(target);
-      },
       sortByLatency: latencySortedSections.has(section.sectionName),
       onSortByLatencyChange: handleSortByLatency,
-      onTestLatency: (tag) => {
-        void handleTestLatency(
-          section.withTagSelect ? 'group' : 'proxy',
-          section,
-          tag,
-          sectionLatencyRequestKey(section.sectionName),
-        );
+      onTestLatency: () => {
+        void handleTestSectionLatency(section);
       },
       onTestOutboundLatency: (latencyType, tag) => {
         void handleTestLatency(
@@ -1581,13 +1623,11 @@ async function renderSectionsWidget() {
       onShowFallbackInfo: (outbound) => {
         handleShowFallbackInfo(outbound);
       },
-      onUpdateSubscription: (section) => {
-        void handleUpdateSubscription(section);
-      },
     }),
   );
 
   return preserveScrollForPage(() => {
+    toolbar?.replaceChildren(...renderedToolbar);
     container.replaceChildren(...renderedWidgets);
   });
 }

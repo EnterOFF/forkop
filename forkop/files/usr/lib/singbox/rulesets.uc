@@ -92,30 +92,10 @@ function custom_reference_tag(reference) {
         : "inline-custom-" + hash12(reference) + "-ruleset";
 }
 
-// The rule-set tags each section owns, for the dashboard to refresh the lists
-// of one section. A custom reference is one shared rule set, so two sections
-// naming it share its tag. Sections without a rule set are left out.
-function section_tag_map() {
-    let connections = require("config.connections");
-    let result = {};
-    for (let section in require("core.uci").section_objects("forkop", "section")) {
-        let name = as_string(section[".name"]);
-        let tags = [];
-        for (let community in connections.community_lists(section))
-            push(tags, community_tag(name, community));
-        for (let reference in [ ...connections.rule_sets(section), ...connections.rule_sets_with_subnets(section) ])
-            push(tags, custom_reference_tag(reference));
-        if (name != "" && length(tags) > 0)
-            result[name] = uniq(tags);
-    }
-    return result;
-}
-
 return {
     COMMUNITY_SERVICES,
     is_community,
     community_url,
     community_tag,
-    custom_reference_tag,
-    section_tag_map
+    custom_reference_tag
 };

@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   clashApi: vi.fn(),
   clashSummary: vi.fn(),
   canUseDirectClashApi: vi.fn(),
-  getSectionRuleSets: vi.fn(),
 }));
 
 vi.mock('../getConfigSections', () => ({
@@ -16,7 +15,6 @@ vi.mock('../../shell', () => ({
   ForkopShellMethods: {
     clashApi: mocks.clashApi,
     clashSummary: mocks.clashSummary,
-    getSectionRuleSets: mocks.getSectionRuleSets,
   },
 }));
 
@@ -177,8 +175,6 @@ describe('getDashboardSections', () => {
     mocks.getConfigSections.mockResolvedValue([]);
     mocks.clashApi.mockReset();
     mocks.clashSummary.mockReset();
-    mocks.getSectionRuleSets.mockReset();
-    mocks.getSectionRuleSets.mockResolvedValue({ success: true, data: {} });
     clashProxies = {};
     clashProviders = {};
     useClashApiRuntime();
@@ -720,6 +716,75 @@ describe('getDashboardSections', () => {
     expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
+  // A section's lists are downloaded again by the one refresh of the toolbar,
+  // and it is offered only when something would be downloaded: a built-in list
+  // or a rule set named by its URL, in any section the runtime has, the ones
+  // the dashboard shows no card for included. A path is a file on the router.
+  it('knows whether any enabled section names a list to download', async () => {
+    setClashProxies({
+      Office: proxy('Selector', { all: ['Office/Node'] }),
+      'Office/Node': proxy('VLESS'),
+    });
+    const cases: Array<[Forkop.ConfigSection[], boolean]> = [
+      [[section()], false],
+      [
+        [
+          section(),
+          section({
+            '.name': 'dns',
+            action: 'bypass',
+            community_lists: ['youtube'],
+          }),
+        ],
+        true,
+      ],
+      [
+        [
+          section(),
+          section({
+            '.name': 'lists',
+            action: 'block',
+            rule_set: ['https://example.com/ads.srs'],
+          }),
+        ],
+        true,
+      ],
+      [
+        [section({ rule_set_with_subnets: ['https://example.com/mixed.txt'] })],
+        true,
+      ],
+      [[section({ rule_set: ['/etc/forkop/local.srs'] })], false],
+      [
+        [
+          section({ enabled: '0', community_lists: ['telegram'] }),
+          section({ '.name': 'other' }),
+        ],
+        false,
+      ],
+    ];
+
+    for (const [configSections, expected] of cases) {
+      mocks.getConfigSections.mockResolvedValue(configSections);
+      expect((await getDashboardSections()).hasRemoteLists).toBe(expected);
+    }
+  });
+
+  it('refreshes every rule-set through the one bulk request', async () => {
+    await useReachableClashApi();
+    const fetchMock = vi.fn().mockResolvedValue({ status: 204 });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(updateClashApiRuleProviders()).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://router.example:9090/providers/rules',
+      expect.objectContaining({ method: 'PUT' }),
+    );
+  });
+
   it('reports the Clash API failure message instead of its JSON envelope', async () => {
     mocks.getConfigSections.mockResolvedValue([section()]);
     setClashProxies({
@@ -738,9 +803,7 @@ describe('getDashboardSections', () => {
       }),
     );
 
-    await expect(
-      updateClashApiRuleProviders(['proxy-geosite-community-ruleset']),
-    ).resolves.toEqual({
+    await expect(updateClashApiRuleProviders()).resolves.toEqual({
       success: false,
       error: 'update 1 of 3 rule-sets failed: geosite: timeout',
       status: 503,

@@ -6,12 +6,12 @@ import {
   setClashApiConfigSections,
 } from './clashApi';
 import { isCopyableProxyLink } from '../../../helpers/isCopyableProxyLink';
-import { ForkopShellMethods } from '../shell';
 import { DEFAULT_LATENCY_TEST_URL } from '../../../constants';
 
 interface IGetDashboardSectionsResponse {
   success: boolean;
   data: Forkop.OutboundGroup[];
+  hasRemoteLists: boolean;
 }
 
 type ClashProxyEntry = {
@@ -277,6 +277,20 @@ function getJsonOutbounds(section: Forkop.ConfigSection) {
 function isConnectionAction(action?: string) {
   return Boolean(
     action && ['connection', 'proxy', 'outbound', 'vpn'].includes(action),
+  );
+}
+
+// What a refresh of the lists downloads again: a built-in list, or a rule set
+// named by its URL. A rule set named by a path is read from the router's disk.
+function hasRemoteLists(section: Forkop.ConfigSection) {
+  return (
+    section['.type'] === 'section' &&
+    section.enabled !== '0' &&
+    (getListValues(section.community_lists).length > 0 ||
+      [
+        ...getListValues(section.rule_set),
+        ...getListValues(section.rule_set_with_subnets),
+      ].some((reference) => !reference.startsWith('/')))
   );
 }
 
@@ -1127,7 +1141,8 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
   const configSections = hydrateConfigSections(await getConfigSections());
   setClashApiConfigSections(configSections);
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
-  const [clashProxies, clashProviders, sectionRuleSets] = await Promise.all([
+  const remoteLists = configSections.some(hasRemoteLists);
+  const [clashProxies, clashProviders] = await Promise.all([
     getClashApiProxies(),
     hasSubscriptions
       ? getClashApiProxyProviders()
@@ -1135,14 +1150,13 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
           success: true as const,
           data: { providers: {} },
         }),
-    ForkopShellMethods.getSectionRuleSets(),
   ]);
-  const ruleSetTags = sectionRuleSets.success ? sectionRuleSets.data : {};
 
   if (!clashProxies.success || !clashProxies.data?.proxies) {
     return {
       success: false,
       data: [],
+      hasRemoteLists: remoteLists,
     };
   }
 
@@ -1193,7 +1207,6 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         subscriptionProviderTags: subscriptionTags.map(
           (item) => item.runtimeTag,
         ),
-        ruleSetProviderTags: ruleSetTags[sectionName] || [],
         subscriptionMetadata,
         outbounds,
       };
@@ -1261,5 +1274,6 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
   return {
     success: true,
     data,
+    hasRemoteLists: remoteLists,
   };
 }

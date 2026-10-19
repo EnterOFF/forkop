@@ -174,13 +174,6 @@ export const ForkopShellMethods = {
       Forkop.AvailableMethods.GET_SYSTEM_INFO,
     );
   },
-  // Which rule-set tags belong to which section. Named by the runtime, because
-  // a built-in list is named per section and a custom reference by a hash of
-  // itself - neither is reconstructible here.
-  getSectionRuleSets: async () =>
-    callBaseMethod<Record<string, string[]>>(
-      Forkop.AvailableMethods.GET_SECTION_RULE_SETS,
-    ),
   // Runs the core itself, so only a page the state service cannot answer asks.
   getCoreFeatures: async () =>
     callBaseMethod<Forkop.CoreFeatures>(

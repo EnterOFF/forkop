@@ -66,10 +66,7 @@ function stateSignature(uiState: Forkop.UiState) {
 // for the next idle poll to notice was most of the lag between pressing a button
 // and the page reacting.
 function hasLocalPendingAction() {
-  const overlay = getLocalActionOverlay();
-  return (
-    overlay.serviceActions.size > 0 || overlay.subscriptionSections.size > 0
-  );
+  return getLocalActionOverlay().serviceActions.size > 0;
 }
 
 function isRuntimeStateActive() {

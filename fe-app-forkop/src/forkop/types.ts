@@ -79,7 +79,6 @@ export namespace Forkop {
     GET_SYSTEM_INFO = 'get_system_info',
     GET_UI_STATE = 'get_ui_state',
     GET_CORE_FEATURES = 'get_core_features',
-    GET_SECTION_RULE_SETS = 'get_section_rule_sets',
     SERVICE_ACTION_ASYNC = 'service_action_async',
     UI_ACTION_ACK = 'ui_action_ack',
   }
@@ -160,7 +159,6 @@ export namespace Forkop {
     proxyConfigType?: ProxyConfigType;
     subscriptionSourceCount?: number;
     subscriptionProviderTags?: string[];
-    ruleSetProviderTags?: string[];
     subscriptionMetadata?: SubscriptionMetadata[];
     outbounds: Outbound[];
   }
@@ -227,6 +225,7 @@ export namespace Forkop {
     enabled?: string;
     action?: RuleAction;
     node?: string;
+    community_lists?: string[];
     rule_set?: string[];
     rule_set_with_subnets?: string[];
     ports?: string[];

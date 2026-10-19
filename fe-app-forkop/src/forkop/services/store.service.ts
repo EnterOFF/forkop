@@ -159,8 +159,7 @@ export interface StoreType {
     loading: boolean;
     failed: boolean;
     data: Forkop.OutboundGroup[];
-    subscriptionUpdatingSections: Record<string, boolean>;
-    ruleSetUpdatingSections: Record<string, boolean>;
+    hasRemoteLists: boolean;
   };
   diagnosticsRunAction: {
     loading: boolean;
@@ -222,9 +221,8 @@ const initialStore: StoreType = {
   sectionsWidget: {
     loading: true,
     failed: false,
-    subscriptionUpdatingSections: {},
-    ruleSetUpdatingSections: {},
     data: [],
+    hasRemoteLists: false,
   },
   ...initialDiagnosticStore,
 };

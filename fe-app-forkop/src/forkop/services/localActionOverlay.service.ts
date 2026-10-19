@@ -2,7 +2,6 @@ import type { StoreType } from './store.service';
 
 type ServiceActionKey = 'restart' | 'start' | 'stop';
 
-const subscriptionSections = new Set<string>();
 const serviceActions = new Set<ServiceActionKey>();
 
 function setMembership<T>(set: Set<T>, value: T, active: boolean) {
@@ -10,12 +9,6 @@ function setMembership<T>(set: Set<T>, value: T, active: boolean) {
     set.add(value);
   } else {
     set.delete(value);
-  }
-}
-
-export function setLocalSubscriptionAction(section: string, active: boolean) {
-  if (section) {
-    setMembership(subscriptionSections, section, active);
   }
 }
 
@@ -30,12 +23,10 @@ export function setLocalServiceAction(
 
 export function getLocalActionOverlay() {
   return {
-    subscriptionSections: new Set(subscriptionSections),
     serviceActions: new Set(serviceActions),
   };
 }
 
 export function clearLocalActionOverlay() {
-  subscriptionSections.clear();
   serviceActions.clear();
 }

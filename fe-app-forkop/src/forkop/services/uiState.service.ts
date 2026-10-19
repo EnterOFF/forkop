@@ -47,8 +47,6 @@ function applyServiceState(uiState: Forkop.UiState) {
 }
 
 function applyActionState(actions: UiActionMap = {}) {
-  const current = store.get();
-
   // The local overlay only covers the gap between a click and the runtime
   // reporting the job; from the first report the operation is the runtime's,
   // and `service.forkop.busy` is what shows it.
@@ -58,25 +56,13 @@ function applyActionState(actions: UiActionMap = {}) {
     }
   }
 
-  const localOverlay = getLocalActionOverlay();
-  const subscriptionUpdatingSections: Record<string, boolean> = {};
   const diagnosticsActions = getEmptyDiagnosticsActions();
 
-  for (const section of localOverlay.subscriptionSections) {
-    subscriptionUpdatingSections[section] = true;
-  }
-
-  for (const action of localOverlay.serviceActions) {
+  for (const action of getLocalActionOverlay().serviceActions) {
     diagnosticsActions[action] = { loading: true };
   }
 
-  store.set({
-    sectionsWidget: {
-      ...current.sectionsWidget,
-      subscriptionUpdatingSections,
-    },
-    diagnosticsActions,
-  });
+  store.set({ diagnosticsActions });
 }
 
 export function applyUiStateToStore(uiState: Forkop.UiState) {

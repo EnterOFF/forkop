@@ -73,9 +73,8 @@ function allowed(method, path, body) {
         return body == "" && (path == "/connections" || length(segments(path, "/connections/")) == 1);
 
     if (method == "PUT") {
-        // A refresh of every rule provider or of one, and of one proxy provider.
-        if (path == "/providers/rules" || length(segments(path, "/providers/rules/")) == 1 ||
-            length(segments(path, "/providers/proxies/")) == 1)
+        // A refresh of every rule provider, and of one proxy provider.
+        if (path == "/providers/rules" || length(segments(path, "/providers/proxies/")) == 1)
             return body == "";
         // A selector or fallback pin; an empty name unpins.
         if (length(segments(path, "/proxies/")) != 1)

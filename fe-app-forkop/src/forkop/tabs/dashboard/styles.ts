@@ -86,11 +86,21 @@ export const styles = `
     color: var(--warn-color-medium, #b8860b);
 }
 
-.fkp_dashboard-page__outbound-section {
+.fkp_dashboard-page__toolbar {
     margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* A section opens with a header band in the colour of its outline: with a
+   dozen sections of a dozen nodes each, the eye has to find where one section
+   starts before it can read any of it, and the outline alone, the same one
+   every card inside has, marked nothing. */
+.fkp_dashboard-page__outbound-section {
+    margin-top: 12px;
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
-    padding: 10px;
 }
 
 .fkp_dashboard-page__outbound-section__title-section {
@@ -98,15 +108,45 @@ export const styles = `
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 8px 10px;
+    gap: 6px 10px;
+    min-width: 0;
+    padding: 6px 8px 6px 10px;
+    background: var(--background-color-low, lightgray);
+}
+
+.fkp_dashboard-page__outbound-section__heading {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px 10px;
     min-width: 0;
 }
 
 .fkp_dashboard-page__outbound-section__title-section__title {
-    color: var(--text-color-high);
+    color: var(--text-color-highest, inherit);
+    font-size: 1.15em;
     font-weight: 700;
+    line-height: 1.3;
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.fkp_dashboard-page__outbound-section__current {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    padding-left: 10px;
+    border-left: 1px solid var(--border-color-high, color-mix(in srgb, currentColor 30%, transparent));
+    color: var(--text-color-medium, inherit);
+    line-height: 1.3;
+}
+
+.fkp_dashboard-page__outbound-section__current-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .fkp_dashboard-page__outbound-section__title-section__actions {
@@ -119,8 +159,8 @@ export const styles = `
     max-width: 100%;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency {
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency,
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency {
     width: 28px;
     height: 28px;
     min-width: 28px;
@@ -132,8 +172,8 @@ export const styles = `
     flex: 0 0 auto;
 }
 
-.fkp_dashboard-page__outbound-section__collapse svg,
-.fkp_dashboard-page__outbound-section__sort-by-latency svg {
+.fkp_dashboard-page__outbound-section__sort-by-latency svg,
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
     width: 15px;
     height: 15px;
     display: block;
@@ -143,50 +183,41 @@ export const styles = `
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
-/* The chevron points the way the click moves the section: up while the cards
-   are showing, down once they are folded away. */
-.fkp_dashboard-page__outbound-section__collapse--collapsed svg {
+/* A disclosure in front of the title, where every section has it at the same
+   place whatever its actions are: down while the cards show, right once they
+   are folded away. */
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    margin: 0 -6px 0 -6px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text-color-medium, inherit);
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:focus-visible {
+    color: var(--primary-color-high, #337ab7);
+}
+
+.fkp_dashboard-page__outbound-section__collapse svg {
+    width: 16px;
+    height: 16px;
+    display: block;
     transform: rotate(180deg);
+    transition: transform 0.15s ease;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__rule-set-update {
-    min-width: 130px;
-    min-height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.fkp_dashboard-page__outbound-section__subscription-update svg,
-.fkp_dashboard-page__outbound-section__rule-set-update svg {
-    width: 15px;
-    height: 15px;
-    display: block;
-    flex: 0 0 auto;
-}
-
-.fkp_dashboard-page__outbound-section__subscription-update[disabled],
-.fkp_dashboard-page__outbound-section__rule-set-update[disabled] {
-    cursor: not-allowed;
-    opacity: 0.65;
-}
-
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency {
-    min-width: 99px;
-    min-height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
-    width: 15px;
-    height: 15px;
-    display: block;
-    flex: 0 0 auto;
+.fkp_dashboard-page__outbound-section__collapse--collapsed svg {
+    transform: rotate(90deg);
 }
 
 .fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency[disabled] {
@@ -195,10 +226,10 @@ export const styles = `
 }
 
 .fkp_dashboard-page__outbound-grid {
-    margin-top: 5px;
+    padding: 10px;
     display: grid;
     grid-template-columns: repeat(var(--dashboard-grid-columns), minmax(var(--dashboard-grid-min-width), 1fr));
-    grid-gap: 10px;
+    grid-gap: 8px;
 }
 
 .fkp_dashboard-page__subscription-meta {
@@ -300,11 +331,14 @@ export const styles = `
     text-underline-offset: 3px;
 }
 
+/* The provider's own words, set off from the facts above them but no louder
+   than them: the bar across the card stays, in a fainter fill and stripe. */
 .fkp_dashboard-page__subscription-meta__announce {
     margin: 6px 0 0;
-    border-left: 3px solid var(--primary-color-medium, dodgerblue);
+    border-left: 2px solid var(--primary-color-low, dodgerblue);
+    border-radius: 0 3px 3px 0;
     padding: 4px 8px;
-    background: var(--background-color-low, rgba(0, 0, 0, 0.04));
+    background: color-mix(in srgb, var(--background-color-low, rgba(0, 0, 0, 0.04)) 55%, transparent);
     color: var(--text-color-medium);
     font-style: italic;
     line-height: 1.25;
@@ -338,7 +372,7 @@ export const styles = `
 .fkp_dashboard-page__outbound-grid__item {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
-    padding: 10px;
+    padding: 8px 10px;
     transition: border 0.2s ease;
     min-width: 0;
     position: relative;
@@ -413,12 +447,13 @@ export const styles = `
     align-items: center;
     gap: 8px;
     margin-top: auto;
-    padding-top: 10px;
+    padding-top: 6px;
 }
 
 .fkp_dashboard-page__outbound-grid__item__type {
     min-width: 0;
     overflow-wrap: anywhere;
+    color: var(--text-color-medium, inherit);
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency {

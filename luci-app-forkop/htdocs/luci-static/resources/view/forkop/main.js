@@ -112,6 +112,15 @@ function latencyClassName(latency) {
   return "fkp_dashboard-page__outbound-grid__item__latency--red";
 }
 
+// src/forkop/tabs/dashboard/sectionLatencyTarget.ts
+function sectionLatencyTarget(section) {
+  if (section.withTagSelect) {
+    return { type: "group", tag: section.code };
+  }
+  const outbound = section.outbounds[0];
+  return outbound ? { type: "proxy", tag: outbound.code } : void 0;
+}
+
 // src/helpers/spinPhase.ts
 var SPIN_PERIOD_MS = 1e3;
 function spinPhaseDelayMs(now) {
@@ -647,6 +656,35 @@ function renderCopyIcon24() {
   );
 }
 
+// src/icons/renderDownloadIcon24.ts
+function renderDownloadIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-download-icon lucide-download"
+    },
+    [
+      svgEl("path", {
+        d: "M12 15V3"
+      }),
+      svgEl("path", {
+        d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+      }),
+      svgEl("path", {
+        d: "m7 10 5 5 5-5"
+      })
+    ]
+  );
+}
+
 // src/icons/renderInfoIcon24.ts
 function renderInfoIcon24() {
   return svgEl(
@@ -744,6 +782,32 @@ function renderChevronUpIcon24() {
       class: "lucide lucide-chevron-up-icon lucide-chevron-up"
     },
     [svgEl("path", { d: "m18 15-6-6-6 6" })]
+  );
+}
+
+// src/icons/renderGaugeIcon24.ts
+function renderGaugeIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-gauge-icon lucide-gauge"
+    },
+    [
+      svgEl("path", {
+        d: "m12 14 4-4"
+      }),
+      svgEl("path", {
+        d: "M3.34 19a10 10 0 1 1 17.32 0"
+      })
+    ]
   );
 }
 
@@ -922,52 +986,6 @@ function renderSubscriptionMetadata(metadata) {
     ) : ""
   ]);
 }
-function renderSubscriptionUpdateAction(section, subscriptionUpdating, onUpdateSubscription) {
-  if (!section.subscriptionSourceCount) {
-    return void 0;
-  }
-  return textE(
-    "button",
-    {
-      type: "button",
-      class: "btn fkp_dashboard-page__outbound-section__subscription-update",
-      "aria-label": _("Update subscriptions"),
-      disabled: subscriptionUpdating ? true : void 0,
-      click: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (subscriptionUpdating) {
-          return;
-        }
-        onUpdateSubscription(section);
-      }
-    },
-    subscriptionUpdating ? [renderLoaderCircleIcon24(), _("Update subscriptions")] : _("Update subscriptions")
-  );
-}
-function renderRuleSetUpdateAction(section, ruleSetUpdating, onUpdateRuleSets) {
-  if (!section.ruleSetProviderTags?.length) {
-    return void 0;
-  }
-  return textE(
-    "button",
-    {
-      type: "button",
-      class: "btn fkp_dashboard-page__outbound-section__rule-set-update",
-      "aria-label": _("Update lists"),
-      disabled: ruleSetUpdating ? true : void 0,
-      click: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (ruleSetUpdating) {
-          return;
-        }
-        onUpdateRuleSets(section);
-      }
-    },
-    ruleSetUpdating ? [renderLoaderCircleIcon24(), _("Update lists")] : _("Update lists")
-  );
-}
 function renderDefaultState({
   section,
   onChooseOutbound,
@@ -976,24 +994,18 @@ function renderDefaultState({
   onShowFallbackInfo,
   onTestLatency,
   onTestOutboundLatency,
-  onUpdateSubscription,
-  onUpdateRuleSets,
   onSortByLatencyChange,
   onCollapsedChange,
   latencyFetching,
   latencyFetchingTargets = /* @__PURE__ */ new Set(),
-  subscriptionUpdating,
-  ruleSetUpdating,
   sortByLatency,
   collapsible,
   collapsed
 }) {
   function testLatency() {
-    if (section.withTagSelect) {
-      return onTestLatency(section.code);
-    }
-    if (section.outbounds.length) {
-      return onTestLatency(section.outbounds[0].code);
+    const target = sectionLatencyTarget(section);
+    if (target) {
+      onTestLatency(target.tag);
     }
   }
   function renderOutbound(outbound) {
@@ -1126,16 +1138,6 @@ function renderDefaultState({
     );
   }
   const metadataNodes = (section.subscriptionMetadata || []).map((metadata) => renderSubscriptionMetadata(metadata)).filter(Boolean);
-  const subscriptionUpdateAction = renderSubscriptionUpdateAction(
-    section,
-    subscriptionUpdating,
-    onUpdateSubscription
-  );
-  const ruleSetUpdateAction = renderRuleSetUpdateAction(
-    section,
-    ruleSetUpdating,
-    onUpdateRuleSets
-  );
   const outbounds = sortByLatency ? [...section.outbounds].sort(
     (left, right) => getLatencySortValue(left) - getLatencySortValue(right)
   ) : section.outbounds;
@@ -1178,31 +1180,48 @@ function renderDefaultState({
     },
     renderChevronUpIcon24()
   ) : void 0;
-  return textE("div", { class: "fkp_dashboard-page__outbound-section" }, [
-    // Title with test latency
-    textE("div", { class: "fkp_dashboard-page__outbound-section__title-section" }, [
+  const selected = section.withTagSelect && (collapsed || section.outbounds.length > 1) ? section.outbounds.find((outbound) => outbound.selected) : void 0;
+  const current = selected ? textE("span", { class: "fkp_dashboard-page__outbound-section__current" }, [
+    textE(
+      "span",
+      { class: "fkp_dashboard-page__outbound-section__current-name" },
+      renderFlagEmojis(selected.displayName)
+    ),
+    ...selected.latency ? [
       textE(
-        "div",
-        {
-          class: "fkp_dashboard-page__outbound-section__title-section__title"
-        },
-        section.displayName
-      ),
+        "span",
+        { class: latencyClassName(selected.latency) },
+        `${selected.latency}ms`
+      )
+    ] : []
+  ]) : void 0;
+  return textE("div", { class: "fkp_dashboard-page__outbound-section" }, [
+    textE("div", { class: "fkp_dashboard-page__outbound-section__title-section" }, [
+      textE("div", { class: "fkp_dashboard-page__outbound-section__heading" }, [
+        ...collapseAction ? [collapseAction] : [],
+        textE(
+          "div",
+          {
+            class: "fkp_dashboard-page__outbound-section__title-section__title"
+          },
+          section.displayName
+        ),
+        ...current ? [current] : []
+      ]),
       textE(
         "div",
         {
           class: "fkp_dashboard-page__outbound-section__title-section__actions"
         },
         [
-          ...collapseAction ? [collapseAction] : [],
           ...latencySortAction ? [latencySortAction] : [],
-          ...subscriptionUpdateAction ? [subscriptionUpdateAction] : [],
-          ...ruleSetUpdateAction ? [ruleSetUpdateAction] : [],
           textE(
             "button",
             {
               type: "button",
               class: "btn dashboard-sections-grid-item-test-latency",
+              title: _("Test latency"),
+              "aria-label": _("Test latency"),
               "aria-busy": latencyFetching ? "true" : void 0,
               disabled: latencyFetching ? true : void 0,
               click: (event) => {
@@ -1211,27 +1230,12 @@ function renderDefaultState({
                 if (!latencyFetching) testLatency();
               }
             },
-            latencyFetching ? [
-              renderLoaderCircleIcon24(),
-              textE(
-                "span",
-                {
-                  class: "dashboard-sections-grid-item-test-latency__label"
-                },
-                _("Test latency")
-              )
-            ] : textE(
-              "span",
-              {
-                class: "dashboard-sections-grid-item-test-latency__label"
-              },
-              _("Test latency")
-            )
+            latencyFetching ? renderLoaderCircleIcon24() : renderGaugeIcon24()
           )
         ]
       )
     ]),
-    // Everything below the title is what folds away: the subscription blocks
+    // Everything below the title is what folds away: the subscription lines
     // and every card. What stays is the title row, so the section is still
     // there to unfold and its actions still work on it.
     ...collapsed ? [] : [
@@ -1264,13 +1268,7 @@ function renderSectionsPlaceholder(state) {
     },
     onShowFallbackInfo: () => {
     },
-    onUpdateSubscription: () => {
-    },
-    onUpdateRuleSets: () => {
-    },
-    latencyFetching: false,
-    subscriptionUpdating: false,
-    ruleSetUpdating: false
+    latencyFetching: false
   });
 }
 function renderSections(props) {
@@ -1345,6 +1343,456 @@ function renderWidget(props) {
   return renderDefaultState2(props);
 }
 
+// src/partials/button/styles.ts
+var styles = `
+.fkp-partial-button {
+    text-align: center;
+}
+
+.fkp-partial-button--with-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.fkp-partial-button__icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fkp-partial-button__icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    flex: 0 0 auto;
+}
+`;
+
+// src/partials/modal/styles.ts
+var styles2 = `
+
+.fkp-partial-modal__content {
+    max-height: 70vh;
+    overflow: scroll;
+    border-radius: 4px;
+}
+
+.fkp-partial-modal__footer {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.fkp-partial-modal__footer button {
+    margin-left: 0;
+}
+
+.fkp-partial-modal__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: auto;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fkp-partial-modal__checkbox-text {
+    line-height: 1.2;
+}
+`;
+
+// src/helpers/insertIf.ts
+function insertIf(condition, elements) {
+  return condition ? elements : [];
+}
+
+// src/partials/button/renderButton.ts
+function renderButton({
+  classNames = [],
+  disabled,
+  loading: loading3,
+  onClick,
+  text: text6,
+  icon
+}) {
+  const hasIcon = !!loading3 || !!icon;
+  function getWrappedIcon() {
+    const iconWrap = textE("span", {
+      class: "fkp-partial-button__icon"
+    });
+    if (loading3) {
+      iconWrap.appendChild(renderLoaderCircleIcon24());
+      return iconWrap;
+    }
+    if (icon) {
+      iconWrap.appendChild(icon());
+      return iconWrap;
+    }
+    return iconWrap;
+  }
+  function getClass() {
+    return [
+      "btn",
+      "fkp-partial-button",
+      ...insertIf(Boolean(disabled), ["fkp-partial-button--disabled"]),
+      ...insertIf(Boolean(loading3), ["fkp-partial-button--loading"]),
+      ...insertIf(Boolean(hasIcon), ["fkp-partial-button--with-icon"]),
+      ...classNames
+    ].filter(Boolean).join(" ");
+  }
+  function getDisabled() {
+    if (loading3 || disabled) {
+      return true;
+    }
+    return void 0;
+  }
+  return textE(
+    "button",
+    {
+      type: "button",
+      class: getClass(),
+      disabled: getDisabled(),
+      click: onClick
+    },
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text6)]
+  );
+}
+
+// src/helpers/showToast.ts
+function showToast(message, type, duration = 3e3) {
+  let container = document.querySelector(".toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "toast-container";
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.classList.add("visible"), 100);
+  setTimeout(() => {
+    toast.classList.remove("visible");
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// src/helpers/copyToClipboard.ts
+function copyToClipboard(text6) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text6;
+  document.body.appendChild(textarea);
+  textarea.select();
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    console.error("copyToClipboard", error);
+  }
+  showToast(
+    copied ? _("Copied") : _("Failed to copy!"),
+    copied ? "success" : "error"
+  );
+  document.body.removeChild(textarea);
+}
+
+// src/helpers/downloadAsTxt.ts
+function downloadAsTxt(text6, filename) {
+  const blob = new Blob([text6], { type: "text/plain;charset=utf-8" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
+  link.download = safeName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(link.href);
+}
+
+// src/partials/modal/renderModal.ts
+function renderModal(text6, name, options) {
+  let currentText = "";
+  let refreshInFlight = false;
+  let pendingRefresh = false;
+  let pendingForcedRefresh = false;
+  let refreshSessionId = 0;
+  let timer;
+  let observer;
+  let autoRefreshEnabled = options?.initialAutoRefresh ?? Boolean(options?.getText);
+  let maskValuesEnabled = options?.initialMaskValues ?? true;
+  let shouldScrollToBottomOnMount = Boolean(options?.startAtEnd);
+  let autoRefreshInput;
+  let maskValuesInput;
+  const codeEl = textE("code", {}, "");
+  const contentEl = textE(
+    "pre",
+    { class: "fkp-partial-modal__content" },
+    codeEl
+  );
+  const stopRefreshTimer = () => {
+    if (timer) {
+      clearInterval(timer);
+      timer = void 0;
+    }
+  };
+  const destroyLiveRefresh = () => {
+    refreshSessionId += 1;
+    pendingRefresh = false;
+    pendingForcedRefresh = false;
+    stopRefreshTimer();
+    observer?.disconnect();
+    observer = void 0;
+  };
+  const scrollToBottom = () => {
+    contentEl.scrollTop = contentEl.scrollHeight;
+  };
+  const scheduleInitialScrollToBottom = () => {
+    if (!shouldScrollToBottomOnMount || !body.isConnected) {
+      return;
+    }
+    shouldScrollToBottomOnMount = false;
+    requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+  };
+  const updateText = (nextText) => {
+    const normalizedText = nextText ?? "";
+    const shouldStickToBottom = shouldScrollToBottomOnMount || contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight - 16;
+    if (normalizedText === currentText) {
+      if (shouldStickToBottom) {
+        requestAnimationFrame(() => {
+          scrollToBottom();
+        });
+      }
+      return;
+    }
+    currentText = normalizedText;
+    codeEl.textContent = currentText;
+    if (shouldStickToBottom) {
+      requestAnimationFrame(() => {
+        scrollToBottom();
+      });
+    }
+  };
+  const refreshText = async (force = false) => {
+    if (!options?.getText || !force && !autoRefreshEnabled || refreshInFlight) {
+      return;
+    }
+    if (!body.isConnected) {
+      return;
+    }
+    refreshInFlight = true;
+    const sessionId = refreshSessionId;
+    try {
+      const nextText = await options.getText({
+        maskValues: maskValuesEnabled
+      });
+      if (!body.isConnected || !force && !autoRefreshEnabled) {
+        return;
+      }
+      if (sessionId !== refreshSessionId) {
+        return;
+      }
+      updateText(nextText ?? "");
+    } catch (error) {
+      console.warn("[renderModal] failed to refresh modal content", error);
+    } finally {
+      refreshInFlight = false;
+      if (pendingRefresh) {
+        const shouldForceRefresh = pendingForcedRefresh;
+        pendingRefresh = false;
+        pendingForcedRefresh = false;
+        if ((shouldForceRefresh || autoRefreshEnabled) && body.isConnected) {
+          void refreshText(shouldForceRefresh);
+        }
+      }
+    }
+  };
+  const requestRefresh = () => {
+    if (!options?.getText || !autoRefreshEnabled) {
+      return;
+    }
+    if (refreshInFlight) {
+      pendingRefresh = true;
+      return;
+    }
+    void refreshText();
+  };
+  const requestForcedRefresh = () => {
+    if (!options?.getText) {
+      return;
+    }
+    if (refreshInFlight) {
+      pendingRefresh = true;
+      pendingForcedRefresh = true;
+      return;
+    }
+    void refreshText(true);
+  };
+  const startRefreshTimer = () => {
+    if (!options?.getText || !autoRefreshEnabled || timer || typeof document === "undefined") {
+      return;
+    }
+    timer = setInterval(() => {
+      requestRefresh();
+    }, options.refreshMs ?? 3e3);
+  };
+  const setAutoRefreshEnabled = (nextValue) => {
+    autoRefreshEnabled = nextValue;
+    refreshSessionId += 1;
+    pendingRefresh = false;
+    pendingForcedRefresh = false;
+    if (autoRefreshInput) {
+      autoRefreshInput.checked = nextValue;
+    }
+    if (nextValue) {
+      startRefreshTimer();
+      requestRefresh();
+      return;
+    }
+    stopRefreshTimer();
+  };
+  const setMaskValuesEnabled = (nextValue) => {
+    maskValuesEnabled = nextValue;
+    refreshSessionId += 1;
+    pendingRefresh = false;
+    pendingForcedRefresh = false;
+    if (maskValuesInput) {
+      maskValuesInput.checked = nextValue;
+    }
+    requestForcedRefresh();
+  };
+  const footerChildren = [
+    renderButton({
+      classNames: ["cbi-button-apply"],
+      text: _("Download"),
+      onClick: () => downloadAsTxt(currentText, name)
+    }),
+    renderButton({
+      classNames: ["cbi-button-apply"],
+      text: _("Copy"),
+      onClick: () => copyToClipboard(`\`\`\`${name}
+${currentText}
+\`\`\``)
+    }),
+    renderButton({
+      classNames: ["cbi-button-remove"],
+      text: _("Close"),
+      onClick: () => {
+        destroyLiveRefresh();
+        ui.hideModal();
+      }
+    })
+  ];
+  if (options?.getText && options?.showAutoRefreshToggle) {
+    autoRefreshInput = document.createElement("input");
+    autoRefreshInput.type = "checkbox";
+    autoRefreshInput.className = "cbi-input-checkbox";
+    autoRefreshInput.checked = autoRefreshEnabled;
+    autoRefreshInput.addEventListener("change", () => {
+      setAutoRefreshEnabled(autoRefreshInput.checked);
+    });
+    footerChildren.unshift(
+      textE("label", { class: "fkp-partial-modal__checkbox" }, [
+        autoRefreshInput,
+        textE(
+          "span",
+          { class: "fkp-partial-modal__checkbox-text" },
+          options.autoRefreshLabel ?? _("Auto refresh")
+        )
+      ])
+    );
+  }
+  if (options?.getText && options?.showMaskValuesToggle) {
+    maskValuesInput = document.createElement("input");
+    maskValuesInput.type = "checkbox";
+    maskValuesInput.className = "cbi-input-checkbox";
+    maskValuesInput.checked = maskValuesEnabled;
+    maskValuesInput.addEventListener("change", () => {
+      setMaskValuesEnabled(maskValuesInput.checked);
+    });
+    footerChildren.unshift(
+      textE("label", { class: "fkp-partial-modal__checkbox" }, [
+        maskValuesInput,
+        textE(
+          "span",
+          { class: "fkp-partial-modal__checkbox-text" },
+          options.maskValuesLabel ?? _("Hide values")
+        )
+      ])
+    );
+  }
+  const body = textE("div", { class: "fkp-partial-modal__body" }, [
+    textE("div", {}, [
+      contentEl,
+      textE("div", { class: "fkp-partial-modal__footer" }, footerChildren)
+    ])
+  ]);
+  if ((options?.getText || options?.startAtEnd) && typeof document !== "undefined") {
+    observer = new MutationObserver(() => {
+      if (!body.isConnected) {
+        destroyLiveRefresh();
+        return;
+      }
+      scheduleInitialScrollToBottom();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true
+    });
+    scheduleInitialScrollToBottom();
+  }
+  if (options?.getText && typeof document !== "undefined") {
+    startRefreshTimer();
+    requestRefresh();
+  }
+  updateText(text6 ?? "");
+  return body;
+}
+
+// src/partials/index.ts
+var PartialStyles = `
+${styles}
+${styles2}
+`;
+
+// src/forkop/tabs/dashboard/partials/renderToolbar.ts
+function renderToolbar({
+  testAll,
+  updateSubscriptions,
+  updateLists
+}) {
+  const actions = [
+    testAll && renderButton({
+      classNames: ["fkp_dashboard-page__toolbar__action"],
+      icon: renderGaugeIcon24,
+      text: _("Test all sections"),
+      loading: testAll.busy,
+      onClick: testAll.onClick
+    }),
+    updateSubscriptions && renderButton({
+      classNames: ["fkp_dashboard-page__toolbar__action"],
+      icon: renderRotateCcwIcon24,
+      text: _("Update subscriptions"),
+      loading: updateSubscriptions.busy,
+      onClick: updateSubscriptions.onClick
+    }),
+    updateLists && renderButton({
+      classNames: ["fkp_dashboard-page__toolbar__action"],
+      icon: renderDownloadIcon24,
+      text: _("Update lists"),
+      loading: updateLists.busy,
+      onClick: updateLists.onClick
+    })
+  ].filter((action) => Boolean(action));
+  return actions.length ? [textE("div", { class: "fkp_dashboard-page__toolbar" }, actions)] : [];
+}
+
 // src/forkop/tabs/dashboard/render.ts
 function render() {
   return textE(
@@ -1398,6 +1846,7 @@ function render() {
             })
           )
         ]),
+        textE("div", { id: "dashboard-sections-toolbar" }),
         // All outbounds
         textE(
           "div",
@@ -1474,44 +1923,6 @@ function preserveScrollForPage(renderFn) {
   requestAnimationFrame(() => {
     window.scrollTo({ top: scrollY });
   });
-}
-
-// src/helpers/showToast.ts
-function showToast(message, type, duration = 3e3) {
-  let container = document.querySelector(".toast-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.className = "toast-container";
-    document.body.appendChild(container);
-  }
-  const toast = document.createElement("div");
-  toast.className = `toast toast-${type}`;
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => toast.classList.add("visible"), 100);
-  setTimeout(() => {
-    toast.classList.remove("visible");
-    setTimeout(() => toast.remove(), 300);
-  }, duration);
-}
-
-// src/helpers/copyToClipboard.ts
-function copyToClipboard(text6) {
-  const textarea = document.createElement("textarea");
-  textarea.value = text6;
-  document.body.appendChild(textarea);
-  textarea.select();
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch (error) {
-    console.error("copyToClipboard", error);
-  }
-  showToast(
-    copied ? _("Copied") : _("Failed to copy!"),
-    copied ? "success" : "error"
-  );
-  document.body.removeChild(textarea);
 }
 
 // src/forkop/methods/custom/getConfigSections.ts
@@ -1643,7 +2054,6 @@ var Forkop;
     AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
     AvailableMethods2["GET_UI_STATE"] = "get_ui_state";
     AvailableMethods2["GET_CORE_FEATURES"] = "get_core_features";
-    AvailableMethods2["GET_SECTION_RULE_SETS"] = "get_section_rule_sets";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
   })(AvailableMethods = Forkop2.AvailableMethods || (Forkop2.AvailableMethods = {}));
@@ -1834,12 +2244,6 @@ var ForkopShellMethods = {
       Forkop.AvailableMethods.GET_SYSTEM_INFO
     );
   },
-  // Which rule-set tags belong to which section. Named by the runtime, because
-  // a built-in list is named per section and a custom reference by a hash of
-  // itself - neither is reconstructible here.
-  getSectionRuleSets: async () => callBaseMethod(
-    Forkop.AvailableMethods.GET_SECTION_RULE_SETS
-  ),
   // Runs the core itself, so only a page the state service cannot answer asks.
   getCoreFeatures: async () => callBaseMethod(
     Forkop.AvailableMethods.GET_CORE_FEATURES
@@ -2131,23 +2535,12 @@ async function updateClashApiProxyProviders(providerTags) {
   };
 }
 var CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS = 6e4;
-async function updateClashApiRuleProviders(providerTags) {
-  if (!providerTags.length) {
-    return { success: true, data: void 0 };
-  }
-  const responses = await Promise.all(
-    providerTags.map(
-      (tag) => requestClashApi(
-        `/providers/rules/${encodeURIComponent(tag)}`,
-        { method: "PUT" },
-        CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS
-      )
-    )
+function updateClashApiRuleProviders() {
+  return requestClashApi(
+    "/providers/rules",
+    { method: "PUT" },
+    CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS
   );
-  return responses.find((response) => !response.success) || {
-    success: true,
-    data: void 0
-  };
 }
 function getClashApiProxies() {
   return requestClashApi(
@@ -2362,6 +2755,12 @@ function isConnectionAction(action) {
   return Boolean(
     action && ["connection", "proxy", "outbound", "vpn"].includes(action)
   );
+}
+function hasRemoteLists(section) {
+  return section[".type"] === "section" && section.enabled !== "0" && (getListValues(section.community_lists).length > 0 || [
+    ...getListValues(section.rule_set),
+    ...getListValues(section.rule_set_with_subnets)
+  ].some((reference) => !reference.startsWith("/")));
 }
 function hasSubscriptionSources(section) {
   return getSubscriptionSourceCount(section) > 0;
@@ -2955,19 +3354,19 @@ async function getDashboardSections() {
   const configSections = hydrateConfigSections(await getConfigSections());
   setClashApiConfigSections(configSections);
   const hasSubscriptions = configSections.some(hasSubscriptionSources);
-  const [clashProxies, clashProviders, sectionRuleSets] = await Promise.all([
+  const remoteLists = configSections.some(hasRemoteLists);
+  const [clashProxies, clashProviders] = await Promise.all([
     getClashApiProxies(),
     hasSubscriptions ? getClashApiProxyProviders() : Promise.resolve({
       success: true,
       data: { providers: {} }
-    }),
-    ForkopShellMethods.getSectionRuleSets()
+    })
   ]);
-  const ruleSetTags = sectionRuleSets.success ? sectionRuleSets.data : {};
   if (!clashProxies.success || !clashProxies.data?.proxies) {
     return {
       success: false,
-      data: []
+      data: [],
+      hasRemoteLists: remoteLists
     };
   }
   const proxies = Object.entries(clashProxies.data.proxies).map(
@@ -3011,7 +3410,6 @@ async function getDashboardSections() {
         subscriptionProviderTags: subscriptionTags.map(
           (item) => item.runtimeTag
         ),
-        ruleSetProviderTags: ruleSetTags[sectionName] || [],
         subscriptionMetadata,
         outbounds
       };
@@ -3069,7 +3467,8 @@ async function getDashboardSections() {
   });
   return {
     success: true,
-    data
+    data,
+    hasRemoteLists: remoteLists
   };
 }
 
@@ -3423,9 +3822,8 @@ var initialStore = {
   sectionsWidget: {
     loading: true,
     failed: false,
-    subscriptionUpdatingSections: {},
-    ruleSetUpdatingSections: {},
-    data: []
+    data: [],
+    hasRemoteLists: false
   },
   ...initialDiagnosticStore
 };
@@ -3522,16 +3920,22 @@ function startForkopLogFeed(onNewLog, resumeFrom = 0) {
   })();
 }
 
-// src/forkop/services/sessionStorage.service.ts
-function getSessionStorage() {
+// src/forkop/services/browserStorage.service.ts
+function getStorage(name) {
   if (typeof window === "undefined") {
     return null;
   }
   try {
-    return window.sessionStorage;
+    return window[name];
   } catch {
     return null;
   }
+}
+function getSessionStorage() {
+  return getStorage("sessionStorage");
+}
+function getLocalStorage() {
+  return getStorage("localStorage");
 }
 
 // src/forkop/services/logNotificationDeduper.service.ts
@@ -3639,18 +4043,12 @@ function takeLogNotificationHandoff(storage = getSessionStorage(), now = Date.no
 }
 
 // src/forkop/services/localActionOverlay.service.ts
-var subscriptionSections = /* @__PURE__ */ new Set();
 var serviceActions = /* @__PURE__ */ new Set();
 function setMembership(set, value, active) {
   if (active) {
     set.add(value);
   } else {
     set.delete(value);
-  }
-}
-function setLocalSubscriptionAction(section, active) {
-  if (section) {
-    setMembership(subscriptionSections, section, active);
   }
 }
 function setLocalServiceAction(action, active) {
@@ -3660,7 +4058,6 @@ function setLocalServiceAction(action, active) {
 }
 function getLocalActionOverlay() {
   return {
-    subscriptionSections: new Set(subscriptionSections),
     serviceActions: new Set(serviceActions)
   };
 }
@@ -3822,28 +4219,16 @@ function applyServiceState(uiState) {
   });
 }
 function applyActionState(actions = {}) {
-  const current = store.get();
   for (const state of actions.service || []) {
     if (isRunningAction(state) && state.action !== "reload") {
       setLocalServiceAction(state.action, false);
     }
   }
-  const localOverlay = getLocalActionOverlay();
-  const subscriptionUpdatingSections = {};
   const diagnosticsActions = getEmptyDiagnosticsActions();
-  for (const section of localOverlay.subscriptionSections) {
-    subscriptionUpdatingSections[section] = true;
-  }
-  for (const action of localOverlay.serviceActions) {
+  for (const action of getLocalActionOverlay().serviceActions) {
     diagnosticsActions[action] = { loading: true };
   }
-  store.set({
-    sectionsWidget: {
-      ...current.sectionsWidget,
-      subscriptionUpdatingSections
-    },
-    diagnosticsActions
-  });
+  store.set({ diagnosticsActions });
 }
 function applyUiStateToStore(uiState) {
   setCoreFeatures(uiState.capabilities?.core);
@@ -3894,8 +4279,7 @@ function stateSignature(uiState) {
   ].join("|");
 }
 function hasLocalPendingAction() {
-  const overlay = getLocalActionOverlay();
-  return overlay.serviceActions.size > 0 || overlay.subscriptionSections.size > 0;
+  return getLocalActionOverlay().serviceActions.size > 0;
 }
 function isRuntimeStateActive() {
   return runtimeStateHasRunningAction || hasLocalPendingAction();
@@ -4547,6 +4931,7 @@ async function resolveOutboundProxyLink(outbound, fetchProxyLink) {
 
 // src/forkop/tabs/dashboard/initController.ts
 var SECTIONS_REFRESH_INTERVAL_MS = 1e4;
+var COLLAPSED_SECTIONS_STORAGE_KEY = "forkop:dashboard-collapsed-sections:v1";
 var SECTIONS_LATENCY_REFRESH_INTERVAL_MS = 2e3;
 var SECTIONS_REFRESH_BACKOFF_MAX_MS = 6e4;
 var SECTIONS_REFRESH_DUTY_MAX_MS = 3e4;
@@ -4573,10 +4958,35 @@ var lastPolledTotals = null;
 var pageUnloading = false;
 var latencyRequests = /* @__PURE__ */ new Set();
 var latencySortedSections = /* @__PURE__ */ new Set();
-var collapsedSections = /* @__PURE__ */ new Set();
+var collapsedSections = readCollapsedSections();
 var selectorRequests = /* @__PURE__ */ new Set();
+var toolbarActions = /* @__PURE__ */ new Set();
 var fallbackPinRequests = /* @__PURE__ */ new Set();
 var activeFallbackModal = null;
+function readCollapsedSections() {
+  try {
+    const stored = JSON.parse(
+      getLocalStorage()?.getItem(COLLAPSED_SECTIONS_STORAGE_KEY) || "[]"
+    );
+    return new Set(
+      Array.isArray(stored) ? stored.filter((name) => typeof name === "string") : []
+    );
+  } catch {
+    return /* @__PURE__ */ new Set();
+  }
+}
+function writeCollapsedSections() {
+  const shown2 = new Set(
+    store.get().sectionsWidget.data.map((section) => section.sectionName)
+  );
+  try {
+    getLocalStorage()?.setItem(
+      COLLAPSED_SECTIONS_STORAGE_KEY,
+      JSON.stringify([...collapsedSections].filter((name) => shown2.has(name)))
+    );
+  } catch {
+  }
+}
 function sectionLatencyRequestKey(sectionName) {
   return `section:${sectionName}`;
 }
@@ -4602,7 +5012,7 @@ async function fetchDashboardSectionsOnce(mountId) {
     }
   });
   try {
-    const { data, success } = await CustomForkopMethods.getDashboardSections();
+    const { data, success, hasRemoteLists: hasRemoteLists2 } = await CustomForkopMethods.getDashboardSections();
     if (!dashboardMounted || mountId !== dashboardMountId) {
       return false;
     }
@@ -4615,7 +5025,8 @@ async function fetchDashboardSectionsOnce(mountId) {
         ...current,
         loading: false,
         failed: false,
-        data
+        data,
+        hasRemoteLists: hasRemoteLists2
       }
     });
     return true;
@@ -4661,26 +5072,6 @@ async function fetchDashboardSections(options = {}) {
     }
   }
 }
-function setSubscriptionUpdating(sectionName, updating, local = false) {
-  if (local || !updating) {
-    setLocalSubscriptionAction(sectionName, updating && local);
-  }
-  const sectionsWidget = store.get().sectionsWidget;
-  const subscriptionUpdatingSections = {
-    ...sectionsWidget.subscriptionUpdatingSections
-  };
-  if (updating) {
-    subscriptionUpdatingSections[sectionName] = true;
-  } else {
-    delete subscriptionUpdatingSections[sectionName];
-  }
-  store.set({
-    sectionsWidget: {
-      ...sectionsWidget,
-      subscriptionUpdatingSections
-    }
-  });
-}
 function handleSortByLatency(sectionName, enabled) {
   if (enabled) {
     latencySortedSections.add(sectionName);
@@ -4695,6 +5086,7 @@ function handleCollapsedChange(sectionName, collapsed) {
   } else {
     collapsedSections.delete(sectionName);
   }
+  writeCollapsedSections();
   void renderSectionsWidget();
 }
 function widgetsAreLive() {
@@ -5048,8 +5440,9 @@ function applyLatencyResult(sectionName, latencies) {
 }
 async function handleTestLatency(latencyType, section, tag, requestKey) {
   if (latencyRequests.has(requestKey)) {
-    return;
+    return true;
   }
+  let answered = true;
   latencyRequests.add(requestKey);
   void renderSectionsWidget();
   restartSectionsRefresh();
@@ -5060,6 +5453,7 @@ async function handleTestLatency(latencyType, section, tag, requestKey) {
     );
     if (!response.success) {
       if (response.status === void 0) {
+        answered = false;
         showToast(
           _("Latency test failed: the Clash API did not answer"),
           "error"
@@ -5078,6 +5472,16 @@ async function handleTestLatency(latencyType, section, tag, requestKey) {
     void renderSectionsWidget();
     void fetchDashboardSections({ force: true });
   }
+  return answered;
+}
+function handleTestSectionLatency(section) {
+  const target = sectionLatencyTarget(section);
+  return target ? handleTestLatency(
+    target.type,
+    section,
+    target.tag,
+    sectionLatencyRequestKey(section.sectionName)
+  ) : Promise.resolve(true);
 }
 async function handleCopyOutbound(outbound) {
   const link = await resolveOutboundProxyLink(
@@ -5606,66 +6010,67 @@ function handleShowFallbackInfo(outbound) {
     container
   );
 }
-function setRuleSetUpdating(sectionName, updating) {
-  const sectionsWidget = store.get().sectionsWidget;
-  const ruleSetUpdatingSections = {
-    ...sectionsWidget.ruleSetUpdatingSections
-  };
-  if (updating) {
-    ruleSetUpdatingSections[sectionName] = true;
-  } else {
-    delete ruleSetUpdatingSections[sectionName];
+async function runToolbarAction(action, run) {
+  if (toolbarActions.has(action)) {
+    return;
   }
-  store.set({
-    sectionsWidget: {
-      ...sectionsWidget,
-      ruleSetUpdatingSections
+  toolbarActions.add(action);
+  void renderSectionsWidget();
+  try {
+    await run();
+  } finally {
+    toolbarActions.delete(action);
+    void renderSectionsWidget();
+  }
+}
+function handleTestAllSections() {
+  return runToolbarAction("testAll", async () => {
+    for (const section of store.get().sectionsWidget.data) {
+      if (!dashboardMounted || !await handleTestSectionLatency(section)) {
+        return;
+      }
     }
   });
 }
-async function handleUpdateRuleSets(section) {
-  if (store.get().sectionsWidget.ruleSetUpdatingSections[section.sectionName]) {
-    return;
-  }
-  setRuleSetUpdating(section.sectionName, true);
-  try {
-    const response = await CustomForkopMethods.updateClashApiRuleProviders(
-      section.ruleSetProviderTags || []
-    );
-    if (!response.success) {
-      throw new Error(response.error);
-    }
-    showToast(_("Lists updated"), "success");
-  } catch (error) {
-    logger.error("[DASHBOARD]", "handleUpdateRuleSets: failed", error);
-    showToast(_("Failed to update lists"), "error");
-  } finally {
-    setRuleSetUpdating(section.sectionName, false);
-  }
+function subscriptionProviderTags() {
+  return [
+    ...new Set(
+      store.get().sectionsWidget.data.flatMap(
+        (section) => section.subscriptionProviderTags || []
+      )
+    )
+  ];
 }
-async function handleUpdateSubscription(section) {
-  if (store.get().sectionsWidget.subscriptionUpdatingSections[section.sectionName]) {
-    return;
-  }
-  setSubscriptionUpdating(section.sectionName, true, true);
-  try {
-    const response = await CustomForkopMethods.updateClashApiProxyProviders(
-      section.subscriptionProviderTags || []
-    );
-    if (!response.success) {
-      throw new Error(response.error);
+function handleUpdateLists() {
+  return runToolbarAction("lists", async () => {
+    const response = await CustomForkopMethods.updateClashApiRuleProviders();
+    if (response.success) {
+      showToast(_("Lists updated"), "success");
+      return;
     }
+    logger.error("[DASHBOARD]", "handleUpdateLists: failed", response.error);
+    showToast(_("Failed to update lists"), "error");
+  });
+}
+function handleUpdateSubscriptions() {
+  return runToolbarAction("subscriptions", async () => {
+    const response = await CustomForkopMethods.updateClashApiProxyProviders(
+      subscriptionProviderTags()
+    );
     if (!pageUnloading) {
       void fetchDashboardSections({ force: true });
-      void refreshRuntimeUiState({ force: true });
     }
-    showToast(_("Subscriptions updated"), "success");
-  } catch (error) {
-    logger.error("[DASHBOARD]", "handleUpdateSubscription: failed", error);
+    if (response.success) {
+      showToast(_("Subscriptions updated"), "success");
+      return;
+    }
+    logger.error(
+      "[DASHBOARD]",
+      "handleUpdateSubscriptions: failed",
+      response.error
+    );
     showToast(_("Failed to update subscriptions"), "error");
-  } finally {
-    setSubscriptionUpdating(section.sectionName, false);
-  }
+  });
 }
 async function renderSectionsWidget() {
   logger.debug("[DASHBOARD]", "renderSectionsWidget");
@@ -5674,15 +6079,31 @@ async function renderSectionsWidget() {
   if (!container) {
     return;
   }
+  const toolbar = document.getElementById("dashboard-sections-toolbar");
   if (sectionsWidget.loading || sectionsWidget.failed) {
     const renderedWidget = renderSectionsPlaceholder({
       loading: sectionsWidget.loading,
       failed: sectionsWidget.failed
     });
     return preserveScrollForPage(() => {
+      toolbar?.replaceChildren();
       container.replaceChildren(renderedWidget);
     });
   }
+  const renderedToolbar = renderToolbar({
+    testAll: sectionsWidget.data.length > 1 ? {
+      busy: toolbarActions.has("testAll"),
+      onClick: () => void handleTestAllSections()
+    } : void 0,
+    updateSubscriptions: subscriptionProviderTags().length ? {
+      busy: toolbarActions.has("subscriptions"),
+      onClick: () => void handleUpdateSubscriptions()
+    } : void 0,
+    updateLists: sectionsWidget.hasRemoteLists ? {
+      busy: toolbarActions.has("lists"),
+      onClick: () => void handleUpdateLists()
+    } : void 0
+  });
   const collapsible = sectionsWidget.data.length > 1;
   const renderedWidgets = sectionsWidget.data.map(
     (section) => renderSections({
@@ -5702,24 +6123,10 @@ async function renderSectionsWidget() {
           )
         )
       ),
-      subscriptionUpdating: Boolean(
-        sectionsWidget.subscriptionUpdatingSections[section.sectionName]
-      ),
-      ruleSetUpdating: Boolean(
-        sectionsWidget.ruleSetUpdatingSections[section.sectionName]
-      ),
-      onUpdateRuleSets: (target) => {
-        void handleUpdateRuleSets(target);
-      },
       sortByLatency: latencySortedSections.has(section.sectionName),
       onSortByLatencyChange: handleSortByLatency,
-      onTestLatency: (tag) => {
-        void handleTestLatency(
-          section.withTagSelect ? "group" : "proxy",
-          section,
-          tag,
-          sectionLatencyRequestKey(section.sectionName)
-        );
+      onTestLatency: () => {
+        void handleTestSectionLatency(section);
       },
       onTestOutboundLatency: (latencyType, tag) => {
         void handleTestLatency(
@@ -5740,13 +6147,11 @@ async function renderSectionsWidget() {
       },
       onShowFallbackInfo: (outbound) => {
         handleShowFallbackInfo(outbound);
-      },
-      onUpdateSubscription: (section2) => {
-        void handleUpdateSubscription(section2);
       }
     })
   );
   return preserveScrollForPage(() => {
+    toolbar?.replaceChildren(...renderedToolbar);
     container.replaceChildren(...renderedWidgets);
   });
 }
@@ -5970,7 +6375,7 @@ async function initController() {
 }
 
 // src/forkop/tabs/dashboard/styles.ts
-var styles = `
+var styles3 = `
 @font-face {
     font-family: "Twemoji Country Flags";
     src: url("/luci-static/resources/view/forkop/fonts/TwemojiCountryFlags.woff2") format("woff2");
@@ -6055,11 +6460,21 @@ var styles = `
     color: var(--warn-color-medium, #b8860b);
 }
 
-.fkp_dashboard-page__outbound-section {
+.fkp_dashboard-page__toolbar {
     margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* A section opens with a header band in the colour of its outline: with a
+   dozen sections of a dozen nodes each, the eye has to find where one section
+   starts before it can read any of it, and the outline alone, the same one
+   every card inside has, marked nothing. */
+.fkp_dashboard-page__outbound-section {
+    margin-top: 12px;
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
-    padding: 10px;
 }
 
 .fkp_dashboard-page__outbound-section__title-section {
@@ -6067,15 +6482,45 @@ var styles = `
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 8px 10px;
+    gap: 6px 10px;
+    min-width: 0;
+    padding: 6px 8px 6px 10px;
+    background: var(--background-color-low, lightgray);
+}
+
+.fkp_dashboard-page__outbound-section__heading {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    gap: 4px 10px;
     min-width: 0;
 }
 
 .fkp_dashboard-page__outbound-section__title-section__title {
-    color: var(--text-color-high);
+    color: var(--text-color-highest, inherit);
+    font-size: 1.15em;
     font-weight: 700;
+    line-height: 1.3;
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.fkp_dashboard-page__outbound-section__current {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+    padding-left: 10px;
+    border-left: 1px solid var(--border-color-high, color-mix(in srgb, currentColor 30%, transparent));
+    color: var(--text-color-medium, inherit);
+    line-height: 1.3;
+}
+
+.fkp_dashboard-page__outbound-section__current-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .fkp_dashboard-page__outbound-section__title-section__actions {
@@ -6088,8 +6533,8 @@ var styles = `
     max-width: 100%;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency {
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency,
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency {
     width: 28px;
     height: 28px;
     min-width: 28px;
@@ -6101,8 +6546,8 @@ var styles = `
     flex: 0 0 auto;
 }
 
-.fkp_dashboard-page__outbound-section__collapse svg,
-.fkp_dashboard-page__outbound-section__sort-by-latency svg {
+.fkp_dashboard-page__outbound-section__sort-by-latency svg,
+.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
     width: 15px;
     height: 15px;
     display: block;
@@ -6112,50 +6557,41 @@ var styles = `
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
-/* The chevron points the way the click moves the section: up while the cards
-   are showing, down once they are folded away. */
-.fkp_dashboard-page__outbound-section__collapse--collapsed svg {
+/* A disclosure in front of the title, where every section has it at the same
+   place whatever its actions are: down while the cards show, right once they
+   are folded away. */
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    margin: 0 -6px 0 -6px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--text-color-medium, inherit);
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:focus-visible {
+    color: var(--primary-color-high, #337ab7);
+}
+
+.fkp_dashboard-page__outbound-section__collapse svg {
+    width: 16px;
+    height: 16px;
+    display: block;
     transform: rotate(180deg);
+    transition: transform 0.15s ease;
 }
 
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__subscription-update,
-.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__rule-set-update {
-    min-width: 130px;
-    min-height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.fkp_dashboard-page__outbound-section__subscription-update svg,
-.fkp_dashboard-page__outbound-section__rule-set-update svg {
-    width: 15px;
-    height: 15px;
-    display: block;
-    flex: 0 0 auto;
-}
-
-.fkp_dashboard-page__outbound-section__subscription-update[disabled],
-.fkp_dashboard-page__outbound-section__rule-set-update[disabled] {
-    cursor: not-allowed;
-    opacity: 0.65;
-}
-
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency {
-    min-width: 99px;
-    min-height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
-
-.fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
-    width: 15px;
-    height: 15px;
-    display: block;
-    flex: 0 0 auto;
+.fkp_dashboard-page__outbound-section__collapse--collapsed svg {
+    transform: rotate(90deg);
 }
 
 .fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency[disabled] {
@@ -6164,10 +6600,10 @@ var styles = `
 }
 
 .fkp_dashboard-page__outbound-grid {
-    margin-top: 5px;
+    padding: 10px;
     display: grid;
     grid-template-columns: repeat(var(--dashboard-grid-columns), minmax(var(--dashboard-grid-min-width), 1fr));
-    grid-gap: 10px;
+    grid-gap: 8px;
 }
 
 .fkp_dashboard-page__subscription-meta {
@@ -6269,11 +6705,14 @@ var styles = `
     text-underline-offset: 3px;
 }
 
+/* The provider's own words, set off from the facts above them but no louder
+   than them: the bar across the card stays, in a fainter fill and stripe. */
 .fkp_dashboard-page__subscription-meta__announce {
     margin: 6px 0 0;
-    border-left: 3px solid var(--primary-color-medium, dodgerblue);
+    border-left: 2px solid var(--primary-color-low, dodgerblue);
+    border-radius: 0 3px 3px 0;
     padding: 4px 8px;
-    background: var(--background-color-low, rgba(0, 0, 0, 0.04));
+    background: color-mix(in srgb, var(--background-color-low, rgba(0, 0, 0, 0.04)) 55%, transparent);
     color: var(--text-color-medium);
     font-style: italic;
     line-height: 1.25;
@@ -6307,7 +6746,7 @@ var styles = `
 .fkp_dashboard-page__outbound-grid__item {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
-    padding: 10px;
+    padding: 8px 10px;
     transition: border 0.2s ease;
     min-width: 0;
     position: relative;
@@ -6382,12 +6821,13 @@ var styles = `
     align-items: center;
     gap: 8px;
     margin-top: auto;
-    padding-top: 10px;
+    padding-top: 6px;
 }
 
 .fkp_dashboard-page__outbound-grid__item__type {
     min-width: 0;
     overflow-wrap: anywhere;
+    color: var(--text-color-medium, inherit);
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-grid__item__latency {
@@ -6747,7 +7187,7 @@ var styles = `
 var DashboardTab = {
   render,
   initController,
-  styles
+  styles: styles3
 };
 
 // src/forkop/tabs/diagnostic/renderDiagnostic.ts
@@ -7204,11 +7644,6 @@ async function runNftCheck() {
   }
 }
 
-// src/helpers/insertIf.ts
-function insertIf(condition, elements) {
-  return condition ? elements : [];
-}
-
 // src/forkop/tabs/diagnostic/checks/runFakeIPCheck.ts
 async function runFakeIPCheck() {
   const { order, title, code } = DIAGNOSTICS_CHECKS_MAP.FAKEIP;
@@ -7269,381 +7704,6 @@ async function runFakeIPCheck() {
     ]
   });
 }
-
-// src/partials/button/styles.ts
-var styles2 = `
-.fkp-partial-button {
-    text-align: center;
-}
-
-.fkp-partial-button--with-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 5px;
-}
-
-.fkp-partial-button__icon {
-    flex: 0 0 auto;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.fkp-partial-button__icon svg {
-    width: 16px;
-    height: 16px;
-    display: block;
-    flex: 0 0 auto;
-}
-`;
-
-// src/partials/modal/styles.ts
-var styles3 = `
-
-.fkp-partial-modal__content {
-    max-height: 70vh;
-    overflow: scroll;
-    border-radius: 4px;
-}
-
-.fkp-partial-modal__footer {
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.fkp-partial-modal__footer button {
-    margin-left: 0;
-}
-
-.fkp-partial-modal__checkbox {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-right: auto;
-    cursor: pointer;
-    user-select: none;
-}
-
-.fkp-partial-modal__checkbox-text {
-    line-height: 1.2;
-}
-`;
-
-// src/partials/button/renderButton.ts
-function renderButton({
-  classNames = [],
-  disabled,
-  loading: loading3,
-  onClick,
-  text: text6,
-  icon
-}) {
-  const hasIcon = !!loading3 || !!icon;
-  function getWrappedIcon() {
-    const iconWrap = textE("span", {
-      class: "fkp-partial-button__icon"
-    });
-    if (loading3) {
-      iconWrap.appendChild(renderLoaderCircleIcon24());
-      return iconWrap;
-    }
-    if (icon) {
-      iconWrap.appendChild(icon());
-      return iconWrap;
-    }
-    return iconWrap;
-  }
-  function getClass() {
-    return [
-      "btn",
-      "fkp-partial-button",
-      ...insertIf(Boolean(disabled), ["fkp-partial-button--disabled"]),
-      ...insertIf(Boolean(loading3), ["fkp-partial-button--loading"]),
-      ...insertIf(Boolean(hasIcon), ["fkp-partial-button--with-icon"]),
-      ...classNames
-    ].filter(Boolean).join(" ");
-  }
-  function getDisabled() {
-    if (loading3 || disabled) {
-      return true;
-    }
-    return void 0;
-  }
-  return textE(
-    "button",
-    {
-      type: "button",
-      class: getClass(),
-      disabled: getDisabled(),
-      click: onClick
-    },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text6)]
-  );
-}
-
-// src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text6, filename) {
-  const blob = new Blob([text6], { type: "text/plain;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
-  link.download = safeName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(link.href);
-}
-
-// src/partials/modal/renderModal.ts
-function renderModal(text6, name, options) {
-  let currentText = "";
-  let refreshInFlight = false;
-  let pendingRefresh = false;
-  let pendingForcedRefresh = false;
-  let refreshSessionId = 0;
-  let timer;
-  let observer;
-  let autoRefreshEnabled = options?.initialAutoRefresh ?? Boolean(options?.getText);
-  let maskValuesEnabled = options?.initialMaskValues ?? true;
-  let shouldScrollToBottomOnMount = Boolean(options?.startAtEnd);
-  let autoRefreshInput;
-  let maskValuesInput;
-  const codeEl = textE("code", {}, "");
-  const contentEl = textE(
-    "pre",
-    { class: "fkp-partial-modal__content" },
-    codeEl
-  );
-  const stopRefreshTimer = () => {
-    if (timer) {
-      clearInterval(timer);
-      timer = void 0;
-    }
-  };
-  const destroyLiveRefresh = () => {
-    refreshSessionId += 1;
-    pendingRefresh = false;
-    pendingForcedRefresh = false;
-    stopRefreshTimer();
-    observer?.disconnect();
-    observer = void 0;
-  };
-  const scrollToBottom = () => {
-    contentEl.scrollTop = contentEl.scrollHeight;
-  };
-  const scheduleInitialScrollToBottom = () => {
-    if (!shouldScrollToBottomOnMount || !body.isConnected) {
-      return;
-    }
-    shouldScrollToBottomOnMount = false;
-    requestAnimationFrame(() => {
-      scrollToBottom();
-    });
-  };
-  const updateText = (nextText) => {
-    const normalizedText = nextText ?? "";
-    const shouldStickToBottom = shouldScrollToBottomOnMount || contentEl.scrollTop + contentEl.clientHeight >= contentEl.scrollHeight - 16;
-    if (normalizedText === currentText) {
-      if (shouldStickToBottom) {
-        requestAnimationFrame(() => {
-          scrollToBottom();
-        });
-      }
-      return;
-    }
-    currentText = normalizedText;
-    codeEl.textContent = currentText;
-    if (shouldStickToBottom) {
-      requestAnimationFrame(() => {
-        scrollToBottom();
-      });
-    }
-  };
-  const refreshText = async (force = false) => {
-    if (!options?.getText || !force && !autoRefreshEnabled || refreshInFlight) {
-      return;
-    }
-    if (!body.isConnected) {
-      return;
-    }
-    refreshInFlight = true;
-    const sessionId = refreshSessionId;
-    try {
-      const nextText = await options.getText({
-        maskValues: maskValuesEnabled
-      });
-      if (!body.isConnected || !force && !autoRefreshEnabled) {
-        return;
-      }
-      if (sessionId !== refreshSessionId) {
-        return;
-      }
-      updateText(nextText ?? "");
-    } catch (error) {
-      console.warn("[renderModal] failed to refresh modal content", error);
-    } finally {
-      refreshInFlight = false;
-      if (pendingRefresh) {
-        const shouldForceRefresh = pendingForcedRefresh;
-        pendingRefresh = false;
-        pendingForcedRefresh = false;
-        if ((shouldForceRefresh || autoRefreshEnabled) && body.isConnected) {
-          void refreshText(shouldForceRefresh);
-        }
-      }
-    }
-  };
-  const requestRefresh = () => {
-    if (!options?.getText || !autoRefreshEnabled) {
-      return;
-    }
-    if (refreshInFlight) {
-      pendingRefresh = true;
-      return;
-    }
-    void refreshText();
-  };
-  const requestForcedRefresh = () => {
-    if (!options?.getText) {
-      return;
-    }
-    if (refreshInFlight) {
-      pendingRefresh = true;
-      pendingForcedRefresh = true;
-      return;
-    }
-    void refreshText(true);
-  };
-  const startRefreshTimer = () => {
-    if (!options?.getText || !autoRefreshEnabled || timer || typeof document === "undefined") {
-      return;
-    }
-    timer = setInterval(() => {
-      requestRefresh();
-    }, options.refreshMs ?? 3e3);
-  };
-  const setAutoRefreshEnabled = (nextValue) => {
-    autoRefreshEnabled = nextValue;
-    refreshSessionId += 1;
-    pendingRefresh = false;
-    pendingForcedRefresh = false;
-    if (autoRefreshInput) {
-      autoRefreshInput.checked = nextValue;
-    }
-    if (nextValue) {
-      startRefreshTimer();
-      requestRefresh();
-      return;
-    }
-    stopRefreshTimer();
-  };
-  const setMaskValuesEnabled = (nextValue) => {
-    maskValuesEnabled = nextValue;
-    refreshSessionId += 1;
-    pendingRefresh = false;
-    pendingForcedRefresh = false;
-    if (maskValuesInput) {
-      maskValuesInput.checked = nextValue;
-    }
-    requestForcedRefresh();
-  };
-  const footerChildren = [
-    renderButton({
-      classNames: ["cbi-button-apply"],
-      text: _("Download"),
-      onClick: () => downloadAsTxt(currentText, name)
-    }),
-    renderButton({
-      classNames: ["cbi-button-apply"],
-      text: _("Copy"),
-      onClick: () => copyToClipboard(`\`\`\`${name}
-${currentText}
-\`\`\``)
-    }),
-    renderButton({
-      classNames: ["cbi-button-remove"],
-      text: _("Close"),
-      onClick: () => {
-        destroyLiveRefresh();
-        ui.hideModal();
-      }
-    })
-  ];
-  if (options?.getText && options?.showAutoRefreshToggle) {
-    autoRefreshInput = document.createElement("input");
-    autoRefreshInput.type = "checkbox";
-    autoRefreshInput.className = "cbi-input-checkbox";
-    autoRefreshInput.checked = autoRefreshEnabled;
-    autoRefreshInput.addEventListener("change", () => {
-      setAutoRefreshEnabled(autoRefreshInput.checked);
-    });
-    footerChildren.unshift(
-      textE("label", { class: "fkp-partial-modal__checkbox" }, [
-        autoRefreshInput,
-        textE(
-          "span",
-          { class: "fkp-partial-modal__checkbox-text" },
-          options.autoRefreshLabel ?? _("Auto refresh")
-        )
-      ])
-    );
-  }
-  if (options?.getText && options?.showMaskValuesToggle) {
-    maskValuesInput = document.createElement("input");
-    maskValuesInput.type = "checkbox";
-    maskValuesInput.className = "cbi-input-checkbox";
-    maskValuesInput.checked = maskValuesEnabled;
-    maskValuesInput.addEventListener("change", () => {
-      setMaskValuesEnabled(maskValuesInput.checked);
-    });
-    footerChildren.unshift(
-      textE("label", { class: "fkp-partial-modal__checkbox" }, [
-        maskValuesInput,
-        textE(
-          "span",
-          { class: "fkp-partial-modal__checkbox-text" },
-          options.maskValuesLabel ?? _("Hide values")
-        )
-      ])
-    );
-  }
-  const body = textE("div", { class: "fkp-partial-modal__body" }, [
-    textE("div", {}, [
-      contentEl,
-      textE("div", { class: "fkp-partial-modal__footer" }, footerChildren)
-    ])
-  ]);
-  if ((options?.getText || options?.startAtEnd) && typeof document !== "undefined") {
-    observer = new MutationObserver(() => {
-      if (!body.isConnected) {
-        destroyLiveRefresh();
-        return;
-      }
-      scheduleInitialScrollToBottom();
-    });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true
-    });
-    scheduleInitialScrollToBottom();
-  }
-  if (options?.getText && typeof document !== "undefined") {
-    startRefreshTimer();
-    requestRefresh();
-  }
-  updateText(text6 ?? "");
-  return body;
-}
-
-// src/partials/index.ts
-var PartialStyles = `
-${styles2}
-${styles3}
-`;
 
 // src/forkop/tabs/diagnostic/partials/renderAvailableActions.ts
 function restartActionText(restart) {

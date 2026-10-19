@@ -5,7 +5,6 @@ import { Forkop } from '../../types';
 import {
   clearLocalActionOverlay,
   setLocalServiceAction,
-  setLocalSubscriptionAction,
 } from '../localActionOverlay.service';
 
 function createUiState(
@@ -76,7 +75,6 @@ describe('applyUiStateToStore', () => {
       server_inbounds_enabled_count: 0,
     });
     expect(state.diagnosticsActions.start.loading).toBe(false);
-    expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
   });
 
   it('clears finished persisted action flags while preserving local enable actions', () => {
@@ -86,10 +84,6 @@ describe('applyUiStateToStore', () => {
         start: { loading: true },
         enable: { loading: true },
       },
-      sectionsWidget: {
-        ...store.get().sectionsWidget,
-        subscriptionUpdatingSections: { main: true },
-      },
     });
 
     applyUiStateToStore(createUiState());
@@ -98,24 +92,18 @@ describe('applyUiStateToStore', () => {
 
     expect(state.diagnosticsActions.start.loading).toBe(false);
     expect(state.diagnosticsActions.enable.loading).toBe(true);
-    expect(state.sectionsWidget.subscriptionUpdatingSections).toEqual({});
   });
 
   it('keeps locally started actions loading until their owner clears them', () => {
-    setLocalSubscriptionAction('proxy', true);
     setLocalServiceAction('restart', true);
 
     applyUiStateToStore(createUiState());
 
-    expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({
-      proxy: true,
-    });
     expect(store.get().diagnosticsActions.restart.loading).toBe(true);
 
     clearLocalActionOverlay();
     applyUiStateToStore(createUiState());
 
-    expect(store.get().sectionsWidget.subscriptionUpdatingSections).toEqual({});
     expect(store.get().diagnosticsActions.restart.loading).toBe(false);
   });
 

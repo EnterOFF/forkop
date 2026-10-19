@@ -53,6 +53,7 @@ export function render() {
             }),
           ),
         ]),
+        E('div', { id: 'dashboard-sections-toolbar' }),
         // All outbounds
         E(
           'div',

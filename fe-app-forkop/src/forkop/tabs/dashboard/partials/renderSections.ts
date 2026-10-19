@@ -1,9 +1,11 @@
 import { latencyClassName } from '../latencyClassName';
+import { sectionLatencyTarget } from '../sectionLatencyTarget';
 import {
   renderChevronUpIcon24,
   renderLoaderCircleIcon24,
   renderCopyIcon24,
   renderInfoIcon24,
+  renderGaugeIcon24,
   renderListFilterIcon24,
   renderRotateCcwIcon24,
 } from '../../../../icons';
@@ -30,14 +32,10 @@ interface IRenderSectionsProps {
   ) => void;
   onShowUrlTestInfo: (outbound: Forkop.Outbound) => void;
   onShowFallbackInfo: (outbound: Forkop.Outbound) => void;
-  onUpdateSubscription: (section: Forkop.OutboundGroup) => void;
-  onUpdateRuleSets: (section: Forkop.OutboundGroup) => void;
   onSortByLatencyChange?: (sectionName: string, enabled: boolean) => void;
   onCollapsedChange?: (sectionName: string, collapsed: boolean) => void;
   latencyFetching: boolean;
   latencyFetchingTargets?: Set<string>;
-  subscriptionUpdating: boolean;
-  ruleSetUpdating: boolean;
   sortByLatency?: boolean;
   // Folding away the one section a page shows leaves nothing to look at, so the
   // control appears only once there is another section to scroll past.
@@ -250,70 +248,6 @@ function renderSubscriptionMetadata(
   ]);
 }
 
-function renderSubscriptionUpdateAction(
-  section: Forkop.OutboundGroup,
-  subscriptionUpdating: boolean,
-  onUpdateSubscription: (section: Forkop.OutboundGroup) => void,
-) {
-  if (!section.subscriptionSourceCount) {
-    return undefined;
-  }
-
-  return E(
-    'button',
-    {
-      type: 'button',
-      class: 'btn fkp_dashboard-page__outbound-section__subscription-update',
-      'aria-label': _('Update subscriptions'),
-      disabled: subscriptionUpdating ? true : undefined,
-      click: (event: MouseEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (subscriptionUpdating) {
-          return;
-        }
-
-        onUpdateSubscription(section);
-      },
-    },
-    subscriptionUpdating
-      ? [renderLoaderCircleIcon24(), _('Update subscriptions')]
-      : _('Update subscriptions'),
-  );
-}
-
-function renderRuleSetUpdateAction(
-  section: Forkop.OutboundGroup,
-  ruleSetUpdating: boolean,
-  onUpdateRuleSets: (section: Forkop.OutboundGroup) => void,
-) {
-  if (!section.ruleSetProviderTags?.length) {
-    return undefined;
-  }
-
-  return E(
-    'button',
-    {
-      type: 'button',
-      class: 'btn fkp_dashboard-page__outbound-section__rule-set-update',
-      'aria-label': _('Update lists'),
-      disabled: ruleSetUpdating ? true : undefined,
-      click: (event: MouseEvent) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (ruleSetUpdating) {
-          return;
-        }
-
-        onUpdateRuleSets(section);
-      },
-    },
-    ruleSetUpdating
-      ? [renderLoaderCircleIcon24(), _('Update lists')]
-      : _('Update lists'),
-  );
-}
-
 function renderDefaultState({
   section,
   onChooseOutbound,
@@ -322,25 +256,18 @@ function renderDefaultState({
   onShowFallbackInfo,
   onTestLatency,
   onTestOutboundLatency,
-  onUpdateSubscription,
-  onUpdateRuleSets,
   onSortByLatencyChange,
   onCollapsedChange,
   latencyFetching,
   latencyFetchingTargets = new Set(),
-  subscriptionUpdating,
-  ruleSetUpdating,
   sortByLatency,
   collapsible,
   collapsed,
 }: IRenderSectionsProps) {
   function testLatency() {
-    if (section.withTagSelect) {
-      return onTestLatency(section.code);
-    }
-
-    if (section.outbounds.length) {
-      return onTestLatency(section.outbounds[0].code);
+    const target = sectionLatencyTarget(section);
+    if (target) {
+      onTestLatency(target.tag);
     }
   }
 
@@ -515,16 +442,6 @@ function renderDefaultState({
   const metadataNodes = (section.subscriptionMetadata || [])
     .map((metadata) => renderSubscriptionMetadata(metadata))
     .filter(Boolean) as HTMLElement[];
-  const subscriptionUpdateAction = renderSubscriptionUpdateAction(
-    section,
-    subscriptionUpdating,
-    onUpdateSubscription,
-  );
-  const ruleSetUpdateAction = renderRuleSetUpdateAction(
-    section,
-    ruleSetUpdating,
-    onUpdateRuleSets,
-  );
   const outbounds = sortByLatency
     ? [...section.outbounds].sort(
         (left, right) => getLatencySortValue(left) - getLatencySortValue(right),
@@ -583,31 +500,59 @@ function renderDefaultState({
       )
     : undefined;
 
+  // The node the choice landed on is what a reader looks for in a section, and
+  // the one thing a folded section still has to say about itself. A section of
+  // one node shows it on its only card.
+  const selected =
+    section.withTagSelect && (collapsed || section.outbounds.length > 1)
+      ? section.outbounds.find((outbound) => outbound.selected)
+      : undefined;
+  const current = selected
+    ? E('span', { class: 'fkp_dashboard-page__outbound-section__current' }, [
+        E(
+          'span',
+          { class: 'fkp_dashboard-page__outbound-section__current-name' },
+          renderFlagEmojis(selected.displayName),
+        ),
+        ...(selected.latency
+          ? [
+              E(
+                'span',
+                { class: latencyClassName(selected.latency) },
+                `${selected.latency}ms`,
+              ),
+            ]
+          : []),
+      ])
+    : undefined;
+
   return E('div', { class: 'fkp_dashboard-page__outbound-section' }, [
-    // Title with test latency
     E('div', { class: 'fkp_dashboard-page__outbound-section__title-section' }, [
-      E(
-        'div',
-        {
-          class: 'fkp_dashboard-page__outbound-section__title-section__title',
-        },
-        section.displayName,
-      ),
+      E('div', { class: 'fkp_dashboard-page__outbound-section__heading' }, [
+        ...(collapseAction ? [collapseAction] : []),
+        E(
+          'div',
+          {
+            class: 'fkp_dashboard-page__outbound-section__title-section__title',
+          },
+          section.displayName,
+        ),
+        ...(current ? [current] : []),
+      ]),
       E(
         'div',
         {
           class: 'fkp_dashboard-page__outbound-section__title-section__actions',
         },
         [
-          ...(collapseAction ? [collapseAction] : []),
           ...(latencySortAction ? [latencySortAction] : []),
-          ...(subscriptionUpdateAction ? [subscriptionUpdateAction] : []),
-          ...(ruleSetUpdateAction ? [ruleSetUpdateAction] : []),
           E(
             'button',
             {
               type: 'button',
               class: 'btn dashboard-sections-grid-item-test-latency',
+              title: _('Test latency'),
+              'aria-label': _('Test latency'),
               'aria-busy': latencyFetching ? 'true' : undefined,
               disabled: latencyFetching ? true : undefined,
               click: (event: MouseEvent) => {
@@ -616,29 +561,12 @@ function renderDefaultState({
                 if (!latencyFetching) testLatency();
               },
             },
-            latencyFetching
-              ? [
-                  renderLoaderCircleIcon24(),
-                  E(
-                    'span',
-                    {
-                      class: 'dashboard-sections-grid-item-test-latency__label',
-                    },
-                    _('Test latency'),
-                  ),
-                ]
-              : E(
-                  'span',
-                  {
-                    class: 'dashboard-sections-grid-item-test-latency__label',
-                  },
-                  _('Test latency'),
-                ),
+            latencyFetching ? renderLoaderCircleIcon24() : renderGaugeIcon24(),
           ),
         ],
       ),
     ]),
-    // Everything below the title is what folds away: the subscription blocks
+    // Everything below the title is what folds away: the subscription lines
     // and every card. What stays is the title row, so the section is still
     // there to unfold and its actions still work on it.
     ...(collapsed
@@ -673,11 +601,7 @@ export function renderSectionsPlaceholder(state: {
     onCopyOutbound: () => {},
     onShowUrlTestInfo: () => {},
     onShowFallbackInfo: () => {},
-    onUpdateSubscription: () => {},
-    onUpdateRuleSets: () => {},
     latencyFetching: false,
-    subscriptionUpdating: false,
-    ruleSetUpdating: false,
   });
 }
 
