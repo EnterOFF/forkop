@@ -500,6 +500,25 @@ function interface_display_name(section, value) {
     return display_name != "" ? display_name : value;
 }
 
+function link_display_name(link) {
+    return trim(option(link, "name", ""));
+}
+
+// A JSON tunnel carries its tag in its endpoint; every other kind the name its
+// dialog stores beside the endpoint.
+function tunnel_display_name(tunnel, index) {
+    let name = lc(trim(option(tunnel, "kind", "wireguard"))) == "json"
+        ? as_string(tunnel_endpoint(tunnel).tag || "")
+        : option(tunnel, "name", "");
+    name = trim(as_string(name));
+    return name != "" ? name : "Tunnel #" + index;
+}
+
+function outbound_json_display_name(outbound, index) {
+    let name = trim(as_string(object_or_empty(outbound).tag || ""));
+    return name != "" ? name : "JSON outbound #" + index;
+}
+
 function interface_domain_resolver_enabled(section, value) {
     return bool_option(interface_child(section, value), "domain_resolver_enabled", false);
 }
@@ -719,6 +738,28 @@ function fallback_level_exclude_types(group_id, value) {
     return list_value(fallback_level_child(group_id, value), "exclude_types");
 }
 
+// Every server and group a connection section builds, in the order the generator
+// adds them. Each runs as "<section>/<name>", and groups, filters and the
+// Dashboard find it by that name.
+function section_child_names(section) {
+    let result = [];
+    for (let link in connection_link_items(section))
+        push(result, { kind: "link", name: link_display_name(link) });
+    for (let value in interfaces(section))
+        push(result, { kind: "interface", name: interface_display_name(section, value) });
+    let tunnel_list = tunnel_items(section);
+    for (let i = 0; i < length(tunnel_list); i++)
+        push(result, { kind: "tunnel", name: tunnel_display_name(tunnel_list[i], i + 1) });
+    let jsons = outbound_jsons(section);
+    for (let i = 0; i < length(jsons); i++)
+        push(result, { kind: "json", name: outbound_json_display_name(common.parse_json(jsons[i]), i + 1) });
+    for (let value in urltests(section))
+        push(result, { kind: "urltest", name: urltest_display_name(section, value) });
+    for (let value in fallback_groups(section))
+        push(result, { kind: "fallback", name: fallback_group_display_name(section, value) });
+    return result;
+}
+
 return {
     SYSTEM_DEVICE_VALUE,
     destinations,
@@ -756,6 +797,10 @@ return {
     subscription_tags,
     subscription_download_section,
     interface_display_name,
+    link_display_name,
+    tunnel_display_name,
+    outbound_json_display_name,
+    section_child_names,
     interface_domain_resolver_enabled,
     interface_domain_resolver_dns_servers,
     interface_domain_resolver_dns_fallback_strategy,

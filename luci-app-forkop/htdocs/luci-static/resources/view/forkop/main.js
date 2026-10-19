@@ -3196,32 +3196,11 @@ function buildProxyGroupOutbounds(section, proxies, subscriptionTags) {
   const proxyByCode = getProxyEntryByCode(proxies);
   const selector = proxyByCode.get(sectionDisplayName);
   const selectorCodes = selector?.value?.all ?? [];
-  const bindRuntimeCodes = (configs, type) => {
-    const candidates = selectorCodes.filter(
-      (code) => proxyByCode.get(code)?.value.type.toLowerCase() === type
-    );
-    const remaining = new Set(candidates);
-    return configs.map((config) => {
-      const code = candidates.find(
-        (candidate) => remaining.has(candidate) && (candidate === config.code || candidate.startsWith(`${config.code} #`))
-      );
-      if (code) remaining.delete(code);
-      return code ? { ...config, code } : config;
-    });
-  };
-  const urlTestConfigs = bindRuntimeCodes(
-    getUrlTestConfigs(section),
-    "urltest"
-  );
   const urlTestConfigByCode = new Map(
-    urlTestConfigs.map((config) => [config.code, config])
-  );
-  const fallbackConfigs = bindRuntimeCodes(
-    getFallbackConfigs(section),
-    "fallback"
+    getUrlTestConfigs(section).map((config) => [config.code, config])
   );
   const fallbackConfigByCode = new Map(
-    fallbackConfigs.map((config) => [config.code, config])
+    getFallbackConfigs(section).map((config) => [config.code, config])
   );
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
   const outbounds = uniqueCodes(selectorCodes).flatMap((code) => {
@@ -13915,7 +13894,7 @@ var JSON_OUTBOUND_PLACEHOLDER = [
   '  "server_port": 1080',
   "}"
 ].join("\n");
-function showOutboundJsonSettingsModal(_section_id, itemValue, _option, widget, itemNode, context = {}) {
+function showOutboundJsonSettingsModal(section_id, itemValue, _option, widget, itemNode, context = {}) {
   const data = {
     settings: {
       outbound_json: `${itemValue || ""}`
@@ -13941,7 +13920,11 @@ function showOutboundJsonSettingsModal(_section_id, itemValue, _option, widget, 
       (item) => outboundJsonDisplayTag(dynamicListItemCurrentValue(item, ""))
     ).filter(Boolean) : [];
     const validation = validateOutboundJson(`${value || ""}`, usedTags);
-    return validation.valid ? true : validation.message;
+    return validation.valid ? validateSectionChildName(
+      section_id,
+      "json",
+      outboundJsonDisplayTag(value)
+    ) : validation.message;
   };
   configureTextareaOption(jsonOption);
   const tag = context.adding ? "" : outboundJsonDisplayTag(itemValue);
@@ -17982,7 +17965,7 @@ function currentSourceOptionValues(section_id, optionName) {
     } catch (_error) {
     }
   }
-  return getConfigListValues(section_id, optionName);
+  return option2?.childType ? getChildItemIds(section_id, option2.childType) : getConfigListValues(section_id, optionName);
 }
 function currentLiveDynamicListValues(section_id, optionName) {
   if (typeof document === "undefined") {
@@ -18016,13 +17999,34 @@ function currentLiveDynamicListValues(section_id, optionName) {
   }
   return values;
 }
-function currentDraftOutboundNames(section_id) {
-  const names = [];
-  currentSourceOptionValues(section_id, "connection_link").forEach(
-    (value, index) => {
-      const name = `${(isExistingChildItem(section_id, value, "connection_link") ? uci.get(FORKOP_UCI_PACKAGE, value, "name") : "") || getProxyUrlName(value) || `Node #${index + 1}`}`.trim();
-      names.push(name);
+var GROUP_OUTBOUND_TYPES = [
+  "selector",
+  "urltest",
+  "fallback",
+  "dns",
+  "block"
+];
+function currentGroupNames(section_id, optionName, typeName) {
+  const listOption = outboundNameSourceOptions.get(optionName);
+  const store2 = listOption ? childPendingSettingsStore(listOption, section_id) : {};
+  return currentSourceOptionValues(section_id, optionName).map((value) => {
+    const itemValue = `${value || ""}`.trim();
+    return itemValue ? `${store2[itemValue]?.name || childItemInputValue(section_id, itemValue, typeName, "name") || itemValue}`.trim() : "";
+  }).filter(Boolean);
+}
+function sectionChildNames(section_id) {
+  const result = [];
+  const add = (kind, name, member = true, value = "") => {
+    const normalized = `${name || ""}`.trim();
+    if (normalized) {
+      result.push({ kind, name: normalized, member, value });
     }
+  };
+  currentSourceOptionValues(section_id, "connection_link").forEach(
+    (value, index) => add(
+      "link",
+      (isExistingChildItem(section_id, value, "connection_link") ? uci.get(FORKOP_UCI_PACKAGE, value, "name") : "") || getProxyUrlName(value) || `Node #${index + 1}`
+    )
   );
   currentSourceOptionValues(section_id, "interfaces").forEach(
     (itemId) => {
@@ -18034,57 +18038,56 @@ function currentDraftOutboundNames(section_id) {
       ).trim();
       const option2 = outboundNameSourceOptions.get("interfaces");
       const staged = childPendingSettingsStore(option2, section_id)[interfaceName];
-      const displayName = `${staged?.display_name || (isExistingChildItem(section_id, itemId, "section_interface") ? uci.get(FORKOP_UCI_PACKAGE, itemId, "display_name") : "") || interfaceName}`.trim();
-      if (displayName) {
-        names.push(displayName);
-      }
+      add(
+        "interface",
+        staged?.display_name || (isExistingChildItem(section_id, itemId, "section_interface") ? uci.get(FORKOP_UCI_PACKAGE, itemId, "display_name") : "") || interfaceName,
+        true,
+        interfaceName
+      );
     }
   );
-  currentSourceOptionValues(section_id, "tunnels").forEach((value) => {
-    const name = tunnelDisplayName(section_id, `${value ?? ""}`);
-    if (name) {
-      names.push(name);
-    }
-  });
+  currentSourceOptionValues(section_id, "tunnels").forEach(
+    (value) => add("tunnel", tunnelDisplayName(section_id, `${value ?? ""}`))
+  );
   currentSourceOptionValues(section_id, "outbound_jsons").forEach(
     (value, index) => {
       const outbound = parseOutboundJsonObject(value);
       const type = `${outbound?.type || ""}`.trim().toLowerCase();
-      const tag = outboundJsonDisplayTag(value) || `JSON outbound #${index + 1}`;
-      if (!["selector", "urltest", "fallback", "dns", "block"].includes(type)) {
-        names.push(tag);
-      }
+      add(
+        "json",
+        outboundJsonDisplayTag(value) || `JSON outbound #${index + 1}`,
+        !GROUP_OUTBOUND_TYPES.includes(type)
+      );
     }
   );
-  const taken = /* @__PURE__ */ new Set();
-  return names.map((name) => {
-    const base = `${name || ""}`.trim();
-    let unique = base;
-    for (let number4 = 2; taken.has(unique); number4 += 1) {
-      unique = `${base} #${number4}`;
-    }
-    taken.add(unique);
-    return unique;
-  });
+  currentGroupNames(section_id, "urltest", "urltest").forEach(
+    (name) => add("urltest", name, false)
+  );
+  currentGroupNames(section_id, "fallback_group", "fallback_group").forEach(
+    (name) => add("fallback", name, false)
+  );
+  return result;
+}
+function currentDraftOutboundNames(section_id) {
+  return sectionChildNames(section_id).filter((child) => child.member).map((child) => child.name);
+}
+function validateSectionChildName(section_id, kind, value, own) {
+  const name = `${value || ""}`.trim();
+  if (name.includes("/")) {
+    return _("The name must not contain /");
+  }
+  return sectionChildNames(section_id).some(
+    (child) => child.name === name && (child.kind !== kind || own !== void 0 && child.value !== own)
+  ) ? _("Another server or group of the section has this name") : true;
+}
+function validateSectionChildListName(section_id, kind, widget, itemNode, value) {
+  const unique = validateUniqueDynamicListItemName(widget, itemNode, value);
+  return unique === true ? validateSectionChildName(section_id, kind, value) : unique;
 }
 function currentUrlTestNameChoices(section_id) {
-  const choices = [];
-  const seen = /* @__PURE__ */ new Set();
-  const listOption = outboundNameSourceOptions.get("urltest");
-  const store2 = listOption ? childPendingSettingsStore(listOption, section_id) : {};
-  currentSourceOptionValues(section_id, "urltest").forEach((value) => {
-    const itemValue = `${value || ""}`.trim();
-    if (!itemValue) {
-      return;
-    }
-    const staged = store2[itemValue];
-    const name = `${staged && staged.name || childItemInputValue(section_id, itemValue, "urltest", "name") || itemValue}`.trim();
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      choices.push({ value: name, label: name });
-    }
-  });
-  return choices;
+  return Array.from(
+    new Set(currentGroupNames(section_id, "urltest", "urltest"))
+  ).map((name) => ({ value: name, label: name }));
 }
 function addUrlTestMemberOption(itemSection, parentSectionForItem, modes) {
   const option2 = itemSection.option(
@@ -18735,10 +18738,12 @@ function showFallbackGroupSettingsModal(section_id, itemValue, option2, widget, 
     keys: fallbackGroupSettingsKeys(),
     defaults: defaultFallbackGroupSettings(defaultName),
     addOptions: addFallbackGroupItemOptions,
-    validateName: validateUniqueDynamicListItemName.bind(
-      null,
+    validateName: (value) => validateSectionChildListName(
+      section_id,
+      "fallback",
       widget,
-      itemNode
+      itemNode,
+      value
     ),
     title: (name) => {
       if (context.adding) {
@@ -18870,8 +18875,13 @@ function addInterfaceItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
   let o = itemSection.option(form.Value, "display_name", _("Interface name"));
   o.rmempty = false;
-  o.validate = function(_itemId, value) {
-    return `${value || ""}`.trim() ? true : _("Enter a display name");
+  o.validate = function(itemId, value) {
+    return `${value || ""}`.trim() ? validateSectionChildName(
+      parentSectionForItem(itemId),
+      "interface",
+      value,
+      typeof options.itemValue === "function" ? `${options.itemValue() || ""}`.trim() : ""
+    ) : _("Enter a display name");
   };
   o = itemSection.option(
     form.Flag,
@@ -19068,10 +19078,12 @@ function listedLinkName(sectionId, value) {
   return isExistingChildItem(sectionId, value, "connection_link") ? `${uci.get(FORKOP_UCI_PACKAGE, value, "name") || ""}`.trim() : "";
 }
 function nextLinkName(sectionId, option2, link) {
-  const taken = new Set(
-    listedLinkValues(sectionId, option2).map((value) => listedLinkName(sectionId, value)).filter(Boolean)
-  );
-  const own = getProxyUrlName(link).trim();
+  const linkNames = listedLinkValues(sectionId, option2).map((value) => listedLinkName(sectionId, value)).filter(Boolean);
+  const taken = /* @__PURE__ */ new Set([
+    ...linkNames,
+    ...sectionChildNames(sectionId).filter((child) => child.kind !== "link").map((child) => child.name)
+  ]);
+  const own = getProxyUrlName(link).trim().replaceAll("/", "\uFF0F");
   if (own) {
     let name = own;
     for (let number4 = 1; taken.has(name); number4 += 1) {
@@ -19079,7 +19091,7 @@ function nextLinkName(sectionId, option2, link) {
     }
     return name;
   }
-  for (let number4 = taken.size + 1; number4 < 1e5; number4 += 1) {
+  for (let number4 = linkNames.length + 1; number4 < 1e5; number4 += 1) {
     if (!taken.has(`Node #${number4}`)) return `Node #${number4}`;
   }
   return `Node #${Date.now()}`;
@@ -19110,7 +19122,13 @@ function showConnectionLinkSettingsModal(sectionId, itemValue, option2, widget, 
       o.rmempty = false;
       o.write = writeTrimmed;
       o.validate = function(_itemId, value) {
-        return `${value || ""}`.trim() ? validateUniqueDynamicListItemName(widget, itemNode, value) : _("Enter a display name");
+        return `${value || ""}`.trim() ? validateSectionChildListName(
+          sectionId,
+          "link",
+          widget,
+          itemNode,
+          value
+        ) : _("Enter a display name");
       };
       o = itemSection.option(form.Value, "uri", _("Connection URI"));
       o.password = true;
@@ -21698,7 +21716,13 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   let o = itemSection.option(form.Value, "name", _("Tunnel name"));
   o.rmempty = false;
   o.validate = function(_itemId, value) {
-    return `${value || ""}`.trim() ? validateUniqueDynamicListItemName(widget, itemNode, value) : _("Enter a tunnel name");
+    return `${value || ""}`.trim() ? validateSectionChildListName(
+      section_id,
+      "tunnel",
+      widget,
+      itemNode,
+      value
+    ) : _("Enter a tunnel name");
   };
   [
     "wireguard",
@@ -21831,7 +21855,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     if (!endpoint) {
       return _("Enter a valid JSON endpoint object");
     }
-    return typeof endpoint.tag === "string" && endpoint.tag.trim() ? true : _("JSON endpoint must contain a non-empty tag");
+    return typeof endpoint.tag === "string" && endpoint.tag.trim() ? validateSectionChildName(section_id, "tunnel", endpoint.tag) : _("JSON endpoint must contain a non-empty tag");
   };
   configureTextareaOption(endpointJsonOption);
   const openvpnOptions = addOpenVPNOptions(itemSection);
@@ -22213,10 +22237,12 @@ function showUrlTestSettingsModal(_section_id, itemValue, option2, widget, itemN
     itemNode,
     defaults: () => defaultUrlTestSettings(defaultName),
     addOptions: addUrlTestItemOptions,
-    validateName: validateUniqueDynamicListItemName.bind(
-      null,
+    validateName: (value) => validateSectionChildListName(
+      _section_id,
+      "urltest",
       widget,
-      itemNode
+      itemNode,
+      value
     ),
     title: (name) => {
       const normalized = `${name || ""}`.trim();

@@ -450,36 +450,6 @@ function urltest_leaf_candidate_outbound(outbound) {
         t != "dns" && t != "block";
 }
 
-function unique_tag(base, taken) {
-    base = as_string(base);
-    if (base == "")
-        base = "Node";
-    if (!taken[base])
-        return base;
-    for (let i = 2; i < 100000; i++) {
-        let candidate = base + " #" + i;
-        if (!taken[candidate])
-            return candidate;
-    }
-    return base + " #overflow";
-}
-
-function reserved_runtime_tag_set(outbounds) {
-    let result = {};
-    for (let tag_name in keys(object_or_empty(runtime_constants.RESERVED_TAGS)))
-        result[tag_name] = true;
-
-    for (let outbound in array_or_empty(outbounds)) {
-        if (type(outbound) != "object")
-            continue;
-
-        let tag_name = as_string(outbound.tag || "");
-        if (tag_name != "")
-            result[tag_name] = true;
-    }
-    return result;
-}
-
 function assert_unique_outbound_tags(config) {
     let seen = {};
     for (let outbound in array_or_empty(config.outbounds)) {
@@ -641,10 +611,9 @@ function add_subscription_providers(config, section) {
     return result;
 }
 
-function add_manual_link_outbounds(config, section, taken, selector_tags, urltest_candidate_tags) {
+function add_manual_link_outbounds(config, section, selector_tags, urltest_candidate_tags) {
     for (let link in connections.connection_link_items(section)) {
-        let tag_name = unique_tag(child_outbound_tag(section, connections.option(link, "name", "")), taken);
-        taken[tag_name] = true;
+        let tag_name = child_outbound_tag(section, connections.link_display_name(link));
         let outbound = { type: "parser", tag: tag_name, link: connections.option(link, "uri", "") };
         let detour = cascade_tag(link);
         if (detour != "")
@@ -889,11 +858,10 @@ function section_group_items(section) {
 // any group is built and the references resolve by display name. Only URLTest
 // names are resolvable: a nested Fallback would add nothing its parent levels
 // cannot express.
-function allocate_group_tags(section, items, taken) {
+function allocate_group_tags(section, items) {
     let by_name = {};
     for (let item in items) {
-        item.tag = unique_tag(child_outbound_tag(section, item.display_name), taken);
-        taken[item.tag] = true;
+        item.tag = child_outbound_tag(section, item.display_name);
         let name = trim(as_string(item.display_name));
         if (item.kind == "urltest" && name != "" && by_name[name] == null)
             by_name[name] = item.tag;
@@ -1046,7 +1014,7 @@ function build_fallback_group_outbound(section, item, urltest_candidate_tags, ca
     return outbound;
 }
 
-function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, taken) {
+function add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs) {
     let section_name = section[".name"];
     let selector_tag = outbound_tag(section_name);
     let selector_outbounds = [];
@@ -1055,7 +1023,7 @@ function add_proxy_selector(config, section, selector_tags, urltest_candidate_ta
     let fallback_tags = [];
     let candidate_types = candidate_outbound_types(config);
     let items = section_group_items(section);
-    let group_tags_by_name = allocate_group_tags(section, items, taken);
+    let group_tags_by_name = allocate_group_tags(section, items);
     let group_tags = {};
     for (let item in items)
         group_tags[item.tag] = true;
@@ -1150,13 +1118,9 @@ function interface_domain_resolver_detour_tag(section, interface_name, interface
     return outbound_tag(target_section);
 }
 
-function add_interface_connection_outbound(config, section, interface_index, interface_name, taken, selector_tags, urltest_candidate_tags) {
+function add_interface_connection_outbound(config, section, interface_index, interface_name, selector_tags, urltest_candidate_tags) {
     let section_name = section[".name"];
-    let display_name = connections.interface_display_name(section, interface_name);
-    if (trim(display_name) == "")
-        display_name = "Interface #" + interface_index;
-    let tag_name = unique_tag(child_outbound_tag(section, display_name), taken);
-    taken[tag_name] = true;
+    let tag_name = child_outbound_tag(section, connections.interface_display_name(section, interface_name));
 
     let domain_resolver = "";
     if (connections.interface_domain_resolver_enabled(section, interface_name)) {
@@ -1188,10 +1152,10 @@ function add_interface_connection_outbound(config, section, interface_index, int
     push(urltest_candidate_tags, tag_name);
 }
 
-function add_connection_interfaces(config, section, taken, selector_tags, urltest_candidate_tags) {
+function add_connection_interfaces(config, section, selector_tags, urltest_candidate_tags) {
     let items = connections.interfaces(section);
     for (let i = 0; i < length(items); i++)
-        add_interface_connection_outbound(config, section, i + 1, items[i], taken, selector_tags, urltest_candidate_tags);
+        add_interface_connection_outbound(config, section, i + 1, items[i], selector_tags, urltest_candidate_tags);
 }
 
 function parse_outbound_json(value) {
@@ -1205,7 +1169,7 @@ function parse_outbound_json(value) {
     return type(value) == "object" ? value : null;
 }
 
-function add_connection_tunnels(config, section, taken, selector_tags, urltest_candidate_tags) {
+function add_connection_tunnels(config, section, selector_tags, urltest_candidate_tags) {
     let items = connections.tunnel_items(section);
     let section_name = section[".name"];
 
@@ -1219,13 +1183,7 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
                 endpoint_type != "openvpn-client" && endpoint_type != "openconnect"))
             runtime_generate_unsupported("tunnel " + (i + 1) + " has an unsupported endpoint type");
 
-        let display_name = trim(as_string(endpoint.tag || ""));
-        if (display_name == "")
-            display_name = trim(as_string(connections.option(tunnel, "name", "")));
-        if (display_name == "")
-            display_name = "Tunnel #" + (i + 1);
-        let tag_name = unique_tag(child_outbound_tag(section, display_name), taken);
-        taken[tag_name] = true;
+        let tag_name = child_outbound_tag(section, connections.tunnel_display_name(tunnel, i + 1));
         endpoint.tag = tag_name;
 
         if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "amneziawg" || endpoint_type == "warp" ||
@@ -1300,7 +1258,7 @@ function rewrite_json_outbound_references(outbounds, tag_map) {
     }
 }
 
-function prepare_json_connection_outbounds(section, taken) {
+function prepare_json_connection_outbounds(section) {
     let items = connections.outbound_jsons(section);
     let prepared = [];
     let outbounds = [];
@@ -1312,14 +1270,10 @@ function prepare_json_connection_outbounds(section, taken) {
         if (outbound == null)
             runtime_generate_unsupported("JSON outbound is invalid");
 
-        let display_name = trim(as_string(outbound.tag || ""));
+        let display_name = connections.outbound_json_display_name(outbound, i + 1);
         let legacy_tag = section[".name"] + "-json-" + (i + 1) + "-out";
-        if (display_name == "")
-            display_name = "JSON outbound #" + (i + 1);
-        let tag_name = unique_tag(child_outbound_tag(section, display_name), taken);
-        taken[tag_name] = true;
-        if (display_name != "" && !tag_map[display_name])
-            tag_map[display_name] = tag_name;
+        let tag_name = child_outbound_tag(section, display_name);
+        tag_map[display_name] = tag_name;
         push(legacy_tags, [ legacy_tag, tag_name ]);
 
         outbound.tag = tag_name;
@@ -1338,8 +1292,8 @@ function prepare_json_connection_outbounds(section, taken) {
     return prepared;
 }
 
-function add_connection_json_outbounds(config, section, taken, selector_tags, urltest_candidate_tags) {
-    for (let item in prepare_json_connection_outbounds(section, taken)) {
+function add_connection_json_outbounds(config, section, selector_tags, urltest_candidate_tags) {
+    for (let item in prepare_json_connection_outbounds(section)) {
         let outbound = item.outbound;
         let tag_name = outbound.tag;
         push(config.outbounds, outbound);
@@ -1349,17 +1303,17 @@ function add_connection_json_outbounds(config, section, taken, selector_tags, ur
     }
 }
 
-function add_connections_outbound(config, section, taken) {
+function add_connections_outbound(config, section) {
     let selector_tags = [];
     let urltest_candidate_tags = [];
     let provider_refs = add_subscription_providers(config, section);
-    add_manual_link_outbounds(config, section, taken, selector_tags, urltest_candidate_tags);
+    add_manual_link_outbounds(config, section, selector_tags, urltest_candidate_tags);
     let interface_tags = [];
     let tunnel_tags = [];
     let json_tags = [];
-    add_connection_interfaces(config, section, taken, interface_tags, urltest_candidate_tags);
-    add_connection_tunnels(config, section, taken, tunnel_tags, urltest_candidate_tags);
-    add_connection_json_outbounds(config, section, taken, json_tags, urltest_candidate_tags);
+    add_connection_interfaces(config, section, interface_tags, urltest_candidate_tags);
+    add_connection_tunnels(config, section, tunnel_tags, urltest_candidate_tags);
+    add_connection_json_outbounds(config, section, json_tags, urltest_candidate_tags);
     for (let tags in [ interface_tags, tunnel_tags, json_tags ])
         for (let tag_name in tags)
             push(selector_tags, tag_name);
@@ -1367,7 +1321,7 @@ function add_connections_outbound(config, section, taken) {
     if (length(selector_tags) == 0 && length(provider_refs) == 0)
         runtime_generate_unsupported("connection section has no usable outbounds");
 
-    add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs, taken);
+    add_proxy_selector(config, section, selector_tags, urltest_candidate_tags, provider_refs);
 }
 
 
@@ -1783,12 +1737,12 @@ function add_combined_route_for_section(config, section) {
     }
 }
 
-function add_outbound_for_section(config, section, taken) {
+function add_outbound_for_section(config, section) {
     let action = option(section, "action", "");
     let section_name = section[".name"];
 
     if (connections.is_connections_action(action))
-        add_connections_outbound(config, section, taken);
+        add_connections_outbound(config, section);
     else if (action == "bypass") {
         /* route-only action */
     }
@@ -1800,13 +1754,6 @@ function add_outbound_for_section(config, section, taken) {
     }
     else {
         runtime_generate_unsupported("unsupported action " + action);
-    }
-}
-
-function reserve_section_outbound_tags(sections, taken) {
-    for (let section in sections) {
-        if (connections.is_connections_action(option(section, "action", "")))
-            taken[outbound_tag(section[".name"])] = true;
     }
 }
 
@@ -1991,12 +1938,10 @@ function build(context) {
     add_source_aware_dns_support(config);
     let static_hosts = static_hosts_config();
     add_static_hosts_support(config, static_hosts);
-    let taken = reserved_runtime_tag_set(config.outbounds);
-    reserve_section_outbound_tags(sections, taken);
     for (let server in servers)
         runtime_servers.add_server(config, server);
     for (let section in sections)
-        add_outbound_for_section(config, section, taken);
+        add_outbound_for_section(config, section);
     add_service_route_rules(config, sections);
     for (let section in sections)
         add_route_for_section(config, section);

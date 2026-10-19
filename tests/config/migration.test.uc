@@ -315,6 +315,24 @@ t.test("a section's links become links of their own, under the names their serve
     t.eq(length(again.config.connection_link), 6);
 });
 
+t.test("a link takes a name without a slash that no other server or group of its section holds, and filters follow it", () => {
+    let config = migrated({ settings: settings("1.0.5"), section: [
+        { ".name": "main", ".type": "section", action: "connection",
+            outbound_jsons: [ "{\"type\":\"socks\",\"tag\":\"Hop\",\"server\":\"127.0.0.1\",\"server_port\":1080}" ],
+            selector_proxy_links: [ "vless://u@a.example:443#US%2FLA", "vless://u@b.example:443#Fast", "socks5://127.0.0.1:1081#Hop" ] }
+    ], urltest: [
+        { ".name": "fast", ".type": "urltest", section: "main", name: "Fast", filter_mode: "include", include_outbounds: [ "US/LA", "Hop" ] }
+    ] }).config;
+    t.eq(map(config.connection_link, (link) => link.name), [ "US／LA", "Fast #2", "Hop #2" ]);
+    t.eq(config.urltest[0].include_outbounds, [ "US/LA", "Hop", "US／LA", "Hop #2" ],
+        "a released filter matched every server of the name, so it names both now");
+
+    config.settings.config_version = "1.0.5";
+    let again = migrated(config);
+    t.eq(filter(again.operations, (op) => op.type == "connection_link" || op.option == "include_outbounds"), [],
+        "a second pass leaves them alone");
+});
+
 t.test("a section's cascade goes to each of its links and subscriptions", () => {
     let config = migrated({ settings: settings("1.0.5"), section: [
         { ".name": "hop", ".type": "section", action: "connection", selector_proxy_links: [ "socks5://127.0.0.1:1080#Hop" ] },

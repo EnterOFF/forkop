@@ -13,7 +13,6 @@ import { childPendingSettingsStore } from '../../cbi/itemSettings';
 import {
   addDynamicListItem,
   updateDynamicListItemLabel,
-  validateUniqueDynamicListItemName,
 } from '../../cbi/listItems';
 import {
   nextDynamicListName,
@@ -28,6 +27,7 @@ import {
   addServerFilterOptions,
   groupServerFilterDescriptions,
 } from './serverFilters';
+import { validateSectionChildListName } from './outboundNames';
 import { optionMapValue } from './subscriptions/model';
 import { validateRequiredSingBoxDuration } from '../../../validators/validateSingBoxDuration';
 
@@ -182,11 +182,14 @@ export function showUrlTestSettingsModal(
     itemNode,
     defaults: () => defaultUrlTestSettings(defaultName),
     addOptions: addUrlTestItemOptions,
-    validateName: validateUniqueDynamicListItemName.bind(
-      null,
-      widget,
-      itemNode,
-    ),
+    validateName: (value: unknown) =>
+      validateSectionChildListName(
+        _section_id,
+        'urltest',
+        widget,
+        itemNode,
+        value,
+      ),
     title: (name: string) => {
       const normalized = `${name || ''}`.trim();
       return !normalized || /^urltest-[a-z0-9]+-\d+$/.test(normalized)

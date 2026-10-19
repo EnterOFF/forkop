@@ -7,6 +7,7 @@ import {
 } from '../../cbi/childItems';
 import { refreshOptionChoices } from '../../cbi/choices';
 import { childPendingSettingsStore } from '../../cbi/itemSettings';
+import { validateUniqueDynamicListItemName } from '../../cbi/listItems';
 import {
   normalizeDynamicListItems,
   normalizeOptionValues,
@@ -369,7 +370,11 @@ function currentSourceOptionValues(section_id: string, optionName: string) {
     }
   }
 
-  return getConfigListValues(section_id, optionName);
+  // A list of child sections stores its entries as those sections, not as an
+  // option of the section.
+  return option?.childType
+    ? getChildItemIds(section_id, option.childType)
+    : getConfigListValues(section_id, optionName);
 }
 
 export function currentLiveDynamicListValues(
@@ -420,20 +425,82 @@ export function currentLiveDynamicListValues(
   return values;
 }
 
-export function currentDraftOutboundNames(section_id: string) {
-  const names: string[] = [];
+export type SectionChildKind =
+  | 'link'
+  | 'interface'
+  | 'tunnel'
+  | 'json'
+  | 'urltest'
+  | 'fallback';
+
+const GROUP_OUTBOUND_TYPES = [
+  'selector',
+  'urltest',
+  'fallback',
+  'dns',
+  'block',
+];
+
+// The names of a section's URLTest or Fallback groups as its form holds them now:
+// a group added but not saved yet is there, and one removed but not saved yet
+// is gone.
+function currentGroupNames(
+  section_id: string,
+  optionName: string,
+  typeName: string,
+) {
+  const listOption = outboundNameSourceOptions.get(optionName);
+  const store = listOption
+    ? childPendingSettingsStore(listOption, section_id)
+    : {};
+
+  return currentSourceOptionValues(section_id, optionName)
+    .map((value: unknown) => {
+      const itemValue = `${value || ''}`.trim();
+      return itemValue
+        ? `${
+            store[itemValue]?.name ||
+            childItemInputValue(section_id, itemValue, typeName, 'name') ||
+            itemValue
+          }`.trim()
+        : '';
+    })
+    .filter(Boolean);
+}
+
+// Every server and group the section builds, under the name it runs as, the way
+// the section form holds them now. Each runs as "<section>/<name>"; a member is
+// one a URLTest or a Fallback level can pick, and an interface keeps its own
+// name as its value.
+export function sectionChildNames(section_id: string) {
+  const result: Array<{
+    kind: SectionChildKind;
+    name: string;
+    member: boolean;
+    value: string;
+  }> = [];
+  const add = (
+    kind: SectionChildKind,
+    name: unknown,
+    member = true,
+    value = '',
+  ) => {
+    const normalized = `${name || ''}`.trim();
+    if (normalized) {
+      result.push({ kind, name: normalized, member, value });
+    }
+  };
 
   currentSourceOptionValues(section_id, 'connection_link').forEach(
-    (value: string, index: number) => {
-      const name = `${
+    (value: string, index: number) =>
+      add(
+        'link',
         (isExistingChildItem(section_id, value, 'connection_link')
           ? uci.get(FORKOP_UCI_PACKAGE, value, 'name')
           : '') ||
-        getProxyUrlName(value) ||
-        `Node #${index + 1}`
-      }`.trim();
-      names.push(name);
-    },
+          getProxyUrlName(value) ||
+          `Node #${index + 1}`,
+      ),
   );
   currentSourceOptionValues(section_id, 'interfaces').forEach(
     (itemId: string) => {
@@ -447,79 +514,93 @@ export function currentDraftOutboundNames(section_id: string) {
       const staged = childPendingSettingsStore(option, section_id)[
         interfaceName
       ];
-      const displayName = `${
+      add(
+        'interface',
         staged?.display_name ||
-        (isExistingChildItem(section_id, itemId, 'section_interface')
-          ? uci.get(FORKOP_UCI_PACKAGE, itemId, 'display_name')
-          : '') ||
-        interfaceName
-      }`.trim();
-      if (displayName) {
-        names.push(displayName);
-      }
+          (isExistingChildItem(section_id, itemId, 'section_interface')
+            ? uci.get(FORKOP_UCI_PACKAGE, itemId, 'display_name')
+            : '') ||
+          interfaceName,
+        true,
+        interfaceName,
+      );
     },
   );
-  currentSourceOptionValues(section_id, 'tunnels').forEach((value: unknown) => {
-    const name = tunnelDisplayName(section_id, `${value ?? ''}`);
-    if (name) {
-      names.push(name);
-    }
-  });
+  currentSourceOptionValues(section_id, 'tunnels').forEach((value: unknown) =>
+    add('tunnel', tunnelDisplayName(section_id, `${value ?? ''}`)),
+  );
   currentSourceOptionValues(section_id, 'outbound_jsons').forEach(
     (value: unknown, index: number) => {
       const outbound = parseOutboundJsonObject(value);
       const type = `${outbound?.type || ''}`.trim().toLowerCase();
-      const tag =
-        outboundJsonDisplayTag(value) || `JSON outbound #${index + 1}`;
-      if (!['selector', 'urltest', 'fallback', 'dns', 'block'].includes(type)) {
-        names.push(tag);
-      }
+      add(
+        'json',
+        outboundJsonDisplayTag(value) || `JSON outbound #${index + 1}`,
+        !GROUP_OUTBOUND_TYPES.includes(type),
+      );
     },
   );
+  currentGroupNames(section_id, 'urltest', 'urltest').forEach((name) =>
+    add('urltest', name, false),
+  );
+  currentGroupNames(section_id, 'fallback_group', 'fallback_group').forEach(
+    (name) => add('fallback', name, false),
+  );
 
-  const taken = new Set();
-  return names.map((name: string) => {
-    const base = `${name || ''}`.trim();
-    let unique = base;
-    for (let number = 2; taken.has(unique); number += 1) {
-      unique = `${base} #${number}`;
-    }
-    taken.add(unique);
-    return unique;
-  });
+  return result;
+}
+
+export function currentDraftOutboundNames(section_id: string) {
+  return sectionChildNames(section_id)
+    .filter((child) => child.member)
+    .map((child) => child.name);
+}
+
+// A section's servers and groups are found by name, so a name belongs to one of
+// them and holds no "/", which separates it from the section in the name it runs
+// under. Two of one kind are the list's own check, unless the entry is named by
+// its own value.
+export function validateSectionChildName(
+  section_id: string,
+  kind: SectionChildKind,
+  value: unknown,
+  own?: string,
+): true | string {
+  const name = `${value || ''}`.trim();
+  if (name.includes('/')) {
+    return _('The name must not contain /');
+  }
+  return sectionChildNames(section_id).some(
+    (child) =>
+      child.name === name &&
+      (child.kind !== kind || (own !== undefined && child.value !== own)),
+  )
+    ? _('Another server or group of the section has this name')
+    : true;
+}
+
+// The name of an entry in one of the section's lists: one no other entry of the
+// list holds, and one no server or group of another kind holds.
+export function validateSectionChildListName(
+  section_id: string,
+  kind: SectionChildKind,
+  widget: CBIWidget,
+  itemNode: Element | null,
+  value: unknown,
+): true | string {
+  const unique = validateUniqueDynamicListItemName(widget, itemNode, value);
+  return unique === true
+    ? validateSectionChildName(section_id, kind, value)
+    : unique;
 }
 
 // A Fallback level can hold a URLTest group, so the picker has to follow the
 // section form: a URLTest added but not saved yet is offered, and one removed
 // but not saved yet is gone right away.
 function currentUrlTestNameChoices(section_id: string) {
-  const choices: Array<{ value: string; label: string }> = [];
-  const seen = new Set<string>();
-  const listOption = outboundNameSourceOptions.get('urltest');
-  const store = listOption
-    ? childPendingSettingsStore(listOption, section_id)
-    : {};
-
-  currentSourceOptionValues(section_id, 'urltest').forEach((value: unknown) => {
-    const itemValue = `${value || ''}`.trim();
-    if (!itemValue) {
-      return;
-    }
-
-    const staged = store[itemValue];
-    const name = `${
-      (staged && staged.name) ||
-      childItemInputValue(section_id, itemValue, 'urltest', 'name') ||
-      itemValue
-    }`.trim();
-
-    if (name && !seen.has(name)) {
-      seen.add(name);
-      choices.push({ value: name, label: name });
-    }
-  });
-
-  return choices;
+  return Array.from(
+    new Set(currentGroupNames(section_id, 'urltest', 'urltest')),
+  ).map((name) => ({ value: name, label: name }));
 }
 
 // Adding a URLTest is independent of how the level filters servers, so it sits

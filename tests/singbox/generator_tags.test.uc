@@ -16,7 +16,7 @@ function runtime_tags_config() {
                 ".name": "proxy", label: "Main", enabled: "1", action: "connection",
                 outbound_jsons: [
                     "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1201}",
-                    "{\"type\":\"socks\",\"tag\":\"germany\",\"server\":\"127.0.0.1\",\"server_port\":1203}",
+                    "{\"type\":\"socks\",\"tag\":\"austria\",\"server\":\"127.0.0.1\",\"server_port\":1203}",
                     "{\"type\":\"direct\",\"tag\":\"direct-out\"}",
                     "{\"type\":\"socks\",\"tag\":\"json-hop\",\"server\":\"127.0.0.1\",\"server_port\":1202}",
                     "{\"type\":\"selector\",\"tag\":\"json-group\",\"outbounds\":[\"proxy-json-4-out\",\"direct-out\"],\"default\":\"json-hop\"}",
@@ -43,7 +43,7 @@ function runtime_tags_config() {
     });
 }
 
-t.test("every outbound and endpoint gets a globally unique readable tag", () => {
+t.test("every outbound and endpoint runs under its section and its own name", () => {
     let config = runtime_tags_config();
     let seen = {};
     for (let item in [ ...config.outbounds, ...config.endpoints ]) {
@@ -53,7 +53,7 @@ t.test("every outbound and endpoint gets a globally unique readable tag", () => 
     for (let tag in [
         "direct-out", "Main", "Backup",
         "Main/manual", "Main/NL Amsterdam", "Main/Tailnet",
-        "Main/germany", "Main/germany #2", "Main/direct-out", "Main/json-hop",
+        "Main/germany", "Main/austria", "Main/direct-out", "Main/json-hop",
         "Main/json-group", "Main/service-mixed-in", "Backup/json-hop",
         "Main/By name", "Main/By regex", "Main/Fallback"
     ])
@@ -74,7 +74,7 @@ t.test("the section selector lists its groups first, then its own nodes, and its
     t.eq(selector.providers, [ "Main/sub1" ]);
     t.eq(selector.outbounds, [
         "Main/By name", "Main/By regex", "Main/Fallback", "Main/manual",
-        "Main/NL Amsterdam", "Main/Tailnet", "Main/germany", "Main/germany #2",
+        "Main/NL Amsterdam", "Main/Tailnet", "Main/germany", "Main/austria",
         "Main/direct-out", "Main/json-hop", "Main/json-group", "Main/service-mixed-in"
     ]);
 });

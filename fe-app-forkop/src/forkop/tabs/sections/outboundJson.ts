@@ -8,6 +8,7 @@ import {
 } from '../../cbi/listItems';
 import { renderStackedJsonSettingsModal } from '../../cbi/modal';
 import { E } from '../../../helpers/element';
+import { validateSectionChildName } from './outboundNames';
 
 export function parseOutboundJsonObject(value: unknown) {
   try {
@@ -47,7 +48,7 @@ export const JSON_OUTBOUND_PLACEHOLDER = [
 ].join('\n');
 
 export function showOutboundJsonSettingsModal(
-  _section_id: string,
+  section_id: string,
   itemValue: unknown,
   _option: CBIOption,
   widget: CBIWidget,
@@ -86,7 +87,13 @@ export function showOutboundJsonSettingsModal(
             .filter(Boolean)
         : [];
     const validation = validateOutboundJson(`${value || ''}`, usedTags);
-    return validation.valid ? true : validation.message;
+    return validation.valid
+      ? validateSectionChildName(
+          section_id,
+          'json',
+          outboundJsonDisplayTag(value),
+        )
+      : validation.message;
   };
   configureTextareaOption(jsonOption);
 

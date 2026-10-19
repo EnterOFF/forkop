@@ -879,42 +879,14 @@ function buildProxyGroupOutbounds(
   const proxyByCode = getProxyEntryByCode(proxies);
   const selector = proxyByCode.get(sectionDisplayName);
   const selectorCodes = selector?.value?.all ?? [];
-  // The runtime tag of a group is its name, and a second group of the same name
-  // gets a " #2" suffix from the generator. A configured group the runtime does
-  // not carry keeps its own code and is dropped below: only what the Clash API
-  // reports is on the dashboard.
-  const bindRuntimeCodes = <T extends { code: string }>(
-    configs: T[],
-    type: string,
-  ) => {
-    const candidates = selectorCodes.filter(
-      (code) => proxyByCode.get(code)?.value.type.toLowerCase() === type,
-    );
-    const remaining = new Set(candidates);
-    return configs.map((config) => {
-      const code = candidates.find(
-        (candidate) =>
-          remaining.has(candidate) &&
-          (candidate === config.code ||
-            candidate.startsWith(`${config.code} #`)),
-      );
-      if (code) remaining.delete(code);
-      return code ? { ...config, code } : config;
-    });
-  };
-  const urlTestConfigs = bindRuntimeCodes(
-    getUrlTestConfigs(section),
-    'urltest',
-  );
+  // A group runs under its own name in the section, which no other server or
+  // group of the section holds. A configured group the runtime does not carry is
+  // dropped below: only what the Clash API reports is on the dashboard.
   const urlTestConfigByCode = new Map(
-    urlTestConfigs.map((config) => [config.code, config]),
-  );
-  const fallbackConfigs = bindRuntimeCodes(
-    getFallbackConfigs(section),
-    'fallback',
+    getUrlTestConfigs(section).map((config) => [config.code, config]),
   );
   const fallbackConfigByCode = new Map(
-    fallbackConfigs.map((config) => [config.code, config]),
+    getFallbackConfigs(section).map((config) => [config.code, config]),
   );
   const manualLinkByCode = buildManualLinkByCode(section, selectorCodes);
 

@@ -21,17 +21,18 @@ beforeEach(() => {
 });
 
 // The list as the section dialog renders it: what it loaded is what a save
-// compares the entries against.
+// compares the entries against. The URLTest list is loaded beside it, as the
+// dialog loads it, since a link may not take the name of a group.
 function linkList() {
   const map = new harness.form.Map('forkop');
   const grid = map.section(harness.form.GridSection, 'section');
   delete grid.load;
   harness.bundle.createSectionContent(grid);
-  const list = grid.children.find(
-    (option) => option.option === 'connection_link',
-  );
-  list.cfgvalue('sec', list.load('sec'));
-  return list;
+  const option = (name) => grid.children.find((item) => item.option === name);
+  for (const name of ['connection_link', 'urltest']) {
+    option(name).cfgvalue('sec', option(name).load('sec'));
+  }
+  return option('connection_link');
 }
 
 // What the widget does when the user adds a link: the link becomes its section,
@@ -113,6 +114,24 @@ describe('a pasted link', () => {
       { section: 'sec', uri: link, name: 'USA', order: '0' },
       { section: 'sec', uri: link, name: 'USA #1', order: '1' },
     ]);
+  });
+
+  // Every server and group of a section runs as "<section>/<name>", so a link
+  // takes a name none of them holds, and "/" would split that name.
+  it('takes a name no server or group of the section holds, without a slash', () => {
+    harness.uci.add('forkop', 'urltest', 'ut1');
+    Object.assign(harness.store.get('ut1'), {
+      section: 'sec',
+      name: 'Fastest',
+    });
+    const list = linkList();
+    const values = [];
+    list.formvalue = () => values.slice();
+
+    expect([
+      paste(list, values, 'vless://a@a.example:443#Fastest'),
+      paste(list, values, 'vless://b@b.example:443#US%2FLA'),
+    ]).toEqual(['Fastest #1', 'US／LA']);
   });
 
   // A number tells two names apart, not two links: the stored copy of the link

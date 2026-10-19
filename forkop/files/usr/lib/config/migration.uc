@@ -1894,22 +1894,77 @@ function merge_destination_conditions(ctx) {
     }
 }
 
+// The names a section's interfaces, tunnels, JSON outbounds and groups run under,
+// none of which a link of the section may share.
+function section_names_besides_links(ctx, section) {
+    let owner = section_name(section);
+    let names = [];
+    for (let child in child_sections_by_owner(ctx, "section_interface", "section", owner))
+        push(names, trim(option(child, "display_name", "")) || option(child, "name", ""));
+    for (let child in child_sections_by_owner(ctx, "tunnel", "section", owner)) {
+        let endpoint = null;
+        if (option(child, "kind", "") == "json")
+            try { endpoint = json(option(child, "endpoint_json", "")); } catch (e) {}
+        push(names, endpoint != null ? as_string(object_or_empty(endpoint).tag) : option(child, "name", ""));
+    }
+    let jsons = option_list_values(section, "outbound_jsons");
+    if (length(jsons) == 0)
+        jsons = option_list_values(section, "outbound_json");
+    for (let i = 0; i < length(jsons); i++) {
+        let outbound = null;
+        try { outbound = json(jsons[i]); } catch (e) {}
+        push(names, trim(as_string(object_or_empty(outbound).tag)) || "JSON outbound #" + (i + 1));
+    }
+    for (let type_name in [ "urltest", "fallback_group" ])
+        for (let child in child_sections_by_owner(ctx, type_name, "section", owner))
+            push(names, option(child, "name", "") || section_name(child));
+    return names;
+}
+
+// A released filter matched every server that carried a name, so one that named
+// a link by the name it no longer holds names its new one as well.
+function follow_renamed_links(ctx, section, renamed) {
+    let filters = child_sections_by_owner(ctx, "urltest", "section", section_name(section));
+    for (let group in child_sections_by_owner(ctx, "fallback_group", "section", section_name(section)))
+        for (let level in child_sections_by_owner(ctx, "fallback_level", "group", section_name(group)))
+            push(filters, level);
+    for (let item in filters)
+        for (let key in [ "include_outbounds", "exclude_outbounds" ]) {
+            let values = option_list_values(item, key);
+            let result = [ ...values ];
+            for (let value in values)
+                for (let name in renamed[value] || [])
+                    if (index(result, name) < 0)
+                        push(result, name);
+            if (length(result) != length(values))
+                set_list_option(ctx, item, key, result);
+        }
+}
+
 // A released section kept the links it dials in its selector_proxy_links list, and
-// each link's server ran under the link's own name, or "Node #N" by its position,
-// made unique among the section's links. Every link is now a connection_link of
-// its own that stores that name, so a group or a filter naming the server keeps
-// finding it.
+// each link's server ran under the link's own name, or "Node #N" by its position.
+// Every link is now a connection_link of its own that stores that name, with any
+// "/" made "／" and numbered when another link or another server or group of the
+// section holds it, so that it names that one server. A group or a filter naming
+// the server keeps finding it.
 function migrate_connection_links(ctx) {
     for (let section in ctx.model.sections || []) {
         let links = list_option(section, "selector_proxy_links");
         let taken = {};
+        for (let name in section_names_besides_links(ctx, section))
+            taken[name] = true;
+        let renamed = {};
         for (let i = 0; i < length(links); i++) {
             let child = create_child_for_owner(ctx, section, "connection_link", "section");
             let name = core_url.link_name(links[i]);
+            let stored = unique_display_value(readable_tag_component(name, "Node #" + (i + 1)), taken);
+            if (name != "" && stored != name)
+                renamed[name] = [ ...(renamed[name] || []), stored ];
             set_option(ctx, child, "uri", links[i]);
-            set_option(ctx, child, "name", unique_display_value(name != "" ? name : "Node #" + (i + 1), taken));
+            set_option(ctx, child, "name", stored);
             set_option(ctx, child, "order", as_string(i));
         }
+        follow_renamed_links(ctx, section, renamed);
         delete_option(ctx, section, "selector_proxy_links");
     }
 }

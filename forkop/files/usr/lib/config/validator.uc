@@ -175,11 +175,10 @@ function validate_subscription_tags(section) {
 }
 
 // A link's server runs under the name the link stores, which groups and filters
-// refer to, so every link has one and no two links of a section share it. An
-// http:// or https:// address is refused: it is almost always a subscription in
-// the wrong field, and an HTTP proxy, which carries no UDP, is a JSON outbound.
+// refer to, so every link has one. An http:// or https:// address is refused: it
+// is almost always a subscription in the wrong field, and an HTTP proxy, which
+// carries no UDP, is a JSON outbound.
 function validate_connection_links(section) {
-    let seen = {};
     for (let link in connections.connection_link_items(section)) {
         let link_name = option(link, "name", "");
         let scheme = core_url.scheme(trim(option(link, "uri", "")));
@@ -190,9 +189,33 @@ function validate_connection_links(section) {
                 "Add a subscription under Subscription, and an HTTP proxy as a JSON outbound");
         if (trim(link_name) == "")
             fail_validation("A link in section '" + section_label(section) + "' has no name. Set one in its settings");
-        if (seen[link_name])
-            fail_validation("Section '" + section_label(section) + "' has more than one link named '" + link_name + "'");
-        seen[link_name] = true;
+    }
+}
+
+const CHILD_KINDS = {
+    link: [ "a link", "link" ],
+    interface: [ "an interface", "interface" ],
+    tunnel: [ "a tunnel", "tunnel" ],
+    json: [ "a JSON outbound", "JSON outbound" ],
+    urltest: [ "a URLTest", "URLTest" ],
+    fallback: [ "a fallback group", "fallback group" ]
+};
+
+// Every server and group of a section runs as "<section>/<name>" and is found by
+// that name, so a name belongs to one of them and holds no "/".
+function validate_section_child_names(section) {
+    let owners = {};
+    for (let child in connections.section_child_names(section)) {
+        let name = child.name;
+        if (index(name, "/") >= 0)
+            fail_validation("Name '" + name + "' in section '" + section_label(section) + "' contains '/'. Use another character");
+        let owner = owners[name];
+        if (owner == child.kind)
+            fail_validation("Section '" + section_label(section) + "' has more than one " + CHILD_KINDS[owner][1] + " named '" + name + "'");
+        if (owner != null)
+            fail_validation("Section '" + section_label(section) + "' has " + CHILD_KINDS[owner][0] + " and " +
+                CHILD_KINDS[child.kind][0] + " named '" + name + "'. Rename one of them");
+        owners[name] = child.kind;
     }
 }
 
@@ -649,7 +672,6 @@ function validate_outbound_json_values(section) {
     let name = section_name(section);
     let values = connections.outbound_jsons(section);
     let require_user_tag = length(list_option(section, "outbound_jsons")) > 0;
-    let tags = {};
 
     for (let value in values) {
         if (as_string(value) == "")
@@ -659,13 +681,8 @@ function validate_outbound_json_values(section) {
         if (outbound == null)
             fail_validation("Section '" + section_label(name) + "' has a JSON outbound that is not a JSON object");
 
-        let tag_name = trim(as_string(outbound.tag || ""));
-        if (tag_name == "" && require_user_tag)
+        if (trim(as_string(outbound.tag || "")) == "" && require_user_tag)
             fail_validation("Section '" + section_label(name) + "' has JSON outbound without a non-empty tag");
-        if (tag_name != "" && tags[tag_name])
-            fail_validation("Section '" + section_label(name) + "' has duplicate JSON outbound tag '" + tag_name + "'");
-        if (tag_name != "")
-            tags[tag_name] = true;
     }
 }
 
@@ -1095,14 +1112,8 @@ function validate_rule(section, sections, context) {
             );
         }
 
-        let fallback_names = {};
-        for (let group_id in connections.fallback_groups(section)) {
-            let fallback_name = trim(connections.fallback_group_display_name(section, group_id));
-            if (fallback_names[fallback_name])
-                fail_validation("Section '" + section_label(name) + "' has more than one fallback group named '" + fallback_name + "'");
-            fallback_names[fallback_name] = true;
+        for (let group_id in connections.fallback_groups(section))
             validate_fallback_group(section, group_id);
-        }
 
         validate_connection_links(section);
         for (let subscription in connections.subscription_items(section)) {
@@ -1118,6 +1129,7 @@ function validate_rule(section, sections, context) {
         validate_section_group_references(section);
         validate_outbound_json_values(section);
         validate_tunnel_values(section);
+        validate_section_child_names(section);
         validate_interface_domain_resolvers(section, sections, context);
     }
 

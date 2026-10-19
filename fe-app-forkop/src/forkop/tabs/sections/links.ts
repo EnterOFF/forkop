@@ -2,15 +2,16 @@ import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
 import { validateProxyUrl } from '../../../validators/validateProxyUrl';
 import { getChildItemIds, isExistingChildItem } from '../../cbi/childItems';
-import {
-  updateDynamicListItemLabel,
-  validateUniqueDynamicListItemName,
-} from '../../cbi/listItems';
+import { updateDynamicListItemLabel } from '../../cbi/listItems';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import { E } from '../../../helpers/element';
 import { addCascadeOptions } from './cascade';
 import { validateConnectionUriCore } from './coreSupport';
-import { refreshDashboardFilterChoiceWidgets } from './outboundNames';
+import {
+  refreshDashboardFilterChoiceWidgets,
+  sectionChildNames,
+  validateSectionChildListName,
+} from './outboundNames';
 
 export function validateConnectionLink(value: unknown) {
   const link = `${value ?? ''}`.trim();
@@ -47,21 +48,25 @@ function listedLinkName(sectionId: string, value: string) {
     : '';
 }
 
-// A link is named after the server it describes, and one that names none is
-// "Node #N", N counting the links the section already has. A name another link
-// of the section holds now gets "#1" and further, so the same link added twice
-// is two servers told apart by name.
+// A link is named after the server it describes, with "／" for a "/", and one
+// that names none is "Node #N", N counting the links the section already has. A
+// name another link, server or group of the section holds now gets "#1" and
+// further, so the same link added twice is two servers told apart by name.
 export function nextLinkName(
   sectionId: string,
   option: CBIOption,
   link: string,
 ) {
-  const taken = new Set(
-    listedLinkValues(sectionId, option)
-      .map((value) => listedLinkName(sectionId, value))
-      .filter(Boolean),
-  );
-  const own = getProxyUrlName(link).trim();
+  const linkNames = listedLinkValues(sectionId, option)
+    .map((value) => listedLinkName(sectionId, value))
+    .filter(Boolean);
+  const taken = new Set([
+    ...linkNames,
+    ...sectionChildNames(sectionId)
+      .filter((child) => child.kind !== 'link')
+      .map((child) => child.name),
+  ]);
+  const own = getProxyUrlName(link).trim().replaceAll('/', '／');
   if (own) {
     let name = own;
     for (let number = 1; taken.has(name); number += 1) {
@@ -70,7 +75,7 @@ export function nextLinkName(
     return name;
   }
 
-  for (let number = taken.size + 1; number < 100000; number += 1) {
+  for (let number = linkNames.length + 1; number < 100000; number += 1) {
     if (!taken.has(`Node #${number}`)) return `Node #${number}`;
   }
   return `Node #${Date.now()}`;
@@ -112,7 +117,13 @@ export function showConnectionLinkSettingsModal(
       o.write = writeTrimmed;
       o.validate = function (_itemId: string, value: unknown) {
         return `${value || ''}`.trim()
-          ? validateUniqueDynamicListItemName(widget, itemNode, value)
+          ? validateSectionChildListName(
+              sectionId,
+              'link',
+              widget,
+              itemNode,
+              value,
+            )
           : _('Enter a display name');
       };
 

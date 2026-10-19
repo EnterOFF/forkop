@@ -22,7 +22,6 @@ import {
   addDynamicListItem,
   setDynamicListItemValue,
   updateDynamicListItemLabel,
-  validateUniqueDynamicListItemName,
 } from '../../../cbi/listItems';
 import {
   nextDynamicListName,
@@ -55,6 +54,10 @@ import {
 } from '../../../../helpers/parseOpenVPNConfig';
 import type { OpenVPNFiles } from '../../../../helpers/parseOpenVPNConfig';
 import { addCascadeOptions } from '../cascade';
+import {
+  validateSectionChildListName,
+  validateSectionChildName,
+} from '../outboundNames';
 import { refreshOutboundDetourSectionOptionValues } from '../references';
 import {
   CASCADE_TUNNEL_KINDS,
@@ -484,7 +487,13 @@ export function showTunnelSettingsModal(
   o.rmempty = false;
   o.validate = function (_itemId: string, value: unknown) {
     return `${value || ''}`.trim()
-      ? validateUniqueDynamicListItemName(widget, itemNode, value)
+      ? validateSectionChildListName(
+          section_id,
+          'tunnel',
+          widget,
+          itemNode,
+          value,
+        )
       : _('Enter a tunnel name');
   };
   [
@@ -640,7 +649,7 @@ export function showTunnelSettingsModal(
       return _('Enter a valid JSON endpoint object');
     }
     return typeof endpoint.tag === 'string' && endpoint.tag.trim()
-      ? true
+      ? validateSectionChildName(section_id, 'tunnel', endpoint.tag)
       : _('JSON endpoint must contain a non-empty tag');
   };
   configureTextareaOption(endpointJsonOption);

@@ -16,6 +16,7 @@ import {
   nativeProviderOutboundNames,
   outboundNameChoiceItems,
   outboundNameSourceOptions,
+  validateSectionChildName,
 } from '../outboundNames';
 
 // The names a group or a dashboard filter may be given.
@@ -266,6 +267,77 @@ describe('the draft names of a section', () => {
       'Draft interface',
       'Leaf JSON',
     ]);
+  });
+});
+
+describe('a name in a section', () => {
+  // A link, an interface, a JSON outbound and a URLTest, as the section form
+  // lists them. Each runs as "Main/<name>".
+  function section() {
+    installLuciStubs({
+      main: { '.type': 'section', label: 'Main' },
+      germany: {
+        '.type': 'connection_link',
+        section: 'main',
+        uri: 'vless://a.test#A',
+        name: 'Germany',
+      },
+      uplink: {
+        '.type': 'section_interface',
+        section: 'main',
+        name: 'wan',
+        display_name: 'Uplink',
+      },
+      fastest: { '.type': 'urltest', section: 'main', name: 'Fastest' },
+    });
+    const listed = (values: string[]) => ({ formvalue: () => values });
+    outboundNameSourceOptions.set('connection_link', listed(['germany']));
+    outboundNameSourceOptions.set('interfaces', {
+      sharedPendingSettingsKey: 'interfaces',
+      ...listed(['uplink']),
+    });
+    outboundNameSourceOptions.set('tunnels', listed([]));
+    outboundNameSourceOptions.set(
+      'outbound_jsons',
+      listed(['{"type":"socks","tag":"Hop"}']),
+    );
+    outboundNameSourceOptions.set('urltest', listed(['fastest']));
+    outboundNameSourceOptions.set('fallback_group', listed([]));
+  }
+  const TAKEN = 'Another server or group of the section has this name';
+
+  it('belongs to one server or group of whatever kind', () => {
+    section();
+
+    expect(validateSectionChildName('main', 'tunnel', 'Germany')).toBe(TAKEN);
+    expect(validateSectionChildName('main', 'link', 'Fastest')).toBe(TAKEN);
+    expect(validateSectionChildName('main', 'fallback', 'Hop')).toBe(TAKEN);
+    expect(validateSectionChildName('main', 'json', 'Uplink')).toBe(TAKEN);
+    expect(validateSectionChildName('main', 'tunnel', 'Netherlands')).toBe(
+      true,
+    );
+  });
+
+  // A list tells its own entries apart. An interface list does not, so an
+  // interface is told apart from the others by its own name.
+  it('leaves two of one list to the list, and knows an interface by its own name', () => {
+    section();
+
+    expect(validateSectionChildName('main', 'link', 'Germany')).toBe(true);
+    expect(validateSectionChildName('main', 'interface', 'Uplink', 'wan')).toBe(
+      true,
+    );
+    expect(validateSectionChildName('main', 'interface', 'Uplink', 'lan')).toBe(
+      TAKEN,
+    );
+  });
+
+  it('holds no slash', () => {
+    section();
+
+    expect(validateSectionChildName('main', 'link', 'US/LA')).toBe(
+      'The name must not contain /',
+    );
   });
 });
 

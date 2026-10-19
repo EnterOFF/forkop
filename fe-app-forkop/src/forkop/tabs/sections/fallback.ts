@@ -29,7 +29,10 @@ import {
   normalizeDynamicListItems,
 } from '../../cbi/listValues';
 import { showChildItemSettingsModal } from '../../cbi/modal';
-import { addUrlTestMemberOption } from './outboundNames';
+import {
+  addUrlTestMemberOption,
+  validateSectionChildListName,
+} from './outboundNames';
 import {
   addServerFilterOptions,
   groupServerFilterDescriptions,
@@ -396,11 +399,14 @@ export function showFallbackGroupSettingsModal(
     keys: fallbackGroupSettingsKeys(),
     defaults: defaultFallbackGroupSettings(defaultName),
     addOptions: addFallbackGroupItemOptions,
-    validateName: validateUniqueDynamicListItemName.bind(
-      null,
-      widget,
-      itemNode,
-    ),
+    validateName: (value: unknown) =>
+      validateSectionChildListName(
+        section_id,
+        'fallback',
+        widget,
+        itemNode,
+        value,
+      ),
     title: (name: string) => {
       if (context.adding) {
         return _('Fallback settings');

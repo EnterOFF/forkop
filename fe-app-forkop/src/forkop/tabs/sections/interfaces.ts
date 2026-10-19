@@ -11,7 +11,10 @@ import {
 import { SettingsDynamicList } from '../../cbi/dynamicList';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import { CONNECTIONS_BLOCKED_INTERFACES } from './constants';
-import { refreshDashboardFilterChoiceWidgets } from './outboundNames';
+import {
+  refreshDashboardFilterChoiceWidgets,
+  validateSectionChildName,
+} from './outboundNames';
 import { refreshDnsDetourSectionOptionValues } from './references';
 import { currentOptionValue, optionMapValue } from './subscriptions/model';
 import { E } from '../../../helpers/element';
@@ -154,8 +157,17 @@ function addInterfaceItemOptions(
 
   let o = itemSection.option(form.Value, 'display_name', _('Interface name'));
   o.rmempty = false;
-  o.validate = function (_itemId: string, value: unknown) {
-    return `${value || ''}`.trim() ? true : _('Enter a display name');
+  o.validate = function (itemId: string, value: unknown) {
+    return `${value || ''}`.trim()
+      ? validateSectionChildName(
+          parentSectionForItem(itemId),
+          'interface',
+          value,
+          typeof options.itemValue === 'function'
+            ? `${options.itemValue() || ''}`.trim()
+            : '',
+        )
+      : _('Enter a display name');
   };
 
   o = itemSection.option(

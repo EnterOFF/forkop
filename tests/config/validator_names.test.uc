@@ -50,6 +50,28 @@ t.test("every link of a section has a link and a name of its own", () => {
         connection_link: [ ...links, { ...links[1], ".name": "other_link1", name: "A", section: "other" } ] });
 });
 
+t.test("a name belongs to one server or group of its section and holds no slash", () => {
+    let main = [ { ".name": "proxy", label: "Main", enabled: "1", action: "connection" } ];
+    let links = fixture.links("proxy", [ "socks5://127.0.0.1:1080#A" ]);
+    let tailnet = { ".name": "proxy_tunnel", section: "proxy", kind: "tailscale", name: "B",
+        tailscale_auth_key: "tskey-auth-test", tailscale_hostname: "forkop-router" };
+    v.accepts({ section: main, connection_link: links, tunnel: [ tailnet ], urltest: [ { ".name": "ut", section: "proxy", name: "C" } ] });
+    v.refuses({ section: main, connection_link: links, tunnel: [ { ...tailnet, name: "A" } ] },
+        "Section 'Main' has a link and a tunnel named 'A'. Rename one of them");
+    v.refuses({ section: main, connection_link: links, urltest: [ { ".name": "ut", section: "proxy", name: "A" } ] },
+        "Section 'Main' has a link and a URLTest named 'A'");
+    v.refuses({ section: main, tunnel: [ tailnet ], fallback_group: [ { ".name": "fb", section: "proxy", name: "B" } ],
+        fallback_level: [ { ".name": "fl", group: "fb", name: "All", order: "0", server_filter_mode: "all" } ] },
+        "Section 'Main' has a tunnel and a fallback group named 'B'");
+    v.refuses({ section: [ { ...main[0], outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"wg0\"}" ] } ],
+        section_interface: [ { ".name": "wan", section: "proxy", name: "wg0" } ] },
+        "Section 'Main' has an interface and a JSON outbound named 'wg0'");
+    v.refuses({ section: main, connection_link: [ { ...links[0], name: "US/LA" } ] },
+        "Name 'US/LA' in section 'Main' contains '/'. Use another character");
+    v.refuses({ section: main, urltest: [ { ".name": "ut", section: "proxy", name: "Auto/Best" } ], tunnel: [ tailnet ] },
+        "Name 'Auto/Best' in section 'Main' contains '/'");
+});
+
 t.test("a refusal names sections and servers by the labels the page shows, not by their ids", () => {
     v.refuses({
         section: [ { ".name": "section_70536a", label: "Streaming", enabled: "1", action: "connection",
@@ -78,7 +100,7 @@ t.test("duplicate-json-tags", () => {
                 "destinations": "example.org"
             }
         ]
-    }, "duplicate JSON outbound tag 'same'");
+    }, "Section 'proxy' has more than one JSON outbound named 'same'");
 });
 
 t.test("tagless-json", () => {
