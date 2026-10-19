@@ -30,6 +30,7 @@ const IP_DOMAIN = singbox_constants.CHECK_PROXY_IP_DOMAIN;
 // A name nobody has asked for yet, under a zone that exists: no cache can
 // answer it, so the reply proves the upstream server was reached.
 const UNCACHED_ZONE = "example.com";
+const CGNAT_RANGE = "100.64.0.0/10";
 
 let paths = {
     proc: "/proc",
@@ -320,11 +321,13 @@ function firewall_opens(port, transports, input_chain) {
 // Every enabled server with a listener of its own: whether it listens, and if
 // not, who holds its port; whether WAN reaches it through the firewall; and
 // whether its public address leads to this router. A Tailscale server dials out
-// and has nothing to listen on.
+// and has nothing to listen on. A router whose only WAN address is the
+// provider's shared one is behind its NAT, where no port can be opened.
 function servers() {
     let config = runtime_config();
     let wan = wan_addresses();
     let wan_public = length(filter(common.words(wan), (address) => core_ip.valid_public_ip(address))) > 0;
+    let behind_cgnat = !wan_public && length(filter(common.words(wan), (address) => core_ip.prefix_contains(CGNAT_RANGE, address))) > 0;
     let listeners = output([ "netstat", "-ln" ]);
     let owners = output([ "netstat", "-lnp" ]);
     let input_chain = null;
@@ -368,6 +371,7 @@ function servers() {
             listening,
             owners: join(" ", netstat.sorted_unique(holders)),
             exposed,
+            open_firewall: common.bool_option(section, "open_firewall", true),
             firewall_open,
             public_host,
             public_ips,
@@ -376,7 +380,7 @@ function servers() {
             matches_wan: host.matches_wan
         });
     }
-    return { wan, items };
+    return { wan, behind_cgnat, items };
 }
 
 return { paths, last_error, oom_kills, dig_result, service, dns, traffic, servers };

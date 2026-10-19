@@ -276,6 +276,7 @@ function server(
     listening: true,
     owners: '',
     exposed: true,
+    open_firewall: true,
     firewall_open: true,
     public_host: 'vpn.example',
     public_ips: '2a00:1450::7',
@@ -290,6 +291,7 @@ describe('the server check', () => {
   const present = (overrides: Partial<Forkop.ServerCheckItem>) =>
     presentServers({
       wan: '100.64.1.2 2a00:1450::7',
+      behind_cgnat: false,
       items: [server(overrides)],
     });
 
@@ -351,5 +353,48 @@ describe('the server check', () => {
     expect(
       present({ protocol: 'json_inbound', public_host: '', exposed: false }),
     ).toEqual([{ state: 'success', key: 'Main', value: '443/tcp' }]);
+  });
+
+  it('asks nothing about the internet of a server kept to the LAN', () => {
+    const lan = [{ state: 'success', key: 'Main', value: '443/tcp' }];
+    expect(
+      present({ open_firewall: false, firewall_open: false, public_host: '' }),
+    ).toEqual(lan);
+    expect(present({ exposed: false, public_host: '' })).toEqual(lan);
+    expect(
+      present({ open_firewall: false, firewall_open: true, resolved: 0 }),
+    ).toEqual([
+      {
+        state: 'warning',
+        key: 'Main',
+        value: 'vpn.example does not resolve',
+      },
+    ]);
+  });
+
+  it("says once that the router is behind the provider's NAT", () => {
+    const behind = (items: Forkop.ServerCheckItem[]) =>
+      presentServers({ wan: '100.116.152.154', behind_cgnat: true, items });
+    const reached = server({
+      public_host: 'vpn.example',
+      public_ips: '46.138.78.196',
+      matches_wan: -1,
+    });
+
+    expect(behind([reached, server({ label: 'Second' })])).toEqual([
+      {
+        state: 'warning',
+        key: 'Router',
+        value:
+          "behind the provider's NAT (100.116.152.154), unreachable from the internet",
+      },
+      { state: 'success', key: 'Main', value: '443/tcp · vpn.example' },
+      { state: 'success', key: 'Second', value: '443/tcp · vpn.example' },
+    ]);
+    expect(
+      behind([server({ open_firewall: false, firewall_open: false })]),
+    ).toEqual([
+      { state: 'success', key: 'Main', value: '443/tcp · vpn.example' },
+    ]);
   });
 });

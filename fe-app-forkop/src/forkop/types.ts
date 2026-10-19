@@ -368,6 +368,8 @@ export namespace Forkop {
     listening: boolean;
     owners: string;
     exposed: boolean;
+    // Whether Forkop is asked to open the port in the firewall.
+    open_firewall: boolean;
     firewall_open: boolean;
     public_host: string;
     public_ips: string;
@@ -378,6 +380,8 @@ export namespace Forkop {
 
   export interface ServersCheckResult {
     wan: string;
+    // The only WAN address is the provider's shared one.
+    behind_cgnat: boolean;
     items: ServerCheckItem[];
   }
 

@@ -180,10 +180,27 @@ t.test("a server is checked for its listener, its firewall port and its public a
     let main = value.items[0], busy = value.items[1], own = value.items[2], held = value.items[3];
     t.eq(length(value.items), 4, "a Tailscale server listens on nothing, a disabled one is not checked");
     t.eq([ held.listening, held.owners ], [ true, "1203/dropbear" ], "a port another program holds reads as listening, and says who holds it");
-    t.eq(value.wan, "100.64.1.2 2a00:1450::7");
-    t.eq([ main.listening, main.exposed, main.firewall_open, main.resolved, main.public, main.matches_wan ], [ true, true, true, 1, 1, 1 ]);
-    t.eq([ busy.listening, busy.owners, busy.firewall_open, busy.public, busy.matches_wan ], [ false, "812/nginx", false, 0, 0 ]);
+    t.eq([ value.wan, value.behind_cgnat ], [ "100.64.1.2 2a00:1450::7", false ], "a public IPv6 address reaches past the provider's NAT");
+    t.eq([ main.listening, main.exposed, main.open_firewall, main.firewall_open, main.resolved, main.public, main.matches_wan ], [ true, true, true, true, 1, 1, 1 ]);
+    t.eq([ busy.listening, busy.owners, busy.open_firewall, busy.firewall_open, busy.public, busy.matches_wan ], [ false, "812/nginx", false, false, 0, 0 ]);
     t.eq([ own.listening, own.port, own.transports, own.exposed, own.public_host ], [ true, 1080, "tcp", false, "" ], "a JSON server listens where its own settings say");
+});
+
+t.test("a router whose only WAN address is the provider's shared one is behind its NAT, one behind another router is not", () => {
+    fixture.seed({ settings: { config_path: dir + "/config.json" }, server: [] });
+    write_config({});
+    let behind = (address) => {
+        stub.commands([
+            [ "ubus -S call network.interface.wan status", { stdout: sprintf("{\"ipv4-address\":[{\"address\":\"%s\"}]}", address) } ],
+            [ "ubus -S call network.interface.wwan status", { status: 4 } ],
+            [ /'ip' '-[46]' 'route'/, { stdout: "" } ],
+            [ /netstat/, { stdout: "" } ]
+        ]);
+        let value = checks.servers();
+        stub.restore();
+        return value.behind_cgnat;
+    };
+    t.eq(map([ "100.116.152.154", "192.168.0.5", "46.138.78.196" ], behind), [ true, false, false ]);
 });
 
 exec.capture_parallel = real_parallel;

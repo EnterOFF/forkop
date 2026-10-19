@@ -7412,17 +7412,20 @@ function listenerItems(server2) {
       )
     ];
   }
-  if (server2.exposed && !server2.firewall_open) {
+  if (server2.exposed && server2.open_firewall && !server2.firewall_open) {
     return [
       finding("error", key, _("%s is closed in the firewall").format(port2))
     ];
   }
   return [];
 }
+function facesInternet(server2) {
+  return server2.exposed && (server2.open_firewall || server2.firewall_open);
+}
 function publicHostItems(server2, wan) {
   const key = server2.label;
   const host = server2.public_host;
-  if (server2.protocol === "json_inbound") {
+  if (server2.protocol === "json_inbound" || !facesInternet(server2)) {
     return [];
   }
   if (!host) {
@@ -7457,23 +7460,40 @@ function publicHostItems(server2, wan) {
   }
   return [];
 }
-function presentServers(data) {
-  return data.items.flatMap((server2) => {
-    const problems = [
-      ...listenerItems(server2),
-      ...publicHostItems(server2, data.wan)
-    ];
-    if (problems.length) {
-      return problems;
-    }
-    return [
-      finding(
-        "success",
-        server2.label,
-        server2.public_host ? `${portText(server2)} \xB7 ${server2.public_host}` : portText(server2)
+function cgnatItems(data) {
+  if (!data.behind_cgnat || !data.items.some(facesInternet)) {
+    return [];
+  }
+  return [
+    finding(
+      "warning",
+      _("Router"),
+      _("behind the provider's NAT (%s), unreachable from the internet").format(
+        data.wan
       )
-    ];
-  });
+    )
+  ];
+}
+function presentServers(data) {
+  return [
+    ...cgnatItems(data),
+    ...data.items.flatMap((server2) => {
+      const problems = [
+        ...listenerItems(server2),
+        ...publicHostItems(server2, data.wan)
+      ];
+      if (problems.length) {
+        return problems;
+      }
+      return [
+        finding(
+          "success",
+          server2.label,
+          server2.public_host ? `${portText(server2)} \xB7 ${server2.public_host}` : portText(server2)
+        )
+      ];
+    })
+  ];
 }
 async function runServersCheck() {
   const response = await ForkopShellMethods.checkServers();

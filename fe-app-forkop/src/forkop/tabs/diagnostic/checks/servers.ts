@@ -31,7 +31,7 @@ function listenerItems(server: Forkop.ServerCheckItem) {
       ),
     ];
   }
-  if (server.exposed && !server.firewall_open) {
+  if (server.exposed && server.open_firewall && !server.firewall_open) {
     return [
       finding('error', key, _('%s is closed in the firewall').format(port)),
     ];
@@ -39,12 +39,19 @@ function listenerItems(server: Forkop.ServerCheckItem) {
   return [];
 }
 
+// A server is for the internet when its listener faces WAN and its port is
+// open, or meant to be. One that listens on the LAN alone, or whose port was
+// left shut - as a migrated LAN proxy is - is kept to the LAN on purpose.
+function facesInternet(server: Forkop.ServerCheckItem) {
+  return server.exposed && (server.open_firewall || server.firewall_open);
+}
+
 // Whether clients can find the server by the address their links carry.
 function publicHostItems(server: Forkop.ServerCheckItem, wan: string) {
   const key = server.label;
   const host = server.public_host;
 
-  if (server.protocol === 'json_inbound') {
+  if (server.protocol === 'json_inbound' || !facesInternet(server)) {
     return [];
   }
   if (!host) {
@@ -82,27 +89,47 @@ function publicHostItems(server: Forkop.ServerCheckItem, wan: string) {
   return [];
 }
 
+// Behind the provider's NAT no port of the router can be opened, so this is
+// said once for the router rather than for each server.
+function cgnatItems(data: Forkop.ServersCheckResult) {
+  if (!data.behind_cgnat || !data.items.some(facesInternet)) {
+    return [];
+  }
+  return [
+    finding(
+      'warning',
+      _('Router'),
+      _("behind the provider's NAT (%s), unreachable from the internet").format(
+        data.wan,
+      ),
+    ),
+  ];
+}
+
 export function presentServers(
   data: Forkop.ServersCheckResult,
 ): IDiagnosticsChecksItem[] {
-  return data.items.flatMap((server) => {
-    const problems = [
-      ...listenerItems(server),
-      ...publicHostItems(server, data.wan),
-    ];
-    if (problems.length) {
-      return problems;
-    }
-    return [
-      finding(
-        'success',
-        server.label,
-        server.public_host
-          ? `${portText(server)} · ${server.public_host}`
-          : portText(server),
-      ),
-    ];
-  });
+  return [
+    ...cgnatItems(data),
+    ...data.items.flatMap((server) => {
+      const problems = [
+        ...listenerItems(server),
+        ...publicHostItems(server, data.wan),
+      ];
+      if (problems.length) {
+        return problems;
+      }
+      return [
+        finding(
+          'success',
+          server.label,
+          server.public_host
+            ? `${portText(server)} · ${server.public_host}`
+            : portText(server),
+        ),
+      ];
+    }),
+  ];
 }
 
 export async function runServersCheck(): Promise<CheckOutcome> {
