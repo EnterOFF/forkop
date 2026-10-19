@@ -1,5 +1,6 @@
 import {
   renderCheckIcon24,
+  renderChevronUpIcon24,
   renderCircleAlertIcon24,
   renderCircleCheckIcon24,
   renderCircleSlashIcon24,
@@ -13,30 +14,33 @@ import { E } from '../../../../helpers/element';
 
 type IRenderCheckSectionProps = IDiagnosticsChecksStoreItem;
 
+interface IRenderCheckSectionOptions {
+  expanded?: boolean;
+  onToggle?: () => void;
+}
+
+const STATE_ICONS = {
+  loading: renderLoaderCircleIcon24,
+  warning: renderCircleAlertIcon24,
+  error: renderCircleXIcon24,
+  success: renderCircleCheckIcon24,
+  skipped: renderCircleSlashIcon24,
+} as const;
+
+const ITEM_ICONS = {
+  success: renderCheckIcon24,
+  warning: renderTriangleAlertIcon24,
+  error: renderXIcon24,
+} as const;
+
 function renderCheckSummary(items: IRenderCheckSectionProps['items']) {
-  if (!items.length) {
-    return E('div', {}, '');
-  }
-
   const renderedItems = items.map((item) => {
-    function getIcon() {
-      const iconWrap = E('span', {
-        class: 'fkp_diagnostic_alert__summary__item__icon',
-      });
-
-      if (item.state === 'success') {
-        iconWrap.appendChild(renderCheckIcon24());
-      }
-
-      if (item.state === 'warning') {
-        iconWrap.appendChild(renderTriangleAlertIcon24());
-      }
-
-      if (item.state === 'error') {
-        iconWrap.appendChild(renderXIcon24());
-      }
-
-      return iconWrap;
+    const iconWrap = E('span', {
+      class: 'fkp_diagnostic_alert__summary__item__icon',
+    });
+    const icon = ITEM_ICONS[item.state as keyof typeof ITEM_ICONS];
+    if (icon) {
+      iconWrap.appendChild(icon());
     }
 
     // The key and its value share one cell beside the icon, so they can wrap
@@ -48,7 +52,7 @@ function renderCheckSummary(items: IRenderCheckSectionProps['items']) {
         class: `fkp_diagnostic_alert__summary__item fkp_diagnostic_alert__summary__item--${item.state}`,
       },
       [
-        getIcon(),
+        iconWrap,
         E('div', { class: 'fkp_diagnostic_alert__summary__item__body' }, [
           E(
             'b',
@@ -68,13 +72,56 @@ function renderCheckSummary(items: IRenderCheckSectionProps['items']) {
   return E('div', { class: 'fkp_diagnostic_alert__summary' }, renderedItems);
 }
 
-function renderLoadingState(props: IRenderCheckSectionProps) {
+// A check is its header - state, name, verdict - and the list of what it
+// looked at under it. The list folds away when there is one to fold: a check
+// that passed is one line until asked for its details, so the ones that did
+// not stand out.
+export function renderCheckSection(
+  props: IRenderCheckSectionProps,
+  { expanded = true, onToggle }: IRenderCheckSectionOptions = {},
+) {
   const iconWrap = E('span', { class: 'fkp_diagnostic_alert__icon' });
-  iconWrap.appendChild(renderLoaderCircleIcon24());
+  iconWrap.appendChild(STATE_ICONS[props.state]());
 
-  return E(
+  const foldable = Boolean(onToggle) && props.items.length > 0;
+  const toggleLabel = expanded ? _('Hide details') : _('Show details');
+  const toggle = foldable
+    ? E(
+        'button',
+        {
+          type: 'button',
+          class: [
+            'btn fkp_diagnostic_alert__toggle',
+            expanded ? '' : 'fkp_diagnostic_alert__toggle--collapsed',
+          ]
+            .filter(Boolean)
+            .join(' '),
+          title: toggleLabel,
+          'aria-label': toggleLabel,
+          'aria-expanded': expanded ? 'true' : 'false',
+          click: (event: MouseEvent) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onToggle?.();
+          },
+        },
+        renderChevronUpIcon24(),
+      )
+    : undefined;
+
+  const header = E(
     'div',
-    { class: 'fkp_diagnostic_alert fkp_diagnostic_alert--loading' },
+    foldable
+      ? {
+          class:
+            'fkp_diagnostic_alert__header fkp_diagnostic_alert__header--foldable',
+          click: () => {
+            if (window.getSelection()?.isCollapsed !== false) {
+              onToggle?.();
+            }
+          },
+        }
+      : { class: 'fkp_diagnostic_alert__header' },
     [
       iconWrap,
       E('div', { class: 'fkp_diagnostic_alert__content' }, [
@@ -85,120 +132,18 @@ function renderLoadingState(props: IRenderCheckSectionProps) {
           props.description,
         ),
       ]),
-      E('div', {}, ''),
-      renderCheckSummary(props.items),
+      ...(toggle ? [toggle] : []),
     ],
   );
-}
-
-function renderWarningState(props: IRenderCheckSectionProps) {
-  const iconWrap = E('span', { class: 'fkp_diagnostic_alert__icon' });
-  iconWrap.appendChild(renderCircleAlertIcon24());
 
   return E(
     'div',
-    { class: 'fkp_diagnostic_alert fkp_diagnostic_alert--warning' },
+    { class: `fkp_diagnostic_alert fkp_diagnostic_alert--${props.state}` },
     [
-      iconWrap,
-      E('div', { class: 'fkp_diagnostic_alert__content' }, [
-        E('b', { class: 'fkp_diagnostic_alert__title' }, props.title),
-        E(
-          'div',
-          { class: 'fkp_diagnostic_alert__description' },
-          props.description,
-        ),
-      ]),
-      E('div', {}, ''),
-      renderCheckSummary(props.items),
+      header,
+      ...(props.items.length && (expanded || !foldable)
+        ? [renderCheckSummary(props.items)]
+        : []),
     ],
   );
-}
-
-function renderErrorState(props: IRenderCheckSectionProps) {
-  const iconWrap = E('span', { class: 'fkp_diagnostic_alert__icon' });
-  iconWrap.appendChild(renderCircleXIcon24());
-
-  return E(
-    'div',
-    { class: 'fkp_diagnostic_alert fkp_diagnostic_alert--error' },
-    [
-      iconWrap,
-      E('div', { class: 'fkp_diagnostic_alert__content' }, [
-        E('b', { class: 'fkp_diagnostic_alert__title' }, props.title),
-        E(
-          'div',
-          { class: 'fkp_diagnostic_alert__description' },
-          props.description,
-        ),
-      ]),
-      E('div', {}, ''),
-      renderCheckSummary(props.items),
-    ],
-  );
-}
-
-function renderSuccessState(props: IRenderCheckSectionProps) {
-  const iconWrap = E('span', { class: 'fkp_diagnostic_alert__icon' });
-  iconWrap.appendChild(renderCircleCheckIcon24());
-
-  return E(
-    'div',
-    { class: 'fkp_diagnostic_alert fkp_diagnostic_alert--success' },
-    [
-      iconWrap,
-      E('div', { class: 'fkp_diagnostic_alert__content' }, [
-        E('b', { class: 'fkp_diagnostic_alert__title' }, props.title),
-        E(
-          'div',
-          { class: 'fkp_diagnostic_alert__description' },
-          props.description,
-        ),
-      ]),
-      E('div', {}, ''),
-      renderCheckSummary(props.items),
-    ],
-  );
-}
-
-function renderSkippedState(props: IRenderCheckSectionProps) {
-  const iconWrap = E('span', { class: 'fkp_diagnostic_alert__icon' });
-  iconWrap.appendChild(renderCircleSlashIcon24());
-
-  return E(
-    'div',
-    { class: 'fkp_diagnostic_alert fkp_diagnostic_alert--skipped' },
-    [
-      iconWrap,
-      E('div', { class: 'fkp_diagnostic_alert__content' }, [
-        E('b', { class: 'fkp_diagnostic_alert__title' }, props.title),
-        E(
-          'div',
-          { class: 'fkp_diagnostic_alert__description' },
-          props.description,
-        ),
-      ]),
-      E('div', {}, ''),
-      renderCheckSummary(props.items),
-    ],
-  );
-}
-
-export function renderCheckSection(props: IRenderCheckSectionProps) {
-  if (props.state === 'loading') {
-    return renderLoadingState(props);
-  }
-
-  if (props.state === 'warning') {
-    return renderWarningState(props);
-  }
-
-  if (props.state === 'error') {
-    return renderErrorState(props);
-  }
-
-  if (props.state === 'success') {
-    return renderSuccessState(props);
-  }
-
-  return renderSkippedState(props);
 }

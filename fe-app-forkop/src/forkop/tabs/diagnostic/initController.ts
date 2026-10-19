@@ -64,6 +64,10 @@ let diagnosticMountId = 0;
 // over what the run wrote into it.
 let diagnosticsChecksOwnedByRun = false;
 const handledServiceActionJobs = new Set<string>();
+// What the reader folded or unfolded by hand, per check, until the next run
+// lays the list out again: a check with a problem opens, one that passed stays
+// a single line.
+const checkFolding = new Map<string, boolean>();
 
 type ServiceRuntimeAction = 'restart' | 'start' | 'stop';
 type DiagnosticRunner = {
@@ -270,9 +274,18 @@ function renderDiagnosticsChecks() {
   );
   const container = document.getElementById('fkp_diagnostic-page-checks');
 
-  const renderedDiagnosticsChecks = diagnosticsChecks.map((check) =>
-    renderCheckSection(check),
-  );
+  const renderedDiagnosticsChecks = diagnosticsChecks.map((check) => {
+    const expanded =
+      checkFolding.get(check.code) ??
+      (check.state === 'warning' || check.state === 'error');
+    return renderCheckSection(check, {
+      expanded,
+      onToggle: () => {
+        checkFolding.set(check.code, !expanded);
+        renderDiagnosticsChecks();
+      },
+    });
+  });
 
   return preserveScrollForPage(() => {
     container!.replaceChildren(...renderedDiagnosticsChecks);
@@ -514,31 +527,24 @@ function renderDiagnosticSystemInfoWidget() {
 
   const container = document.getElementById('fkp_diagnostic-page-system-info');
 
+  const forkopVersion = normalizeCompiledVersion(
+    diagnosticsSystemInfo.forkop_version,
+  );
+  const luciVersion = normalizeCompiledVersion(FORKOP_LUCI_APP_VERSION);
+  // The two packages ship together, so the page's own version is worth a row
+  // only when it is not the one the backend reports.
   const items = [
+    { key: 'Forkop', value: forkopVersion },
+    ...(diagnosticsSystemInfo.loaded && luciVersion !== forkopVersion
+      ? [{ key: 'LuCI', value: luciVersion }]
+      : []),
+    { key: 'sing-box', value: formatSingBoxVersion(diagnosticsSystemInfo) },
     {
-      key: 'Forkop',
-      value: normalizeCompiledVersion(diagnosticsSystemInfo.forkop_version),
-    },
-    {
-      key: 'Luci App',
-      value: normalizeCompiledVersion(FORKOP_LUCI_APP_VERSION),
-    },
-    {
-      key: 'Sing-box',
-      value: formatSingBoxVersion(diagnosticsSystemInfo),
-    },
-  ];
-
-  items.push(
-    {
-      key: 'OS',
+      key: _('OS'),
       value: formatOsRelease(diagnosticsSystemInfo.openwrt_version),
     },
-    {
-      key: 'Device',
-      value: diagnosticsSystemInfo.device_model,
-    },
-  );
+    { key: _('Device'), value: diagnosticsSystemInfo.device_model },
+  ];
 
   const renderedSystemInfo = renderSystemInfo({
     items,
@@ -617,6 +623,7 @@ async function runChecks() {
   }
 
   diagnosticsChecksOwnedByRun = true;
+  checkFolding.clear();
   store.set({
     diagnosticsRunAction: { loading: true },
     diagnosticsChecks: getLoadingDiagnosticsChecks(getDiagnosticsCheckOptions())

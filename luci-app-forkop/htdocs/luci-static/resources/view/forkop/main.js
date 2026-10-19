@@ -7847,25 +7847,26 @@ function renderAvailableActions({
 }
 
 // src/forkop/tabs/diagnostic/partials/renderCheckSection.ts
+var STATE_ICONS = {
+  loading: renderLoaderCircleIcon24,
+  warning: renderCircleAlertIcon24,
+  error: renderCircleXIcon24,
+  success: renderCircleCheckIcon24,
+  skipped: renderCircleSlashIcon24
+};
+var ITEM_ICONS = {
+  success: renderCheckIcon24,
+  warning: renderTriangleAlertIcon24,
+  error: renderXIcon24
+};
 function renderCheckSummary(items) {
-  if (!items.length) {
-    return textE("div", {}, "");
-  }
   const renderedItems = items.map((item) => {
-    function getIcon() {
-      const iconWrap = textE("span", {
-        class: "fkp_diagnostic_alert__summary__item__icon"
-      });
-      if (item.state === "success") {
-        iconWrap.appendChild(renderCheckIcon24());
-      }
-      if (item.state === "warning") {
-        iconWrap.appendChild(renderTriangleAlertIcon24());
-      }
-      if (item.state === "error") {
-        iconWrap.appendChild(renderXIcon24());
-      }
-      return iconWrap;
+    const iconWrap = textE("span", {
+      class: "fkp_diagnostic_alert__summary__item__icon"
+    });
+    const icon = ITEM_ICONS[item.state];
+    if (icon) {
+      iconWrap.appendChild(icon());
     }
     return textE(
       "div",
@@ -7873,7 +7874,7 @@ function renderCheckSummary(items) {
         class: `fkp_diagnostic_alert__summary__item fkp_diagnostic_alert__summary__item--${item.state}`
       },
       [
-        getIcon(),
+        iconWrap,
         textE("div", { class: "fkp_diagnostic_alert__summary__item__body" }, [
           textE(
             "b",
@@ -7891,12 +7892,40 @@ function renderCheckSummary(items) {
   });
   return textE("div", { class: "fkp_diagnostic_alert__summary" }, renderedItems);
 }
-function renderLoadingState3(props) {
+function renderCheckSection(props, { expanded = true, onToggle } = {}) {
   const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
-  iconWrap.appendChild(renderLoaderCircleIcon24());
-  return textE(
+  iconWrap.appendChild(STATE_ICONS[props.state]());
+  const foldable = Boolean(onToggle) && props.items.length > 0;
+  const toggleLabel = expanded ? _("Hide details") : _("Show details");
+  const toggle = foldable ? textE(
+    "button",
+    {
+      type: "button",
+      class: [
+        "btn fkp_diagnostic_alert__toggle",
+        expanded ? "" : "fkp_diagnostic_alert__toggle--collapsed"
+      ].filter(Boolean).join(" "),
+      title: toggleLabel,
+      "aria-label": toggleLabel,
+      "aria-expanded": expanded ? "true" : "false",
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle?.();
+      }
+    },
+    renderChevronUpIcon24()
+  ) : void 0;
+  const header = textE(
     "div",
-    { class: "fkp_diagnostic_alert fkp_diagnostic_alert--loading" },
+    foldable ? {
+      class: "fkp_diagnostic_alert__header fkp_diagnostic_alert__header--foldable",
+      click: () => {
+        if (window.getSelection()?.isCollapsed !== false) {
+          onToggle?.();
+        }
+      }
+    } : { class: "fkp_diagnostic_alert__header" },
     [
       iconWrap,
       textE("div", { class: "fkp_diagnostic_alert__content" }, [
@@ -7907,109 +7936,17 @@ function renderLoadingState3(props) {
           props.description
         )
       ]),
-      textE("div", {}, ""),
-      renderCheckSummary(props.items)
+      ...toggle ? [toggle] : []
     ]
   );
-}
-function renderWarningState(props) {
-  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
-  iconWrap.appendChild(renderCircleAlertIcon24());
   return textE(
     "div",
-    { class: "fkp_diagnostic_alert fkp_diagnostic_alert--warning" },
+    { class: `fkp_diagnostic_alert fkp_diagnostic_alert--${props.state}` },
     [
-      iconWrap,
-      textE("div", { class: "fkp_diagnostic_alert__content" }, [
-        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        textE(
-          "div",
-          { class: "fkp_diagnostic_alert__description" },
-          props.description
-        )
-      ]),
-      textE("div", {}, ""),
-      renderCheckSummary(props.items)
+      header,
+      ...props.items.length && (expanded || !foldable) ? [renderCheckSummary(props.items)] : []
     ]
   );
-}
-function renderErrorState(props) {
-  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
-  iconWrap.appendChild(renderCircleXIcon24());
-  return textE(
-    "div",
-    { class: "fkp_diagnostic_alert fkp_diagnostic_alert--error" },
-    [
-      iconWrap,
-      textE("div", { class: "fkp_diagnostic_alert__content" }, [
-        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        textE(
-          "div",
-          { class: "fkp_diagnostic_alert__description" },
-          props.description
-        )
-      ]),
-      textE("div", {}, ""),
-      renderCheckSummary(props.items)
-    ]
-  );
-}
-function renderSuccessState(props) {
-  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
-  iconWrap.appendChild(renderCircleCheckIcon24());
-  return textE(
-    "div",
-    { class: "fkp_diagnostic_alert fkp_diagnostic_alert--success" },
-    [
-      iconWrap,
-      textE("div", { class: "fkp_diagnostic_alert__content" }, [
-        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        textE(
-          "div",
-          { class: "fkp_diagnostic_alert__description" },
-          props.description
-        )
-      ]),
-      textE("div", {}, ""),
-      renderCheckSummary(props.items)
-    ]
-  );
-}
-function renderSkippedState(props) {
-  const iconWrap = textE("span", { class: "fkp_diagnostic_alert__icon" });
-  iconWrap.appendChild(renderCircleSlashIcon24());
-  return textE(
-    "div",
-    { class: "fkp_diagnostic_alert fkp_diagnostic_alert--skipped" },
-    [
-      iconWrap,
-      textE("div", { class: "fkp_diagnostic_alert__content" }, [
-        textE("b", { class: "fkp_diagnostic_alert__title" }, props.title),
-        textE(
-          "div",
-          { class: "fkp_diagnostic_alert__description" },
-          props.description
-        )
-      ]),
-      textE("div", {}, ""),
-      renderCheckSummary(props.items)
-    ]
-  );
-}
-function renderCheckSection(props) {
-  if (props.state === "loading") {
-    return renderLoadingState3(props);
-  }
-  if (props.state === "warning") {
-    return renderWarningState(props);
-  }
-  if (props.state === "error") {
-    return renderErrorState(props);
-  }
-  if (props.state === "success") {
-    return renderSuccessState(props);
-  }
-  return renderSkippedState(props);
 }
 
 // src/forkop/tabs/diagnostic/partials/renderRunAction.ts
@@ -8265,6 +8202,7 @@ var diagnosticMounted = false;
 var diagnosticMountId = 0;
 var diagnosticsChecksOwnedByRun = false;
 var handledServiceActionJobs = /* @__PURE__ */ new Set();
+var checkFolding = /* @__PURE__ */ new Map();
 function getDiagnosticsCheckOptions(systemInfo = store.get().diagnosticsSystemInfo) {
   return {
     includeInbounds: systemInfo.server_inbounds_enabled_count > 0
@@ -8398,9 +8336,16 @@ function renderDiagnosticsChecks() {
     (a, b) => a.order - b.order
   );
   const container = document.getElementById("fkp_diagnostic-page-checks");
-  const renderedDiagnosticsChecks = diagnosticsChecks.map(
-    (check) => renderCheckSection(check)
-  );
+  const renderedDiagnosticsChecks = diagnosticsChecks.map((check) => {
+    const expanded = checkFolding.get(check.code) ?? (check.state === "warning" || check.state === "error");
+    return renderCheckSection(check, {
+      expanded,
+      onToggle: () => {
+        checkFolding.set(check.code, !expanded);
+        renderDiagnosticsChecks();
+      }
+    });
+  });
   return preserveScrollForPage(() => {
     container.replaceChildren(...renderedDiagnosticsChecks);
   });
@@ -8578,30 +8523,20 @@ function renderDiagnosticSystemInfoWidget() {
   logger.debug("[DIAGNOSTIC]", "renderDiagnosticSystemInfoWidget");
   const diagnosticsSystemInfo = store.get().diagnosticsSystemInfo;
   const container = document.getElementById("fkp_diagnostic-page-system-info");
+  const forkopVersion = normalizeCompiledVersion(
+    diagnosticsSystemInfo.forkop_version
+  );
+  const luciVersion = normalizeCompiledVersion(FORKOP_LUCI_APP_VERSION);
   const items = [
+    { key: "Forkop", value: forkopVersion },
+    ...diagnosticsSystemInfo.loaded && luciVersion !== forkopVersion ? [{ key: "LuCI", value: luciVersion }] : [],
+    { key: "sing-box", value: formatSingBoxVersion(diagnosticsSystemInfo) },
     {
-      key: "Forkop",
-      value: normalizeCompiledVersion(diagnosticsSystemInfo.forkop_version)
-    },
-    {
-      key: "Luci App",
-      value: normalizeCompiledVersion(FORKOP_LUCI_APP_VERSION)
-    },
-    {
-      key: "Sing-box",
-      value: formatSingBoxVersion(diagnosticsSystemInfo)
-    }
-  ];
-  items.push(
-    {
-      key: "OS",
+      key: _("OS"),
       value: formatOsRelease(diagnosticsSystemInfo.openwrt_version)
     },
-    {
-      key: "Device",
-      value: diagnosticsSystemInfo.device_model
-    }
-  );
+    { key: _("Device"), value: diagnosticsSystemInfo.device_model }
+  ];
   const renderedSystemInfo = renderSystemInfo({
     items
   });
@@ -8656,6 +8591,7 @@ async function runChecks() {
     return;
   }
   diagnosticsChecksOwnedByRun = true;
+  checkFolding.clear();
   store.set({
     diagnosticsRunAction: { loading: true },
     diagnosticsChecks: getLoadingDiagnosticsChecks(getDiagnosticsCheckOptions()).diagnosticsChecks
@@ -8881,12 +8817,57 @@ var styles4 = `
 .fkp_diagnostic_alert {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
+    padding: 10px;
+}
 
+.fkp_diagnostic_alert__header {
     display: grid;
-    grid-template-columns: 24px minmax(0, 1fr);
+    grid-template-columns: 24px minmax(0, 1fr) auto;
     grid-column-gap: 10px;
     align-items: center;
-    padding: 10px;
+}
+
+.fkp_diagnostic_alert__header--foldable {
+    cursor: pointer;
+}
+
+/* The state icon and the chevron at the other end of the header share its
+   centre line; inline, the icon sat on a text baseline 2.5px above it. */
+.fkp_diagnostic_alert__icon {
+    display: flex;
+}
+
+/* The fold of a check, at the end of its header: up while the details show,
+   down once they are folded away, in the header's own colour. */
+.fkp_diagnostic-page .btn.fkp_diagnostic_alert__toggle {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: inherit;
+    opacity: 0.55;
+}
+
+.fkp_diagnostic-page .btn.fkp_diagnostic_alert__toggle:focus-visible {
+    opacity: 1;
+}
+
+.fkp_diagnostic_alert__toggle svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    transition: transform 0.15s ease;
+}
+
+.fkp_diagnostic_alert__toggle--collapsed svg {
+    transform: rotate(180deg);
 }
 
 .fkp_diagnostic_alert--loading {
@@ -8912,8 +8893,9 @@ var styles4 = `
     display: block;
 }
 
+/* Under the title, past the state icon and its gap. */
 .fkp_diagnostic_alert__summary {
-    margin-top: 10px;
+    margin: 10px 0 0 34px;
 }
 
 .fkp_diagnostic_alert__summary__item {

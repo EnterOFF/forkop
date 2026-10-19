@@ -109,12 +109,57 @@ export const styles = `
 .fkp_diagnostic_alert {
     border: 2px var(--background-color-low, lightgray) solid;
     border-radius: 4px;
+    padding: 10px;
+}
 
+.fkp_diagnostic_alert__header {
     display: grid;
-    grid-template-columns: 24px minmax(0, 1fr);
+    grid-template-columns: 24px minmax(0, 1fr) auto;
     grid-column-gap: 10px;
     align-items: center;
-    padding: 10px;
+}
+
+.fkp_diagnostic_alert__header--foldable {
+    cursor: pointer;
+}
+
+/* The state icon and the chevron at the other end of the header share its
+   centre line; inline, the icon sat on a text baseline 2.5px above it. */
+.fkp_diagnostic_alert__icon {
+    display: flex;
+}
+
+/* The fold of a check, at the end of its header: up while the details show,
+   down once they are folded away, in the header's own colour. */
+.fkp_diagnostic-page .btn.fkp_diagnostic_alert__toggle {
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: inherit;
+    opacity: 0.55;
+}
+
+.fkp_diagnostic-page .btn.fkp_diagnostic_alert__toggle:focus-visible {
+    opacity: 1;
+}
+
+.fkp_diagnostic_alert__toggle svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    transition: transform 0.15s ease;
+}
+
+.fkp_diagnostic_alert__toggle--collapsed svg {
+    transform: rotate(180deg);
 }
 
 .fkp_diagnostic_alert--loading {
@@ -140,8 +185,9 @@ export const styles = `
     display: block;
 }
 
+/* Under the title, past the state icon and its gap. */
 .fkp_diagnostic_alert__summary {
-    margin-top: 10px;
+    margin: 10px 0 0 34px;
 }
 
 .fkp_diagnostic_alert__summary__item {

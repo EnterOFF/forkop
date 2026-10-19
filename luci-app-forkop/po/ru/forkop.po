@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 13:00+0300\n"
-"PO-Revision-Date: 2026-10-19 13:00+0300\n"
+"POT-Creation-Date: 2026-10-19 14:43+0300\n"
+"PO-Revision-Date: 2026-10-19 14:43+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -659,6 +659,9 @@ msgstr "Удалить"
 msgid "Detected automatically by default"
 msgstr "По умолчанию определяется автоматически"
 
+msgid "Device"
+msgstr "Устройство"
+
 msgid "Device ID"
 msgstr "ID устройства"
 
@@ -1123,6 +1126,9 @@ msgstr "Значение заголовка должно быть в одной 
 
 msgid "Headers"
 msgstr "Заголовки"
+
+msgid "Hide details"
+msgstr "Скрыть подробности"
 
 msgid "Hide values"
 msgstr "Скрывать значения"
@@ -1652,6 +1658,9 @@ msgstr "Параметр \"%s\" содержит некорректное зна
 msgid "Option %s needs a value"
 msgstr "Параметру %s нужно значение"
 
+msgid "OS"
+msgstr "ОС"
+
 msgid "Output Network Interface"
 msgstr "Выходной сетевой интерфейс"
 
@@ -2164,6 +2173,9 @@ msgstr "Несколько серверов дают автоматическо�
 
 msgid "Show a QR code"
 msgstr "Показать QR-код"
+
+msgid "Show details"
+msgstr "Показать подробности"
 
 msgid "Show metadata"
 msgstr "Отображать метаданные"
