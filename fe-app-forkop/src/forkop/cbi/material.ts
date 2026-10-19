@@ -105,7 +105,7 @@ export function loadedMaterial(
 ): { own: string; pair: string | null } {
   const both = paired ? splitCertificateAndKey(text) : null;
   if (!both) return { own: text, pair: null };
-  return kind === 'key'
+  return kind === 'key' || kind === 'passphrase-key'
     ? { own: both.key, pair: both.certificate }
     : { own: both.certificate, pair: both.key };
 }

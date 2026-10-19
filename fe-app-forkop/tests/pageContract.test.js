@@ -187,17 +187,27 @@ describe('a password field', () => {
         expect(stored, field).toBe(field);
         continue;
       }
-      const kinds = [
-        'wireguard',
-        'amneziawg',
-        'warp',
-        'tailscale',
-        'openvpn-client',
-      ];
-      const written = kinds.some((kind) =>
-        `${tunnelStorageSettings({ tunnel_type: kind, [field]: PROBE })[stored] ?? ''}`.includes(
-          PROBE,
-        ),
+      // A field behind a switch is stored only while the switch shows it.
+      const kinds = {
+        wireguard: {},
+        amneziawg: {},
+        warp: {},
+        tailscale: {},
+        'openvpn-client': {},
+        openconnect: {
+          openconnect_advanced: '1',
+          openconnect_certificate_enabled: '1',
+          openconnect_token_mode: 'stoken',
+        },
+      };
+      const written = Object.entries(kinds).some(([kind, switches]) =>
+        `${
+          tunnelStorageSettings({
+            tunnel_type: kind,
+            ...switches,
+            [field]: PROBE,
+          })[stored] ?? ''
+        }`.includes(PROBE),
       );
       expect(written, `${field} is not stored in ${stored}`).toBe(true);
     }

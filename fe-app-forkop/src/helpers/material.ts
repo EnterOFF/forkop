@@ -2,8 +2,17 @@
 // the way the core reads them.
 
 import { decodeBase64, isCertificate, pemBlocks } from './pem';
+import type { PemBlock } from './pem';
 
-export type MaterialKind = 'ca' | 'certificate' | 'key' | 'static' | 'crypt-v2';
+// A passphrase key is a private key that may be encrypted, for a client that
+// takes the passphrase with it.
+export type MaterialKind =
+  | 'ca'
+  | 'certificate'
+  | 'key'
+  | 'passphrase-key'
+  | 'static'
+  | 'crypt-v2';
 
 export interface MaterialCheck {
   valid: boolean;
@@ -59,24 +68,30 @@ function certificatesCheck(text: string) {
     : invalid(_('The certificate is damaged'));
 }
 
-function keyCheck(text: string) {
+function isEncrypted(block: PemBlock) {
+  return (
+    block.label === 'ENCRYPTED PRIVATE KEY' ||
+    block.headers.some((header) => /ENCRYPTED/.test(header))
+  );
+}
+
+export function isEncryptedKey(value: unknown) {
+  return pemBlocks(`${value ?? ''}`).some(isEncrypted);
+}
+
+function keyCheck(text: string, passphrase: boolean) {
   const blocks = pemBlocks(text);
-  if (
-    blocks.some(
-      (block) =>
-        block.label === 'ENCRYPTED PRIVATE KEY' ||
-        block.headers.some((header) => /ENCRYPTED/.test(header)),
-    )
-  ) {
+  if (!passphrase && blocks.some(isEncrypted)) {
     return invalid(
       _(
         'The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem',
       ),
     );
   }
-  const keys = blocks.filter((block) =>
-    PRIVATE_KEY_LABELS.includes(block.label),
-  );
+  const labels = passphrase
+    ? [...PRIVATE_KEY_LABELS, 'ENCRYPTED PRIVATE KEY']
+    : PRIVATE_KEY_LABELS;
+  const keys = blocks.filter((block) => labels.includes(block.label));
   return keys.length === 1 && decodeBase64(keys[0].body)
     ? VALID
     : invalid(_('Paste a PEM private key or load it from a file'));
@@ -113,7 +128,8 @@ export function checkMaterial(
     case 'certificate':
       return certificatesCheck(text);
     case 'key':
-      return keyCheck(text);
+    case 'passphrase-key':
+      return keyCheck(text, kind === 'passphrase-key');
     case 'static':
       return staticKeyCheck(text);
     default:

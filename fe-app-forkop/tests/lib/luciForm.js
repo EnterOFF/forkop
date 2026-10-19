@@ -26,6 +26,7 @@
 //     const map = new h.form.Map('forkop');
 //     view.createSectionContent(map.section(h.form.GridSection, 'section'));
 //     await h.openDialog(listOption, 'section_a', itemId);   // returns { save }
+//     await h.openDialogWith(() => button.onclick());   // one stacked on it
 import { webcrypto } from 'crypto';
 import { loadBundle } from './bundle.js';
 
@@ -297,6 +298,7 @@ function buildForm(uciData) {
     isValid() {
       return true;
     },
+    triggerValidation() {},
     stripTags(value) {
       return `${value ?? ''}`;
     },
@@ -826,28 +828,48 @@ export function createHarness(packageName = 'forkop') {
   // is indistinguishable from a clean one by what it wrote: both wrote nothing. A
   // check that only counts writes passes on every dialog it never managed to save.
   async function openDialog(option, ownerId, itemValue, context = {}) {
+    return openDialogWith(
+      () =>
+        option.renderItemSettingsModal(
+          ownerId,
+          itemValue,
+          option,
+          null,
+          null,
+          context,
+        ),
+      `dialog for ${option.option}`,
+    );
+  }
+
+  // The buttons a dialog puts in the row, also those it groups in a span.
+  const buttonsIn = (nodes) =>
+    nodes.flatMap((node) =>
+      node instanceof FakeNode
+        ? [...(node.attrs.click ? [node] : []), ...buttonsIn(node.childNodes)]
+        : [],
+    );
+
+  // Opens any dialog, one stacked on an open dialog included, through what the
+  // page calls to open it: a button's onclick, say.
+  async function openDialogWith(open, label = 'dialog') {
     const buttons = [];
     const originalAppend = buttonRow.append.bind(buttonRow);
     buttonRow.append = (...nodes) => {
-      nodes.forEach((node) => node?.attrs?.click && buttons.push(node));
+      buttons.push(...buttonsIn(nodes));
       return originalAppend(...nodes);
     };
     const first = dialogMaps.length;
     try {
-      await option.renderItemSettingsModal(
-        ownerId,
-        itemValue,
-        option,
-        null,
-        null,
-        context,
-      );
+      await open();
     } finally {
       buttonRow.append = originalAppend;
     }
-    const saveButton = buttons[buttons.length - 1];
-    if (!saveButton)
-      throw new Error(`dialog for ${option.option} did not open`);
+    const saveButton =
+      buttons.find((node) =>
+        `${node.attrs.class ?? ''}`.includes('cbi-button-positive'),
+      ) ?? buttons[buttons.length - 1];
+    if (!saveButton) throw new Error(`${label} did not open`);
     // Each open dialog hangs its own title next to the heading and takes it away
     // again when it closes, so the count says whether this one is still up.
     const openTitles = heading.childNodes.length;
@@ -881,6 +903,7 @@ export function createHarness(packageName = 'forkop') {
     commands,
     notifications,
     openDialog,
+    openDialogWith,
     toasts,
   };
 }

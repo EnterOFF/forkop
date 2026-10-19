@@ -238,7 +238,7 @@ function outbound_section(sections, label, target_name) {
 // The tunnels that dial their server through a cascade. A Tailscale tunnel
 // reaches its coordination server through a section of its own choosing, and a
 // JSON endpoint names its own detour.
-const CASCADE_TUNNEL_KINDS = { wireguard: true, amneziawg: true, warp: true, "openvpn-client": true };
+const CASCADE_TUNNEL_KINDS = { wireguard: true, amneziawg: true, warp: true, "openvpn-client": true, openconnect: true };
 
 function tunnel_kind(tunnel) {
     return lc(trim(as_string(option(tunnel, "kind", "wireguard"))));
@@ -725,6 +725,30 @@ function valid_hostname(value) {
         match(value, /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/) != null;
 }
 
+const OPENCONNECT_FLAVORS = [ "anyconnect", "gp", "fortinet", "pulse", "nc", "f5" ];
+
+// The server of an OpenConnect endpoint as the core takes it: an HTTPS host
+// with an optional port and path, and no user, query or fragment.
+function valid_openconnect_server(value) {
+    value = trim(as_string(value));
+    if (substr(lc(value), 0, 8) == "https://")
+        value = substr(value, 8);
+    return value != "" && index(value, "://") < 0 && match(value, /^[^\/?#@ \t]+(\/[^?# \t]*)?$/) != null;
+}
+
+function validate_openconnect_endpoint(owner, endpoint) {
+    if (lc(trim(as_string(endpoint.type || ""))) != "openconnect" || !valid_openconnect_server(endpoint.server))
+        fail_validation(owner + " has no valid OpenConnect server. Use a host with an optional port and group path, without a query");
+    if (endpoint.flavor != null && index(OPENCONNECT_FLAVORS, endpoint.flavor) < 0)
+        fail_validation(owner + " has an unknown OpenConnect protocol '" + as_string(endpoint.flavor) + "'");
+    let tls = object_or_empty(endpoint.tls);
+    if (!(tls.client_certificate || tls.client_certificate_path) != !(tls.client_key || tls.client_key_path))
+        fail_validation(owner + " needs both the OpenConnect client certificate and its key, or neither");
+    let token = endpoint.token;
+    if (token != null && (type(token) != "object" || trim(as_string(token.mode || "")) == "" || (!token.secret && !token.secret_path)))
+        fail_validation(owner + " has an OpenConnect one-time code without its mode or secret");
+}
+
 function validate_tailscale_tunnel_detour(source_name, detour) {
     detour = trim(as_string(detour));
     if (detour == "")
@@ -754,10 +778,16 @@ function validate_tunnel_values(section) {
         }
 
         if (endpoint_type == "" ||
-            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client"))
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" &&
+                endpoint_type != "openvpn-client" && endpoint_type != "openconnect"))
             fail_validation(owner + " has an invalid tunnel endpoint");
         if (trim(as_string(connections.option(tunnel, "name", ""))) == "")
             fail_validation("A tunnel in section '" + section_label(section) + "' has no name");
+
+        if (wrapper_kind == "openconnect") {
+            validate_openconnect_endpoint(owner, endpoint);
+            continue;
+        }
 
         if (wrapper_kind == "openvpn-client") {
             if (endpoint_type != "openvpn-client" || (trim(as_string(endpoint.server || "")) == "" && length(array_or_empty(endpoint.servers)) == 0))

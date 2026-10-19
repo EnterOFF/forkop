@@ -792,11 +792,11 @@ function formatBytes(value) {
   }
   return prettyBytes(value);
 }
-function formatDate(seconds2) {
-  if (typeof seconds2 !== "number" || !Number.isFinite(seconds2) || seconds2 <= 0) {
+function formatDate(seconds3) {
+  if (typeof seconds3 !== "number" || !Number.isFinite(seconds3) || seconds3 <= 0) {
     return void 0;
   }
-  const date = new Date(seconds2 * 1e3);
+  const date = new Date(seconds3 * 1e3);
   if (Number.isNaN(date.getTime())) {
     return void 0;
   }
@@ -1496,9 +1496,9 @@ function showToast(message, type, duration = 3e3) {
 }
 
 // src/helpers/copyToClipboard.ts
-function copyToClipboard(text4) {
+function copyToClipboard(text6) {
   const textarea = document.createElement("textarea");
-  textarea.value = text4;
+  textarea.value = text6;
   document.body.appendChild(textarea);
   textarea.select();
   let copied = false;
@@ -2904,8 +2904,8 @@ function getSectionSubscriptionTags(section, providers) {
 }
 function providerNumber(value, lower) {
   const upper = `${lower[0].toUpperCase()}${lower.slice(1)}`;
-  const number3 = Number(value?.[lower] ?? value?.[upper] ?? 0);
-  return Number.isFinite(number3) ? number3 : 0;
+  const number4 = Number(value?.[lower] ?? value?.[upper] ?? 0);
+  return Number.isFinite(number4) ? number4 : 0;
 }
 function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
   const metadata = provider.subscriptionMetadata || {};
@@ -3498,9 +3498,9 @@ function startForkopLogFeed(onNewLog, resumeFrom = 0) {
         timeoutMs: FORKOP_CALL_TIMEOUT_MS
       });
       if (response.success) {
-        const lines2 = adopt(response.data);
+        const lines3 = adopt(response.data);
         if (started) {
-          for (const line of lines2) {
+          for (const line of lines3) {
             try {
               onNewLog(line);
             } catch (error) {
@@ -3719,8 +3719,8 @@ function linkQuery(link) {
   if (start < 0) {
     return query;
   }
-  const text4 = link.slice(start + 1).split("#")[0];
-  for (const pair of text4.split("&")) {
+  const text6 = link.slice(start + 1).split("#")[0];
+  for (const pair of text6.split("&")) {
     const equals = pair.indexOf("=");
     const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
     if (key && !query.has(key)) {
@@ -4707,10 +4707,10 @@ function polledBandwidth(uploadTotal, downloadTotal) {
   if (!previous || at <= previous.at) {
     return null;
   }
-  const seconds2 = (at - previous.at) / 1e3;
+  const seconds3 = (at - previous.at) / 1e3;
   return {
-    up: Math.round(Math.max(0, uploadTotal - previous.up) / seconds2),
-    down: Math.round(Math.max(0, downloadTotal - previous.down) / seconds2)
+    up: Math.round(Math.max(0, uploadTotal - previous.up) / seconds3),
+    down: Math.round(Math.max(0, downloadTotal - previous.down) / seconds3)
   };
 }
 function applyWidgetsSnapshot(summary) {
@@ -5094,8 +5094,8 @@ function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
     return value ? _("Yes") : _("No");
   }
-  const text4 = `${value ?? ""}`.trim();
-  return text4 || _("No");
+  const text6 = `${value ?? ""}`.trim();
+  return text6 || _("No");
 }
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : _("N/A");
@@ -7339,7 +7339,7 @@ function renderButton({
   disabled,
   loading: loading3,
   onClick,
-  text: text4,
+  text: text6,
   icon
 }) {
   const hasIcon = !!loading3 || !!icon;
@@ -7381,13 +7381,13 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text4)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text6)]
   );
 }
 
 // src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text4, filename) {
-  const blob = new Blob([text4], { type: "text/plain;charset=utf-8" });
+function downloadAsTxt(text6, filename) {
+  const blob = new Blob([text6], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
@@ -7399,7 +7399,7 @@ function downloadAsTxt(text4, filename) {
 }
 
 // src/partials/modal/renderModal.ts
-function renderModal(text4, name, options) {
+function renderModal(text6, name, options) {
   let currentText = "";
   let refreshInFlight = false;
   let pendingRefresh = false;
@@ -7635,7 +7635,7 @@ ${currentText}
     startRefreshTimer();
     requestRefresh();
   }
-  updateText(text4 ?? "");
+  updateText(text6 ?? "");
   return body;
 }
 
@@ -8145,8 +8145,8 @@ function serviceActionFailureMessage(action) {
 var BUILD_ID = /\s+r\d+(?:[-+][0-9a-z]+)*$/i;
 function formatOsRelease(value) {
   const release = `${value ?? ""}`.trim();
-  const trimmed2 = release.replace(BUILD_ID, "").trim();
-  return trimmed2 || release;
+  const trimmed3 = release.replace(BUILD_ID, "").trim();
+  return trimmed3 || release;
 }
 
 // src/forkop/helpers/singBoxVersion.ts
@@ -8377,10 +8377,10 @@ async function showDiagnosticModal(action, title, name, load) {
   setDiagnosticActionLoading(action, true);
   try {
     const getText = diagnosticText(load);
-    const text4 = await getText({ maskValues: true });
+    const text6 = await getText({ maskValues: true });
     ui.showModal(
       title,
-      renderModal(text4, name, {
+      renderModal(text6, name, {
         getText,
         initialAutoRefresh: false,
         showMaskValuesToggle: true
@@ -9391,14 +9391,14 @@ function renderList(rows, closable) {
 function cellClass(column) {
   return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
 }
-function renderHeading(column, text4) {
-  return textE("div", { class: cellClass(column), role: "columnheader" }, text4);
+function renderHeading(column, text6) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text6);
 }
 function renderCell(column, children2) {
   return textE("div", { class: cellClass(column), role: "cell" }, children2);
 }
-function renderValue(text4, className = "") {
-  const value = text4 || "-";
+function renderValue(text6, className = "") {
+  const value = text6 || "-";
   return textE(
     "span",
     {
@@ -9411,7 +9411,7 @@ function renderValue(text4, className = "") {
 }
 function renderSource(name, detail) {
   const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
-  const muted = (text4) => textE("span", { class: "fkp_monitoring-page__muted" }, text4);
+  const muted = (text6) => textE("span", { class: "fkp_monitoring-page__muted" }, text6);
   return textE(
     "span",
     {
@@ -9468,7 +9468,7 @@ function renderConnectionList(items, options) {
     options.closable
   );
 }
-function renderConnectionListState(text4, options) {
+function renderConnectionListState(text6, options) {
   return renderList(
     [
       textE(
@@ -9484,7 +9484,7 @@ function renderConnectionListState(text4, options) {
               class: ["fkp_monitoring-page__state", options.className].filter(Boolean).join(" "),
               role: "cell"
             },
-            text4
+            text6
           )
         ]
       )
@@ -9748,12 +9748,12 @@ function formatDuration(ms) {
   const totalSeconds = Math.max(0, Math.floor(ms / 1e3));
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor(totalSeconds % 3600 / 60);
-  const seconds2 = totalSeconds % 60;
+  const seconds3 = totalSeconds % 60;
   const pad = (value) => String(value).padStart(2, "0");
   if (hours > 0) {
-    return `${hours}:${pad(minutes)}:${pad(seconds2)}`;
+    return `${hours}:${pad(minutes)}:${pad(seconds3)}`;
   }
-  return `${minutes}:${pad(seconds2)}`;
+  return `${minutes}:${pad(seconds3)}`;
 }
 function formatConnectionDuration(connection) {
   const startedAt = parseStartedAt(connection);
@@ -10043,12 +10043,12 @@ function toListItem(connection) {
   };
 }
 function isTextSelectionInsideList() {
-  const list2 = document.getElementById("monitoring-connections");
+  const list3 = document.getElementById("monitoring-connections");
   const selection = window.getSelection?.();
-  if (!list2 || !selection || selection.isCollapsed) {
+  if (!list3 || !selection || selection.isCollapsed) {
     return false;
   }
-  return list2.contains(selection.anchorNode) || list2.contains(selection.focusNode);
+  return list3.contains(selection.anchorNode) || list3.contains(selection.focusNode);
 }
 function renderConnections(options = {}) {
   const container = document.getElementById("monitoring-connections");
@@ -11069,9 +11069,9 @@ function render4() {
 }
 
 // src/forkop/tabs/logs/filterLogs.ts
-function filterLogText(text4, query) {
+function filterLogText(text6, query) {
   const normalizedQuery = query.trim().toLowerCase();
-  return text4.split(/\r?\n/).filter((line) => {
+  return text6.split(/\r?\n/).filter((line) => {
     if (!line) {
       return false;
     }
@@ -11595,7 +11595,7 @@ function updateDynamicListItemLabel(item, label) {
     labelNode.textContent = `${label || ""}`;
   }
 }
-function addDynamicListItem(widget, value, text4) {
+function addDynamicListItem(widget, value, text6) {
   if (!widget || !widget.node) {
     return null;
   }
@@ -11608,7 +11608,7 @@ function addDynamicListItem(widget, value, text4) {
     widget.dispatchCbiDynlistChange(widget.node, normalized);
     return null;
   }
-  widget.addItem(widget.node, normalized, text4 || null, false);
+  widget.addItem(widget.node, normalized, text6 || null, false);
   widget.dispatchCbiDynlistChange(widget.node, normalized);
   updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
   return findDynamicListItemByValue(widget.node, normalized);
@@ -12199,9 +12199,9 @@ function validateDNS(value, ipOnly = false) {
 // src/forkop/cbi/dnsServers.ts
 var MULTIPLE_DNS_SENTINEL = "__forkop_multiple_dns__";
 function optionListValues(option2, section_id) {
-  const formValue = option2.formvalue(section_id);
+  const formValue2 = option2.formvalue(section_id);
   return normalizeDynamicListItems(
-    formValue != null ? formValue : option2.cfgvalue(section_id)
+    formValue2 != null ? formValue2 : option2.cfgvalue(section_id)
   );
 }
 function siblingValues(map, name, section_id) {
@@ -12404,12 +12404,12 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
       }
     });
   },
-  addItem(dl, value, text4, flash) {
+  addItem(dl, value, text6, flash) {
     if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
-    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text4) : text4;
+    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text6) : text6;
     ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
     const item = findDynamicListItemByValue(dl, value);
     const hasSettings = typeof this.options.hasSettings === "function" ? this.options.hasSettings(value) : true;
@@ -12614,15 +12614,15 @@ var SettingsDynamicList = form.DynamicList.extend({
           );
         }
       },
-      itemLabel: (itemValue, text4) => {
+      itemLabel: (itemValue, text6) => {
         if (typeof this.renderListItemLabel === "function") {
           return this.renderListItemLabel(
             this.childOwner(section_id),
             `${itemValue}`,
-            text4
+            text6
           );
         }
-        return text4;
+        return text6;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       hasEquivalentValue: (itemValue, dl) => {
@@ -13026,13 +13026,13 @@ function syncAnnotatedTextareaOverlay(textarea, wrapper, overlay) {
   overlay.scrollLeft = textarea.scrollLeft;
 }
 function renderAnnotatedTextareaOverlay(value, annotations) {
-  const text4 = value ? `${value}` : "";
+  const text6 = value ? `${value}` : "";
   const normalizedAnnotations = Array.isArray(annotations) ? annotations : [];
-  if (!text4.length) {
+  if (!text6.length) {
     return "&#8203;";
   }
   if (!normalizedAnnotations.length) {
-    return `${escapeHtml(text4)}${text4.endsWith("\n") ? "\n " : ""}`;
+    return `${escapeHtml(text6)}${text6.endsWith("\n") ? "\n " : ""}`;
   }
   let cursor2 = 0;
   let html = "";
@@ -13040,14 +13040,14 @@ function renderAnnotatedTextareaOverlay(value, annotations) {
     if (annotation.start < cursor2 || annotation.start >= annotation.end || annotation.start < 0) {
       return;
     }
-    html += escapeHtml(text4.slice(cursor2, annotation.start));
+    html += escapeHtml(text6.slice(cursor2, annotation.start));
     html += `<span class="fkp-annotated-textarea__invalid">${escapeHtml(
-      text4.slice(annotation.start, annotation.end)
+      text6.slice(annotation.start, annotation.end)
     )}</span>`;
     cursor2 = annotation.end;
   });
-  html += escapeHtml(text4.slice(cursor2));
-  if (text4.endsWith("\n")) {
+  html += escapeHtml(text6.slice(cursor2));
+  if (text6.endsWith("\n")) {
     html += "\n ";
   }
   return html;
@@ -13101,12 +13101,12 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 function parseCommentAwareListTokens(value) {
-  const text4 = value ? `${value}` : "";
+  const text6 = value ? `${value}` : "";
   const tokens = [];
-  const lines2 = text4.split(/\r\n|\r|\n/);
-  const newlines = text4.match(/\r\n|\r|\n/g) || [];
+  const lines3 = text6.split(/\r\n|\r|\n/);
+  const newlines = text6.match(/\r\n|\r|\n/g) || [];
   let offset = 0;
-  lines2.forEach((line, index) => {
+  lines3.forEach((line, index) => {
     const hashIndex = line.indexOf("#");
     const slashIndex = line.indexOf("//");
     let commentIndex = -1;
@@ -13132,11 +13132,11 @@ function parseCommentAwareListTokens(value) {
   return tokens;
 }
 function analyzeTextListValue(value, validateItem, emptyMessage, options = {}) {
-  const text4 = value ? `${value}` : "";
-  if (!text4.length) {
+  const text6 = value ? `${value}` : "";
+  if (!text6.length) {
     return { valid: true, message: "", annotations: [] };
   }
-  const tokens = parseCommentAwareListTokens(text4);
+  const tokens = parseCommentAwareListTokens(text6);
   if (!tokens.length) {
     return { valid: false, message: emptyMessage, annotations: [] };
   }
@@ -14037,8 +14037,8 @@ function reservedOverridePatchPath(document2) {
   });
 }
 function subscriptionRenameLines(value) {
-  const lines2 = Array.isArray(value) ? value : value ? [value] : [];
-  return lines2.map((line) => `${line ?? ""}`.trim()).filter(Boolean);
+  const lines3 = Array.isArray(value) ? value : value ? [value] : [];
+  return lines3.map((line) => `${line ?? ""}`.trim()).filter(Boolean);
 }
 function validateRenameReplacement(replacement) {
   return /\$[0-9]+[A-Za-z_]/.test(`${replacement}`.replace(/\$\$/g, "")) ? _("Write ${1} instead of $1 when a letter follows the group number") : true;
@@ -14256,8 +14256,8 @@ function nextSubscriptionTag(sectionId, option2, values = listedSubscriptionValu
   const taken = new Set(
     configuredSubscriptionTags(sectionId, option2, [], values)
   );
-  for (let number3 = taken.size + 1; number3 < 1e5; number3 += 1) {
-    const value = `sub${number3}`;
+  for (let number4 = taken.size + 1; number4 < 1e5; number4 += 1) {
+    const value = `sub${number4}`;
     if (!taken.has(value)) return value;
   }
   return `sub${Date.now()}`;
@@ -14330,10 +14330,10 @@ function validateSubscriptionUrlEntry(_section_id, value) {
 
 // src/helpers/pem.ts
 var BEGIN = /^-----BEGIN ([A-Za-z0-9 #-]+)-----$/;
-function pemBlocks(text4) {
+function pemBlocks(text6) {
   const blocks = [];
   let current = null;
-  for (const raw of `${text4 || ""}`.split(/\r?\n/)) {
+  for (const raw of `${text6 || ""}`.split(/\r?\n/)) {
     const line = raw.trim();
     if (!current) {
       const begin = BEGIN.exec(line);
@@ -14352,12 +14352,12 @@ function pemBlocks(text4) {
   return blocks;
 }
 function decodeBase64(body) {
-  const text4 = `${body || ""}`.replace(/\s+/g, "");
-  if (!text4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text4) || text4.length % 4 !== 0) {
+  const text6 = `${body || ""}`.replace(/\s+/g, "");
+  if (!text6 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text6) || text6.length % 4 !== 0) {
     return null;
   }
   try {
-    const binary = atob(text4);
+    const binary = atob(text6);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   } catch (_error) {
     return null;
@@ -14406,9 +14406,9 @@ var VALID = { valid: true, message: "" };
 function isRouterPath(value) {
   return /^\/[^\n]*$/.test(value.trim());
 }
-function splitCertificateAndKey(text4) {
+function splitCertificateAndKey(text6) {
   const blocks = Array.from(
-    `${text4 || ""}`.matchAll(
+    `${text6 || ""}`.matchAll(
       /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g
     )
   );
@@ -14421,8 +14421,8 @@ function splitCertificateAndKey(text4) {
 function invalid2(message) {
   return { valid: false, message };
 }
-function certificatesCheck(text4) {
-  const blocks = pemBlocks(text4).filter(
+function certificatesCheck(text6) {
+  const blocks = pemBlocks(text6).filter(
     (block) => block.label === "CERTIFICATE"
   );
   if (!blocks.length) {
@@ -14433,30 +14433,33 @@ function certificatesCheck(text4) {
     return der && isCertificate(der);
   }) ? VALID : invalid2(_("The certificate is damaged"));
 }
-function keyCheck(text4) {
-  const blocks = pemBlocks(text4);
-  if (blocks.some(
-    (block) => block.label === "ENCRYPTED PRIVATE KEY" || block.headers.some((header) => /ENCRYPTED/.test(header))
-  )) {
+function isEncrypted(block) {
+  return block.label === "ENCRYPTED PRIVATE KEY" || block.headers.some((header) => /ENCRYPTED/.test(header));
+}
+function isEncryptedKey(value) {
+  return pemBlocks(`${value ?? ""}`).some(isEncrypted);
+}
+function keyCheck(text6, passphrase) {
+  const blocks = pemBlocks(text6);
+  if (!passphrase && blocks.some(isEncrypted)) {
     return invalid2(
       _(
         "The key is protected by a passphrase. Remove it first: openssl pkey -in key.pem -out key-plain.pem"
       )
     );
   }
-  const keys = blocks.filter(
-    (block) => PRIVATE_KEY_LABELS.includes(block.label)
-  );
+  const labels = passphrase ? [...PRIVATE_KEY_LABELS, "ENCRYPTED PRIVATE KEY"] : PRIVATE_KEY_LABELS;
+  const keys = blocks.filter((block) => labels.includes(block.label));
   return keys.length === 1 && decodeBase64(keys[0].body) ? VALID : invalid2(_("Paste a PEM private key or load it from a file"));
 }
-function staticKeyCheck(text4) {
-  const block = pemBlocks(text4).find(
+function staticKeyCheck(text6) {
+  const block = pemBlocks(text6).find(
     (item) => item.label === "OpenVPN Static key V1"
   );
   return block && /^[0-9a-fA-F]{512}$/.test(block.body) ? VALID : invalid2(_("Paste an OpenVPN static key or load it from a file"));
 }
-function cryptV2Check(text4) {
-  const block = pemBlocks(text4).find(
+function cryptV2Check(text6) {
+  const block = pemBlocks(text6).find(
     (item) => item.label === "OpenVPN tls-crypt-v2 client key"
   );
   return block && decodeBase64(block.body) ? VALID : invalid2(
@@ -14464,18 +14467,19 @@ function cryptV2Check(text4) {
   );
 }
 function checkMaterial(kind, value) {
-  const text4 = `${value ?? ""}`.trim();
-  if (!text4 || isRouterPath(text4)) return VALID;
+  const text6 = `${value ?? ""}`.trim();
+  if (!text6 || isRouterPath(text6)) return VALID;
   switch (kind) {
     case "ca":
     case "certificate":
-      return certificatesCheck(text4);
+      return certificatesCheck(text6);
     case "key":
-      return keyCheck(text4);
+    case "passphrase-key":
+      return keyCheck(text6, kind === "passphrase-key");
     case "static":
-      return staticKeyCheck(text4);
+      return staticKeyCheck(text6);
     default:
-      return cryptV2Check(text4);
+      return cryptV2Check(text6);
   }
 }
 
@@ -14648,13 +14652,13 @@ function tokenize(line) {
   if (active) tokens.push(token);
   return tokens;
 }
-function readDirectives(lines2, closing) {
+function readDirectives(lines3, closing) {
   const directives = [];
-  while (lines2.length) {
-    const line = lines2.shift();
-    const trimmed2 = line.trim();
-    if (closing && trimmed2.toLowerCase() === `</${closing}>`) return directives;
-    const open = /^<([A-Za-z0-9-]+)>$/.exec(trimmed2);
+  while (lines3.length) {
+    const line = lines3.shift();
+    const trimmed3 = line.trim();
+    if (closing && trimmed3.toLowerCase() === `</${closing}>`) return directives;
+    const open = /^<([A-Za-z0-9-]+)>$/.exec(trimmed3);
     if (!open) {
       const tokens = tokenize(line);
       if (tokens.length) {
@@ -14670,14 +14674,14 @@ function readDirectives(lines2, closing) {
       directives.push({
         name,
         args: [],
-        children: readDirectives(lines2, name)
+        children: readDirectives(lines3, name)
       });
       continue;
     }
     const content = [];
     let closed = false;
-    while (lines2.length) {
-      const inner = lines2.shift();
+    while (lines3.length) {
+      const inner = lines3.shift();
       if (inner.trim().toLowerCase() === `</${name}>`) {
         closed = true;
         break;
@@ -14772,11 +14776,11 @@ function inlineDirection(directive) {
   return directive.inline == null && value != null ? value : "";
 }
 function addRemote(state, directive, network2) {
-  const [server, remotePort, proto] = directive.args;
-  if (!server) fail(_("remote names no server"));
+  const [server2, remotePort, proto] = directive.args;
+  if (!server2) fail(_("remote names no server"));
   if (remotePort != null) port(remotePort, "remote");
   state.remotes.push({
-    server,
+    server: server2,
     port: remotePort || "",
     network: proto ? transport2(proto, "remote") : network2
   });
@@ -15339,11 +15343,11 @@ function setMaterial(object, key, value) {
 function secondsValue(value) {
   const match = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(trimmed(value));
   if (!match || !trimmed(value)) return trimmed(value);
-  const [, hours = "0", minutes = "0", seconds2 = "0"] = match;
-  return `${Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds2)}`;
+  const [, hours = "0", minutes = "0", seconds3 = "0"] = match;
+  return `${Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds3)}`;
 }
-function formatServer(server, port2, network2) {
-  const host = trimmed(server);
+function formatServer(server2, port2, network2) {
+  const host = trimmed(server2);
   const address = isIPv6(host) ? `[${host}]` : host;
   const scheme = network2 ? `${network2}://` : "";
   return `${scheme}${address}:${port2 ?? OPENVPN_DEFAULT_PORT}`;
@@ -15601,9 +15605,9 @@ function validateAddress(value) {
 function validateOpenVPNSettings(settings) {
   const servers2 = normalizeOptionValues(settings.openvpn_servers);
   if (!servers2.length) return _("Add at least one OpenVPN server");
-  for (const server of servers2) {
-    const result = validateServerEntry(server);
-    if (result !== true) return `${server}: ${result}`;
+  for (const server2 of servers2) {
+    const result = validateServerEntry(server2);
+    if (result !== true) return `${server2}: ${result}`;
   }
   if (settings.openvpn_mode === "static_key") {
     if (!trimmed(settings.openvpn_static_key)) return _("Add the static key");
@@ -15638,6 +15642,1430 @@ function validateOpenVPNSettings(settings) {
   }
   if (trimmed(settings.openvpn_control_wrap) && !trimmed(settings.openvpn_control_wrap_key)) {
     return _("Add the key of the control channel protection");
+  }
+  return true;
+}
+
+// src/helpers/parseOpenConnectConfig.ts
+var OPENCONNECT_FLAVORS = [
+  "anyconnect",
+  "gp",
+  "fortinet",
+  "pulse",
+  "nc",
+  "f5"
+];
+var OPENCONNECT_REPORTED_OS = [
+  "linux-64",
+  "linux",
+  "win",
+  "mac-intel",
+  "android",
+  "apple-ios"
+];
+var ImportError2 = class extends Error {
+};
+function fail2(message) {
+  throw new ImportError2(message);
+}
+function text3(value) {
+  return `${value ?? ""}`.trim();
+}
+function lines2(value) {
+  return value.trim().split(/\r?\n/).map((line) => line.trimEnd());
+}
+function basename2(path) {
+  return path.split(/[\\/]/).pop().toLowerCase();
+}
+function normalizeOpenConnectServer(value) {
+  let rest = text3(value);
+  const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(rest);
+  if (scheme) {
+    if (scheme[1].toLowerCase() !== "https") {
+      return {
+        message: _(
+          "The server is reached over HTTPS: use https:// or no scheme"
+        )
+      };
+    }
+    rest = rest.slice(scheme[0].length);
+  }
+  if (!rest) return { message: _("Enter the server address") };
+  if (/[?#]/.test(rest)) {
+    return {
+      message: _(
+        "sing-box does not support a query in the server address, such as the secret of ocserv camouflage after ?"
+      )
+    };
+  }
+  if (/\s/.test(rest)) {
+    return { message: _("The server address cannot contain spaces") };
+  }
+  const slash = rest.indexOf("/");
+  const authority = slash < 0 ? rest : rest.slice(0, slash);
+  const path = slash < 0 ? "" : rest.slice(slash).replace(/\/+$/, "");
+  if (authority.includes("@")) {
+    return {
+      message: _(
+        "Put the username in its own field, not in the server address"
+      )
+    };
+  }
+  let host = authority;
+  let port2 = "";
+  const hostPort = parseHostPort(authority);
+  if (hostPort) {
+    if (!isValidPort(hostPort.port)) {
+      return { message: _("Invalid port %s").format(hostPort.port) };
+    }
+    host = hostPort.host;
+    port2 = hostPort.port === "443" ? "" : hostPort.port;
+  } else if (!isValidHost(authority)) {
+    return {
+      message: _(
+        "Enter a host name or an IP address, with a port and a group path if the server has them: vpn.example.com:8443/staff"
+      )
+    };
+  }
+  const bare = unbracketHost(host);
+  const shown2 = isIPv6(bare) ? `[${bare}]` : bare;
+  return { server: `${shown2}${port2 ? `:${port2}` : ""}${path}` };
+}
+function server(value) {
+  const result = normalizeOpenConnectServer(value);
+  return "server" in result ? result.server : fail2(result.message);
+}
+var HEX = /^[0-9a-f]+$/i;
+var BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
+function normalizeOpenConnectFingerprint(value) {
+  const input = text3(value);
+  const prefixed = /^(pin-sha256|sha256|sha1):(.*)$/i.exec(input);
+  if (prefixed) {
+    const prefix = prefixed[1].toLowerCase();
+    const body = prefixed[2];
+    if (prefix === "pin-sha256") {
+      return BASE64.test(body) && body.length >= 4 && body.length <= 44 ? { fingerprint: `pin-sha256:${body}` } : { message: _("pin-sha256 needs the base64 that openconnect prints") };
+    }
+    const size = prefix === "sha256" ? 64 : 40;
+    return HEX.test(body) && body.length >= 4 && body.length <= size ? { fingerprint: `${prefix}:${body.toLowerCase()}` } : { message: _("%s: needs hexadecimal digits").format(prefix) };
+  }
+  const hex = /^([0-9a-f]{2}:)+[0-9a-f]{2}$/i.test(input) ? input.replace(/:/g, "") : input;
+  if (HEX.test(hex) && hex.length === 64) {
+    return {
+      message: _(
+        "A SHA-256 of the whole certificate is not supported: use pin-sha256 as openconnect prints it"
+      )
+    };
+  }
+  return HEX.test(hex) && hex.length >= 4 && hex.length <= 40 ? { fingerprint: hex.toLowerCase() } : {
+    message: _(
+      "Use pin-sha256:\u2026 as openconnect prints it, or the SHA-1 of the certificate"
+    )
+  };
+}
+function fingerprint(value) {
+  const result = normalizeOpenConnectFingerprint(value);
+  return "fingerprint" in result ? result.fingerprint : fail2(result.message);
+}
+var BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function base32(bytes) {
+  let result = "";
+  let buffer = 0;
+  let bits = 0;
+  bytes.forEach((byte) => {
+    buffer = buffer << 8 | byte;
+    bits += 8;
+    while (bits >= 5) {
+      result += BASE32_ALPHABET[buffer >>> bits - 5 & 31];
+      bits -= 5;
+    }
+  });
+  if (bits > 0) result += BASE32_ALPHABET[buffer << 5 - bits & 31];
+  return result;
+}
+function isBase32Secret(value) {
+  const body = text3(value).replace(/^base32:/i, "").replace(/[\s=]/g, "");
+  return body !== "" && /^[A-Z2-7]+$/i.test(body);
+}
+function totpSecret(value) {
+  let secret = value.trim();
+  if (/^otpauth:\/\//i.test(secret)) return secret;
+  if (secret.startsWith("<?xml")) {
+    fail2(_("PSKC token files are not supported: use the base32 secret"));
+  }
+  let algorithm = "SHA1";
+  const named = /^(sha1|sha256|sha512):/i.exec(secret);
+  if (named) {
+    algorithm = named[1].toUpperCase();
+    secret = secret.slice(named[0].length);
+  }
+  let encoded;
+  if (/^base32:/i.test(secret)) {
+    encoded = secret.slice(7).replace(/[\s=]/g, "").toUpperCase();
+    if (!/^[A-Z2-7]+$/.test(encoded)) {
+      fail2(_("The token secret is not valid base32"));
+    }
+  } else if (secret.startsWith("0x")) {
+    const hex = secret.slice(2);
+    if (!HEX.test(hex) || hex.length % 2) {
+      fail2(_("The token secret is not valid hexadecimal"));
+    }
+    encoded = base32(
+      Uint8Array.from(hex.match(/../g), (pair) => parseInt(pair, 16))
+    );
+  } else {
+    encoded = base32(new TextEncoder().encode(secret));
+  }
+  return algorithm === "SHA1" ? encoded : `otpauth://totp/Forkop?secret=${encoded}&algorithm=${algorithm}`;
+}
+function draft(files) {
+  return {
+    files: Object.fromEntries(
+      Object.entries(files).map(([name, content]) => [basename2(name), content])
+    ),
+    endpoint: { type: "openconnect" },
+    tls: {},
+    skipped: /* @__PURE__ */ new Set(),
+    others: [],
+    host: "",
+    path: "",
+    certificate: "",
+    key: "",
+    tokenMode: "",
+    tokenSecret: "",
+    browser: false
+  };
+}
+function fileContent(state, reference) {
+  if (/^(pkcs11|system):/i.test(reference)) {
+    fail2(
+      _(
+        "The key of this configuration is kept by the operating system or a token and cannot be exported to the router"
+      )
+    );
+  }
+  const name = basename2(reference);
+  if (/\.(p12|pfx)$/i.test(name)) {
+    fail2(
+      _(
+        "The certificate is in the PKCS#12 bundle %s. Export the certificate and the key as PEM: openssl pkcs12 -in %s -out client.pem -nodes"
+      ).format(name, name)
+    );
+  }
+  const content = state.files[name];
+  if (content == null) {
+    fail2(
+      _(
+        "The profile refers to the file %s. Select it together with the profile"
+      ).format(name)
+    );
+  }
+  return content.trim();
+}
+function material3(state, reference, kind) {
+  const content = fileContent(state, reference);
+  const check = checkMaterial(kind, content);
+  if (!check.valid) fail2(`${basename2(reference)}: ${check.message}`);
+  return lines2(content);
+}
+function seconds2(value, option2) {
+  return `${whole(value, option2)}s`;
+}
+function whole(value, option2) {
+  if (!/^\d+$/.test(value)) fail2(_("%s needs a whole number").format(option2));
+  return Number(value);
+}
+function flavor(value) {
+  const name = value.toLowerCase();
+  if (name === "array") {
+    fail2(_("The Array Networks protocol is not supported by sing-box"));
+  }
+  if (!OPENCONNECT_FLAVORS.includes(name)) {
+    fail2(_("Unknown OpenConnect protocol %s").format(value));
+  }
+  return name;
+}
+function formEntry(value) {
+  const match = /^([^:=]+):([^=]+)=(.*)$/.exec(value);
+  if (!match) fail2(_("form-entry needs FORM:NAME=VALUE"));
+  return { form_id: match[1], name: match[2], value: match[3] };
+}
+function pushTo(object, key, value) {
+  object[key] = [...object[key] || [], value];
+}
+var IGNORED_OPTIONS = /* @__PURE__ */ new Set([
+  "authenticate",
+  "background",
+  "cert-expire-warning",
+  "config",
+  "cookie-on-stdin",
+  "cookieonly",
+  "csd-user",
+  "dump-http-traffic",
+  "gnutls-debug",
+  "help",
+  "interface",
+  "non-inter",
+  "passtos",
+  "passwd-on-stdin",
+  "pid-file",
+  "printcookie",
+  "quiet",
+  "reconnect-timeout",
+  "script",
+  "script-tun",
+  "setuid",
+  "syslog",
+  "timestamp",
+  "verbose",
+  "version"
+]);
+var SKIPPED_OPTIONS = /* @__PURE__ */ new Set([
+  "csd-wrapper",
+  "dtls-ciphers",
+  "dtls12-ciphers",
+  "gnutls-priority",
+  "http-auth",
+  "key-password-from-fsid",
+  "libproxy",
+  "no-proxy",
+  "openssl-ciphers",
+  "proxy",
+  "proxy-auth",
+  "resolve",
+  "tcp-keepalive",
+  "xmlconfig"
+]);
+var OPTION_ARGUMENTS = {
+  "allow-insecure-crypto": 0,
+  authenticate: 0,
+  authgroup: 1,
+  background: 0,
+  "base-mtu": 1,
+  cafile: 1,
+  "cert-expire-warning": 1,
+  certificate: 1,
+  compression: 1,
+  config: 1,
+  cookie: 1,
+  "cookie-on-stdin": 0,
+  cookieonly: 0,
+  "csd-user": 1,
+  "csd-wrapper": 1,
+  deflate: 0,
+  "disable-ipv6": 0,
+  "dtls-ciphers": 1,
+  "dtls-local-port": 1,
+  "dtls12-ciphers": 1,
+  "dump-http-traffic": 0,
+  "external-browser": 1,
+  "force-dpd": 1,
+  "force-trojan": 1,
+  "form-entry": 1,
+  "gnutls-debug": 1,
+  "gnutls-priority": 1,
+  help: 0,
+  "http-auth": 1,
+  interface: 1,
+  juniper: 0,
+  "key-password": 1,
+  "key-password-from-fsid": 0,
+  libproxy: 0,
+  "local-hostname": 1,
+  "mca-certificate": 1,
+  "mca-key": 1,
+  "mca-key-password": 1,
+  mtu: 1,
+  "no-cert-check": 0,
+  "no-deflate": 0,
+  "no-dtls": 0,
+  "no-external-auth": 0,
+  "no-http-keepalive": 0,
+  "no-passwd": 0,
+  "no-proxy": 0,
+  "no-system-trust": 0,
+  "no-xmlpost": 0,
+  "non-inter": 0,
+  "openssl-ciphers": 1,
+  os: 1,
+  passtos: 0,
+  "passwd-on-stdin": 0,
+  pfs: 0,
+  "pid-file": 1,
+  printcookie: 0,
+  protocol: 1,
+  proxy: 1,
+  "proxy-auth": 1,
+  "queue-len": 1,
+  quiet: 0,
+  "reconnect-timeout": 1,
+  resolve: 1,
+  script: 1,
+  "script-tun": 0,
+  server: 1,
+  servercert: 1,
+  setuid: 1,
+  sni: 1,
+  sslkey: 1,
+  syslog: 0,
+  "tcp-keepalive": 2,
+  timestamp: 0,
+  "token-mode": 1,
+  "token-secret": 1,
+  user: 1,
+  usergroup: 1,
+  useragent: 1,
+  verbose: 0,
+  version: 0,
+  "version-string": 1,
+  xmlconfig: 1
+};
+var SHORT_OPTIONS = {
+  b: "background",
+  C: "cookie",
+  c: "certificate",
+  D: "no-deflate",
+  d: "deflate",
+  e: "cert-expire-warning",
+  F: "form-entry",
+  g: "usergroup",
+  h: "help",
+  i: "interface",
+  k: "sslkey",
+  l: "syslog",
+  m: "mtu",
+  P: "proxy",
+  p: "key-password",
+  Q: "queue-len",
+  q: "quiet",
+  S: "script-tun",
+  s: "script",
+  U: "setuid",
+  u: "user",
+  V: "version",
+  v: "verbose",
+  x: "xmlconfig"
+};
+var TOKEN_MODES = {
+  rsa: "stoken",
+  totp: "totp",
+  oidc: "oidc"
+};
+function applyOption(state, name, value) {
+  const { endpoint, tls } = state;
+  if (IGNORED_OPTIONS.has(name)) return;
+  if (SKIPPED_OPTIONS.has(name)) {
+    state.skipped.add(name);
+    return;
+  }
+  switch (name) {
+    case "server":
+      state.host = value;
+      return;
+    case "protocol":
+      endpoint.flavor = flavor(value);
+      return;
+    case "juniper":
+      endpoint.flavor = "nc";
+      return;
+    case "user":
+      endpoint.username = value;
+      return;
+    case "authgroup":
+      endpoint.auth_group = value;
+      return;
+    case "usergroup":
+      state.path = value;
+      return;
+    case "cookie":
+      endpoint.cookie = value;
+      return;
+    case "certificate":
+      state.certificate = value;
+      return;
+    case "sslkey":
+      state.key = value;
+      return;
+    case "key-password":
+      tls.client_key_password = value;
+      return;
+    case "cafile":
+      tls.certificate_authority = material3(state, value, "ca");
+      return;
+    case "no-system-trust":
+      tls.system_trust_disabled = true;
+      return;
+    case "servercert":
+      pushTo(tls, "peer_fingerprint", fingerprint(value));
+      return;
+    case "no-cert-check":
+      tls.insecure = true;
+      return;
+    case "sni":
+      tls.server_name = value;
+      return;
+    case "token-mode":
+      if (TOKEN_MODES[value.toLowerCase()]) {
+        state.tokenMode = TOKEN_MODES[value.toLowerCase()];
+      } else if (["hotp", "yubioath"].includes(value.toLowerCase())) {
+        state.skipped.add(`token-mode ${value.toLowerCase()}`);
+      } else {
+        fail2(_("Unknown token mode %s").format(value));
+      }
+      return;
+    case "token-secret":
+      state.tokenSecret = value.startsWith("@") ? fileContent(state, value.slice(1)) : value;
+      return;
+    case "os":
+      if (!OPENCONNECT_REPORTED_OS.includes(value)) {
+        fail2(_("Unknown operating system %s").format(value));
+      }
+      endpoint.reported_os = value;
+      return;
+    case "useragent":
+      endpoint.user_agent = value;
+      return;
+    case "version-string":
+      endpoint.version = value;
+      return;
+    case "local-hostname":
+      endpoint.local_hostname = value;
+      return;
+    case "no-dtls":
+      endpoint.no_udp = true;
+      return;
+    case "dtls-local-port":
+      endpoint.dtls_local_port = whole(value, name);
+      return;
+    case "compression":
+      if (value === "none") endpoint.compression_disabled = true;
+      else if (value === "all") endpoint.compression_mode = "all";
+      else if (value !== "stateless") {
+        fail2(_("Unknown compression mode %s").format(value));
+      }
+      return;
+    case "deflate":
+      endpoint.compression_mode = "all";
+      return;
+    case "no-deflate":
+      endpoint.compression_disabled = true;
+      return;
+    case "disable-ipv6":
+      endpoint.ipv6_disabled = true;
+      return;
+    case "no-http-keepalive":
+      endpoint.http_keepalive_disabled = true;
+      return;
+    case "no-xmlpost":
+      endpoint.xml_post_disabled = true;
+      return;
+    case "no-external-auth":
+      state.browser = false;
+      return;
+    case "external-browser":
+      state.browser = true;
+      return;
+    case "no-passwd":
+      endpoint.password_authentication_disabled = true;
+      return;
+    case "pfs":
+      endpoint.pfs = true;
+      return;
+    case "allow-insecure-crypto":
+      endpoint.allow_insecure_crypto = true;
+      return;
+    case "mtu":
+      endpoint.mtu = whole(value, name);
+      return;
+    case "base-mtu":
+      endpoint.base_mtu = whole(value, name);
+      return;
+    case "force-dpd":
+      endpoint.dpd_interval = seconds2(value, name);
+      return;
+    case "force-trojan":
+      endpoint.trojan_interval = seconds2(value, name);
+      return;
+    case "queue-len":
+      endpoint.queue_length = whole(value, name);
+      return;
+    case "form-entry":
+      pushTo(endpoint, "form_entries", formEntry(value));
+      return;
+    case "mca-certificate":
+      tls.mca_certificate = material3(state, value, "certificate");
+      return;
+    case "mca-key":
+      tls.mca_key = material3(state, value, "passphrase-key");
+      return;
+    case "mca-key-password":
+      tls.mca_key_password = value;
+      return;
+    default:
+      state.skipped.add(name);
+  }
+}
+function shellWords(line) {
+  const words = [];
+  let word = "";
+  let quote = "";
+  let active = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    if (quote) {
+      if (char === quote) quote = "";
+      else if (char === "\\" && quote === '"' && i + 1 < line.length) {
+        i += 1;
+        word += line[i];
+      } else word += char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (active) words.push(word);
+      word = "";
+      active = false;
+      continue;
+    }
+    active = true;
+    if (char === '"' || char === "'") quote = char;
+    else if (char === "\\" && i + 1 < line.length) {
+      i += 1;
+      if (line[i] !== "\n") word += line[i];
+    } else word += char;
+  }
+  if (active) words.push(word);
+  return words;
+}
+var COMMAND_LINE = /(^|\|)\s*(sudo\s+(-\S+\s+)*)?(\S*\/)?openconnect(\s|$)/;
+var SHELL_OPERATORS = /* @__PURE__ */ new Set(["|", "||", "&&", ";", "&"]);
+function readCommandLine(state, input) {
+  const words = shellWords(input.replace(/\\\r?\n/g, " "));
+  const start = words.findIndex((word) => /(^|\/)openconnect$/.test(word));
+  const end = words.findIndex(
+    (word, index) => index > start && SHELL_OPERATORS.has(word)
+  );
+  const args = words.slice(start + 1, end < 0 ? void 0 : end);
+  let positional = false;
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
+    if (positional || !arg.startsWith("-") || arg === "-") {
+      state.host = arg;
+      continue;
+    }
+    if (arg === "--") {
+      positional = true;
+      continue;
+    }
+    let name;
+    let value;
+    if (arg.startsWith("--")) {
+      const equals = arg.indexOf("=");
+      name = equals < 0 ? arg.slice(2) : arg.slice(2, equals);
+      value = equals < 0 ? void 0 : arg.slice(equals + 1);
+      if (!(name in OPTION_ARGUMENTS))
+        fail2(_("Unknown option --%s").format(name));
+    } else {
+      name = SHORT_OPTIONS[arg[1]];
+      if (!name) fail2(_("Unknown option %s").format(arg.slice(0, 2)));
+      if (arg.length > 2) value = arg.slice(2);
+    }
+    if (OPTION_ARGUMENTS[name] === 1 && value == null) {
+      if (i + 1 >= args.length) fail2(_("Option %s needs a value").format(arg));
+      i += 1;
+      value = args[i];
+    }
+    applyOption(state, name, value ?? "");
+  }
+}
+function configOption(line) {
+  const trimmed3 = line.trim();
+  if (!trimmed3 || trimmed3.startsWith("#")) return null;
+  const match = /^([a-z0-9-]+)(?:[ \t]*=?[ \t]*(.*))?$/.exec(trimmed3);
+  if (!match || !(match[1] in OPTION_ARGUMENTS)) return void 0;
+  return { name: match[1], value: `${match[2] ?? ""}` };
+}
+function readConfigFile(state, input) {
+  input.split(/\r?\n/).forEach((line) => {
+    const option2 = configOption(line);
+    if (option2 === void 0) {
+      fail2(_("Unknown option %s").format(line.trim().split(/[\s=]/)[0]));
+    }
+    if (option2) applyOption(state, option2.name, option2.value);
+  });
+}
+function looksLikeConfigFile(input) {
+  const options = input.split(/\r?\n/).map(configOption).filter((option2) => option2 !== null);
+  return options.length > 0 && options.every((option2) => option2 !== void 0) && options.some(
+    (option2) => [
+      "server",
+      "protocol",
+      "user",
+      "authgroup",
+      "usergroup",
+      "servercert",
+      "cafile",
+      "certificate",
+      "token-mode"
+    ].includes(option2.name)
+  );
+}
+function iniSections(input) {
+  const sections = {};
+  let current = null;
+  input.split(/\r?\n/).forEach((raw) => {
+    var _a;
+    const line = raw.trim();
+    if (!line || line.startsWith("#") || line.startsWith(";")) return;
+    const header = /^\[(.+)\]$/.exec(line);
+    if (header) {
+      current = sections[_a = header[1].trim().toLowerCase()] || (sections[_a] = {});
+      return;
+    }
+    const equals = line.indexOf("=");
+    if (current && equals > 0) {
+      current[line.slice(0, equals).trim()] = line.slice(equals + 1).trim();
+    }
+  });
+  return sections;
+}
+function isYes(value) {
+  return /^(yes|true|1)$/i.test(`${value || ""}`);
+}
+function nmFile(value) {
+  const path = text3(value).replace(/^file:\/\//, "");
+  return path && path !== "(null)" ? path : "";
+}
+var NM_TOKEN_MODES = {
+  totp: "totp",
+  manual: "stoken"
+};
+function readNetworkManager(state, input) {
+  const sections = iniSections(input);
+  const exported = sections.openconnect;
+  const data = exported ? {
+    gateway: exported.Host,
+    cacert: exported.CACert,
+    protocol: exported.Protocol,
+    proxy: exported.Proxy,
+    useragent: exported.UserAgent,
+    csd_wrapper: exported.CSDWrapper,
+    reported_os: exported.ReportedOS,
+    usercert: exported.UserCertificate,
+    userkey: exported.PrivateKey,
+    mcacert: exported.MachineCertificate,
+    mcakey: exported.MachinePrivateKey,
+    disable_udp: exported.DisableUDP,
+    stoken_source: exported.StokenSource,
+    stoken_string: exported.StokenString,
+    pem_passphrase_fsid: exported.FSID
+  } : sections.vpn || {};
+  const secrets = sections["vpn-secrets"] || {};
+  const { endpoint, tls } = state;
+  state.host = text3(data.gateway);
+  if (!state.host) fail2(_("The connection names no gateway"));
+  const xml = secrets.xmlconfig ? decodeBase64(secrets.xmlconfig) : null;
+  if (xml && !/[.:/]/.test(state.host)) {
+    const entry = hostEntries(new TextDecoder().decode(xml)).find(
+      (item) => item.name === state.host
+    );
+    if (entry) {
+      state.host = entry.address;
+      state.path = entry.group;
+    }
+  }
+  if (data.protocol) endpoint.flavor = flavor(data.protocol);
+  if (nmFile(data.cacert)) {
+    tls.certificate_authority = material3(state, nmFile(data.cacert), "ca");
+  }
+  state.certificate = nmFile(data.usercert);
+  state.key = nmFile(data.userkey);
+  if (nmFile(data.mcacert)) {
+    tls.mca_certificate = material3(state, nmFile(data.mcacert), "certificate");
+  }
+  if (nmFile(data.mcakey)) {
+    tls.mca_key = material3(state, nmFile(data.mcakey), "passphrase-key");
+  }
+  if (data.useragent) endpoint.user_agent = data.useragent;
+  if (data.reported_os) {
+    if (!OPENCONNECT_REPORTED_OS.includes(data.reported_os)) {
+      fail2(_("Unknown operating system %s").format(data.reported_os));
+    }
+    endpoint.reported_os = data.reported_os;
+  }
+  if (/^\d+$/.test(text3(data.mtu))) endpoint.mtu = Number(data.mtu);
+  if (isYes(data.disable_udp)) endpoint.no_udp = true;
+  if (data.proxy) state.skipped.add("proxy");
+  if (data.csd_wrapper) state.skipped.add("csd_wrapper");
+  if (isYes(data.pem_passphrase_fsid)) state.skipped.add("pem_passphrase_fsid");
+  const source = text3(data.stoken_source);
+  if (NM_TOKEN_MODES[source]) {
+    state.tokenMode = NM_TOKEN_MODES[source];
+    state.tokenSecret = text3(secrets.stoken_string || data.stoken_string);
+  } else if (source && source !== "disabled") {
+    state.skipped.add(`stoken_source ${source}`);
+  }
+  if (secrets.gwcert)
+    pushTo(tls, "peer_fingerprint", fingerprint(secrets.gwcert));
+  if (secrets.key_pass) tls.client_key_password = secrets.key_pass;
+  if (secrets.mca_key_pass) tls.mca_key_password = secrets.mca_key_pass;
+  Object.entries(secrets).forEach(([key, value]) => {
+    const field = /^form:([^:]+):(.+)$/.exec(key);
+    if (!field || !value) return;
+    const name = field[2].toLowerCase();
+    if (name === "username") endpoint.username = value;
+    else if (name === "password") endpoint.password = value;
+    else if (name === "group_list") endpoint.auth_group = value;
+    else
+      pushTo(endpoint, "form_entries", {
+        form_id: field[1],
+        name: field[2],
+        value
+      });
+  });
+}
+var XML_ENTITIES = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'"
+};
+function xmlText(value) {
+  return value.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(
+    /&(#x[0-9a-f]+|#\d+|\w+);/gi,
+    (entity, name) => name.startsWith("#x") || name.startsWith("#X") ? String.fromCodePoint(parseInt(name.slice(2), 16)) : name.startsWith("#") ? String.fromCodePoint(Number(name.slice(1))) : XML_ENTITIES[name.toLowerCase()] ?? entity
+  ).trim();
+}
+function xmlElement(body, name) {
+  const match = new RegExp(
+    `<(?:[\\w-]+:)?${name}\\b[^>]*>([\\s\\S]*?)</(?:[\\w-]+:)?${name}>`
+  ).exec(body);
+  return match ? xmlText(match[1]) : "";
+}
+function hostEntries(xml) {
+  const body = xml.replace(/<!--[\s\S]*?-->/g, "");
+  return Array.from(
+    body.matchAll(
+      /<(?:[\w-]+:)?HostEntry\b[^>]*>([\s\S]*?)<\/(?:[\w-]+:)?HostEntry>/g
+    )
+  ).map((entry) => ({
+    name: xmlElement(entry[1], "HostName"),
+    address: xmlElement(entry[1], "HostAddress"),
+    group: xmlElement(entry[1], "UserGroup"),
+    ipsec: /^ipsec$/i.test(xmlElement(entry[1], "PrimaryProtocol"))
+  }));
+}
+function readAnyConnectProfile(state, input) {
+  const entries = hostEntries(input).filter((entry) => entry.address);
+  const usable = entries.filter((entry) => !entry.ipsec);
+  if (!entries.length) fail2(_("The profile lists no server"));
+  if (!usable.length) {
+    fail2(
+      _("The profile connects over IPsec, which OpenConnect does not speak")
+    );
+  }
+  const [first, ...rest] = usable;
+  state.host = first.address;
+  state.path = first.group;
+  state.others = rest.map((entry) => entry.name || entry.address);
+  state.endpoint.flavor = "anyconnect";
+}
+function readAnyConnectLink(state, input) {
+  const match = /^anyconnect:(?:\/\/)?(\w+)\/?\??(.*)$/i.exec(input.trim());
+  const action = `${match?.[1] || ""}`.toLowerCase();
+  if (!match || !["create", "connect"].includes(action)) {
+    fail2(
+      _(
+        "Only anyconnect://create and anyconnect://connect links carry a server"
+      )
+    );
+  }
+  const query = new URLSearchParams(match[2]);
+  if (/^ipsec$/i.test(query.get("protocol") || "")) {
+    fail2(_("The link connects over IPsec, which OpenConnect does not speak"));
+  }
+  state.host = text3(query.get("host"));
+  if (!state.host) fail2(_("The link names no host"));
+  state.endpoint.flavor = "anyconnect";
+  const username = text3(query.get("prefill_username"));
+  const password = query.get("prefill_password") ?? "";
+  const group = text3(query.get("prefill_group_list"));
+  if (username) state.endpoint.username = username;
+  if (password) state.endpoint.password = password;
+  if (group) state.endpoint.auth_group = group;
+  if (query.get("prefill_secondary_username")) {
+    state.skipped.add("prefill_secondary_username");
+  }
+}
+var OPENFORTIVPN_IGNORED = /* @__PURE__ */ new Set([
+  "half-internet-routes",
+  "persistent",
+  "pppd-accept-remote",
+  "pppd-call",
+  "pppd-ifname",
+  "pppd-ipparam",
+  "pppd-log",
+  "pppd-no-peerdns",
+  "pppd-plugin",
+  "pppd-use-peerdns",
+  "set-dns",
+  "set-routes",
+  "use-resolvconf",
+  "use-syslog"
+]);
+function readOpenFortiVPN(state, input) {
+  const values = {};
+  input.split(/\r?\n/).forEach((raw) => {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) return;
+    const equals = line.indexOf("=");
+    if (equals > 0) {
+      values[line.slice(0, equals).trim().toLowerCase()] = line.slice(equals + 1).trim();
+    }
+  });
+  const { endpoint, tls } = state;
+  endpoint.flavor = "fortinet";
+  if (!values.host) fail2(_("The configuration names no host"));
+  state.host = values.port ? `${values.host}:${values.port}` : values.host;
+  if (values.realm) state.path = values.realm;
+  Object.entries(values).forEach(([key, value]) => {
+    if (OPENFORTIVPN_IGNORED.has(key)) return;
+    switch (key) {
+      case "host":
+      case "port":
+      case "realm":
+        return;
+      case "username":
+        endpoint.username = value;
+        return;
+      case "password":
+        endpoint.password = value;
+        return;
+      case "ca-file":
+        tls.certificate_authority = material3(state, value, "ca");
+        return;
+      case "user-cert":
+        state.certificate = value;
+        return;
+      case "user-key":
+        state.key = value;
+        return;
+      case "user-agent":
+        endpoint.user_agent = value;
+        return;
+      case "insecure-ssl":
+        if (isYes(value)) endpoint.allow_insecure_crypto = true;
+        return;
+      case "saml-login":
+        state.browser = true;
+        return;
+      default:
+        state.skipped.add(key);
+    }
+  });
+}
+function readJson(state, input) {
+  let parsed;
+  try {
+    parsed = JSON.parse(input);
+  } catch (_error) {
+    fail2(_("This is not valid JSON"));
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || parsed.type !== "openconnect") {
+    fail2(_("This JSON is not an openconnect endpoint"));
+  }
+  const endpoint = { ...parsed };
+  delete endpoint.tag;
+  if (endpoint.detour != null) {
+    delete endpoint.detour;
+    state.skipped.add("detour");
+  }
+  state.endpoint = endpoint;
+  state.tls = { ...endpoint.tls || {} };
+  state.host = text3(endpoint.server);
+  state.browser = endpoint.external_auth_disabled !== true;
+}
+function format(input) {
+  const trimmed3 = input.trim();
+  if (/^anyconnect:/i.test(trimmed3)) return "link";
+  if (/^\{[\s\S]*"type"\s*:\s*"openconnect"/.test(trimmed3)) return "json";
+  if (/<(?:[\w-]+:)?(AnyConnectProfile|ServerList)\b/.test(trimmed3)) {
+    return "profile";
+  }
+  if (/^\s*\[openconnect\]\s*$/im.test(trimmed3) || /^\s*service-type\s*=\s*org\.freedesktop\.NetworkManager\.openconnect\s*$/im.test(
+    trimmed3
+  )) {
+    return "networkmanager";
+  }
+  if (COMMAND_LINE.test(trimmed3)) return "command";
+  if (/^\s*host\s*=/im.test(trimmed3)) return "openfortivpn";
+  return looksLikeConfigFile(trimmed3) ? "config" : "";
+}
+function looksLikeOpenConnectConfig(input) {
+  return format(`${input || ""}`) !== "";
+}
+function finishCertificate(state) {
+  if (!state.certificate && !state.key) return;
+  if (!state.certificate) {
+    fail2(_("The configuration has a client key but no certificate for it"));
+  }
+  const content = fileContent(state, state.certificate);
+  const both = state.key ? null : splitCertificateAndKey(content);
+  const certificate = both ? both.certificate : content;
+  const key = both ? both.key : state.key ? fileContent(state, state.key) : "";
+  if (!key) {
+    fail2(
+      _(
+        "The configuration has a client certificate but no key for it. Select the key file together with it"
+      )
+    );
+  }
+  for (const [value, kind] of [
+    [certificate, "certificate"],
+    [key, "passphrase-key"]
+  ]) {
+    const check = checkMaterial(kind, value);
+    if (!check.valid) fail2(check.message);
+  }
+  state.tls.client_certificate = lines2(certificate);
+  state.tls.client_key = lines2(key);
+}
+function finishToken(state) {
+  if (!state.tokenMode) return;
+  if (!state.tokenSecret) {
+    state.skipped.add("token-mode");
+    return;
+  }
+  state.endpoint.token = {
+    mode: state.tokenMode,
+    secret: state.tokenMode === "totp" ? totpSecret(state.tokenSecret) : state.tokenSecret
+  };
+}
+function buildEndpoint2(input, files) {
+  const state = draft(files);
+  const kind = format(input);
+  switch (kind) {
+    case "command":
+      readCommandLine(state, input);
+      break;
+    case "config":
+      readConfigFile(state, input);
+      break;
+    case "networkmanager":
+      readNetworkManager(state, input);
+      break;
+    case "profile":
+      readAnyConnectProfile(state, input);
+      break;
+    case "link":
+      readAnyConnectLink(state, input);
+      break;
+    case "openfortivpn":
+      readOpenFortiVPN(state, input);
+      break;
+    case "json":
+      readJson(state, input);
+      break;
+    default:
+      fail2(_("This is not an OpenConnect configuration"));
+  }
+  if (!state.host) fail2(_("The configuration names no server"));
+  const { endpoint } = state;
+  const path = state.path.replace(/^\/+/, "");
+  endpoint.server = server(
+    path ? `${state.host.replace(/\/+$/, "")}/${path}` : state.host
+  );
+  endpoint.flavor || (endpoint.flavor = "anyconnect");
+  if (kind !== "json") {
+    finishCertificate(state);
+    finishToken(state);
+  }
+  if (!state.browser) endpoint.external_auth_disabled = true;
+  if (Object.keys(state.tls).length) endpoint.tls = state.tls;
+  return {
+    endpoint,
+    skipped: [...state.skipped].sort(),
+    others: state.others
+  };
+}
+function parseOpenConnectConfig(input, files = {}) {
+  try {
+    return { valid: true, ...buildEndpoint2(`${input || ""}`, files) };
+  } catch (error) {
+    if (error instanceof ImportError2) {
+      return { valid: false, message: error.message };
+    }
+    throw error;
+  }
+}
+
+// src/forkop/tabs/sections/tunnels/openconnect.ts
+var TOKEN_MODES2 = ["totp", "stoken", "oidc"];
+var MANAGED2 = [
+  "type",
+  "tag",
+  "detour",
+  "server",
+  "flavor",
+  "username",
+  "password",
+  "auth_group",
+  "cookie",
+  "token",
+  "reported_os",
+  "user_agent",
+  "version",
+  "local_hostname",
+  "no_udp",
+  "compression_disabled",
+  "compression_mode",
+  "ipv6_disabled",
+  "pfs",
+  "allow_insecure_crypto",
+  "mtu",
+  "base_mtu",
+  "dpd_interval",
+  "external_auth_disabled",
+  "form_entries",
+  "tls"
+];
+var MANAGED_TLS2 = [
+  "insecure",
+  "server_name",
+  "peer_fingerprint",
+  "system_trust_disabled",
+  "certificate_authority",
+  "certificate_authority_path",
+  "client_certificate",
+  "client_certificate_path",
+  "client_key",
+  "client_key_path",
+  "client_key_password"
+];
+var ADVANCED_DEFAULTS2 = {
+  openconnect_insecure: "0",
+  openconnect_server_name: "",
+  openconnect_no_system_trust: "0",
+  openconnect_no_udp: "0",
+  openconnect_reported_os: "",
+  openconnect_user_agent: "",
+  openconnect_version: "",
+  openconnect_local_hostname: "",
+  openconnect_compression: "",
+  openconnect_ipv6_disabled: "0",
+  openconnect_mtu: "",
+  openconnect_base_mtu: "",
+  openconnect_dpd: "",
+  openconnect_insecure_crypto: "0",
+  openconnect_pfs: "0",
+  openconnect_cookie: "",
+  openconnect_form_entries: [],
+  openconnect_browser: "0"
+};
+function text4(value) {
+  return `${value ?? ""}`;
+}
+function trimmed2(value) {
+  return text4(value).trim();
+}
+function list2(value) {
+  return value == null ? [] : Array.isArray(value) ? value.map(text4) : [text4(value)];
+}
+function flag(value) {
+  return value === true ? "1" : "0";
+}
+function material4(object, key) {
+  const content = list2(object[key]).join("\n").trim();
+  return content || trimmed2(object[`${key}_path`]);
+}
+function setMaterial2(object, key, value) {
+  const content = trimmed2(value);
+  if (!content) return;
+  if (isRouterPath(content)) {
+    object[`${key}_path`] = content;
+  } else {
+    object[key] = content.split(/\r?\n/).map((line) => line.trimEnd());
+  }
+}
+function secondsValue2(value) {
+  const match = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/.exec(trimmed2(value));
+  if (!match || !trimmed2(value)) return trimmed2(value);
+  const [, hours = "0", minutes = "0", seconds3 = "0"] = match;
+  return `${Number(hours) * 3600 + Number(minutes) * 60 + Number(seconds3)}`;
+}
+function number3(value) {
+  return /^\d+$/.test(trimmed2(value)) ? Number(trimmed2(value)) : null;
+}
+function isFormEntryLine(entry) {
+  return !!trimmed2(entry.form_id) && !!trimmed2(entry.name) && !entry.submission_key && !entry.promote && !/[:=]/.test(text4(entry.form_id)) && !text4(entry.name).includes("=");
+}
+function parseFormEntry(value) {
+  const match = /^([^:=]+):([^=]+)=(.*)$/.exec(trimmed2(value));
+  return match ? { form_id: match[1].trim(), name: match[2].trim(), value: match[3] } : null;
+}
+function formEntries(endpoint) {
+  return Array.isArray(endpoint.form_entries) ? endpoint.form_entries : [];
+}
+function compressionValue2(endpoint) {
+  if (endpoint.compression_disabled === true) return "off";
+  return endpoint.compression_mode === "all" ? "all" : "";
+}
+function advancedInUse2(settings) {
+  return Object.entries(ADVANCED_DEFAULTS2).some(
+    ([key, empty]) => Array.isArray(empty) ? normalizeOptionValues(settings[key]).length > 0 : trimmed2(settings[key]) !== trimmed2(empty)
+  );
+}
+function preservedFields2(endpoint) {
+  const preserved = {};
+  Object.entries(endpoint).forEach(([key, value]) => {
+    if (!MANAGED2.includes(key)) preserved[key] = value;
+  });
+  const tls = endpoint.tls || {};
+  const preservedTls = {};
+  Object.entries(tls).forEach(([key, value]) => {
+    if (!MANAGED_TLS2.includes(key)) preservedTls[key] = value;
+  });
+  if (Object.keys(preservedTls).length) preserved.tls = preservedTls;
+  const token = endpoint.token;
+  if (token && !TOKEN_MODES2.includes(text4(token.mode))) {
+    preserved.token = token;
+  }
+  const entries = formEntries(endpoint).filter(
+    (entry) => !isFormEntryLine(entry)
+  );
+  if (entries.length) preserved.form_entries = entries;
+  return preserved;
+}
+function openConnectInitialSettings(endpoint) {
+  const tls = endpoint.tls || {};
+  const token = endpoint.token || {};
+  const tokenMode = TOKEN_MODES2.includes(text4(token.mode)) ? text4(token.mode) : "";
+  const settings = {
+    openconnect_server: trimmed2(endpoint.server),
+    openconnect_flavor: trimmed2(endpoint.flavor) || "anyconnect",
+    openconnect_username: text4(endpoint.username),
+    openconnect_password: text4(endpoint.password),
+    openconnect_auth_group: text4(endpoint.auth_group),
+    openconnect_certificate_enabled: material4(tls, "client_certificate") || material4(tls, "client_key") ? "1" : "0",
+    openconnect_cert: material4(tls, "client_certificate"),
+    openconnect_key: material4(tls, "client_key"),
+    openconnect_key_password: text4(tls.client_key_password),
+    openconnect_token_mode: tokenMode,
+    openconnect_token_secret: tokenMode ? text4(token.secret) : "",
+    openconnect_token_pin: tokenMode ? text4(token.pin) : "",
+    openconnect_token_password: tokenMode ? text4(token.password) : "",
+    openconnect_token_device_id: tokenMode ? text4(token.device_id) : "",
+    openconnect_ca: material4(tls, "certificate_authority"),
+    openconnect_fingerprints: list2(tls.peer_fingerprint),
+    openconnect_insecure: flag(tls.insecure),
+    openconnect_server_name: trimmed2(tls.server_name),
+    openconnect_no_system_trust: flag(tls.system_trust_disabled),
+    openconnect_no_udp: flag(endpoint.no_udp),
+    openconnect_reported_os: trimmed2(endpoint.reported_os),
+    openconnect_user_agent: text4(endpoint.user_agent),
+    openconnect_version: trimmed2(endpoint.version),
+    openconnect_local_hostname: trimmed2(endpoint.local_hostname),
+    openconnect_compression: compressionValue2(endpoint),
+    openconnect_ipv6_disabled: flag(endpoint.ipv6_disabled),
+    openconnect_mtu: trimmed2(endpoint.mtu),
+    openconnect_base_mtu: trimmed2(endpoint.base_mtu),
+    openconnect_dpd: secondsValue2(endpoint.dpd_interval),
+    openconnect_insecure_crypto: flag(endpoint.allow_insecure_crypto),
+    openconnect_pfs: flag(endpoint.pfs),
+    openconnect_cookie: text4(endpoint.cookie),
+    openconnect_form_entries: formEntries(endpoint).filter(isFormEntryLine).map(
+      (entry) => `${trimmed2(entry.form_id)}:${trimmed2(entry.name)}=${text4(entry.value)}`
+    ),
+    openconnect_browser: endpoint.external_auth_disabled === true ? "0" : "1",
+    openconnect_preserved: JSON.stringify(preservedFields2(endpoint))
+  };
+  settings.openconnect_advanced = advancedInUse2(settings) ? "1" : "0";
+  return settings;
+}
+function mergePreserved2(endpoint, settings) {
+  let preserved = {};
+  try {
+    preserved = JSON.parse(text4(settings.openconnect_preserved) || "{}");
+  } catch (_error) {
+    preserved = {};
+  }
+  const tls = {
+    ...preserved.tls || {},
+    ...endpoint.tls || {}
+  };
+  const entries = [...formEntries(endpoint), ...formEntries(preserved)];
+  const result = { ...preserved, ...endpoint };
+  if (Object.keys(tls).length) result.tls = tls;
+  if (entries.length) result.form_entries = entries;
+  return result;
+}
+function tokenSecret(mode, value) {
+  const secret = trimmed2(value);
+  return mode === "totp" && !/^otpauth:\/\//i.test(secret) ? secret.replace(/\s+/g, "").toUpperCase().replace(/^BASE32:/, "base32:") : secret;
+}
+function serverValue(value) {
+  const result = normalizeOpenConnectServer(value);
+  return "server" in result ? result.server : trimmed2(value);
+}
+function fingerprintValue(value) {
+  const result = normalizeOpenConnectFingerprint(value);
+  return "fingerprint" in result ? result.fingerprint : value.trim();
+}
+function applyAdvanced2(endpoint, tls, settings) {
+  if (settings.openconnect_advanced !== "1") return;
+  if (settings.openconnect_insecure === "1") tls.insecure = true;
+  if (trimmed2(settings.openconnect_server_name)) {
+    tls.server_name = trimmed2(settings.openconnect_server_name);
+  }
+  if (settings.openconnect_no_system_trust === "1") {
+    tls.system_trust_disabled = true;
+  }
+  if (settings.openconnect_no_udp === "1") endpoint.no_udp = true;
+  for (const [key, field] of [
+    ["reported_os", "openconnect_reported_os"],
+    ["version", "openconnect_version"],
+    ["local_hostname", "openconnect_local_hostname"]
+  ]) {
+    if (trimmed2(settings[field])) endpoint[key] = trimmed2(settings[field]);
+  }
+  if (trimmed2(settings.openconnect_user_agent)) {
+    endpoint.user_agent = text4(settings.openconnect_user_agent);
+  }
+  if (settings.openconnect_compression === "off") {
+    endpoint.compression_disabled = true;
+  } else if (settings.openconnect_compression === "all") {
+    endpoint.compression_mode = "all";
+  }
+  if (settings.openconnect_ipv6_disabled === "1") endpoint.ipv6_disabled = true;
+  const mtu = number3(settings.openconnect_mtu);
+  if (mtu) endpoint.mtu = mtu;
+  const baseMtu = number3(settings.openconnect_base_mtu);
+  if (baseMtu) endpoint.base_mtu = baseMtu;
+  const dpd = number3(settings.openconnect_dpd);
+  if (dpd) endpoint.dpd_interval = `${dpd}s`;
+  if (settings.openconnect_insecure_crypto === "1") {
+    endpoint.allow_insecure_crypto = true;
+  }
+  if (settings.openconnect_pfs === "1") endpoint.pfs = true;
+  if (text4(settings.openconnect_cookie)) {
+    endpoint.cookie = text4(settings.openconnect_cookie).trim();
+  }
+  const entries = normalizeOptionValues(settings.openconnect_form_entries).map(parseFormEntry).filter(Boolean);
+  if (entries.length) endpoint.form_entries = entries;
+  if (settings.openconnect_browser === "1") {
+    delete endpoint.external_auth_disabled;
+  }
+}
+function openConnectEndpoint(settings) {
+  const flavor2 = trimmed2(settings.openconnect_flavor) || "anyconnect";
+  const endpoint = {
+    type: "openconnect",
+    server: serverValue(settings.openconnect_server),
+    flavor: flavor2,
+    external_auth_disabled: true
+  };
+  const tls = {};
+  if (trimmed2(settings.openconnect_username)) {
+    endpoint.username = trimmed2(settings.openconnect_username);
+  }
+  if (text4(settings.openconnect_password)) {
+    endpoint.password = text4(settings.openconnect_password);
+  }
+  if (trimmed2(settings.openconnect_auth_group)) {
+    endpoint.auth_group = trimmed2(settings.openconnect_auth_group);
+  }
+  const mode = trimmed2(settings.openconnect_token_mode);
+  if (TOKEN_MODES2.includes(mode)) {
+    const token = {
+      mode,
+      secret: tokenSecret(mode, settings.openconnect_token_secret)
+    };
+    if (mode === "stoken") {
+      for (const [key, field] of [
+        ["pin", "openconnect_token_pin"],
+        ["password", "openconnect_token_password"],
+        ["device_id", "openconnect_token_device_id"]
+      ]) {
+        if (trimmed2(settings[field])) token[key] = trimmed2(settings[field]);
+      }
+    }
+    endpoint.token = token;
+  }
+  if (settings.openconnect_certificate_enabled === "1") {
+    setMaterial2(tls, "client_certificate", settings.openconnect_cert);
+    setMaterial2(tls, "client_key", settings.openconnect_key);
+    if (text4(settings.openconnect_key_password)) {
+      tls.client_key_password = text4(settings.openconnect_key_password);
+    }
+  }
+  setMaterial2(tls, "certificate_authority", settings.openconnect_ca);
+  const fingerprints = normalizeOptionValues(
+    settings.openconnect_fingerprints
+  ).map(fingerprintValue);
+  if (fingerprints.length) tls.peer_fingerprint = fingerprints;
+  applyAdvanced2(endpoint, tls, settings);
+  if (Object.keys(tls).length) endpoint.tls = tls;
+  return mergePreserved2(endpoint, settings);
+}
+function validateOpenConnectServer(value) {
+  const result = normalizeOpenConnectServer(value);
+  return "server" in result ? true : result.message;
+}
+function validateOpenConnectFingerprint(value) {
+  if (!trimmed2(value)) return true;
+  const result = normalizeOpenConnectFingerprint(value);
+  return "fingerprint" in result ? true : result.message;
+}
+function validateTokenSecret(mode, value) {
+  const secret = trimmed2(value);
+  if (!secret) {
+    return mode === "oidc" ? _("Enter the access token") : _("Enter the secret of the token");
+  }
+  if (mode !== "totp") return true;
+  if (/^otpauth:\/\//i.test(secret)) {
+    return /^otpauth:\/\/totp\//i.test(secret) && /[?&]secret=/i.test(secret) ? true : _("The otpauth:// link must be of the totp type and carry a secret");
+  }
+  return isBase32Secret(secret) ? true : _("Enter the base32 secret or the otpauth:// link of the QR code");
+}
+function validateFormEntry(value) {
+  return !trimmed2(value) || parseFormEntry(value) ? true : _("Write it as FORM:NAME=VALUE, as openconnect --form-entry takes it");
+}
+function validateOpenConnectSettings(settings) {
+  const server2 = validateOpenConnectServer(settings.openconnect_server);
+  if (server2 !== true) return server2;
+  const mode = trimmed2(settings.openconnect_token_mode);
+  if (mode) {
+    const secret = validateTokenSecret(mode, settings.openconnect_token_secret);
+    if (secret !== true) return secret;
+  }
+  const certificate = settings.openconnect_certificate_enabled === "1";
+  if (certificate) {
+    if (!trimmed2(settings.openconnect_cert) || !trimmed2(settings.openconnect_key)) {
+      return _("The client certificate and its key go together: add both");
+    }
+    if (isEncryptedKey(settings.openconnect_key) && !text4(settings.openconnect_key_password)) {
+      return _("The client key is protected by a passphrase: enter it");
+    }
+  }
+  for (const value of normalizeOptionValues(
+    settings.openconnect_fingerprints
+  )) {
+    const result = validateOpenConnectFingerprint(value);
+    if (result !== true) return `${value}: ${result}`;
+  }
+  const advanced = settings.openconnect_advanced === "1";
+  if (advanced) {
+    for (const value of normalizeOptionValues(
+      settings.openconnect_form_entries
+    )) {
+      const result = validateFormEntry(value);
+      if (result !== true) return `${value}: ${result}`;
+    }
+  }
+  if (!trimmed2(settings.openconnect_username) && !certificate && mode !== "oidc" && !(advanced && trimmed2(settings.openconnect_cookie)) && !(advanced && settings.openconnect_browser === "1")) {
+    return _(
+      "Add how the router signs in: a username, a client certificate or a session cookie"
+    );
   }
   return true;
 }
@@ -15736,26 +17164,26 @@ function keyMessage() {
   return _("WireGuard keys must be standard base64-encoded 32-byte values");
 }
 function validateAmneziaValue(key, value) {
-  const text4 = `${value ?? ""}`.trim();
+  const text6 = `${value ?? ""}`.trim();
   const entry = amneziaParameter(key);
-  if (!text4 || !entry) return true;
+  if (!text6 || !entry) return true;
   switch (entry.kind) {
     case "count":
-      return parseUnsigned(text4, UINT32_MAX) !== void 0 ? true : _("Use a whole number from 0 to 4294967295");
+      return parseUnsigned(text6, UINT32_MAX) !== void 0 ? true : _("Use a whole number from 0 to 4294967295");
     case "padding":
-      return parseUnsigned(text4, UINT16_MAX) !== void 0 ? true : _("Use a whole number from 0 to 65535");
+      return parseUnsigned(text6, UINT16_MAX) !== void 0 ? true : _("Use a whole number from 0 to 65535");
     case "range":
-      return parseRange(text4) !== void 0 ? true : _(
+      return parseRange(text6) !== void 0 ? true : _(
         "AmneziaWG ranges must be between 0 and 4294967295 with the start no greater than the end"
       );
     case "signature":
-      return validateAmneziaSignature(text4) ? true : _(
+      return validateAmneziaSignature(text6) ? true : _(
         "AmneziaWG I1-I5 must be Custom Protocol Signature tags such as <b 0xdeadbeef><r 4>"
       );
     case "key":
-      return validateWireGuardKey(text4) ? true : keyMessage();
+      return validateWireGuardKey(text6) ? true : keyMessage();
     default:
-      return text4 === "0" || text4 === "1" ? true : _("Use 0 or 1");
+      return text6 === "0" || text6 === "1" ? true : _("Use 0 or 1");
   }
 }
 function rangeBounds(value) {
@@ -15763,53 +17191,53 @@ function rangeBounds(value) {
   return [parts[0], parts[parts.length - 1]];
 }
 function validateAmneziaSet(values) {
-  const text4 = (key) => `${values[key] ?? ""}`.trim();
-  const protectionKey = text4("header_protection_key");
-  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text4(key) || 0) < 12)) {
+  const text6 = (key) => `${values[key] ?? ""}`.trim();
+  const protectionKey = text6("header_protection_key");
+  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text6(key) || 0) < 12)) {
     return _(
       "Header protection requires S1, S2, S3 and S4 of at least 12 bytes"
     );
   }
   const headers = ["h1", "h2", "h3", "h4"];
-  if (headers.some((key) => text4(key))) {
+  if (headers.some((key) => text6(key))) {
     const bounds = headers.map(
-      (key, index) => rangeBounds(text4(key) || `${index + 1}`)
+      (key, index) => rangeBounds(text6(key) || `${index + 1}`)
     );
     const overlap = bounds.some(
       ([from, to], index) => bounds.slice(index + 1).some(([otherFrom, otherTo]) => from <= otherTo && otherFrom <= to)
     );
     if (overlap) return _("H1, H2, H3 and H4 must not overlap");
   }
-  if (Number(text4("jmin") || 0) > Number(text4("jmax") || 0)) {
+  if (Number(text6("jmin") || 0) > Number(text6("jmax") || 0)) {
     return _("Jmin must not be greater than Jmax");
   }
   return true;
 }
 function amneziaJsonValue(key, value) {
-  const text4 = `${value ?? ""}`.trim();
+  const text6 = `${value ?? ""}`.trim();
   switch (amneziaParameter(key)?.kind) {
     case "flag":
-      return text4 === "1";
+      return text6 === "1";
     case "signature":
     case "key":
-      return text4;
+      return text6;
     case "range":
-      return text4.includes("-") ? text4 : Number(text4);
+      return text6.includes("-") ? text6 : Number(text6);
     default:
-      return Number(text4);
+      return Number(text6);
   }
 }
 var CONF_TRUE = ["on", "true", "1", "yes"];
 var CONF_FALSE = ["off", "false", "0", "no"];
 function amneziaTextFromConf(key, value) {
   if (amneziaParameter(key)?.kind !== "flag") return value.trim();
-  const flag = value.trim().toLowerCase();
-  return CONF_TRUE.includes(flag) ? "1" : CONF_FALSE.includes(flag) ? "0" : null;
+  const flag2 = value.trim().toLowerCase();
+  return CONF_TRUE.includes(flag2) ? "1" : CONF_FALSE.includes(flag2) ? "0" : null;
 }
 function amneziaConfLine(key, value) {
   const entry = amneziaParameter(key);
-  const text4 = `${value ?? ""}`.trim();
-  return `${entry.conf} = ${entry.kind === "flag" ? text4 === "1" ? "on" : "off" : text4}`;
+  const text6 = `${value ?? ""}`.trim();
+  return `${entry.conf} = ${entry.kind === "flag" ? text6 === "1" ? "on" : "off" : text6}`;
 }
 
 // src/forkop/tabs/sections/tunnels/model.ts
@@ -15840,6 +17268,7 @@ function tunnelPeerIds(tunnelId) {
 }
 function tunnelKindLabel(kind, endpointType) {
   if (kind === "openvpn-client") return "OpenVPN";
+  if (kind === "openconnect") return "OpenConnect";
   return kind === "amneziawg" ? "AmneziaWG" : kind === "warp" ? "WARP" : kind === "tailscale" ? "Tailscale" : kind === "json" ? endpointType || _("JSON endpoint") : "WireGuard";
 }
 function removeTunnelPeers(tunnelId) {
@@ -15872,10 +17301,13 @@ var CASCADE_TUNNEL_KINDS = [
   "wireguard",
   "amneziawg",
   "warp",
-  "openvpn-client"
+  "openvpn-client",
+  "openconnect"
 ];
+var NATIVE_ENDPOINT_KINDS = ["openvpn-client", "openconnect"];
 var STORED_KINDS = [
   "openvpn-client",
+  "openconnect",
   "json",
   "warp",
   "amneziawg",
@@ -15883,7 +17315,7 @@ var STORED_KINDS = [
 ];
 function tunnelInitialSettings(value, sectionId) {
   const tunnel = tunnelChild(sectionId, `${value || ""}`) || {};
-  const endpoint = ["json", "openvpn-client"].includes(`${tunnel.kind || ""}`) ? parseOutboundJsonObject(tunnel.endpoint_json) || {} : {};
+  const endpoint = ["json", ...NATIVE_ENDPOINT_KINDS].includes(`${tunnel.kind || ""}`) ? parseOutboundJsonObject(tunnel.endpoint_json) || {} : {};
   const kind = STORED_KINDS.includes(`${tunnel.kind || ""}`) ? `${tunnel.kind}` : "wireguard";
   const amneziaEnabled = (kind === "wireguard" || kind === "warp") && ONE_SIDED_AMNEZIA_KEYS.some(
     (key) => setsAmneziaParameter(key, tunnel[`amnezia_${key}`])
@@ -15891,6 +17323,7 @@ function tunnelInitialSettings(value, sectionId) {
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ""}`.trim();
   const settings = {
     ...kind === "openvpn-client" ? openVPNInitialSettings(endpoint) : {},
+    ...kind === "openconnect" ? openConnectInitialSettings(endpoint) : {},
     name: kind === "json" ? `${endpoint.tag || ""}` : `${tunnel.name || ""}`,
     tunnel_type: kind,
     amnezia_enabled: amneziaEnabled ? "1" : "0",
@@ -15951,8 +17384,8 @@ function tunnelSettingsKeys() {
   ];
 }
 function setsAmneziaParameter(key, value) {
-  const text4 = `${value ?? ""}`.trim();
-  return amneziaParameter(key)?.kind === "flag" ? text4 === "1" : text4 !== "";
+  const text6 = `${value ?? ""}`.trim();
+  return amneziaParameter(key)?.kind === "flag" ? text6 === "1" : text6 !== "";
 }
 function oneSidedAmneziaEnabled(kind, settings) {
   return (kind === "wireguard" || kind === "warp") && `${settings.amnezia_enabled || ""}` === "1";
@@ -16005,7 +17438,7 @@ function tunnelStorageSettings(settings) {
     // The dialog drops the section along with its switch, so a section it
     // still holds is one the switch is on for.
     detour_section: CASCADE_TUNNEL_KINDS.includes(kind) ? `${settings.detour_section || ""}`.trim() : "",
-    endpoint_json: kind === "openvpn-client" ? JSON.stringify(openVPNEndpoint(settings)) : kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
+    endpoint_json: NATIVE_ENDPOINT_KINDS.includes(kind) ? JSON.stringify(tunnelEndpointFromSettings(settings)) : kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
   };
   AMNEZIA_KEYS.forEach((key) => {
     result[`amnezia_${key}`] = storedAmneziaFields.includes(key) ? `${settings[`amnezia_${key}`] || ""}`.trim() : "";
@@ -16077,6 +17510,7 @@ function tunnelPeerForValue(tunnelId, value, option2) {
 function tunnelEndpointFromSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
   if (kind === "openvpn-client") return openVPNEndpoint(settings);
+  if (kind === "openconnect") return openConnectEndpoint(settings);
   if (kind === "json") {
     return parseOutboundJsonObject(settings.endpoint_json);
   }
@@ -16570,8 +18004,8 @@ function currentDraftOutboundNames(section_id) {
   return names.map((name) => {
     const base = `${name || ""}`.trim();
     let unique = base;
-    for (let number3 = 2; taken.has(unique); number3 += 1) {
-      unique = `${base} #${number3}`;
+    for (let number4 = 2; taken.has(unique); number4 += 1) {
+      unique = `${base} #${number4}`;
     }
     taken.add(unique);
     return unique;
@@ -17347,7 +18781,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
       }, this)
     );
   },
-  renderListItemLabel(section_id, value, text4) {
+  renderListItemLabel(section_id, value, text6) {
     const name = childItemInputValue(
       section_id,
       value,
@@ -17356,7 +18790,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
     );
     return renderNetworkInterfaceListItem(
       this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
-      name || `${text4 ?? ""}`
+      name || `${text6 ?? ""}`
     );
   }
 });
@@ -17587,13 +19021,13 @@ function nextLinkName(sectionId, option2, link, values = listedLinkValues(sectio
   const own = getProxyUrlName(link).trim();
   if (own) {
     let name = own;
-    for (let number3 = 2; taken.has(name); number3 += 1) {
-      name = `${own} #${number3}`;
+    for (let number4 = 2; taken.has(name); number4 += 1) {
+      name = `${own} #${number4}`;
     }
     return name;
   }
-  for (let number3 = taken.size + 1; number3 < 1e5; number3 += 1) {
-    if (!taken.has(`Node #${number3}`)) return `Node #${number3}`;
+  for (let number4 = taken.size + 1; number4 < 1e5; number4 += 1) {
+    if (!taken.has(`Node #${number4}`)) return `Node #${number4}`;
   }
   return `Node #${Date.now()}`;
 }
@@ -18211,7 +19645,7 @@ function readSections(input) {
   }
   return sections;
 }
-function readConfigFile(input) {
+function readConfigFile2(input) {
   const sections = readSections(input);
   if (!sections) return { message: _("Invalid WireGuard configuration") };
   const iface = sections.find((section) => section.name === "interface");
@@ -18286,14 +19720,14 @@ function parseAmnezia(iface) {
   for (const { key, conf, kind } of AMNEZIA_PARAMETERS) {
     const value = firstValue(iface, conf.toLowerCase());
     if (!value) continue;
-    const text4 = amneziaTextFromConf(key, value);
-    if (text4 === null)
+    const text6 = amneziaTextFromConf(key, value);
+    if (text6 === null)
       return { valid: false, message: _("Invalid AmneziaWG parameters") };
-    const validation = validateAmneziaValue(key, text4);
+    const validation = validateAmneziaValue(key, text6);
     if (validation !== true) return { valid: false, message: validation };
-    texts[key] = text4;
-    if (kind !== "flag" || text4 === "1")
-      amnezia[key] = amneziaJsonValue(key, text4);
+    texts[key] = text6;
+    if (kind !== "flag" || text6 === "1")
+      amnezia[key] = amneziaJsonValue(key, text6);
   }
   const combination = validateAmneziaSet(texts);
   if (combination !== true) return { valid: false, message: combination };
@@ -18302,7 +19736,7 @@ function parseAmnezia(iface) {
     amnezia: Object.keys(amnezia).length > 0 ? amnezia : void 0
   };
 }
-function buildEndpoint2(source) {
+function buildEndpoint3(source) {
   const unsupported = rejectUnsupportedFields(source);
   if (unsupported) return { valid: false, message: unsupported };
   const { iface } = source;
@@ -18406,9 +19840,9 @@ function buildEndpoint2(source) {
 function parseWireGuardConfig(input) {
   const value = `${input || ""}`.trim();
   const link = readShareLink(value);
-  if (link) return buildEndpoint2(link);
-  const source = readConfigFile(value);
-  return "message" in source ? { valid: false, message: source.message } : buildEndpoint2(source);
+  if (link) return buildEndpoint3(link);
+  const source = readConfigFile2(value);
+  return "message" in source ? { valid: false, message: source.message } : buildEndpoint3(source);
 }
 function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -18493,10 +19927,10 @@ async function parseWireGuardInput(input) {
     if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
-    const text4 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
-    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text4))
-      return parseWireGuardConfig(text4);
-    return importAmneziaProfile(JSON.parse(text4));
+    const text6 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text6))
+      return parseWireGuardConfig(text6);
+    return importAmneziaProfile(JSON.parse(text6));
   } catch {
     return {
       valid: false,
@@ -18561,8 +19995,8 @@ function fileIcon() {
   return svg;
 }
 function readMaterialFile(bytes) {
-  const text4 = new TextDecoder().decode(bytes);
-  if (text4.includes("-----BEGIN") || !isCertificate(bytes)) return text4;
+  const text6 = new TextDecoder().decode(bytes);
+  if (text6.includes("-----BEGIN") || !isCertificate(bytes)) return text6;
   let binary = "";
   bytes.forEach((byte) => binary += String.fromCharCode(byte));
   const body = btoa(binary).replace(/.{64}/g, "$&\n").trim();
@@ -18592,10 +20026,10 @@ function setFieldValue(widget, value) {
   widget?.triggerValidation();
   widget?.node?.querySelector("textarea")?.dispatchEvent(new Event("change", { bubbles: true }));
 }
-function loadedMaterial(text4, kind, paired) {
-  const both = paired ? splitCertificateAndKey(text4) : null;
-  if (!both) return { own: text4, pair: null };
-  return kind === "key" ? { own: both.key, pair: both.certificate } : { own: both.certificate, pair: both.key };
+function loadedMaterial(text6, kind, paired) {
+  const both = paired ? splitCertificateAndKey(text6) : null;
+  if (!both) return { own: text6, pair: null };
+  return kind === "key" || kind === "passphrase-key" ? { own: both.key, pair: both.certificate } : { own: both.certificate, pair: both.key };
 }
 function configureMaterialOption(option2, kind, required, pair) {
   option2.rows = 4;
@@ -18638,10 +20072,10 @@ function configureMaterialOption(option2, kind, required, pair) {
       },
       fileIcon()
     );
-    const fill = (text4) => {
+    const fill = (text6) => {
       const other = pairWidget();
       const loaded = loadedMaterial(
-        text4,
+        text6,
         typeof kind === "function" ? kind(formValueOf(this, sectionId)) : kind,
         !!other
       );
@@ -18661,10 +20095,10 @@ function configureMaterialOption(option2, kind, required, pair) {
       });
     });
     frame.querySelector("textarea")?.addEventListener("paste", (ev) => {
-      const text4 = ev.clipboardData?.getData("text") ?? "";
-      if (!pair || !splitCertificateAndKey(text4)) return;
+      const text6 = ev.clipboardData?.getData("text") ?? "";
+      if (!pair || !splitCertificateAndKey(text6)) return;
       ev.preventDefault();
-      fill(text4.trim());
+      fill(text6.trim());
     });
     return textE("div", { class: "fkp-material" }, [frame, load]);
   };
@@ -19206,6 +20640,522 @@ function applyImportedOpenVPN(map, options, result) {
   map.checkDepends();
 }
 
+// src/forkop/tabs/sections/tunnels/openconnectForm.ts
+var FLAVORS = [
+  ["anyconnect", "Cisco AnyConnect, ocserv"],
+  ["gp", "Palo Alto GlobalProtect"],
+  ["fortinet", "Fortinet FortiGate"],
+  ["pulse", "Ivanti Connect Secure (Pulse)"],
+  ["nc", "Juniper Network Connect"],
+  ["f5", "F5 BIG-IP"]
+];
+function onKind2(o, extra = {}) {
+  o.depends({ tunnel_type: "openconnect", ...extra });
+  return o;
+}
+function onFlavors(o, flavors) {
+  flavors.forEach(
+    (flavor2) => onKind2(o, { openconnect_advanced: "1", openconnect_flavor: flavor2 })
+  );
+  return o;
+}
+function formValue(option2, name) {
+  const found = option2.map.lookupOption(name, "settings");
+  if (!found) return "";
+  return `${found[0].formvalue(found[1]) ?? found[0].cfgvalue(found[1]) ?? ""}`;
+}
+function addOpenConnectOptions(section) {
+  const options = {};
+  const add = (o2) => {
+    options[o2.option] = o2;
+    return o2;
+  };
+  const advanced = { openconnect_advanced: "1" };
+  const stoken = { openconnect_token_mode: "stoken" };
+  const certificate = { openconnect_certificate_enabled: "1" };
+  let o = add(
+    onKind2(section.option(form.ListValue, "openconnect_flavor", _("Protocol")))
+  );
+  FLAVORS.forEach(([value, label]) => o.value(value, label));
+  o.default = "anyconnect";
+  o.rmempty = false;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_server",
+        _("Server"),
+        _(
+          "Host, with a port and a group path if the server has them: vpn.example.com:8443/staff"
+        )
+      )
+    )
+  );
+  o.placeholder = "vpn.example.com";
+  o.rmempty = false;
+  o.validate = (_sectionId, value) => validateOpenConnectServer(value);
+  o = add(
+    onKind2(section.option(form.Value, "openconnect_username", _("Username")))
+  );
+  o.rmempty = true;
+  o = add(
+    onKind2(section.option(form.Value, "openconnect_password", _("Password")))
+  );
+  o.password = true;
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_auth_group",
+        _("Login group"),
+        _(
+          "The group, realm or gateway the server offers at sign-in. Empty: the one it offers first"
+        )
+      )
+    )
+  );
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.ListValue,
+        "openconnect_token_mode",
+        _("One-time code"),
+        _("The router answers the request for a code itself")
+      )
+    )
+  );
+  o.value("", _("None"));
+  o.value("totp", "TOTP");
+  o.value("stoken", "RSA SecurID");
+  o.value("oidc", _("OIDC access token"));
+  o.rmempty = true;
+  o = add(
+    section.option(
+      form.Value,
+      "openconnect_token_secret",
+      _("Token secret"),
+      _(
+        "TOTP: the base32 secret or the otpauth:// link of the QR code. RSA SecurID: the token string. OIDC: the access token"
+      )
+    )
+  );
+  ["totp", "stoken", "oidc"].forEach(
+    (mode) => onKind2(o, { openconnect_token_mode: mode })
+  );
+  o.password = true;
+  o.rmempty = false;
+  o.validate = function(_sectionId, value) {
+    return validateTokenSecret(
+      formValue(this, "openconnect_token_mode"),
+      value
+    );
+  };
+  o = add(
+    onKind2(
+      section.option(form.Value, "openconnect_token_pin", _("PIN")),
+      stoken
+    )
+  );
+  o.password = true;
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_token_password",
+        _("Token password"),
+        _("Only for a token protected by a password")
+      ),
+      stoken
+    )
+  );
+  o.password = true;
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_token_device_id",
+        _("Device ID"),
+        _("Only for a token bound to a device")
+      ),
+      stoken
+    )
+  );
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_certificate_enabled",
+        _("Client certificate"),
+        _("Sign in with a certificate, alone or together with the login")
+      )
+    )
+  );
+  o.default = "0";
+  o.rmempty = false;
+  o = add(
+    onKind2(
+      section.option(form.TextValue, "openconnect_cert", _("Certificate")),
+      certificate
+    )
+  );
+  configureMaterialOption(
+    o,
+    "certificate",
+    () => _("Add the client certificate"),
+    "openconnect_key"
+  );
+  o = add(
+    onKind2(
+      section.option(form.TextValue, "openconnect_key", _("Key")),
+      certificate
+    )
+  );
+  configureMaterialOption(
+    o,
+    "passphrase-key",
+    () => _("Add the key of the client certificate"),
+    "openconnect_cert"
+  );
+  o.onchange = () => window.setTimeout(
+    () => options.openconnect_key_password.triggerValidation("settings"),
+    0
+  );
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_key_password",
+        _("Key passphrase"),
+        _("Only for a key protected by a passphrase")
+      ),
+      certificate
+    )
+  );
+  o.password = true;
+  o.rmempty = true;
+  o.validate = function(_sectionId, value) {
+    return `${value ?? ""}` === "" && isEncryptedKey(formValue(this, "openconnect_key")) ? _("The client key is protected by a passphrase: enter it") : true;
+  };
+  o = add(
+    onKind2(
+      section.option(
+        form.TextValue,
+        "openconnect_ca",
+        _("CA certificate"),
+        _(
+          "Empty: the authorities the router trusts. Add the one that issued the certificate of a server of your own"
+        )
+      )
+    )
+  );
+  configureMaterialOption(o, "ca", () => "");
+  o = add(
+    onKind2(
+      section.option(
+        form.DynamicList,
+        "openconnect_fingerprints",
+        _("Server certificate fingerprints"),
+        _(
+          "pin-sha256:\u2026 as openconnect prints it. With one, the CA certificate is not needed"
+        )
+      )
+    )
+  );
+  o.placeholder = "pin-sha256:";
+  o.rmempty = true;
+  o.validate = (_sectionId, value) => validateOpenConnectFingerprint(value);
+  o = add(
+    onKind2(
+      section.option(form.Flag, "openconnect_advanced", _("Advanced settings"))
+    )
+  );
+  o.default = "0";
+  o.rmempty = false;
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_no_udp",
+        _("TLS only"),
+        _(
+          "Carry the traffic over the TLS connection without the faster DTLS channel, for a network that drops or slows UDP"
+        )
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_cookie",
+        _("Session cookie"),
+        _(
+          "A session signed in elsewhere, such as after a browser sign-in. When the server refuses it, the login above is used"
+        )
+      ),
+      advanced
+    )
+  );
+  o.password = true;
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.DynamicList,
+        "openconnect_form_entries",
+        _("Answers to the login form"),
+        _(
+          "For a field the server asks besides the login, as openconnect --form-entry takes it: FORM:NAME=VALUE"
+        )
+      ),
+      advanced
+    )
+  );
+  o.placeholder = "main:secondary_username=alice";
+  o.rmempty = true;
+  o.validate = (_sectionId, value) => validateFormEntry(value);
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_browser",
+        _("Browser sign-in"),
+        _(
+          "SSO and SAML through the sing-box dashboard, which the tunnel waits for at every connection. Off: the server is not offered it"
+        )
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    onFlavors(
+      section.option(
+        form.ListValue,
+        "openconnect_reported_os",
+        _("Reported system"),
+        _("For a server that admits only some systems")
+      ),
+      ["anyconnect", "gp", "pulse"]
+    )
+  );
+  o.value("", _("Default (Linux)"));
+  o.value("win", "Windows");
+  o.value("mac-intel", "macOS");
+  o.value("linux-64", _("Linux, 64-bit"));
+  o.value("linux", _("Linux, 32-bit"));
+  o.value("android", "Android");
+  o.value("apple-ios", "iOS");
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_user_agent",
+        _("User-Agent"),
+        _("Empty: the one of the protocol's own client")
+      ),
+      advanced
+    )
+  );
+  o.rmempty = true;
+  o = add(
+    onFlavors(
+      section.option(
+        form.Value,
+        "openconnect_version",
+        _("Client version"),
+        _("The AnyConnect version reported to the server")
+      ),
+      ["anyconnect"]
+    )
+  );
+  o.placeholder = "v9.21";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_local_hostname",
+        _("Device name"),
+        _("The name the router reports to the server. Empty: its hostname")
+      ),
+      advanced
+    )
+  );
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_insecure",
+        _("Do not verify the server certificate"),
+        _(
+          "Anyone on the way can pose as the server. Add the CA certificate or a fingerprint instead"
+        )
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_server_name",
+        _("Server name (SNI)"),
+        _("Empty: the host of the server address")
+      ),
+      advanced
+    )
+  );
+  o.datatype = "hostname";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_no_system_trust",
+        _("Trust only the CA certificate above"),
+        _("The authorities the router trusts are not used")
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_insecure_crypto",
+        _("Legacy encryption"),
+        _("TLS 1.0 and weak ciphers, for an old server")
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_pfs",
+        _("Forward secrecy only"),
+        _("Refuse a TLS 1.2 key exchange without forward secrecy")
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    onFlavors(
+      section.option(
+        form.ListValue,
+        "openconnect_compression",
+        _("Compression"),
+        _(
+          "Compression weakens encryption where an attacker can mix data into the traffic"
+        )
+      ),
+      ["anyconnect"]
+    )
+  );
+  o.value("", _("Stateless (lz4, lzs)"));
+  o.value("off", _("Off"));
+  o.value("all", _("Also deflate"));
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Flag,
+        "openconnect_ipv6_disabled",
+        _("No IPv6 in the tunnel")
+      ),
+      advanced
+    )
+  );
+  o.default = "0";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_mtu",
+        _("MTU"),
+        _("Empty: what the server offers")
+      ),
+      advanced
+    )
+  );
+  o.datatype = "range(576,65535)";
+  o.rmempty = true;
+  o = add(
+    onFlavors(
+      section.option(
+        form.Value,
+        "openconnect_base_mtu",
+        _("Path MTU"),
+        _(
+          "The MTU of the route to the server, which the tunnel is fitted into"
+        )
+      ),
+      ["anyconnect", "gp", "fortinet", "f5"]
+    )
+  );
+  o.datatype = "range(1280,65535)";
+  o.placeholder = "1406";
+  o.rmempty = true;
+  o = add(
+    onKind2(
+      section.option(
+        form.Value,
+        "openconnect_dpd",
+        _("Dead peer detection, seconds"),
+        _("Empty: the interval the server asks for")
+      ),
+      advanced
+    )
+  );
+  o.datatype = "range(2,86400)";
+  o.rmempty = true;
+  return options;
+}
+function applyImportedOpenConnect(map, options, result) {
+  const settings = openConnectInitialSettings(result.endpoint);
+  for (const name of [
+    "openconnect_advanced",
+    "openconnect_certificate_enabled",
+    "openconnect_token_mode",
+    "openconnect_flavor"
+  ]) {
+    setModalOptionValue(map, options[name], settings[name]);
+  }
+  map.checkDepends();
+  Object.entries(options).forEach(([name, option2]) => {
+    if (name in settings) setModalOptionValue(map, option2, settings[name]);
+  });
+  map.data.set(
+    map.config,
+    "settings",
+    "openconnect_preserved",
+    settings.openconnect_preserved
+  );
+  map.checkDepends();
+}
+
 // src/forkop/tabs/sections/tunnels/validate.ts
 function validateWireGuardPeer(peer) {
   if (!peer || typeof peer !== "object" || Array.isArray(peer) || typeof peer.address !== "string" || !peer.address.trim() || typeof peer.public_key !== "string" || !peer.public_key.trim() || typeof peer.port !== "number" || !Number.isInteger(peer.port) || peer.port < 1 || peer.port > 65535) {
@@ -19281,9 +21231,9 @@ function validateWireGuardListInput(value) {
   return `${value || ""}`.trim() ? validateWireGuardPrefix(value) : true;
 }
 function isOptionalUint16(value, minimum) {
-  const text4 = `${value ?? ""}`.trim();
-  const parsed = parseUnsigned(text4, 65535);
-  return !text4 || parsed !== void 0 && parsed >= minimum;
+  const text6 = `${value ?? ""}`.trim();
+  const parsed = parseUnsigned(text6, 65535);
+  return !text6 || parsed !== void 0 && parsed >= minimum;
 }
 function isHostname(value) {
   return value.length <= 253 && /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/u.test(
@@ -19308,6 +21258,9 @@ function validateTunnelSettings(settings, tunnelId, peerOption) {
   }
   if (kind === "openvpn-client") {
     return validateOpenVPNSettings(settings);
+  }
+  if (kind === "openconnect") {
+    return validateOpenConnectSettings(settings);
   }
   const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (!endpoint) {
@@ -19500,12 +21453,16 @@ function showWireGuardPeerSettingsModal(tunnelId, itemValue, option2, widget, it
   });
 }
 function importedFormat(input) {
+  if (/^\{[\s\S]*"type"\s*:\s*"openconnect"/u.test(input)) {
+    return "openconnect";
+  }
   if (/^(vpn|wireguard|wg|awg|amneziawg):\/\//iu.test(input) || input.startsWith("{") || /^\s*\[(Interface|Peer)\]\s*$/imu.test(input)) {
     return "wireguard";
   }
+  if (looksLikeOpenConnectConfig(input)) return "openconnect";
   return looksLikeOpenVPNConfig(input) ? "openvpn" : "";
 }
-var CONFIGURATION_FILE = /\.(ovpn|conf)$/iu;
+var CONFIGURATION_FILE = /\.(ovpn|conf|xml|nmconnection)$/iu;
 function readFiles(files) {
   return Promise.all(
     files.map(
@@ -19516,7 +21473,7 @@ function readFiles(files) {
     )
   );
 }
-function showTunnelImportModal(parentMap, fields, openvpn) {
+function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
   const data = { settings: { configuration: "" } };
   const map = new form.JSONMap(data);
   const itemSection = map.section(form.NamedSection, "settings");
@@ -19543,16 +21500,22 @@ function showTunnelImportModal(parentMap, fields, openvpn) {
     failedInput = "";
     if (!input) {
       return _(
-        "Paste a WireGuard or OpenVPN configuration, a wireguard:// link or a vpn:// link"
+        "Paste a WireGuard, OpenVPN or OpenConnect configuration, or a wireguard://, vpn:// or anyconnect:// link"
       );
     }
-    const format = importedFormat(input);
-    if (format === "openvpn") {
+    const format2 = importedFormat(input);
+    if (format2 === "openvpn") {
       const parsed2 = parseOpenVPNConfig(input, attachments);
       return parsed2.valid ? true : parsed2.message;
     }
-    if (!format) {
-      return _("This is neither a WireGuard nor an OpenVPN configuration");
+    if (format2 === "openconnect") {
+      const parsed2 = parseOpenConnectConfig(input, attachments);
+      return parsed2.valid ? true : parsed2.message;
+    }
+    if (!format2) {
+      return _(
+        "This is neither a WireGuard, an OpenVPN nor an OpenConnect configuration"
+      );
     }
     if (/^vpn:\/\//iu.test(input) || input.startsWith("{")) {
       return true;
@@ -19573,6 +21536,34 @@ function showTunnelImportModal(parentMap, fields, openvpn) {
     map,
     async (settings) => {
       const input = `${settings.configuration || ""}`.trim();
+      if (importedFormat(input) === "openconnect") {
+        const parsed2 = parseOpenConnectConfig(input, attachments);
+        if (!parsed2.valid) refuse(input, parsed2.message);
+        else {
+          setModalOptionValue(parentMap, fields.type, "openconnect");
+          parentMap.checkDepends();
+          applyImportedOpenConnect(parentMap, openconnect, parsed2);
+          if (parsed2.others.length) {
+            showToast(
+              _("Imported the first server. The profile also lists: %s").format(
+                parsed2.others.join(", ")
+              ),
+              "success",
+              8e3
+            );
+          }
+          if (parsed2.skipped.length) {
+            showToast(
+              _("Imported. Not carried over: %s").format(
+                parsed2.skipped.join(", ")
+              ),
+              "success",
+              6e3
+            );
+          }
+        }
+        return;
+      }
       if (importedFormat(input) === "openvpn") {
         const parsed2 = parseOpenVPNConfig(input, attachments);
         if (!parsed2.valid) refuse(input, parsed2.message);
@@ -19619,7 +21610,9 @@ function showTunnelImportModal(parentMap, fields, openvpn) {
             configuration.triggerValidation("settings");
             if (result === true) return save();
             showToast(
-              input ? result : _("Select the configuration file: .ovpn or .conf"),
+              input ? result : _(
+                "Select the configuration file: .ovpn, .conf, .xml or .nmconnection"
+              ),
               "error"
             );
           })
@@ -19634,6 +21627,7 @@ var TUNNEL_KINDS = [
   ["warp", "Cloudflare WARP"],
   ["tailscale", "Tailscale"],
   ["openvpn-client", "OpenVPN"],
+  ["openconnect", "OpenConnect"],
   ["json", _("JSON endpoint")]
 ];
 function tunnelKindsDescription() {
@@ -19685,9 +21679,14 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   o.validate = function(_itemId, value) {
     return `${value || ""}`.trim() ? validateUniqueDynamicListItemName(widget, itemNode, value) : _("Enter a tunnel name");
   };
-  ["wireguard", "amneziawg", "warp", "tailscale", "openvpn-client"].forEach(
-    (kind) => o.depends("tunnel_type", kind)
-  );
+  [
+    "wireguard",
+    "amneziawg",
+    "warp",
+    "tailscale",
+    "openvpn-client",
+    "openconnect"
+  ].forEach((kind) => o.depends("tunnel_type", kind));
   const importButton = itemSection.option(
     form.Button,
     "_import_config",
@@ -19698,6 +21697,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   importButton.depends("tunnel_type", "wireguard");
   importButton.depends("tunnel_type", "amneziawg");
   importButton.depends("tunnel_type", "openvpn-client");
+  importButton.depends("tunnel_type", "openconnect");
   const warpGenerateButton = itemSection.option(
     form.Button,
     "_generate_warp_profile",
@@ -19814,6 +21814,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   };
   configureTextareaOption(endpointJsonOption);
   const openvpnOptions = addOpenVPNOptions(itemSection);
+  const openconnectOptions = addOpenConnectOptions(itemSection);
   o = itemSection.option(
     form.Value,
     "warp_address",
@@ -19914,7 +21915,8 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
         amneziaEnabled: amneziaEnabledOption,
         amnezia: amneziaOptions
       },
-      openvpnOptions
+      openvpnOptions,
+      openconnectOptions
     );
   };
   o = itemSection.option(
@@ -21044,8 +23046,8 @@ function protocolLabel(protocol) {
 function protocolsWhere(predicate) {
   return PROTOCOLS.filter(predicate).map((entry) => entry.id);
 }
-function protocolsWith(flag) {
-  return protocolsWhere((entry) => !!entry[flag]);
+function protocolsWith(flag2) {
+  return protocolsWhere((entry) => !!entry[flag2]);
 }
 function listenerProtocols() {
   return protocolsWhere(
@@ -21121,11 +23123,11 @@ function authFlagOption(protocol) {
   return spec && spec.optionalAuth ? spec.optionalAuth : "";
 }
 function isAuthenticationEnabled(sectionId) {
-  const flag = authFlagOption(getProtocol(sectionId));
-  if (!flag) {
+  const flag2 = authFlagOption(getProtocol(sectionId));
+  if (!flag2) {
     return true;
   }
-  const value = liveOption(sectionId, flag);
+  const value = liveOption(sectionId, flag2);
   return value === "" ? true : !["0", "false", "no", "off"].includes(value.toLowerCase());
 }
 function getServerName(sectionId) {
@@ -21368,12 +23370,12 @@ var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
   const claim = (port2, transports, owner) => {
-    const text4 = `${port2 || ""}`.trim();
-    if (!/^[0-9]+$/.test(text4)) {
+    const text6 = `${port2 || ""}`.trim();
+    if (!/^[0-9]+$/.test(text6)) {
       return;
     }
     transports.forEach((transport3) => {
-      const key = `${transport3}/${Number(text4)}`;
+      const key = `${transport3}/${Number(text6)}`;
       if (!owners.has(key)) owners.set(key, owner);
     });
   };
@@ -21381,19 +23383,19 @@ function occupiedPorts(currentSectionId) {
   if (uci.get(FORKOP_UCI_PACKAGE, "settings", "enable_native_api") === "1") {
     claim("9091", ["tcp"], _("sing-box API"));
   }
-  (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).forEach((server) => {
-    if (server[".name"] === currentSectionId || server.enabled === "0") {
+  (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).forEach((server2) => {
+    if (server2[".name"] === currentSectionId || server2.enabled === "0") {
       return;
     }
-    const protocol = `${server.protocol || DEFAULT_PROTOCOL}`;
+    const protocol = `${server2.protocol || DEFAULT_PROTOCOL}`;
     if (!hasListener(protocol)) {
       return;
     }
     const network2 = transportOption(protocol);
     claim(
-      server.listen_port,
-      listenTransports(protocol, network2 ? `${server[network2] || ""}` : ""),
-      _("server %s").format(server.label || server[".name"])
+      server2.listen_port,
+      listenTransports(protocol, network2 ? `${server2[network2] || ""}` : ""),
+      _("server %s").format(server2.label || server2[".name"])
     );
   });
   (systemPortsCache || []).forEach(
@@ -21765,9 +23767,9 @@ function loadLinkContext(sectionId) {
   if (getProtocol(sectionId) !== "hysteria2" || !usesSelfSignedCertificate(sectionId)) {
     return Promise.resolve({ tlsCertificateSha256: "" });
   }
-  return loadIssuedMaterial().then((material3) => ({
+  return loadIssuedMaterial().then((material5) => ({
     tlsCertificateSha256: normalizeSha256(
-      material3[sectionId]?.tls_self_signed_sha256
+      material5[sectionId]?.tls_self_signed_sha256
     )
   }));
 }
@@ -21776,7 +23778,7 @@ function loadLinkContext(sectionId) {
 var DEFAULT_SUBNET = "10.8.0.1/24";
 function freeTunnelSubnet(sectionId) {
   const taken = new Set(
-    (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).filter((server) => server[".name"] !== sectionId).flatMap((server) => asList(server.tunnel_address)).map((subnet) => `${subnet}`.split(".").slice(0, 3).join("."))
+    (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).filter((server2) => server2[".name"] !== sectionId).flatMap((server2) => asList(server2.tunnel_address)).map((subnet) => `${subnet}`.split(".").slice(0, 3).join("."))
   );
   for (let third = 0; third < 256; third += 1) {
     if (!taken.has(`10.8.${third}`)) return `10.8.${third}.1/24`;
@@ -21903,29 +23905,29 @@ function addTunnelOptions(section) {
 }
 
 // src/forkop/tabs/servers/profile.ts
-function text3(value) {
+function text5(value) {
   return `${value ?? ""}`.trim();
 }
 function fileName(value) {
   return value.replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "");
 }
-function buildOpenVPNProfile(sectionId, client, material3) {
+function buildOpenVPNProfile(sectionId, client, material5) {
   const host = normalizeHost(getPublicHost(sectionId));
   const port2 = getListenPort(sectionId);
   if (!host || !port2) return { missing: "address" };
-  const server = material3[sectionId] || {};
-  const own = material3[client.id] || {};
-  const ca = text3(server.openvpn_certificate);
-  const tlsCrypt = text3(server.openvpn_tls_crypt_key);
-  const certificate = text3(own.openvpn_certificate);
-  const key = text3(own.openvpn_key);
+  const server2 = material5[sectionId] || {};
+  const own = material5[client.id] || {};
+  const ca = text5(server2.openvpn_certificate);
+  const tlsCrypt = text5(server2.openvpn_tls_crypt_key);
+  const certificate = text5(own.openvpn_certificate);
+  const key = text5(own.openvpn_key);
   if (!ca || !tlsCrypt || !certificate || !key) {
     return { missing: "certificate" };
   }
   const network2 = option(sectionId, "openvpn_network") === "tcp" ? "tcp" : "udp";
   const allTraffic = option(sectionId, "tunnel_all_traffic") !== "0";
   const serverName = getServerName(sectionId);
-  const lines2 = [
+  const lines3 = [
     `# ${serverName} \xB7 ${client.name}`,
     "client",
     "dev tun",
@@ -21956,7 +23958,7 @@ function buildOpenVPNProfile(sectionId, client, material3) {
     ""
   ];
   return {
-    profile: lines2.join("\n"),
+    profile: lines3.join("\n"),
     fileName: `${fileName(`${serverName}-${client.name}`) || "openvpn"}.ovpn`,
     type: "application/x-openvpn-profile"
   };
@@ -21967,40 +23969,40 @@ function tunnelName(serverName, clientName, protocol) {
   const name = both.length <= 15 ? both : clean(clientName).slice(0, 15).replace(/-+$/, "");
   return name || protocol;
 }
-function amneziaLines(server) {
+function amneziaLines(server2) {
   return AMNEZIA_KEYS.filter((key) => {
-    const value = text3(server[`amnezia_${key}`]);
+    const value = text5(server2[`amnezia_${key}`]);
     return amneziaParameter(key).kind === "flag" ? value === "1" : !!value;
-  }).map((key) => amneziaConfLine(key, server[`amnezia_${key}`]));
+  }).map((key) => amneziaConfLine(key, server2[`amnezia_${key}`]));
 }
-function buildWireGuardProfile(sectionId, client, material3) {
+function buildWireGuardProfile(sectionId, client, material5) {
   const host = normalizeHost(getPublicHost(sectionId));
   const port2 = getListenPort(sectionId);
   if (!host || !port2) return { missing: "address" };
   const protocol = getProtocol(sectionId);
   const amnezia = protocol === "amneziawg";
-  const server = material3[sectionId] || {};
-  const own = material3[client.id] || {};
-  const serverKey = text3(server.wireguard_public_key);
-  const privateKey = text3(own.wireguard_private_key);
-  const preSharedKey = text3(own.wireguard_pre_shared_key);
+  const server2 = material5[sectionId] || {};
+  const own = material5[client.id] || {};
+  const serverKey = text5(server2.wireguard_public_key);
+  const privateKey = text5(own.wireguard_private_key);
+  const preSharedKey = text5(own.wireguard_pre_shared_key);
   const subnets = optionList(sectionId, "tunnel_address");
-  const addresses = asList(own.wireguard_address).map(text3);
+  const addresses = asList(own.wireguard_address).map(text5);
   const current = addresses.length === subnets.length && subnets.every(
     (subnet) => addresses.some((address) => subnetContains(subnet, address))
   );
-  if (!serverKey || !privateKey || !preSharedKey || !current || amnezia && !text3(server.amnezia_header_protection_key)) {
+  if (!serverKey || !privateKey || !preSharedKey || !current || amnezia && !text5(server2.amnezia_header_protection_key)) {
     return { missing: "keys" };
   }
   const allTraffic = option(sectionId, "tunnel_all_traffic") !== "0";
   const allowed = allTraffic ? ["0.0.0.0/0", "::/0"] : [...optionList(sectionId, "tunnel_routes"), ...subnets.map(subnetOf)];
   const serverName = getServerName(sectionId);
-  const lines2 = [
+  const lines3 = [
     "[Interface]",
     `PrivateKey = ${privateKey}`,
     `Address = ${addresses.join(", ")}`,
     `DNS = ${subnets.map((subnet) => subnet.split("/")[0]).join(", ")}`,
-    ...amnezia ? ["MTU = 1280", ...amneziaLines(server)] : [],
+    ...amnezia ? ["MTU = 1280", ...amneziaLines(server2)] : [],
     "",
     "[Peer]",
     `PublicKey = ${serverKey}`,
@@ -22011,13 +24013,13 @@ function buildWireGuardProfile(sectionId, client, material3) {
     ""
   ];
   return {
-    profile: lines2.join("\n"),
+    profile: lines3.join("\n"),
     fileName: `${tunnelName(serverName, client.name, protocol)}.conf`,
     type: "text/plain"
   };
 }
-function buildClientProfile(sectionId, client, material3) {
-  return getProtocol(sectionId) === "openvpn" ? buildOpenVPNProfile(sectionId, client, material3) : buildWireGuardProfile(sectionId, client, material3);
+function buildClientProfile(sectionId, client, material5) {
+  return getProtocol(sectionId) === "openvpn" ? buildOpenVPNProfile(sectionId, client, material5) : buildWireGuardProfile(sectionId, client, material5);
 }
 function downloadProfile(profile, name, type) {
   const link = document.createElement("a");
@@ -22141,8 +24143,8 @@ function qrRawCodewords(version) {
 function qrDataCodewords(version) {
   return qrRawCodewords(version) - QR_EC_CODEWORDS_PER_BLOCK_LOW[version] * QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
 }
-function qrEncodeText(text4) {
-  return Array.from(new TextEncoder().encode(text4));
+function qrEncodeText(text6) {
+  return Array.from(new TextEncoder().encode(text6));
 }
 function qrBuildDataCodewords(bytes, version) {
   const capacity = qrDataCodewords(version);
@@ -22367,8 +24369,8 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrCode(text4) {
-  const bytes = qrEncodeText(text4);
+function qrCode(text6) {
+  const bytes = qrEncodeText(text6);
   let version = 1;
   for (; version <= 40; version += 1) {
     const countBits = version <= 9 ? 8 : 16;
@@ -22453,9 +24455,9 @@ function iconSvg(name) {
     ICON_PATHS[name].map(([tag, attrs]) => svgEl2(tag, attrs))
   );
 }
-function copyText(text4) {
+function copyText(text6) {
   const textarea = document.createElement("textarea");
-  textarea.value = text4;
+  textarea.value = text6;
   textarea.style.position = "fixed";
   textarea.style.top = "0";
   textarea.style.left = "0";
@@ -22604,11 +24606,11 @@ function renderQrButton(caption, code, row2) {
   );
 }
 function linkCaption(sectionId, client, scheme) {
-  const server = getServerName(sectionId);
+  const server2 = getServerName(sectionId);
   const name = `${client?.name || ""}`.trim();
   return {
-    name: name || server,
-    details: [name ? server : "", scheme].filter(Boolean).join(" \xB7 ")
+    name: name || server2,
+    details: [name ? server2 : "", scheme].filter(Boolean).join(" \xB7 ")
   };
 }
 function renderLinkRow(value, qrCaption) {
@@ -22671,8 +24673,8 @@ function renderClientRow(name, body) {
     textE("div", { class: "fkp-details__links" }, body)
   ]);
 }
-function renderProfileDetails(sectionId, client, material3) {
-  const result = buildClientProfile(sectionId, client, material3);
+function renderProfileDetails(sectionId, client, material5) {
+  const result = buildClientProfile(sectionId, client, material5);
   const scanned = getProtocol(sectionId) !== "openvpn";
   return renderClientRow(client.name, [
     "profile" in result ? renderProfileRow(
@@ -24432,8 +26434,8 @@ function lineFields(line, offset) {
   }
   return fields;
 }
-function analyzeStaticHosts(text4) {
-  const value = `${text4 || ""}`;
+function analyzeStaticHosts(text6) {
+  const value = `${text6 || ""}`;
   const annotations = [];
   const errors = [];
   let offset = 0;
@@ -25133,12 +27135,12 @@ function nextLabel(sectionRef, configName, prefix) {
     )
   );
   const pattern = new RegExp(`^${prefix} #(\\d+)$`);
-  let number3 = Math.max(
+  let number4 = Math.max(
     0,
     ...[...taken].map((label) => Number(pattern.exec(label)?.[1] || 0))
   ) + 1;
-  while (taken.has(`${prefix} #${number3}`)) number3 += 1;
-  return `${prefix} #${number3}`;
+  while (taken.has(`${prefix} #${number4}`)) number4 += 1;
+  return `${prefix} #${number4}`;
 }
 function addLabeledSection(sectionRef) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;

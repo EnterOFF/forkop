@@ -22,6 +22,7 @@ import {
 } from '../outboundJson';
 import { tailscaleDetourSectionValue, tailscaleDetourTag } from '../references';
 import { openVPNEndpoint, openVPNInitialSettings } from './openvpn';
+import { openConnectEndpoint, openConnectInitialSettings } from './openconnect';
 import { tunnelKindCoreFeature } from '../coreSupport';
 import {
   coreHas,
@@ -81,6 +82,7 @@ function tunnelPeerIds(tunnelId: string) {
 
 function tunnelKindLabel(kind: string, endpointType: string) {
   if (kind === 'openvpn-client') return 'OpenVPN';
+  if (kind === 'openconnect') return 'OpenConnect';
   return kind === 'amneziawg'
     ? 'AmneziaWG'
     : kind === 'warp'
@@ -135,11 +137,16 @@ export const CASCADE_TUNNEL_KINDS = [
   'amneziawg',
   'warp',
   'openvpn-client',
+  'openconnect',
 ];
+
+// The kinds stored as the native endpoint the dialog builds.
+const NATIVE_ENDPOINT_KINDS = ['openvpn-client', 'openconnect'];
 
 // What a tunnel's kind option names; anything else, and none, is WireGuard.
 const STORED_KINDS = [
   'openvpn-client',
+  'openconnect',
   'json',
   'warp',
   'amneziawg',
@@ -153,7 +160,7 @@ export function tunnelInitialSettings(
   const tunnel = (tunnelChild(sectionId, `${value || ''}`) ||
     {}) as UciSectionObject;
   const endpoint = (
-    ['json', 'openvpn-client'].includes(`${tunnel.kind || ''}`)
+    ['json', ...NATIVE_ENDPOINT_KINDS].includes(`${tunnel.kind || ''}`)
       ? parseOutboundJsonObject(tunnel.endpoint_json) || {}
       : {}
   ) as Record<string, unknown>;
@@ -168,6 +175,7 @@ export function tunnelInitialSettings(
   const tailscaleDetour = `${tunnel.tailscale_detour_section || ''}`.trim();
   const settings: ChildSettings = {
     ...(kind === 'openvpn-client' ? openVPNInitialSettings(endpoint) : {}),
+    ...(kind === 'openconnect' ? openConnectInitialSettings(endpoint) : {}),
     name: kind === 'json' ? `${endpoint.tag || ''}` : `${tunnel.name || ''}`,
     tunnel_type: kind,
     amnezia_enabled: amneziaEnabled ? '1' : '0',
@@ -328,12 +336,11 @@ export function tunnelStorageSettings(settings: ChildSettings) {
     detour_section: CASCADE_TUNNEL_KINDS.includes(kind)
       ? `${settings.detour_section || ''}`.trim()
       : '',
-    endpoint_json:
-      kind === 'openvpn-client'
-        ? JSON.stringify(openVPNEndpoint(settings))
-        : kind === 'json'
-          ? `${settings.endpoint_json || ''}`.trim()
-          : '',
+    endpoint_json: NATIVE_ENDPOINT_KINDS.includes(kind)
+      ? JSON.stringify(tunnelEndpointFromSettings(settings))
+      : kind === 'json'
+        ? `${settings.endpoint_json || ''}`.trim()
+        : '',
   };
 
   AMNEZIA_KEYS.forEach((key: string) => {
@@ -441,6 +448,7 @@ export function tunnelEndpointFromSettings(
 ) {
   const kind = `${settings.tunnel_type || ''}`;
   if (kind === 'openvpn-client') return openVPNEndpoint(settings);
+  if (kind === 'openconnect') return openConnectEndpoint(settings);
   if (kind === 'json') {
     return parseOutboundJsonObject(settings.endpoint_json);
   }

@@ -38,6 +38,14 @@ import { tunnelKindAvailable, tunnelKindCoreFeature } from '../coreSupport';
 import { missingCoreFeatureNote } from '../../../services/coreFeatures.service';
 import { parseOutboundJsonObject } from '../outboundJson';
 import { addOpenVPNOptions, applyImportedOpenVPN } from './openvpnForm';
+import {
+  addOpenConnectOptions,
+  applyImportedOpenConnect,
+} from './openconnectForm';
+import {
+  looksLikeOpenConnectConfig,
+  parseOpenConnectConfig,
+} from '../../../../helpers/parseOpenConnectConfig';
 import { pickFiles, readMaterialFile } from '../../../cbi/material';
 import { showToast } from '../../../../helpers/showToast';
 import {
@@ -195,10 +203,13 @@ function showWireGuardPeerSettingsModal(
   });
 }
 
-// What was pasted or loaded: an OpenVPN profile, or what the WireGuard import
-// reads - a configuration file, a share link, a vpn:// link or an Amnezia
-// profile.
+// What was pasted or loaded: what the WireGuard import reads - a configuration
+// file, a share link, a vpn:// link or an Amnezia profile -, an OpenConnect
+// configuration in any of its forms, or an OpenVPN profile.
 function importedFormat(input: string) {
+  if (/^\{[\s\S]*"type"\s*:\s*"openconnect"/u.test(input)) {
+    return 'openconnect';
+  }
   if (
     /^(vpn|wireguard|wg|awg|amneziawg):\/\//iu.test(input) ||
     input.startsWith('{') ||
@@ -206,10 +217,11 @@ function importedFormat(input: string) {
   ) {
     return 'wireguard';
   }
+  if (looksLikeOpenConnectConfig(input)) return 'openconnect';
   return looksLikeOpenVPNConfig(input) ? 'openvpn' : '';
 }
 
-const CONFIGURATION_FILE = /\.(ovpn|conf)$/iu;
+const CONFIGURATION_FILE = /\.(ovpn|conf|xml|nmconnection)$/iu;
 
 function readFiles(files: File[]) {
   return Promise.all(
@@ -226,6 +238,7 @@ function showTunnelImportModal(
   parentMap: CBIMap,
   fields: ImportedTunnelFields,
   openvpn: Record<string, CBIOption>,
+  openconnect: Record<string, CBIOption>,
 ) {
   const data = { settings: { configuration: '' } };
   const map = new form.JSONMap(data);
@@ -256,7 +269,7 @@ function showTunnelImportModal(
     failedInput = '';
     if (!input) {
       return _(
-        'Paste a WireGuard or OpenVPN configuration, a wireguard:// link or a vpn:// link',
+        'Paste a WireGuard, OpenVPN or OpenConnect configuration, or a wireguard://, vpn:// or anyconnect:// link',
       );
     }
     const format = importedFormat(input);
@@ -264,8 +277,14 @@ function showTunnelImportModal(
       const parsed = parseOpenVPNConfig(input, attachments);
       return parsed.valid ? true : parsed.message;
     }
+    if (format === 'openconnect') {
+      const parsed = parseOpenConnectConfig(input, attachments);
+      return parsed.valid ? true : parsed.message;
+    }
     if (!format) {
-      return _('This is neither a WireGuard nor an OpenVPN configuration');
+      return _(
+        'This is neither a WireGuard, an OpenVPN nor an OpenConnect configuration',
+      );
     }
     // A vpn:// link and an Amnezia profile carry a compressed or nested
     // payload that only the import step decodes; a configuration file and a
@@ -295,6 +314,34 @@ function showTunnelImportModal(
     map,
     async (settings: ChildSettings) => {
       const input = `${settings.configuration || ''}`.trim();
+      if (importedFormat(input) === 'openconnect') {
+        const parsed = parseOpenConnectConfig(input, attachments);
+        if (!parsed.valid) refuse(input, parsed.message);
+        else {
+          setModalOptionValue(parentMap, fields.type, 'openconnect');
+          parentMap.checkDepends();
+          applyImportedOpenConnect(parentMap, openconnect, parsed);
+          if (parsed.others.length) {
+            showToast(
+              _('Imported the first server. The profile also lists: %s').format(
+                parsed.others.join(', '),
+              ),
+              'success',
+              8000,
+            );
+          }
+          if (parsed.skipped.length) {
+            showToast(
+              _('Imported. Not carried over: %s').format(
+                parsed.skipped.join(', '),
+              ),
+              'success',
+              6000,
+            );
+          }
+        }
+        return;
+      }
       if (importedFormat(input) === 'openvpn') {
         const parsed = parseOpenVPNConfig(input, attachments);
         if (!parsed.valid) refuse(input, parsed.message);
@@ -347,7 +394,9 @@ function showTunnelImportModal(
               showToast(
                 input
                   ? result
-                  : _('Select the configuration file: .ovpn or .conf'),
+                  : _(
+                      'Select the configuration file: .ovpn, .conf, .xml or .nmconnection',
+                    ),
                 'error',
               );
             }),
@@ -363,6 +412,7 @@ const TUNNEL_KINDS = [
   ['warp', 'Cloudflare WARP'],
   ['tailscale', 'Tailscale'],
   ['openvpn-client', 'OpenVPN'],
+  ['openconnect', 'OpenConnect'],
   ['json', _('JSON endpoint')],
 ];
 
@@ -435,9 +485,14 @@ export function showTunnelSettingsModal(
       ? validateUniqueDynamicListItemName(widget, itemNode, value)
       : _('Enter a tunnel name');
   };
-  ['wireguard', 'amneziawg', 'warp', 'tailscale', 'openvpn-client'].forEach(
-    (kind: string) => o.depends('tunnel_type', kind),
-  );
+  [
+    'wireguard',
+    'amneziawg',
+    'warp',
+    'tailscale',
+    'openvpn-client',
+    'openconnect',
+  ].forEach((kind: string) => o.depends('tunnel_type', kind));
 
   const importButton = itemSection.option(
     form.Button,
@@ -449,6 +504,7 @@ export function showTunnelSettingsModal(
   importButton.depends('tunnel_type', 'wireguard');
   importButton.depends('tunnel_type', 'amneziawg');
   importButton.depends('tunnel_type', 'openvpn-client');
+  importButton.depends('tunnel_type', 'openconnect');
 
   const warpGenerateButton = itemSection.option(
     form.Button,
@@ -588,6 +644,7 @@ export function showTunnelSettingsModal(
   configureTextareaOption(endpointJsonOption);
 
   const openvpnOptions = addOpenVPNOptions(itemSection);
+  const openconnectOptions = addOpenConnectOptions(itemSection);
 
   o = itemSection.option(
     form.Value,
@@ -706,6 +763,7 @@ export function showTunnelSettingsModal(
         amnezia: amneziaOptions,
       },
       openvpnOptions,
+      openconnectOptions,
     );
   };
 

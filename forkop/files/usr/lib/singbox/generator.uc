@@ -24,6 +24,7 @@ const CONFIG_NAME = "forkop";
 // every rule that routes to it stays limited to A/AAAA and the remaining
 // types fall through to the ordinary DNS rules.
 const FAKEIP_QUERY_TYPES = [ "A", "AAAA" ];
+const OPENCONNECT_RECONNECT_TIMEOUT = "876000h";
 
 function runtime_generate_unsupported(reason) {
     die(reason);
@@ -1216,7 +1217,8 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         let endpoint_type = lc(as_string(endpoint.type || ""));
         let wrapper_kind = lc(as_string(connections.option(tunnel, "kind", "wireguard")));
         if (wrapper_kind != "json" &&
-            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" && endpoint_type != "openvpn-client"))
+            (endpoint_type != "wireguard" && endpoint_type != "amneziawg" && endpoint_type != "warp" && endpoint_type != "tailscale" &&
+                endpoint_type != "openvpn-client" && endpoint_type != "openconnect"))
             runtime_generate_unsupported("tunnel " + (i + 1) + " has an unsupported endpoint type");
 
         let display_name = trim(as_string(endpoint.tag || ""));
@@ -1228,11 +1230,18 @@ function add_connection_tunnels(config, section, taken, selector_tags, urltest_c
         taken[tag_name] = true;
         endpoint.tag = tag_name;
 
-        if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "amneziawg" || endpoint_type == "warp" || endpoint_type == "openvpn-client")) {
+        if (wrapper_kind != "json" && (endpoint_type == "wireguard" || endpoint_type == "amneziawg" || endpoint_type == "warp" ||
+            endpoint_type == "openvpn-client" || endpoint_type == "openconnect")) {
             let detour = cascade_tag(tunnel);
             if (detour != "")
                 endpoint.detour = detour;
         }
+
+        // The core gives up on an OpenConnect server for good once five minutes
+        // of reconnects have failed, and only a restart would try again. A
+        // router keeps trying through an outage of any length.
+        if (wrapper_kind != "json" && endpoint_type == "openconnect" && endpoint.reconnect_timeout == null)
+            endpoint.reconnect_timeout = OPENCONNECT_RECONNECT_TIMEOUT;
 
         if (wrapper_kind != "json" && endpoint_type == "warp" && endpoint.profile != null &&
             connections.download_via_proxy_enabled(runtime_settings(), "warp_profiles"))

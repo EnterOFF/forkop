@@ -297,7 +297,7 @@ function tunnel_endpoint(tunnel) {
     tunnel = object_or_empty(tunnel);
     let kind = lc(trim(as_string(option(tunnel, "kind", "wireguard"))));
 
-    if (kind == "json" || kind == "openvpn-client") {
+    if (kind == "json" || kind == "openvpn-client" || kind == "openconnect") {
         try {
             let endpoint = json(option(tunnel, "endpoint_json", ""));
             return type(endpoint) == "object" ? endpoint : {};

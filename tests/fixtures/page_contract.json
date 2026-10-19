@@ -124,6 +124,12 @@
   "password_fields": {
     "hysteria2_obfs_password": "hysteria2_obfs_password",
     "native_api_secret": "native_api_secret",
+    "openconnect_cookie": "endpoint_json",
+    "openconnect_key_password": "endpoint_json",
+    "openconnect_password": "endpoint_json",
+    "openconnect_token_password": "endpoint_json",
+    "openconnect_token_pin": "endpoint_json",
+    "openconnect_token_secret": "endpoint_json",
     "openvpn_password": "endpoint_json",
     "pre_shared_key": "pre_shared_key",
     "private_key": "private_key",

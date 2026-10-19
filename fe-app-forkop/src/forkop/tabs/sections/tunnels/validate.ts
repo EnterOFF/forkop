@@ -6,6 +6,7 @@ import { validateTailscaleHostname } from '../../../../validators/validateTailsc
 import { validateUrl } from '../../../../validators/validateUrl';
 import { isExistingChildItem } from '../../../cbi/childItems';
 import { validateOpenVPNSettings } from './openvpn';
+import { validateOpenConnectSettings } from './openconnect';
 import { normalizeDynamicListItems } from '../../../cbi/listValues';
 import { normalizeOptionValues } from '../../../cbi/listValues';
 import {
@@ -200,6 +201,9 @@ export function validateTunnelSettings(
   }
   if (kind === 'openvpn-client') {
     return validateOpenVPNSettings(settings);
+  }
+  if (kind === 'openconnect') {
+    return validateOpenConnectSettings(settings);
   }
   const endpoint = tunnelEndpointFromSettings(settings, tunnelId, peerOption);
   if (!endpoint) {

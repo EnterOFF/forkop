@@ -178,7 +178,9 @@ t.test("tunnels, their peers and JSON servers lose their keys and addresses and 
 
 t.test("the credentials of a native endpoint are masked in the sing-box dump without touching the input", () => {
     for (let key in [ "psk", "userkey", "static_key", "key", "client_key", "certificate", "client_certificate",
-        "peer_fingerprint", "cookie", "token", "auth_token", "license_key" ]) {
+        "peer_fingerprint", "cookie", "token", "auth_token", "license_key",
+        "client_key_password", "mca_certificate", "mca_key", "mca_key_password", "form_entries", "local_hostname",
+        "device_unique_id" ]) {
         let config = { endpoints: [ { tls: { [key]: [ "sensitive" ] } } ] };
         t.eq(mask.sing_box_config(config).endpoints[0].tls[key], "MASKED", key);
         t.eq(config.endpoints[0].tls[key], [ "sensitive" ], key + " in the input");

@@ -35,6 +35,29 @@ t.test("an OpenVPN tunnel over TLS names how the server is checked and pairs its
         "has an OpenVPN server without an address or a valid port");
 });
 
+function openconnect(endpoint) {
+    return {
+        settings: { service_listen_address: "127.0.0.1" },
+        section: [ { ".name": "vpn", enabled: "1", action: "connection", user_domains: "example.test" } ],
+        tunnel: [ { ".name": "work", section: "vpn", kind: "openconnect", name: "Work",
+            endpoint_json: sprintf("%J", { type: "openconnect", server: "vpn.example.com", flavor: "anyconnect",
+                username: "alice", password: "secret", ...(endpoint ?? {}) }) } ]
+    };
+}
+
+t.test("an OpenConnect tunnel is refused on what the core would refuse it for", () => {
+    v.accepts(openconnect());
+    v.accepts(openconnect({ server: "https://vpn.example.com:8443/staff", flavor: "fortinet",
+        token: { mode: "totp", secret: "JBSWY3DPEHPK3PXP" },
+        tls: { client_certificate: [ "C" ], client_key_path: "/etc/forkop/key.pem" } }));
+    for (let server in [ "", "http://vpn.example.com", "vpn.example.com/?camouflage", "user@vpn.example.com", "vpn example.com" ])
+        v.refuses(openconnect({ server }), "has no valid OpenConnect server");
+    v.refuses(openconnect({ flavor: "array" }), "has an unknown OpenConnect protocol 'array'");
+    v.refuses(openconnect({ tls: { client_certificate: [ "C" ] } }),
+        "needs both the OpenConnect client certificate and its key, or neither");
+    v.refuses(openconnect({ token: { mode: "totp" } }), "has an OpenConnect one-time code without its mode or secret");
+});
+
 t.test("the native API needs its secret", () => {
     v.accepts(openvpn({ enable_native_api: "1", native_api_secret: "test-secret" }));
     v.refuses(openvpn({ enable_native_api: "1" }), "'API secret' in Settings is empty");

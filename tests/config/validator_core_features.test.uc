@@ -51,6 +51,8 @@ t.test("a tunnel of a type the build lacks is refused by name", () => {
         BASE, "has a tailscale tunnel 'Net'");
     needs({ section: [ section() ], tunnel: [ { ".name": "tun", section: "proxy", kind: "openvpn-client", name: "Office" } ] },
         without(BASE, "with_openvpn"), "has a openvpn-client tunnel 'Office'");
+    needs({ section: [ section() ], tunnel: [ { ".name": "tun", section: "proxy", kind: "openconnect", name: "Work" } ] },
+        BASE, "has a openconnect tunnel 'Work', but this sing-box build lacks OpenConnect (built without with_openconnect)");
 });
 
 // The field is the user's own sing-box object, and its type is the core's to judge.
