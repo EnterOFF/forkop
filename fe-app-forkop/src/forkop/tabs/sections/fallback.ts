@@ -1,5 +1,6 @@
 import { message } from '../../../validators/messages';
 import { validateUrlField } from '../../../validators/validateUrl';
+import { nextNumberedName } from '../../../helpers/nextNumberedName';
 import {
   FORKOP_UCI_PACKAGE,
   LATENCY_TEST_URL_OPTIONS,
@@ -7,7 +8,6 @@ import {
 import {
   applyChildItemSettings,
   childItemNameCheck,
-  getChildItemIds,
   isExistingChildItem,
   nextSectionId,
   orderChildItemsByPosition,
@@ -21,18 +21,17 @@ import {
 } from '../../cbi/itemSettings';
 import {
   addDynamicListItem,
+  dynamicListItemNames,
   renderChildItemLabel,
   updateDynamicListItemLabel,
   validateUniqueDynamicListItemName,
 } from '../../cbi/listItems';
-import {
-  nextDynamicListName,
-  normalizeDynamicListItems,
-} from '../../cbi/listValues';
+import { normalizeDynamicListItems } from '../../cbi/listValues';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import { requiredList } from '../../cbi/required';
 import {
   addUrlTestMemberOption,
+  nextSectionChildName,
   validateSectionChildListName,
 } from './outboundNames';
 import {
@@ -277,12 +276,7 @@ function showFallbackLevelSettingsModal(
 ) {
   const defaults = defaultFallbackLevelSettings();
   if (context.adding) {
-    defaults.name = nextDynamicListName(
-      option,
-      'settings',
-      getChildItemIds(groupId, 'fallback_level', 'group'),
-      'Group',
-    );
+    defaults.name = nextNumberedName('Group', dynamicListItemNames(widget));
   }
 
   return showChildItemSettingsModal(groupId, itemValue, option, {
@@ -365,12 +359,7 @@ export function showFallbackGroupSettingsModal(
   }
 
   const defaultName = context.adding
-    ? nextDynamicListName(
-        option,
-        section_id,
-        getChildItemIds(section_id, 'fallback_group'),
-        'Fallback',
-      )
+    ? nextSectionChildName(section_id, 'Fallback')
     : '';
 
   return showChildItemSettingsModal(section_id, groupId, option, {

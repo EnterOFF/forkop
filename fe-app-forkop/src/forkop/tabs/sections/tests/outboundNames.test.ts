@@ -14,6 +14,7 @@ import {
   loadNativeProviderOutboundNames,
   loadSectionOutboundNameChoices,
   nativeProviderOutboundNames,
+  nextSectionChildName,
   outboundNameChoiceItems,
   outboundNameSourceOptions,
   validateSectionChildName,
@@ -338,6 +339,53 @@ describe('a name in a section', () => {
     expect(validateSectionChildName('main', 'link', 'US/LA')).toBe(
       'The / character is not allowed',
     );
+  });
+});
+
+describe('the name offered to a new group or tunnel', () => {
+  function section(urltests: Record<string, string>, linkName: string) {
+    installLuciStubs({
+      main: { '.type': 'section', label: 'Main' },
+      link: {
+        '.type': 'connection_link',
+        section: 'main',
+        uri: 'vless://a.test#A',
+        name: linkName,
+      },
+      ...Object.fromEntries(
+        Object.entries(urltests).map(([id, name]) => [
+          id,
+          { '.type': 'urltest', section: 'main', name },
+        ]),
+      ),
+    });
+    const listed = (values: string[]) => ({ formvalue: () => values });
+    outboundNameSourceOptions.set('connection_link', listed(['link']));
+    outboundNameSourceOptions.set('interfaces', listed([]));
+    outboundNameSourceOptions.set('tunnels', listed([]));
+    outboundNameSourceOptions.set('outbound_jsons', listed([]));
+    outboundNameSourceOptions.set('urltest', listed(Object.keys(urltests)));
+    outboundNameSourceOptions.set('fallback_group', listed([]));
+  }
+
+  // "URLTest #1" was removed and "URLTest #2" kept its number: a count of the
+  // groups offered "URLTest #2" again, and the dialog refused it as taken.
+  it('is one past the highest number taken, not one past the count', () => {
+    section({ second: 'URLTest #2' }, 'Germany');
+
+    expect(nextSectionChildName('main', 'URLTest')).toBe('URLTest #3');
+  });
+
+  it('starts at one among groups the user named', () => {
+    section({ fastest: 'test' }, 'Germany');
+
+    expect(nextSectionChildName('main', 'URLTest')).toBe('URLTest #1');
+  });
+
+  it('skips a name a server of the section holds, since names are shared', () => {
+    section({}, 'Fallback #1');
+
+    expect(nextSectionChildName('main', 'Fallback')).toBe('Fallback #2');
   });
 });
 

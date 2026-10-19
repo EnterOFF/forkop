@@ -8918,19 +8918,6 @@ function normalizeOptionValues(value) {
   }
   return `${value}`.split(/\s+/).map((item) => item.trim()).filter(Boolean);
 }
-function nextDynamicListName(option2, formSectionId, savedItems, prefix) {
-  let current = null;
-  if (option2 && typeof option2.formvalue === "function") {
-    try {
-      current = option2.formvalue(formSectionId);
-    } catch (_error) {
-    }
-  }
-  const items = normalizeDynamicListItems(
-    current == null ? savedItems : current
-  );
-  return `${prefix} #${items.length + 1}`;
-}
 function uniqueDynamicListItems(value) {
   const seen = /* @__PURE__ */ new Set();
   const result = [];
@@ -11560,11 +11547,17 @@ function setDynamicListItemValue(item, value) {
     hidden.value = `${value || ""}`;
   }
 }
+function dynamicListItemLabels(widget) {
+  return Array.from(widget?.node?.querySelectorAll(".fkp-dynlist-label") || []);
+}
+function dynamicListItemNames(widget) {
+  return dynamicListItemLabels(widget).map(
+    (label) => `${label.textContent || ""}`.trim()
+  );
+}
 function validateUniqueDynamicListItemName(widget, itemNode, value) {
   const currentLabel = itemNode?.querySelector(".fkp-dynlist-label");
-  return Array.from(
-    widget?.node?.querySelectorAll(".fkp-dynlist-label") || []
-  ).some(
+  return dynamicListItemLabels(widget).some(
     (label) => label !== currentLabel && `${label.textContent || ""}`.trim() === `${value || ""}`.trim()
   ) ? message.nameTaken() : true;
 }
@@ -13339,6 +13332,20 @@ function validateUrl(url, protocols = ["http:", "https:"]) {
 function validateUrlField(value) {
   const url = `${value || ""}`.trim();
   return url ? validateUrl(url) : message.required();
+}
+
+// src/helpers/nextNumberedName.ts
+function nextNumberedName(prefix, taken) {
+  const marker = `${prefix} #`;
+  const highest = Math.max(
+    0,
+    ...taken.map((name) => {
+      const label = `${name}`.trim();
+      const digits = label.slice(marker.length);
+      return label.startsWith(marker) && /^\d+$/.test(digits) ? Number(digits) : 0;
+    })
+  );
+  return `${marker}${highest + 1}`;
 }
 
 // src/forkop/cbi/modal.ts
@@ -17782,6 +17789,12 @@ function sectionChildNames(section_id) {
   );
   return result;
 }
+function nextSectionChildName(section_id, prefix) {
+  return nextNumberedName(
+    prefix,
+    sectionChildNames(section_id).map((child) => child.name)
+  );
+}
 function currentDraftOutboundNames(section_id) {
   return sectionChildNames(section_id).filter((child) => child.member).map((child) => child.name);
 }
@@ -18381,12 +18394,7 @@ function addFallbackGroupItemOptions(itemSection, options = {}) {
 function showFallbackLevelSettingsModal(groupId, itemValue, option2, widget, itemNode, context = {}) {
   const defaults = defaultFallbackLevelSettings();
   if (context.adding) {
-    defaults.name = nextDynamicListName(
-      option2,
-      "settings",
-      getChildItemIds(groupId, "fallback_level", "group"),
-      "Group"
-    );
+    defaults.name = nextNumberedName("Group", dynamicListItemNames(widget));
   }
   return showChildItemSettingsModal(groupId, itemValue, option2, {
     typeName: "fallback_level",
@@ -18437,12 +18445,7 @@ function showFallbackGroupSettingsModal(section_id, itemValue, option2, widget, 
   if (!groupId) {
     return null;
   }
-  const defaultName = context.adding ? nextDynamicListName(
-    option2,
-    section_id,
-    getChildItemIds(section_id, "fallback_group"),
-    "Fallback"
-  ) : "";
+  const defaultName = context.adding ? nextSectionChildName(section_id, "Fallback") : "";
   return showChildItemSettingsModal(section_id, groupId, option2, {
     typeName: "fallback_group",
     valueOption: "name",
@@ -18772,17 +18775,10 @@ function nextLinkName(sectionId, option2, link) {
     ...sectionChildNames(sectionId).filter((child) => child.kind !== "link").map((child) => child.name)
   ]);
   const own = getProxyUrlName(link).trim().replaceAll("/", "\uFF0F");
-  if (own) {
-    let name = own;
-    for (let number4 = 1; taken.has(name); number4 += 1) {
-      name = `${own} #${number4}`;
-    }
-    return name;
+  if (own && !taken.has(own)) {
+    return own;
   }
-  for (let number4 = linkNames.length + 1; number4 < 1e5; number4 += 1) {
-    if (!taken.has(`Node #${number4}`)) return `Node #${number4}`;
-  }
-  return `Node #${Date.now()}`;
+  return nextNumberedName(own || "Node", [...taken]);
 }
 function connectionLinkListItemLabel(sectionId, value) {
   return textE(
@@ -21242,12 +21238,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     data.settings.tunnel_type = TUNNEL_KINDS.find(
       ([kind]) => tunnelKindAvailable(kind)
     )[0];
-    data.settings.name = nextDynamicListName(
-      option2,
-      section_id,
-      getChildItemIds(section_id, "tunnel"),
-      "Tunnel"
-    );
+    data.settings.name = nextSectionChildName(section_id, "Tunnel");
   }
   const map = new form.JSONMap(data);
   const itemSection = map.section(form.NamedSection, "settings");
@@ -21763,12 +21754,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   });
 }
 function showUrlTestSettingsModal(_section_id, itemValue, option2, widget, itemNode, context = {}) {
-  const defaultName = context.adding ? nextDynamicListName(
-    option2,
-    _section_id,
-    getChildItemIds(_section_id, "urltest"),
-    "URLTest"
-  ) : "";
+  const defaultName = context.adding ? nextSectionChildName(_section_id, "URLTest") : "";
   return showChildItemSettingsModal(_section_id, itemValue, option2, {
     typeName: "urltest",
     valueOption: "name",
@@ -26676,20 +26662,14 @@ function renderSectionAdd(sectionRef, extraClass) {
   return el;
 }
 function nextLabel(sectionRef, configName, prefix) {
-  const taken = new Set(
+  return nextNumberedName(
+    prefix,
     ["server", "section"].flatMap(
       (type) => (sectionRef.map.data.sections(configName, type) || []).map(
-        (section2) => `${section2.label || ""}`.trim()
+        (section2) => `${section2.label || ""}`
       )
     )
   );
-  const pattern = new RegExp(`^${prefix} #(\\d+)$`);
-  let number4 = Math.max(
-    0,
-    ...[...taken].map((label) => Number(pattern.exec(label)?.[1] || 0))
-  ) + 1;
-  while (taken.has(`${prefix} #${number4}`)) number4 += 1;
-  return `${prefix} #${number4}`;
 }
 function addLabeledSection(sectionRef) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;

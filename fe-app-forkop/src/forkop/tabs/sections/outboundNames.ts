@@ -1,5 +1,6 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
+import { nextNumberedName } from '../../../helpers/nextNumberedName';
 import { message } from '../../../validators/messages';
 import {
   childItemInputValue,
@@ -549,6 +550,15 @@ export function sectionChildNames(section_id: string) {
   );
 
   return result;
+}
+
+// The name a new group or tunnel of the section is offered, one none of its
+// servers and groups holds, since they all share the section's names.
+export function nextSectionChildName(section_id: string, prefix: string) {
+  return nextNumberedName(
+    prefix,
+    sectionChildNames(section_id).map((child) => child.name),
+  );
 }
 
 export function currentDraftOutboundNames(section_id: string) {

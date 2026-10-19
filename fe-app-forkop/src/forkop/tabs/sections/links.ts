@@ -1,5 +1,6 @@
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 import { getProxyUrlName } from '../../../helpers/getProxyUrlName';
+import { nextNumberedName } from '../../../helpers/nextNumberedName';
 import { validateProxyUrl } from '../../../validators/validateProxyUrl';
 import { getChildItemIds, isExistingChildItem } from '../../cbi/childItems';
 import { updateDynamicListItemLabel } from '../../cbi/listItems';
@@ -48,7 +49,7 @@ function listedLinkName(sectionId: string, value: string) {
 }
 
 // A link is named after the server it describes, with "／" for a "/", and one
-// that names none is "Node #N", N counting the links the section already has. A
+// that names none is "Node #N", numbered past the names the section holds. A
 // name another link, server or group of the section holds now gets "#1" and
 // further, so the same link added twice is two servers told apart by name.
 export function nextLinkName(
@@ -66,18 +67,10 @@ export function nextLinkName(
       .map((child) => child.name),
   ]);
   const own = getProxyUrlName(link).trim().replaceAll('/', '／');
-  if (own) {
-    let name = own;
-    for (let number = 1; taken.has(name); number += 1) {
-      name = `${own} #${number}`;
-    }
-    return name;
+  if (own && !taken.has(own)) {
+    return own;
   }
-
-  for (let number = linkNames.length + 1; number < 100000; number += 1) {
-    if (!taken.has(`Node #${number}`)) return `Node #${number}`;
-  }
-  return `Node #${Date.now()}`;
+  return nextNumberedName(own || 'Node', [...taken]);
 }
 
 export function connectionLinkListItemLabel(sectionId: string, value: string) {

@@ -5,6 +5,7 @@ import { clearSharedChildPendingSettings } from '../cbi/itemSettings';
 import { captureUnsavedUci, restoreUnsavedUci } from '../cbi/unsavedUci';
 import type { UnsavedUci } from '../cbi/unsavedUci';
 import { E } from '../../helpers/element';
+import { nextNumberedName } from '../../helpers/nextNumberedName';
 
 // LuCI's own Add control asks for a name first. Both grids name a section
 // themselves - the id says what type it is and the label is a free-form name the
@@ -32,26 +33,17 @@ function renderSectionAdd(sectionRef: CBISection, extraClass?: string) {
   return el;
 }
 
-// The label a new row is offered: one past the highest number its prefix already
-// carries. A server and a section may not share a name, so both are looked at,
-// and a count of the rows would offer the name of one still there once an
-// earlier row had been removed.
+// A server and a section may not share a name, so a new row's label is numbered
+// past the labels of both.
 function nextLabel(sectionRef: CBISection, configName: string, prefix: string) {
-  const taken = new Set(
+  return nextNumberedName(
+    prefix,
     ['server', 'section'].flatMap((type) =>
-      (sectionRef.map.data.sections(configName, type) || []).map((section) =>
-        `${section.label || ''}`.trim(),
+      (sectionRef.map.data.sections(configName, type) || []).map(
+        (section) => `${section.label || ''}`,
       ),
     ),
   );
-  const pattern = new RegExp(`^${prefix} #(\\d+)$`);
-  let number =
-    Math.max(
-      0,
-      ...[...taken].map((label) => Number(pattern.exec(label)?.[1] || 0)),
-    ) + 1;
-  while (taken.has(`${prefix} #${number}`)) number += 1;
-  return `${prefix} #${number}`;
 }
 
 // A new row: the section is created under an id naming its type, and given a

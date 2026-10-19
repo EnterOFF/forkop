@@ -160,15 +160,23 @@ export function setDynamicListItemValue(
   }
 }
 
+function dynamicListItemLabels(widget: CBIWidget) {
+  return Array.from(widget?.node?.querySelectorAll('.fkp-dynlist-label') || []);
+}
+
+export function dynamicListItemNames(widget: CBIWidget) {
+  return dynamicListItemLabels(widget).map((label) =>
+    `${label.textContent || ''}`.trim(),
+  );
+}
+
 export function validateUniqueDynamicListItemName(
   widget: CBIWidget,
   itemNode: Element | null,
   value: unknown,
 ): true | string {
   const currentLabel = itemNode?.querySelector('.fkp-dynlist-label');
-  return Array.from(
-    widget?.node?.querySelectorAll('.fkp-dynlist-label') || [],
-  ).some(
+  return dynamicListItemLabels(widget).some(
     (label) =>
       label !== currentLabel &&
       `${label.textContent || ''}`.trim() === `${value || ''}`.trim(),

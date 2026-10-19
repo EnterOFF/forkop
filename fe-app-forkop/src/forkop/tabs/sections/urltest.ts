@@ -5,7 +5,6 @@ import {
 import { validateUrlField } from '../../../validators/validateUrl';
 import {
   childItemNameCheck,
-  getChildItemIds,
   isExistingChildItem,
   parentSectionIdForItem,
 } from '../../cbi/childItems';
@@ -14,10 +13,7 @@ import {
   addDynamicListItem,
   updateDynamicListItemLabel,
 } from '../../cbi/listItems';
-import {
-  nextDynamicListName,
-  normalizeDynamicListItems,
-} from '../../cbi/listValues';
+import { normalizeDynamicListItems } from '../../cbi/listValues';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import { message } from '../../../validators/messages';
 import {
@@ -28,7 +24,10 @@ import {
   addServerFilterOptions,
   groupServerFilterDescriptions,
 } from './serverFilters';
-import { validateSectionChildListName } from './outboundNames';
+import {
+  nextSectionChildName,
+  validateSectionChildListName,
+} from './outboundNames';
 import { optionMapValue } from './subscriptions/model';
 import { validateRequiredSingBoxDuration } from '../../../validators/validateSingBoxDuration';
 
@@ -155,12 +154,7 @@ export function showUrlTestSettingsModal(
   context: ChildItemModalContext = {},
 ) {
   const defaultName = context.adding
-    ? nextDynamicListName(
-        option,
-        _section_id,
-        getChildItemIds(_section_id, 'urltest'),
-        'URLTest',
-      )
+    ? nextSectionChildName(_section_id, 'URLTest')
     : '';
   return showChildItemSettingsModal(_section_id, itemValue, option, {
     typeName: 'urltest',

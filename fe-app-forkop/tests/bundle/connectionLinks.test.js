@@ -68,7 +68,7 @@ describe('a pasted link', () => {
             JSON.stringify({ ps: 'VMess node', add: 'd.example' }),
           ).toString('base64'),
       ].map((link) => paste(list, values, link)),
-    ).toEqual(['USA', 'Node #2', 'USA #1', 'VMess node']);
+    ).toEqual(['USA', 'Node #1', 'USA #1', 'VMess node']);
   });
 
   it('is saved as a link of the section under the name the list shows', async () => {
@@ -90,7 +90,7 @@ describe('a pasted link', () => {
       {
         section: 'sec',
         uri: 'trojan://p@b.example:443',
-        name: 'Node #2',
+        name: 'Node #1',
         order: '1',
       },
     ]);

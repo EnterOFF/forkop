@@ -14,7 +14,7 @@ import {
 import { validateTailscaleHostname } from '../../../../validators/validateTailscaleHostname';
 import { validateUrlField } from '../../../../validators/validateUrl';
 import { configureTextareaOption } from '../../../cbi/annotatedTextarea';
-import { getChildItemIds, nextSectionId } from '../../../cbi/childItems';
+import { nextSectionId } from '../../../cbi/childItems';
 import {
   keepUnavailableSectionChoice,
   validateSectionChoice,
@@ -25,7 +25,6 @@ import {
   setDynamicListItemValue,
   updateDynamicListItemLabel,
 } from '../../../cbi/listItems';
-import { nextDynamicListName } from '../../../cbi/listValues';
 import {
   renderStackedJsonSettingsModal,
   setModalOptionValue,
@@ -55,6 +54,7 @@ import {
 import type { OpenVPNFiles } from '../../../../helpers/parseOpenVPNConfig';
 import { addCascadeOptions } from '../cascade';
 import {
+  nextSectionChildName,
   validateSectionChildListName,
   validateSectionChildName,
 } from '../outboundNames';
@@ -419,12 +419,7 @@ export function showTunnelSettingsModal(
     data.settings.tunnel_type = TUNNEL_KINDS.find(([kind]) =>
       tunnelKindAvailable(kind),
     )![0];
-    data.settings.name = nextDynamicListName(
-      option,
-      section_id,
-      getChildItemIds(section_id, 'tunnel'),
-      'Tunnel',
-    );
+    data.settings.name = nextSectionChildName(section_id, 'Tunnel');
   }
   const map = new form.JSONMap(data);
   const itemSection = map.section(form.NamedSection, 'settings');
