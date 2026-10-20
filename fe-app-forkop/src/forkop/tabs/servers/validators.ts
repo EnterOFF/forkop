@@ -23,11 +23,10 @@ import {
   defaultSecurity,
   getProtocol,
   getShadowsocksMethod,
-  listenTransports,
   securitiesFor,
   securityCoreFeature,
+  serverListenTransports,
   shadowsocksKeyBytes,
-  transportOption,
 } from './protocols';
 
 export function validateRequired(_sectionId: string, value: string) {
@@ -226,12 +225,9 @@ export function validateListenPort(sectionId: string, value: string) {
     return result;
   }
 
-  const protocol = getProtocol(sectionId);
-  const network = transportOption(protocol);
   const owners = occupiedPorts(sectionId);
-  const owner = listenTransports(
-    protocol,
-    network ? liveOption(sectionId, network) : '',
+  const owner = serverListenTransports(getProtocol(sectionId), (name) =>
+    liveOption(sectionId, name),
   )
     .map((transport) => owners.get(`${transport}/${Number(`${value}`.trim())}`))
     .find(Boolean);

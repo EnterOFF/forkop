@@ -23246,6 +23246,20 @@ function listenTransports(protocol, network2) {
   if ((http || protocol === "mieru") && value === "udp") return ["udp"];
   return ["tcp"];
 }
+function listOf(value) {
+  return (Array.isArray(value) ? value : `${value ?? ""}`.split(/[\s,]+/)).map((item) => `${item}`.trim()).filter(Boolean);
+}
+function servesXhttpHttp3(protocol, value) {
+  const alpn = listOf(value("tls_alpn"));
+  return ["vless", "vmess", "trojan"].includes(protocol) && `${value("transport") || "tcp"}` === "xhttp" && effectiveSecurity(protocol, `${value("security") || ""}`) !== "none" && alpn.length === 1 && alpn[0] === "h3";
+}
+function serverListenTransports(protocol, value) {
+  if (servesXhttpHttp3(protocol, value)) {
+    return ["udp"];
+  }
+  const network2 = transportOption(protocol);
+  return listenTransports(protocol, network2 ? `${value(network2) || ""}` : "");
+}
 var TRANSPORT_OPTIONS = {
   naive: "naive_network",
   trusttunnel: "trusttunnel_network",
@@ -23300,10 +23314,15 @@ function securityLabel(security) {
   }
   return _("None");
 }
-function getEffectiveSecurity(sectionId) {
-  const allowed = securitiesFor(getProtocol(sectionId));
-  const security = liveOption(sectionId, "security");
+function effectiveSecurity(protocol, security) {
+  const allowed = securitiesFor(protocol);
   return allowed.includes(security) ? security : allowed[0];
+}
+function getEffectiveSecurity(sectionId) {
+  return effectiveSecurity(
+    getProtocol(sectionId),
+    liveOption(sectionId, "security")
+  );
 }
 function authFlagOption(protocol) {
   const spec = protocolSpec(protocol);
@@ -23577,10 +23596,9 @@ function occupiedPorts(currentSectionId) {
     if (!hasListener(protocol)) {
       return;
     }
-    const network2 = transportOption(protocol);
     claim(
       server2.listen_port,
-      listenTransports(protocol, network2 ? `${server2[network2] || ""}` : ""),
+      serverListenTransports(protocol, (name) => server2[name]),
       _("server %s").format(server2.label || server2[".name"])
     );
   });
@@ -25364,12 +25382,10 @@ function validateListenPort(sectionId, value) {
   if (result !== true) {
     return result;
   }
-  const protocol = getProtocol(sectionId);
-  const network2 = transportOption(protocol);
   const owners = occupiedPorts(sectionId);
-  const owner = listenTransports(
-    protocol,
-    network2 ? liveOption(sectionId, network2) : ""
+  const owner = serverListenTransports(
+    getProtocol(sectionId),
+    (name) => liveOption(sectionId, name)
   ).map((transport3) => owners.get(`${transport3}/${Number(`${value}`.trim())}`)).find(Boolean);
   return owner ? _("Port taken by %s").format(owner) : true;
 }

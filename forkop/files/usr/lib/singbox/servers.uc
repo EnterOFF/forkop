@@ -265,7 +265,18 @@ function transports(protocol, network) {
     return [ "tcp" ];
 }
 
+// sing-box serves XHTTP over HTTP/3, on UDP, when TLS offers h3 alone.
+function serves_xhttp_http3(section) {
+    let protocol = option(section, "protocol", "vless");
+    return (protocol == "vless" || protocol == "vmess" || protocol == "trojan") &&
+        option(section, "transport", "tcp") == "xhttp" &&
+        effective_security(section, protocol) != "none" &&
+        join(",", list_option(section, "tls_alpn")) == "h3";
+}
+
 function listen_transports(section) {
+    if (serves_xhttp_http3(section))
+        return [ "udp" ];
     let protocol = option(section, "protocol", "vless");
     let network = NETWORK_OPTIONS[protocol];
     return transports(protocol, network ? option(section, network[0], network[1]) : "");
@@ -599,6 +610,7 @@ return {
     add_sniff_rule,
     clone_rules_for_inbound,
     transports,
+    serves_xhttp_http3,
     listen_transports,
     client_match,
     core_type,

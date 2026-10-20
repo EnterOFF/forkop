@@ -8,7 +8,7 @@ import {
   isPrivateOrReservedIp,
   normalizeHost,
 } from './hosts';
-import { hasListener, listenTransports, transportOption } from './protocols';
+import { hasListener, serverListenTransports } from './protocols';
 
 const callNetworkInterfaceDump = rpc.declare({
   object: 'network.interface',
@@ -55,10 +55,9 @@ export function occupiedPorts(currentSectionId: string) {
     if (!hasListener(protocol)) {
       return;
     }
-    const network = transportOption(protocol);
     claim(
       server.listen_port,
-      listenTransports(protocol, network ? `${server[network] || ''}` : ''),
+      serverListenTransports(protocol, (name) => server[name]),
       _('server %s').format(server.label || server['.name']),
     );
   });

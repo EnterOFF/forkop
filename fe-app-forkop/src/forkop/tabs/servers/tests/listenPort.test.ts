@@ -23,10 +23,28 @@ installLuciStubs({
     mieru_transport: 'UDP',
     listen_port: '9443',
   },
+  xhttp3: {
+    '.type': 'server',
+    protocol: 'vless',
+    security: 'tls',
+    transport: 'xhttp',
+    tls_alpn: ['h3'],
+    listen_port: '7443',
+  },
+  xhttp2: {
+    '.type': 'server',
+    protocol: 'vless',
+    security: 'tls',
+    transport: 'xhttp',
+    tls_alpn: ['h3', 'h2'],
+    listen_port: '7443',
+  },
 });
 
 const { validateListenPort } = await import('../validators');
-const { listenTransports } = await import('../protocols');
+const { listenTransports, serverListenTransports } = await import(
+  '../protocols'
+);
 
 describe('the listen port of a server', () => {
   it('may share a port with a server on the other transport', () => {
@@ -47,5 +65,28 @@ describe('the listen port of a server', () => {
     expect(listenTransports('naive', 'tcp_udp')).toEqual(['tcp', 'udp']);
     expect(listenTransports('mieru', 'UDP')).toEqual(['udp']);
     expect(listenTransports('vless', '')).toEqual(['tcp']);
+  });
+
+  it('takes UDP for XHTTP over HTTP/3, which TLS offering h3 alone picks', () => {
+    const server = (values: Record<string, unknown>) => (name: string) =>
+      values[name];
+    const xhttp = { security: 'tls', transport: 'xhttp', tls_alpn: ['h3'] };
+
+    expect(serverListenTransports('vless', server(xhttp))).toEqual(['udp']);
+    expect(serverListenTransports('trojan', server(xhttp))).toEqual(['udp']);
+    expect(
+      serverListenTransports('vless', server({ ...xhttp, tls_alpn: 'h3,h2' })),
+    ).toEqual(['tcp']);
+    expect(
+      serverListenTransports('vless', server({ ...xhttp, security: 'none' })),
+    ).toEqual(['tcp']);
+    expect(
+      serverListenTransports('vless', server({ ...xhttp, transport: 'ws' })),
+    ).toEqual(['tcp']);
+    expect(
+      serverListenTransports('naive', server({ naive_network: 'udp' })),
+    ).toEqual(['udp']);
+    expect(validateListenPort('xhttp2', '7443')).toBe(true);
+    expect(validateListenPort('hysteria', '7443')).toContain('Port taken by');
   });
 });

@@ -225,6 +225,36 @@ export function listenTransports(protocol: string, network: string) {
   return ['tcp'];
 }
 
+// A server's option by name, from its section or from its open dialog.
+type ServerValue = (name: string) => unknown;
+
+function listOf(value: unknown) {
+  return (Array.isArray(value) ? value : `${value ?? ''}`.split(/[\s,]+/))
+    .map((item) => `${item}`.trim())
+    .filter(Boolean);
+}
+
+// sing-box serves XHTTP over HTTP/3, on UDP, when TLS offers h3 alone; singbox/servers.uc reads
+// it the same way.
+export function servesXhttpHttp3(protocol: string, value: ServerValue) {
+  const alpn = listOf(value('tls_alpn'));
+  return (
+    ['vless', 'vmess', 'trojan'].includes(protocol) &&
+    `${value('transport') || 'tcp'}` === 'xhttp' &&
+    effectiveSecurity(protocol, `${value('security') || ''}`) !== 'none' &&
+    alpn.length === 1 &&
+    alpn[0] === 'h3'
+  );
+}
+
+export function serverListenTransports(protocol: string, value: ServerValue) {
+  if (servesXhttpHttp3(protocol, value)) {
+    return ['udp'];
+  }
+  const network = transportOption(protocol);
+  return listenTransports(protocol, network ? `${value(network) || ''}` : '');
+}
+
 const TRANSPORT_OPTIONS: Record<string, string> = {
   naive: 'naive_network',
   trusttunnel: 'trusttunnel_network',
@@ -298,11 +328,16 @@ export function securityLabel(security: string) {
 }
 
 // A stored mode the protocol no longer offers falls back to its first choice.
-export function getEffectiveSecurity(sectionId: string) {
-  const allowed = securitiesFor(getProtocol(sectionId));
-  const security = liveOption(sectionId, 'security');
-
+function effectiveSecurity(protocol: string, security: string) {
+  const allowed = securitiesFor(protocol);
   return allowed.includes(security) ? security : allowed[0];
+}
+
+export function getEffectiveSecurity(sectionId: string) {
+  return effectiveSecurity(
+    getProtocol(sectionId),
+    liveOption(sectionId, 'security'),
+  );
 }
 
 function authFlagOption(protocol: string) {
