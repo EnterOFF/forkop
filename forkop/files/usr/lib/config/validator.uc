@@ -1742,10 +1742,9 @@ function check_requirements() {
     else if (!core_version.version_at_least(sing_box_version, ctx.sing_box_required_version))
         die("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update sing-box-forkop");
 
-    if (ctx.core_tags == null)
-        die("Failed to read the tags sing-box was built with from 'sing-box version'. Reinstall sing-box-forkop");
-    else if (!features.available(features.REQUIRED, ctx.core_tags))
-        die("sing-box was built without with_clash_api. Forkop runs its dashboard, groups, latency tests and subnet sync through the Clash API and cannot start without it. Install a sing-box-forkop package or a core built with with_clash_api");
+    let problem = features.core_problem(ctx.core_tags);
+    if (problem != "")
+        die(problem);
 
     if (!service_exists("sing-box"))
         die("Service 'sing-box' is missing. Reinstall sing-box-forkop");

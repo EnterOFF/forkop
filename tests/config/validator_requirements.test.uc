@@ -83,6 +83,13 @@ t.test("a core whose tags cannot be read is refused", () => {
     t.contains(built_with(null).error, "Failed to read the tags sing-box was built with");
 });
 
+t.test("a core with a tunnel but without the gVisor stack it runs on is refused", () => {
+    t.contains(built_with("Tags: with_clash_api,with_utls,with_wireguard,with_tailscale").error,
+        "sing-box was built with with_wireguard, with_tailscale but without with_gvisor");
+    let error = built_with("Tags: with_clash_api,with_utls,with_wireguard,with_gvisor").error ?? "";
+    t.ok(index(error, "with_gvisor") < 0, "refused: " + error);
+});
+
 t.test("a core with the Clash API passes the tag check", () => {
     let error = built_with("Tags: with_clash_api").error ?? "";
     t.ok(index(error, "with_clash_api") < 0 && index(error, "tags") < 0, "refused: " + error);

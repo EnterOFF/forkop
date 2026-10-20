@@ -155,23 +155,28 @@
     ["trojan://p@example.com:443?fp=firefox#t", ["utls"]],
     ["hysteria2://p@example.com:443?fp=chrome#h", ["quic", "utls"]],
     ["ss://YWVzLTI1Ni1nY206cGFzcw@example.com:8388#s", []],
-    ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJ0bHMiOiJ0bHMiLCJmcCI6ImNocm9tZSJ9", ["utls"]],
-    ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJmcCI6ImNocm9tZSJ9", []],
-    ["vmess://u@example.com:443?security=tls&fp=chrome#v", ["utls"]],
+    ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJ0bHMiOiJ0bHMiLCJmcCI6ImNocm9tZSJ9", ["vmess", "utls"]],
+    ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJmcCI6ImNocm9tZSJ9", ["vmess"]],
+    ["vmess://u@example.com:443?security=tls&fp=chrome#v", ["vmess", "utls"]],
     ["socks5://127.0.0.1:1080#local", []],
-    ["tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQz", ["trusttunnel"]]
+    ["tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQz", ["trusttunnel"]],
+    ["anytls://p@example.com:443?fp=chrome#a", ["anytls", "utls"]],
+    ["mierus://u:p@example.com?profile=p&port=443&protocol=TCP#m", ["mieru"]],
+    ["mieru://opaque-native-payload", ["mieru"]]
   ],
   "core_report_base": {
     "known": true,
     "tags": [
       "badlinkname",
       "tfogo_checklinkname0",
+      "with_anytls",
       "with_clash_api",
       "with_gvisor",
       "with_openvpn",
       "with_quic",
       "with_trusttunnel",
       "with_utls",
+      "with_vmess",
       "with_wireguard"
     ],
     "features": {
@@ -210,6 +215,34 @@
       "openconnect": {
         "available": false,
         "tags": ["with_openconnect", "with_gvisor"]
+      },
+      "vmess": {
+        "available": true,
+        "tags": ["with_vmess"]
+      },
+      "snell": {
+        "available": false,
+        "tags": ["with_snell"]
+      },
+      "ssh": {
+        "available": false,
+        "tags": ["with_ssh"]
+      },
+      "shadowtls": {
+        "available": false,
+        "tags": ["with_shadowtls"]
+      },
+      "tor": {
+        "available": false,
+        "tags": ["with_tor"]
+      },
+      "anytls": {
+        "available": true,
+        "tags": ["with_anytls"]
+      },
+      "mieru": {
+        "available": false,
+        "tags": ["with_mieru"]
       }
     },
     "types": {
@@ -218,13 +251,25 @@
         "hysteria2": "quic",
         "tuic": "quic",
         "naive": "naive",
-        "trusttunnel": "trusttunnel"
+        "trusttunnel": "trusttunnel",
+        "vmess": "vmess",
+        "snell": "snell",
+        "ssh": "ssh",
+        "shadowtls": "shadowtls",
+        "tor": "tor",
+        "anytls": "anytls",
+        "mieru": "mieru"
       },
       "inbound": {
         "hysteria": "quic",
         "hysteria2": "quic",
         "tuic": "quic",
-        "trusttunnel": "trusttunnel"
+        "trusttunnel": "trusttunnel",
+        "vmess": "vmess",
+        "snell": "snell",
+        "shadowtls": "shadowtls",
+        "anytls": "anytls",
+        "mieru": "mieru"
       },
       "endpoint": {
         "wireguard": "wireguard",

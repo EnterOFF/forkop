@@ -13,6 +13,9 @@ let paths = {
 // The dashboard, groups, latency tests and the nft subnet sync all need the Clash API.
 const REQUIRED = "clash_api";
 
+// The tunnels Forkop runs on gVisor's network stack.
+const GVISOR_TAGS = [ "with_wireguard", "with_openvpn", "with_openconnect", "with_tailscale" ];
+
 const FEATURES = {
     clash_api: { name: "the Clash API", tags: [ "with_clash_api" ] },
     wireguard: { name: "WireGuard, AmneziaWG and WARP", tags: [ "with_wireguard", "with_gvisor" ] },
@@ -22,17 +25,27 @@ const FEATURES = {
     tailscale: { name: "Tailscale", tags: [ "with_tailscale", "with_gvisor" ] },
     naive: { name: "the NaiveProxy client", tags: [ "with_naive_outbound" ] },
     trusttunnel: { name: "TrustTunnel", tags: [ "with_trusttunnel" ] },
-    openconnect: { name: "OpenConnect", tags: [ "with_openconnect", "with_gvisor" ] }
+    openconnect: { name: "OpenConnect", tags: [ "with_openconnect", "with_gvisor" ] },
+    vmess: { name: "VMess", tags: [ "with_vmess" ] },
+    snell: { name: "Snell", tags: [ "with_snell" ] },
+    ssh: { name: "SSH", tags: [ "with_ssh" ] },
+    shadowtls: { name: "ShadowTLS", tags: [ "with_shadowtls" ] },
+    tor: { name: "Tor", tags: [ "with_tor" ] },
+    anytls: { name: "AnyTLS", tags: [ "with_anytls" ] },
+    mieru: { name: "mieru", tags: [ "with_mieru" ] }
 };
 
 // The naive inbound is in every build; its client is not.
 const OUTBOUND_TYPES = {
     hysteria: "quic", hysteria2: "quic", tuic: "quic",
-    naive: "naive", trusttunnel: "trusttunnel"
+    naive: "naive", trusttunnel: "trusttunnel",
+    vmess: "vmess", snell: "snell", ssh: "ssh", shadowtls: "shadowtls", tor: "tor",
+    anytls: "anytls", mieru: "mieru"
 };
 const INBOUND_TYPES = {
     hysteria: "quic", hysteria2: "quic", tuic: "quic",
-    trusttunnel: "trusttunnel"
+    trusttunnel: "trusttunnel",
+    vmess: "vmess", snell: "snell", shadowtls: "shadowtls", anytls: "anytls", mieru: "mieru"
 };
 const ENDPOINT_TYPES = {
     wireguard: "wireguard", amneziawg: "wireguard", warp: "wireguard",
@@ -91,6 +104,21 @@ function unavailable_reason(feature, present) {
     if (present == null)
         return "sing-box is not installed";
     return "this sing-box build lacks " + FEATURES[feature].name + " (built without " + join(", ", missing_tags(feature, present)) + ")";
+}
+
+// Why Forkop cannot run on a core built with the given tags, or "" when it can.
+function core_problem(present) {
+    present ??= tags();
+    if (present == null)
+        return "Failed to read the tags sing-box was built with from 'sing-box version'. Reinstall sing-box-forkop";
+    if (!available(REQUIRED, present))
+        return "sing-box was built without with_clash_api. Forkop runs its dashboard, groups, latency tests and subnet sync through the Clash API and cannot start without it. Install a sing-box-forkop package or a core built with with_clash_api";
+    if (index(present, "with_gvisor") < 0) {
+        let stranded = filter(GVISOR_TAGS, (tag) => index(present, tag) >= 0);
+        if (length(stranded) > 0)
+            return "sing-box was built with " + join(", ", stranded) + " but without with_gvisor, the network stack Forkop runs these tunnels on. Install a sing-box-forkop package or a core built with with_gvisor";
+    }
+    return "";
 }
 
 function type_feature(kind, type_name) {
@@ -193,5 +221,5 @@ function report(present) {
 
 return {
     paths, REQUIRED, FEATURES, OUTBOUND_TYPES, INBOUND_TYPES, ENDPOINT_TYPES,
-    parse_tags, tags, available, missing_tags, unavailable_reason, type_feature, link_features, report
+    parse_tags, tags, available, missing_tags, unavailable_reason, core_problem, type_feature, link_features, report
 };

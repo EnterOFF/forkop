@@ -106,7 +106,7 @@ function sing_box_version() {
 // The variant the core package was built as, or "" for a core no package recorded.
 function sing_box_variant() {
     let value = trim(fs.readfile(paths.sing_box_variant) ?? "");
-    return value in [ "base", "full", "custom" ] ? value : "";
+    return value in [ "base", "full", "tiny", "custom" ] ? value : "";
 }
 
 function version(name) {

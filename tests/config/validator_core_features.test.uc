@@ -2,9 +2,10 @@ let t = require("t");
 let v = require("validation");
 let fixture = require("fixture");
 
-const BASE = [ "badlinkname", "tfogo_checklinkname0", "with_clash_api", "with_gvisor", "with_openvpn", "with_quic",
-    "with_trusttunnel", "with_utls", "with_wireguard" ];
-const FULL = [ ...BASE, "with_tailscale", "with_naive_outbound", "with_openconnect" ];
+const BASE = [ "badlinkname", "tfogo_checklinkname0", "with_anytls", "with_clash_api", "with_gvisor", "with_openvpn",
+    "with_quic", "with_trusttunnel", "with_utls", "with_vmess", "with_wireguard" ];
+const FULL = [ ...BASE, "with_snell", "with_ssh", "with_shadowtls", "with_tor", "with_tailscale", "with_naive_outbound",
+    "with_openconnect", "with_mieru" ];
 
 function without(tags, tag) {
     return filter(tags, (item) => item != tag);
@@ -40,6 +41,14 @@ t.test("a server of a type the build lacks is refused by name", () => {
         "serves TrustTunnel over QUIC");
     let http2 = v.run({ server: [ server("trusttunnel") ] }, { core_tags: without(BASE, "with_quic") });
     t.ok(index(http2.error ?? "", "this sing-box build lacks") < 0, "TrustTunnel over HTTP/2 needs no QUIC: " + http2.error);
+});
+
+t.test("a server of a protocol the build was given no tag for is refused by name", () => {
+    needs({ server: [ server("vmess") ] }, without(BASE, "with_vmess"),
+        "Server 'srv' uses vmess, but this sing-box build lacks VMess (built without with_vmess)");
+    needs({ server: [ server("anytls") ] }, without(BASE, "with_anytls"), "Server 'srv' uses anytls");
+    needs({ server: [ server("mieru") ] }, BASE,
+        "Server 'srv' uses mieru, but this sing-box build lacks mieru (built without with_mieru)");
 });
 
 t.test("a disabled server asks nothing of the core", () => {
@@ -78,6 +87,15 @@ t.test("a link the build cannot dial is refused, without printing its secrets", 
         "has a naive+https:// link 'N', but this sing-box build lacks the NaiveProxy client (built without with_naive_outbound)");
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vless://u@example.com:443?security=reality&pbk=key&sni=a.com#R" ]) },
         without(BASE, "with_utls"), "has a vless:// link 'R' that uses Reality or a TLS fingerprint");
+});
+
+t.test("a link of a protocol the build was given no tag for is refused by name", () => {
+    needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vmess://u@example.com:443?security=none#V" ]) },
+        without(BASE, "with_vmess"), "Section 'proxy' has a vmess:// link 'V', but this sing-box build lacks VMess (built without with_vmess)");
+    needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "anytls://p@example.com:443#A" ]) },
+        without(BASE, "with_anytls"), "has a anytls:// link 'A'");
+    needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "mierus://u:p@example.com?profile=p&port=443&protocol=TCP#M" ]) },
+        BASE, "has a mierus:// link 'M', but this sing-box build lacks mieru (built without with_mieru)");
 });
 
 t.test("a subscription is left to the core, which skips what it cannot build", () => {
