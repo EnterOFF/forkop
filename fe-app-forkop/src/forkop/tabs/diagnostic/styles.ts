@@ -74,6 +74,18 @@ controls. */
     overflow-wrap: anywhere;
 }
 
+.fkp_diagnostic-page__controls__system-info__badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    color: var(--text-color-medium);
+    background: var(--background-color-low);
+    font-size: 0.72rem;
+    line-height: 1.2;
+    vertical-align: 0.08rem;
+}
+
 .fkp_diagnostic-page__results {
     display: grid;
     grid-template-columns: 1fr;

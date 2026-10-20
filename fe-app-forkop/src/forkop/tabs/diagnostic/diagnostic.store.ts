@@ -63,6 +63,7 @@ export const initialDiagnosticStore: Pick<
     forkop_version: 'loading',
     luci_app_version: 'loading',
     sing_box_version: 'loading',
+    sing_box_variant: '',
     server_inbounds_enabled_count: -1,
     openwrt_version: 'loading',
     device_model: 'loading',

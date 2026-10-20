@@ -55,11 +55,12 @@ function openwrt_release() {
 }
 
 function system_info() {
-    let version = sing_box_installed() ? (singbox_runtime.version() || "unknown") : "not installed";
+    let installed = sing_box_installed();
     return {
         forkop_version: constants.FORKOP_VERSION,
         luci_app_version: luci_app_version(),
-        sing_box_version: version,
+        sing_box_version: installed ? (singbox_runtime.version() || "unknown") : "not installed",
+        sing_box_variant: installed ? packages.sing_box_variant() : "",
         openwrt_version: openwrt_release(),
         device_model: common.read_first_line("/tmp/sysinfo/model") || "unknown",
         generated_at: common.now_seconds()

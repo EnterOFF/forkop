@@ -57,7 +57,10 @@ export function reportText(
   if (input.luciVersion && input.luciVersion !== systemInfo.forkop_version) {
     versions.push(`LuCI ${input.luciVersion}`);
   }
-  versions.push(`sing-box ${systemInfo.sing_box_version}`);
+  versions.push(
+    `sing-box-forkop ${systemInfo.sing_box_version}` +
+      (systemInfo.sing_box_variant ? ` (${systemInfo.sing_box_variant})` : ''),
+  );
 
   const system = [
     versions.join(' · '),

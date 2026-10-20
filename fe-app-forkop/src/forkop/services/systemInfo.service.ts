@@ -9,6 +9,7 @@ const UNKNOWN_SYSTEM_INFO: StoreType['diagnosticsSystemInfo'] = {
   forkop_version: _('unknown'),
   luci_app_version: _('unknown'),
   sing_box_version: _('unknown'),
+  sing_box_variant: '',
   server_inbounds_enabled_count: -1,
   openwrt_version: _('unknown'),
   device_model: _('unknown'),

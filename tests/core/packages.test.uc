@@ -82,4 +82,16 @@ t.test("a core release records X.Y.Z-rN and a build between releases X.Y.Z-rN+K"
     }
 });
 
+t.test("the variant is the one the core package records, and only a known one", () => {
+    packages.paths.sing_box_variant = dir + "/sing-box-forkop.variant";
+    for (let variant in [ "base", "full", "custom" ]) {
+        fs.writefile(packages.paths.sing_box_variant, variant + "\n");
+        t.eq(packages.sing_box_variant(), variant);
+    }
+    fs.writefile(packages.paths.sing_box_variant, "nightly\n");
+    t.eq(packages.sing_box_variant(), "");
+    fs.unlink(packages.paths.sing_box_variant);
+    t.eq(packages.sing_box_variant(), "", "a core no package installed");
+});
+
 t.done();

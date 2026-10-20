@@ -428,6 +428,7 @@ export namespace Forkop {
     forkop_version: string;
     luci_app_version: string;
     sing_box_version: string;
+    sing_box_variant?: string;
     openwrt_version: string;
     device_model: string;
     generated_at?: number;

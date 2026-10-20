@@ -12,6 +12,7 @@ diagnostics.paths.luci_view = dir + "/luci";
 diagnostics.paths.forkop_config = dir + "/forkop";
 packages.paths.opkg_status = dir + "/missing-status";
 packages.paths.sing_box_version = dir + "/sing-box-version";
+packages.paths.sing_box_variant = dir + "/sing-box-variant";
 
 t.test("the status is the stable runtime the page reads, in the same words", () => {
     health.forkop_stably_running = () => true;
@@ -22,12 +23,13 @@ t.test("the status is the stable runtime the page reads, in the same words", () 
 
 t.test("the core version comes from what the core records while the package manager is locked", () => {
     fs.writefile(packages.paths.sing_box_version, "1.13.14-extended-2.5.3-f1\n");
+    fs.writefile(packages.paths.sing_box_variant, "full\n");
     fs.mkdir(diagnostics.paths.luci_view);
     fs.writefile(diagnostics.paths.luci_view + "/main.js", "var FORKOP_LUCI_APP_VERSION = \"runtime-test\";\n");
     stub.commands([ [ "sh -c command -v apk", { status: 1 } ], [ /command -v/, {} ], [ "opkg", { status: 1 } ] ]);
     let info = diagnostics.system_info();
     stub.restore();
-    t.eq([ info.sing_box_version, info.luci_app_version ], [ "1.13.14-extended-2.5.3-f1", "runtime-test" ]);
+    t.eq([ info.sing_box_version, info.sing_box_variant, info.luci_app_version ], [ "1.13.14-extended-2.5.3-f1", "full", "runtime-test" ]);
 });
 
 t.test("a masked configuration loses the server addresses the generated one names, and reads line by line", () => {

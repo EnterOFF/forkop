@@ -3428,6 +3428,7 @@ var initialDiagnosticStore = {
     forkop_version: "loading",
     luci_app_version: "loading",
     sing_box_version: "loading",
+    sing_box_variant: "",
     server_inbounds_enabled_count: -1,
     openwrt_version: "loading",
     device_model: "loading"
@@ -4285,6 +4286,7 @@ var UNKNOWN_SYSTEM_INFO = {
   forkop_version: _("unknown"),
   luci_app_version: _("unknown"),
   sing_box_version: _("unknown"),
+  sing_box_variant: "",
   server_inbounds_enabled_count: -1,
   openwrt_version: _("unknown"),
   device_model: _("unknown")
@@ -7509,7 +7511,9 @@ function reportText(input, attachments) {
   if (input.luciVersion && input.luciVersion !== systemInfo.forkop_version) {
     versions.push(`LuCI ${input.luciVersion}`);
   }
-  versions.push(`sing-box ${systemInfo.sing_box_version}`);
+  versions.push(
+    `sing-box-forkop ${systemInfo.sing_box_version}` + (systemInfo.sing_box_variant ? ` (${systemInfo.sing_box_variant})` : "")
+  );
   const system = [
     versions.join(" \xB7 "),
     `${systemInfo.openwrt_version} \xB7 ${systemInfo.device_model}`
@@ -7768,7 +7772,18 @@ function renderSystemInfo({ items }) {
     ...items.map(
       (item) => textE("div", { class: "fkp_diagnostic-page__controls__system-info__row" }, [
         textE("b", {}, item.key),
-        textE("div", {}, [textE("span", {}, item.value)])
+        textE("div", {}, [
+          textE("span", {}, item.value),
+          ...item.badge ? [
+            textE(
+              "span",
+              {
+                class: "fkp_diagnostic-page__controls__system-info__badge"
+              },
+              item.badge
+            )
+          ] : []
+        ])
       ])
     )
   ]);
@@ -8240,7 +8255,11 @@ function renderDiagnosticSystemInfoWidget() {
   const items = [
     { key: "Forkop", value: forkopVersion },
     ...diagnosticsSystemInfo.loaded && luciVersion !== forkopVersion ? [{ key: "LuCI", value: luciVersion }] : [],
-    { key: "sing-box", value: formatSingBoxVersion(diagnosticsSystemInfo) },
+    {
+      key: "sing-box-forkop",
+      value: formatSingBoxVersion(diagnosticsSystemInfo),
+      badge: diagnosticsSystemInfo.sing_box_variant
+    },
     {
       key: _("OS"),
       value: formatOsRelease(diagnosticsSystemInfo.openwrt_version)
@@ -8496,6 +8515,18 @@ controls. */
 .fkp_diagnostic-page__controls__system-info__row > div {
     min-width: 0;
     overflow-wrap: anywhere;
+}
+
+.fkp_diagnostic-page__controls__system-info__badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    color: var(--text-color-medium);
+    background: var(--background-color-low);
+    font-size: 0.72rem;
+    line-height: 1.2;
+    vertical-align: 0.08rem;
 }
 
 .fkp_diagnostic-page__results {

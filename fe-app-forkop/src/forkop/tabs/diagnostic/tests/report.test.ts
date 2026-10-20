@@ -58,7 +58,8 @@ describe('the diagnostic report', () => {
         generatedAt: new Date(2026, 9, 19, 17, 5),
         systemInfo: {
           forkop_version: '1.0.6',
-          sing_box_version: '1.14.1-extended-2.7.2-f164',
+          sing_box_version: '1.14.3-r1',
+          sing_box_variant: 'base',
           openwrt_version: 'OpenWrt 25.12.5 r33051-f5dae5ece4',
           device_model: 'Xiaomi Mi Router AX3000T',
         } as StoreType['diagnosticsSystemInfo'],
@@ -89,7 +90,7 @@ describe('the diagnostic report', () => {
       'Forkop diagnostic report · 2026-10-19 17:05',
       '',
       '== System ==',
-      'Forkop 1.0.6 · sing-box 1.14.1-extended-2.7.2-f164',
+      'Forkop 1.0.6 · sing-box-forkop 1.14.3-r1 (base)',
       'OpenWrt 25.12.5 r33051-f5dae5ece4 · Xiaomi Mi Router AX3000T',
       'Router up for 22 d · Memory: 44 MB of 234 MB free',
     ]);

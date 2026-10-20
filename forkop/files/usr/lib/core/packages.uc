@@ -3,7 +3,8 @@ let exec = require("core.exec");
 
 let paths = {
     opkg_status: "/usr/lib/opkg/status",
-    sing_box_version: "/usr/share/sing-box-forkop/version"
+    sing_box_version: "/usr/share/sing-box-forkop/version",
+    sing_box_variant: "/usr/share/sing-box-forkop/variant"
 };
 
 function apk_present() {
@@ -102,10 +103,16 @@ function sing_box_version() {
     return replace(recorded_sing_box_version(), /~/g, "-");
 }
 
+// The variant the core package was built as, or "" for a core no package recorded.
+function sing_box_variant() {
+    let value = trim(fs.readfile(paths.sing_box_variant) ?? "");
+    return value in [ "base", "full", "custom" ] ? value : "";
+}
+
 function version(name) {
     if (name == "sing-box-forkop" && installed(name) && fs.stat(paths.sing_box_version) != null)
         return recorded_sing_box_version();
     return apk_version(name) || opkg_version(name);
 }
 
-return { paths, installed, opkg_installed, opkg_version, opkg_status_version, apk_version, version, sing_box_version };
+return { paths, installed, opkg_installed, opkg_version, opkg_status_version, apk_version, version, sing_box_version, sing_box_variant };

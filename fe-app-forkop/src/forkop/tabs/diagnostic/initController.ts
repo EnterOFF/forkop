@@ -547,7 +547,11 @@ function renderDiagnosticSystemInfoWidget() {
     ...(diagnosticsSystemInfo.loaded && luciVersion !== forkopVersion
       ? [{ key: 'LuCI', value: luciVersion }]
       : []),
-    { key: 'sing-box', value: formatSingBoxVersion(diagnosticsSystemInfo) },
+    {
+      key: 'sing-box-forkop',
+      value: formatSingBoxVersion(diagnosticsSystemInfo),
+      badge: diagnosticsSystemInfo.sing_box_variant,
+    },
     {
       key: _('OS'),
       value: formatOsRelease(diagnosticsSystemInfo.openwrt_version),
