@@ -18,7 +18,7 @@ import {
 } from '../tabs/servers';
 import { createSettingsContent } from '../tabs/settings';
 import { configureGridSection } from './gridSection';
-import { mountPageStatus } from './pageStatus';
+import { createPageStatus } from './pageStatus';
 import { pageTitle } from './pageTitle';
 
 // A tab that renders itself: one anonymous section holding the node its controller binds to.
@@ -50,7 +50,7 @@ export const ForkopView = {
 
     const forkopMap = new form.Map(
       FORKOP_UCI_PACKAGE,
-      pageTitle(FORKOP_LUCI_APP_VERSION),
+      pageTitle(FORKOP_LUCI_APP_VERSION, createPageStatus()),
     );
     forkopMap.tabbed = true;
 
@@ -112,7 +112,6 @@ export const ForkopView = {
     addMountedTab(forkopMap, 'logs', _('Logs'), LogsTab);
 
     const rendered = await forkopMap.render();
-    mountPageStatus(rendered);
     coreService();
 
     return rendered;

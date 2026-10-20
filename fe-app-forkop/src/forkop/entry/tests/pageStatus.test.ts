@@ -1,16 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { renderPageStatus } from '../pageStatus';
+import { store } from '../../services/store.service';
+import { createPageStatus, renderPageStatus } from '../pageStatus';
 
-beforeAll(() => {
-  vi.stubGlobal('document', {
-    createElement: (tag: string) => ({ tag, className: '' }),
-  });
-});
-afterAll(() => vi.unstubAllGlobals());
-
-function heading() {
+function element(tag: string) {
   const node = {
-    className: 'stale',
+    tag,
+    className: '',
     children: [] as unknown[],
     replaceChildren(...children: unknown[]) {
       node.children = children;
@@ -18,6 +13,11 @@ function heading() {
   };
   return node;
 }
+
+beforeAll(() => {
+  vi.stubGlobal('document', { createElement: element });
+});
+afterAll(() => vi.unstubAllGlobals());
 
 function state(
   loading: boolean,
@@ -39,11 +39,14 @@ function state(
 
 describe('the service state in the heading', () => {
   it('is a dot in the colour of the state and the state in words', () => {
-    const node = heading();
+    const node = element('small');
     renderPageStatus(node as unknown as HTMLElement, state(false, false, 1));
     expect(node.className).toBe('fkp_page-status fkp_page-status--success');
     expect(node.children).toEqual([
-      { tag: 'span', className: 'fkp_page-status__dot' },
+      expect.objectContaining({
+        tag: 'span',
+        className: 'fkp_page-status__dot',
+      }),
       'running',
     ]);
 
@@ -57,10 +60,21 @@ describe('the service state in the heading', () => {
 
   it('says nothing about a state the page has not read', () => {
     for (const unknown of [state(true, false, 0), state(false, true, 0)]) {
-      const node = heading();
+      const node = element('small');
+      node.className = 'stale';
       node.children = ['running'];
       renderPageStatus(node as unknown as HTMLElement, unknown);
       expect([node.className, node.children]).toEqual(['', []]);
     }
+  });
+
+  it('keeps following the service state in the node it was created as', () => {
+    store.set({ serviceState: state(false, false, 0) });
+    const node = createPageStatus() as unknown as ReturnType<typeof element>;
+    expect(node.className).toBe('fkp_page-status fkp_page-status--error');
+
+    store.set({ serviceState: state(false, false, 1) });
+    expect(node.className).toBe('fkp_page-status fkp_page-status--success');
+    expect(node.children[1]).toBe('running');
   });
 });

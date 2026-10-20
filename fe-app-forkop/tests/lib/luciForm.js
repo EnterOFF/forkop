@@ -138,6 +138,10 @@ class FakeNode {
   append(...nodes) {
     nodes.forEach((node) => this.appendChild(node));
   }
+  replaceChildren(...nodes) {
+    [...this.childNodes].forEach((node) => this.removeChild(node));
+    this.append(...nodes);
+  }
   removeChild(node) {
     this.childNodes = this.childNodes.filter((child) => child !== node);
     if (node instanceof FakeNode) node.parentNode = null;

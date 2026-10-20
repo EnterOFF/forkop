@@ -290,7 +290,13 @@ declare global {
   }
 
   const form: {
-    Map: { new (config: string, title?: string, description?: string): CBIMap };
+    Map: {
+      new (
+        config: string,
+        title?: string | (string | Node)[],
+        description?: string,
+      ): CBIMap;
+    };
     JSONMap: { new (data: Record<string, unknown>, title?: string): CBIMap };
 
     TypedSection: CBISectionClass;

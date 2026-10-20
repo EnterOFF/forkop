@@ -1,7 +1,6 @@
 import { getServiceStatusDisplay } from '../helpers/serviceStatusDisplay';
 import { store } from '../services/store.service';
 import type { StoreType } from '../services/store.service';
-import { PAGE_STATUS_ID } from './pageTitle';
 
 // A state the page has not read, or could not read, is left unsaid.
 export function renderPageStatus(
@@ -25,12 +24,9 @@ export function renderPageStatus(
   node.replaceChildren(dot, display.label);
 }
 
-export function mountPageStatus(root: ParentNode) {
-  const node = root.querySelector<HTMLElement>(`#${PAGE_STATUS_ID}`);
-  if (!node) {
-    return;
-  }
-
+export function createPageStatus() {
+  const node = document.createElement('small');
   renderPageStatus(node, store.get().serviceState);
   store.subscribeKey('serviceState', (state) => renderPageStatus(node, state));
+  return node;
 }

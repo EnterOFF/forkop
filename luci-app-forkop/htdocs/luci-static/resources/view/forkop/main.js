@@ -26696,14 +26696,6 @@ function getServiceStatusDisplay({
   return running ? { label: _("running"), tone: "success" } : { label: _("stopped"), tone: "error" };
 }
 
-// src/forkop/entry/pageTitle.ts
-var PAGE_STATUS_ID = "fkp_page-status";
-function pageTitle(compiledVersion) {
-  const version = normalizeCompiledVersion(compiledVersion);
-  const status = `<small id="${PAGE_STATUS_ID}"></small>`;
-  return version === "dev" ? `Forkop ${status}` : `Forkop <small>${version}</small> ${status}`;
-}
-
 // src/forkop/entry/pageStatus.ts
 function renderPageStatus(node, state) {
   if (state.loading || state.failed) {
@@ -26720,13 +26712,22 @@ function renderPageStatus(node, state) {
   node.className = `fkp_page-status fkp_page-status--${display.tone}`;
   node.replaceChildren(dot, display.label);
 }
-function mountPageStatus(root) {
-  const node = root.querySelector(`#${PAGE_STATUS_ID}`);
-  if (!node) {
-    return;
-  }
+function createPageStatus() {
+  const node = document.createElement("small");
   renderPageStatus(node, store.get().serviceState);
   store.subscribeKey("serviceState", (state) => renderPageStatus(node, state));
+  return node;
+}
+
+// src/forkop/entry/pageTitle.ts
+function pageTitle(compiledVersion, status) {
+  const version = normalizeCompiledVersion(compiledVersion);
+  if (version === "dev") {
+    return ["Forkop ", status];
+  }
+  const small = document.createElement("small");
+  small.textContent = version;
+  return ["Forkop ", small, " ", status];
 }
 
 // src/forkop/entry/view.ts
@@ -26750,7 +26751,7 @@ var ForkopView = {
     injectGlobalStyles();
     const forkopMap = new form.Map(
       FORKOP_UCI_PACKAGE,
-      pageTitle(FORKOP_LUCI_APP_VERSION)
+      pageTitle(FORKOP_LUCI_APP_VERSION, createPageStatus())
     );
     forkopMap.tabbed = true;
     const rulesSection = forkopMap.section(
@@ -26807,7 +26808,6 @@ var ForkopView = {
     addMountedTab(forkopMap, "monitoring", _("Monitoring"), MonitoringTab);
     addMountedTab(forkopMap, "logs", _("Logs"), LogsTab);
     const rendered = await forkopMap.render();
-    mountPageStatus(rendered);
     coreService();
     return rendered;
   }

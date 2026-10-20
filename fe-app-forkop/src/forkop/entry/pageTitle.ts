@@ -1,14 +1,15 @@
 import { normalizeCompiledVersion } from '../../helpers/normalizeCompiledVersion';
 
-export const PAGE_STATUS_ID = 'fkp_page-status';
-
-// The build writes the version into the bundle; a development build has none. LuCI inserts a
-// string title as markup, and themes draw h2 small as the muted part of a heading.
-export function pageTitle(compiledVersion: string) {
+// The build writes the version into the bundle; a development build has none. LuCI rebuilds the
+// heading from the map title on every save and reset, and moves these same nodes into it.
+// Themes draw h2 small as the muted part of a heading.
+export function pageTitle(compiledVersion: string, status: HTMLElement) {
   const version = normalizeCompiledVersion(compiledVersion);
-  const status = `<small id="${PAGE_STATUS_ID}"></small>`;
+  if (version === 'dev') {
+    return ['Forkop ', status];
+  }
 
-  return version === 'dev'
-    ? `Forkop ${status}`
-    : `Forkop <small>${version}</small> ${status}`;
+  const small = document.createElement('small');
+  small.textContent = version;
+  return ['Forkop ', small, ' ', status];
 }
