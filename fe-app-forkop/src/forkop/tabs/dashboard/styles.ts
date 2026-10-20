@@ -38,6 +38,7 @@ fill the column. */
 .fkp_dashboard-page__content {
     --dashboard-grid-columns: 1;
     --dashboard-grid-min-width: 0;
+    --dashboard-widget-columns: 2;
 }
 
 @container (min-width: 480px) {
@@ -50,13 +51,14 @@ fill the column. */
 @container (min-width: 750px) {
     .fkp_dashboard-page__content {
         --dashboard-grid-columns: 4;
+        --dashboard-widget-columns: 4;
     }
 }
 
 .fkp_dashboard-page__widgets-section {
     margin-top: 10px;
     display: grid;
-    grid-template-columns: repeat(var(--dashboard-grid-columns), minmax(var(--dashboard-grid-min-width), 1fr));
+    grid-template-columns: repeat(var(--dashboard-widget-columns), minmax(0, 1fr));
     grid-gap: 10px;
 }
 
