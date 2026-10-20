@@ -76,12 +76,16 @@ t.test("a tunnel of a type the build lacks is refused by name", () => {
         BASE, "has a openconnect tunnel 'Work', but this sing-box build lacks OpenConnect (built without with_openconnect)");
 });
 
-t.test("a JSON endpoint is not judged by its type", () => {
-    let result = v.run({
+t.test("a JSON endpoint is judged by the type it declares", () => {
+    let json = (type) => ({
         section: [ section() ],
-        tunnel: [ { ".name": "tun", section: "proxy", kind: "json", endpoint_json: "{\"type\":\"wireguard\",\"tag\":\"raw\"}" } ]
-    }, { core_tags: [ "with_clash_api" ] });
-    t.ok(result.error == null || index(result.error, "this sing-box build lacks") < 0, "refused: " + result.error);
+        tunnel: [ { ".name": "tun", section: "proxy", kind: "json", endpoint_json: "{\"type\":\"" + type + "\",\"tag\":\"raw\"}" } ]
+    });
+    needs(json("wireguard"), without(BASE, "with_gvisor"),
+        "Section 'Proxy' has a JSON endpoint 'raw' of type wireguard, but this sing-box build lacks WireGuard, AmneziaWG and WARP (built without with_gvisor)");
+    needs(json("tailscale"), BASE, "has a JSON endpoint 'raw' of type tailscale");
+    let unknown = v.run(json("custom"), { core_tags: [ "with_clash_api" ] });
+    t.ok(unknown.error == null || index(unknown.error, "this sing-box build lacks") < 0, "a type the table lacks is left to the core: " + unknown.error);
 });
 
 t.test("a link the build cannot dial is refused, without printing its secrets", () => {

@@ -280,6 +280,10 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
 
     const input = node.querySelector('.add-item > input[type="text"]');
     input?.remove();
+    // LuCI inserts every entry before .add-item, so a list that takes no new entry only hides it.
+    node
+      .querySelector('.add-item')
+      ?.classList.toggle('hidden', this.options.addable === false);
 
     updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
 
@@ -439,6 +443,8 @@ export const SettingsDynamicList = form.DynamicList.extend({
         typeof this.addButtonLabel === 'function'
           ? this.addButtonLabel(section_id)
           : this.addButtonLabel,
+      addable:
+        typeof this.addable === 'function' ? this.addable(section_id) : true,
       settingsHandler: (
         itemValue: string,
         _item: Element | null,

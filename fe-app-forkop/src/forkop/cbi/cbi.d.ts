@@ -107,6 +107,7 @@ declare global {
     // What the child section stores, or for an unwritten entry the name its dialog holds.
     inputValueForItem?: (sectionId: string, value: unknown) => string;
     addButtonLabel?: string | ((sectionId: string) => string);
+    addable?: (sectionId: string) => boolean;
     validateItemsOnSave?: (
       sectionId: string,
       values: unknown,
@@ -223,6 +224,7 @@ declare global {
   // The dynamic list asks its options what an entry is called and whether settings stand behind it.
   interface CBIWidgetOptions {
     addButtonLabel?: string;
+    addable?: boolean;
     // A child item is addressed by both its section id and its name; adding it under the other
     // spelling would make two of it.
     hasEquivalentValue?: (value: string, node: HTMLElement) => boolean;

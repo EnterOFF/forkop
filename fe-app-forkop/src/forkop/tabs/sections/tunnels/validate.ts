@@ -1,5 +1,5 @@
 import { validateCoreFeature } from '../../../services/coreFeatures.service';
-import { tunnelKindCoreFeature } from '../coreSupport';
+import { tunnelCoreFeature } from '../coreSupport';
 import { message } from '../../../../validators/messages';
 import { hostField, portField } from '../../../../validators/fields';
 import { validateSubnet } from '../../../../validators/validateSubnet';
@@ -159,7 +159,9 @@ export function validateTunnelSettings(
   peerOption?: CBIOption,
 ) {
   const kind = `${settings.tunnel_type || ''}`;
-  const core = validateCoreFeature(tunnelKindCoreFeature(kind));
+  const core = validateCoreFeature(
+    tunnelCoreFeature(kind, settings.endpoint_json),
+  );
   if (core !== true) {
     return core;
   }

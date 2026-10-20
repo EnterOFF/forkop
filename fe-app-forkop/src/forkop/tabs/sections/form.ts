@@ -99,9 +99,11 @@ import {
 } from './subscriptions/model';
 import { showSubscriptionUrlSettingsModal } from './subscriptions/options';
 import {
+  canAddTunnel,
   showTunnelSettingsModal,
   tunnelKindsDescription,
 } from './tunnels/dialog';
+import { normalizeDynamicListItems } from '../../cbi/listValues';
 import { removeTunnelPeers, tunnelListItemLabel } from './tunnels/model';
 import {
   validateTunnelItem,
@@ -416,6 +418,19 @@ export function createSectionContent(section: CBISection) {
     tunnelKindsDescription(),
   );
   o.depends('action', 'connection');
+  // A core that builds no tunnel leaves the list only to remove saved ones. LuCI deletes the
+  // sections of a list it hides on save, so the list hides only once it is empty.
+  const dependsOnAction = o.checkDepends;
+  o.checkDepends = function (section_id: string) {
+    return (
+      dependsOnAction.call(this, section_id) &&
+      (canAddTunnel() ||
+        normalizeDynamicListItems(
+          this.formvalue(section_id) ?? this.cfgvalue(section_id),
+        ).length > 0)
+    );
+  };
+  o.addable = canAddTunnel;
   o.rmempty = true;
   o.modalonly = true;
   o.addButtonLabel = _('+ Add tunnel');

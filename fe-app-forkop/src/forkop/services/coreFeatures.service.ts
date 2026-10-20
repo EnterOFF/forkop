@@ -47,6 +47,15 @@ export function coreSupportsType(type: string, kinds?: CoreTypeKind[]) {
   return !feature || coreHas(feature);
 }
 
+export function coreHasAnyEndpoint() {
+  return (
+    !report ||
+    Object.values(report.types.endpoint || {}).some((feature) =>
+      coreHas(feature),
+    )
+  );
+}
+
 // The tags a feature needs that the installed core was built without.
 export function missingCoreTags(feature: string) {
   const present = new Set(report?.tags || []);

@@ -31,7 +31,7 @@ import {
   showChildItemSettingsModal,
 } from '../../../cbi/modal';
 import { JSON_ENDPOINT_PLACEHOLDER } from '../constants';
-import { tunnelKindAvailable, tunnelKindCoreFeature } from '../coreSupport';
+import { tunnelCoreFeature, tunnelKindAvailable } from '../coreSupport';
 import { missingCoreFeatureNote } from '../../../services/coreFeatures.service';
 import { parseOutboundJsonObject } from '../outboundJson';
 import { addOpenVPNOptions, applyImportedOpenVPN } from './openvpnForm';
@@ -385,12 +385,19 @@ const TUNNEL_KINDS = [
   ['json', _('JSON endpoint')],
 ];
 
+function availableTunnelKinds() {
+  return TUNNEL_KINDS.filter(([kind]) => tunnelKindAvailable(kind));
+}
+
+export function canAddTunnel() {
+  return availableTunnelKinds().length > 0;
+}
+
 export function tunnelKindsDescription() {
-  return _('Available: %s').format(
-    TUNNEL_KINDS.filter(([kind]) => tunnelKindAvailable(kind))
-      .map(([, label]) => label)
-      .join(', '),
-  );
+  const kinds = availableTunnelKinds();
+  return kinds.length
+    ? _('Available: %s').format(kinds.map(([, label]) => label).join(', '))
+    : '';
 }
 
 export function showTunnelSettingsModal(
@@ -411,9 +418,7 @@ export function showTunnelSettingsModal(
   const data = { settings: tunnelInitialSettings(tunnelId, section_id) };
   if (context.adding) {
     // A new tunnel starts as the first kind the installed core can run.
-    data.settings.tunnel_type = TUNNEL_KINDS.find(([kind]) =>
-      tunnelKindAvailable(kind),
-    )![0];
+    data.settings.tunnel_type = availableTunnelKinds()[0][0];
     data.settings.name = nextSectionChildName(section_id, 'Tunnel');
   }
   const map = new form.JSONMap(data);
@@ -433,9 +438,10 @@ export function showTunnelSettingsModal(
     if (tunnelKindAvailable(kind)) {
       typeOption.value(kind, label);
     } else if (kind === previousTunnelType) {
+      const feature = tunnelCoreFeature(kind, data.settings.endpoint_json);
       typeOption.value(
         kind,
-        `${label} (${missingCoreFeatureNote(tunnelKindCoreFeature(kind))})`,
+        feature ? `${label} (${missingCoreFeatureNote(feature)})` : label,
       );
     }
   });

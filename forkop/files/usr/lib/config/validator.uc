@@ -1640,10 +1640,14 @@ function validate_core_features(settings, sections, servers, core_tags) {
         for (let tunnel_id in connections.tunnels(section)) {
             let tunnel = connections.tunnel_child(section, tunnel_id);
             let kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
-            let feature = kind == "json" ? "" : features.type_feature("endpoint", kind);
-            if (feature != "")
-                refuse_without(feature, core_tags, "Section '" + section_label(section) + "' has a " + kind + " tunnel '" +
-                    trim(as_string(connections.option(tunnel, "name", tunnel_id))) + "'");
+            let endpoint = kind == "json" ? core_common.parse_json(connections.option(tunnel, "endpoint_json", "")) : null;
+            let feature = features.type_feature("endpoint", kind == "json" ? endpoint?.type : kind);
+            if (feature == "")
+                continue;
+            let what = kind == "json"
+                ? "a JSON endpoint '" + as_string(endpoint.tag ?? tunnel_id) + "' of type " + endpoint.type
+                : "a " + kind + " tunnel '" + trim(as_string(connections.option(tunnel, "name", tunnel_id))) + "'";
+            refuse_without(feature, core_tags, "Section '" + section_label(section) + "' has " + what);
         }
         for (let item in connections.connection_link_items(section)) {
             let link = connections.option(item, "uri", "");

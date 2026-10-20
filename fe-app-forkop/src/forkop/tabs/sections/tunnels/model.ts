@@ -23,7 +23,7 @@ import {
 import { tailscaleDetourSectionValue, tailscaleDetourTag } from '../references';
 import { openVPNEndpoint, openVPNInitialSettings } from './openvpn';
 import { openConnectEndpoint, openConnectInitialSettings } from './openconnect';
-import { tunnelKindCoreFeature } from '../coreSupport';
+import { tunnelCoreFeature } from '../coreSupport';
 import {
   coreHas,
   missingCoreFeatureNote,
@@ -117,7 +117,7 @@ export function tunnelListItemLabel(sectionId: string, tunnelId: string) {
   const label =
     tunnelDisplayName(sectionId, tunnelId) ||
     tunnelKindLabel(kind, `${endpointType}`.toLowerCase());
-  const feature = tunnelKindCoreFeature(kind);
+  const feature = tunnelCoreFeature(kind, child?.endpoint_json);
   return E(
     'span',
     { class: 'fkp-dynlist-label' },

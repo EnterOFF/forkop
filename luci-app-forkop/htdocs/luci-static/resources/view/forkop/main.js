@@ -4156,6 +4156,11 @@ function coreSupportsType(type, kinds) {
   const feature = coreFeatureOfType(type, kinds);
   return !feature || coreHas(feature);
 }
+function coreHasAnyEndpoint() {
+  return !report || Object.values(report.types.endpoint || {}).some(
+    (feature) => coreHas(feature)
+  );
+}
 function missingCoreTags(feature) {
   const present = new Set(report?.tags || []);
   return coreFeatureTags(feature).filter((tag) => !present.has(tag));
@@ -12923,6 +12928,7 @@ var ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
     node.classList.add("fkp-button-add-dynlist");
     const input = node.querySelector('.add-item > input[type="text"]');
     input?.remove();
+    node.querySelector(".add-item")?.classList.toggle("hidden", this.options.addable === false);
     updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
     node.addEventListener("cbi-dynlist-change", () => {
       updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
@@ -13038,6 +13044,7 @@ var SettingsDynamicList = form.DynamicList.extend({
       validate: L.bind(this.validate, this, section_id),
       disabled: this.readonly != null ? this.readonly : this.map.readonly,
       addButtonLabel: typeof this.addButtonLabel === "function" ? this.addButtonLabel(section_id) : this.addButtonLabel,
+      addable: typeof this.addable === "function" ? this.addable(section_id) : true,
       settingsHandler: (itemValue, _item, widget2, context) => {
         if (typeof this.renderItemSettingsModal === "function") {
           const ownerId = this.childOwner(section_id);
@@ -13151,138 +13158,6 @@ var ButtonAddSettingsDynamicList = SettingsDynamicList.extend({
 // src/helpers/escapeHtml.ts
 function escapeHtml(value) {
   return `${value}`.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-}
-
-// src/forkop/tabs/sections/coreSupport.ts
-var CONNECTION_URI_TYPES = [
-  ["vless", "vless"],
-  ["vmess", "vmess"],
-  ["shadowsocks", "shadowsocks"],
-  ["trojan", "trojan"],
-  ["socks", "socks"],
-  ["tuic", "tuic"],
-  ["hysteria", "hysteria2"],
-  ["naiveproxy", "naive"],
-  ["mieru", "mieru"],
-  ["anytls", "anytls"],
-  ["trusttunnel", "trusttunnel"]
-];
-function connectionUriDescription() {
-  return _("Supported URIs: %s").format(
-    CONNECTION_URI_TYPES.filter(
-      ([, type]) => coreSupportsType(type, ["outbound"])
-    ).map(([name]) => name).join(", ")
-  );
-}
-function validateConnectionUriCore(link) {
-  return validateCoreFeature(
-    linkCoreFeatures(link).find((feature) => !coreHas(feature)) || ""
-  );
-}
-function tunnelKindCoreFeature(kind) {
-  return kind === "json" ? "" : coreFeatureOfType(kind, ["endpoint"]);
-}
-function tunnelKindAvailable(kind) {
-  const feature = tunnelKindCoreFeature(kind);
-  return !feature || coreHas(feature);
-}
-function sectionMissingCoreFeatures(sectionId) {
-  const missing = /* @__PURE__ */ new Set();
-  (uci.sections(FORKOP_UCI_PACKAGE, "tunnel") || []).filter((tunnel) => tunnel.section === sectionId).forEach((tunnel) => {
-    const feature = tunnelKindCoreFeature(
-      `${tunnel.kind || "wireguard"}`.toLowerCase()
-    );
-    if (feature && !coreHas(feature)) {
-      missing.add(feature);
-    }
-  });
-  (uci.sections(FORKOP_UCI_PACKAGE, "connection_link") || []).filter((link) => link.section === sectionId).forEach(
-    (link) => linkCoreFeatures(`${link.uri || ""}`).filter((feature) => !coreHas(feature)).forEach((feature) => missing.add(feature))
-  );
-  return [...missing];
-}
-function coreFilterTypeChoices(choices, selected) {
-  return choices.filter(
-    (choice) => coreSupportsType(choice.value) || selected.includes(choice.value)
-  ).map(
-    (choice) => coreSupportsType(choice.value) ? choice : {
-      value: choice.value,
-      label: `${choice.label} (${missingCoreFeatureNote(coreFeatureOfType(choice.value))})`
-    }
-  );
-}
-
-// src/forkop/tabs/sections/actions.ts
-function getRuleConfiguredAction(section_id) {
-  const action = uci.get(FORKOP_UCI_PACKAGE, section_id, "action");
-  return action ? `${action}` : null;
-}
-function getRuleResolvedAction(section_id) {
-  return getRuleConfiguredAction(section_id) || "connection";
-}
-function getActionOptionLabel(action) {
-  switch (`${action}`) {
-    case "block":
-      return "Block";
-    case "bypass":
-      return "Bypass";
-    case "connection":
-      return "Connection";
-    case "dns":
-      return "DNS";
-    case "vpn":
-      return "VPN";
-    case "outbound":
-      return _("JSON outbound");
-    case "proxy":
-    default:
-      return "Proxy";
-  }
-}
-function getRuleActionDisplayValue(section_id) {
-  return getActionOptionLabel(getRuleResolvedAction(section_id));
-}
-function getRuleActionDisplayMarkup(section_id) {
-  const label = escapeHtml(getRuleActionDisplayValue(section_id));
-  const notes = sectionMissingCoreFeatures(section_id).map(
-    (feature) => escapeHtml(missingCoreFeatureNote(feature))
-  );
-  return notes.length ? `${label} (${notes.join("; ")})` : label;
-}
-function populateActionOptionValues(option2, currentAction) {
-  delete option2.keylist;
-  delete option2.vallist;
-  option2.value("connection", getActionOptionLabel("connection"));
-  option2.value("bypass", "Bypass");
-  option2.value("block", "Block");
-  option2.value("dns", "DNS");
-  const stored = `${currentAction || ""}`.trim();
-  if (stored && !option2.keylist.includes(stored)) {
-    option2.value(stored, getActionOptionLabel(stored));
-  }
-}
-
-// src/helpers/parseValueList.ts
-function parseValueList(value) {
-  return value.split(/\n/).map((line) => line.split("//")[0].split("#")[0]).join(" ").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
-}
-
-// src/validators/validateSubnet.ts
-function validateSubnet(value) {
-  const [ip, cidr, extra] = value.split("/");
-  if (!ip || extra !== void 0 || !isIPv4(ip) && !isIPv6(ip)) {
-    return message.invalidIpOrSubnet();
-  }
-  if ((ip === "0.0.0.0" || ip === "::") && cidr == null) {
-    return _("Address %s is not allowed").format(ip);
-  }
-  if (cidr !== void 0) {
-    const maxPrefix = isIPv6(ip) ? 128 : 32;
-    if (!/^(?:0|[1-9]\d*)$/.test(cidr) || Number(cidr) > maxPrefix) {
-      return message.prefixRange(0, maxPrefix);
-    }
-  }
-  return true;
 }
 
 // src/forkop/cbi/annotations.ts
@@ -13596,277 +13471,6 @@ function configureTextareaOption(option2, analyzer) {
     }
     return node;
   };
-}
-
-// src/forkop/tabs/sections/validators.ts
-function validateRegex(value) {
-  if (!value || !value.length) {
-    return true;
-  }
-  try {
-    new RegExp(value.replace(/^\(\?i\)/, "").replace(/\(\?P</g, "(?<"));
-    return true;
-  } catch (_error) {
-    return message.invalidRegex();
-  }
-}
-
-// src/forkop/tabs/sections/conditions.ts
-function makeDeviceOptionsExclusive(firstOption, secondOption) {
-  let changing = false;
-  const firstWidgets = {};
-  const secondWidgets = {};
-  function removeMatches(section_id, value, otherWidgets) {
-    if (changing) {
-      return;
-    }
-    const selected = new Set(normalizeOptionValues(value));
-    if (!selected.size) {
-      return;
-    }
-    const widget = otherWidgets[section_id];
-    if (!widget) {
-      return;
-    }
-    const current = normalizeOptionValues(widget.getValue());
-    const filtered = current.filter((item) => !selected.has(item));
-    if (stringArraysEqual(current, filtered)) {
-      return;
-    }
-    changing = true;
-    try {
-      widget.setValue(filtered);
-    } finally {
-      changing = false;
-    }
-  }
-  firstOption.onDeviceWidgetReady = function(section_id, widget) {
-    firstWidgets[section_id] = widget;
-  };
-  secondOption.onDeviceWidgetReady = function(section_id, widget) {
-    secondWidgets[section_id] = widget;
-  };
-  firstOption.onDeviceListChange = function(section_id, value) {
-    removeMatches(section_id, value, secondWidgets);
-  };
-  secondOption.onDeviceListChange = function(section_id, value) {
-    removeMatches(section_id, value, firstWidgets);
-  };
-}
-var DOMAIN_CONDITION_PLACEHOLDER = [
-  "example.com",
-  "full:api.example.com",
-  "keyword:google",
-  String.raw`regex:^ads\..*\.com$`
-].join("\n");
-var IP_CONDITION_PLACEHOLDER = [
-  "1.1.1.1",
-  "192.168.1.0/24",
-  "2606:4700::/32"
-].join("\n");
-var DESTINATION_CONDITION_PLACEHOLDER = [
-  DOMAIN_CONDITION_PLACEHOLDER,
-  IP_CONDITION_PLACEHOLDER
-].join("\n");
-var ADDRESS_SHAPE = /^[\d.]+(?:\/.*)?$|^[\da-f]*:[\da-f:.]*(?:\/.*)?$/i;
-function validateDomainCondition(item) {
-  const colonIndex = item.indexOf(":");
-  const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : "";
-  const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
-  if (prefix && !["full", "keyword", "regex"].includes(prefix)) {
-    return _("Prefixes: full:, keyword:, regex:");
-  }
-  if (prefix && !body.length) {
-    return _("Nothing after %s").format(`${prefix}:`);
-  }
-  if (prefix === "keyword") {
-    return true;
-  }
-  if (prefix === "regex") {
-    return validateRegex(body);
-  }
-  return body.includes("/") ? message.invalidDomain() : validateDomain(body, true);
-}
-function analyzeConditionText(value, validateItem) {
-  return analyzeTextListValue(value, validateItem, {
-    normalizeDuplicateValue: (item) => `${item}`.toLowerCase()
-  });
-}
-function analyzeDestinationText(value) {
-  return analyzeConditionText(
-    value,
-    (item) => ADDRESS_SHAPE.test(item) ? validateSubnet(item) : validateDomainCondition(item)
-  );
-}
-function analyzeDnsDestinationText(value) {
-  return analyzeConditionText(
-    value,
-    (item) => validateSubnet(item) === true ? _("Domains only") : validateDomainCondition(item)
-  );
-}
-function validatePortCondition(_section_id, value) {
-  const normalized = value ? `${value}`.trim() : "";
-  if (!normalized.length) {
-    return true;
-  }
-  const match = normalized.match(/^(\d+)(?:-(\d+))?$/);
-  if (!match) {
-    return _("Format: 80 or 1000-2000");
-  }
-  const start = Number.parseInt(match[1], 10);
-  const end = match[2] ? Number.parseInt(match[2], 10) : start;
-  if (start < 1 || start > 65535 || end < 1 || end > 65535) {
-    return message.invalidPort();
-  }
-  return start > end ? message.rangeReversed() : true;
-}
-function configureConditionListStorage(o, key) {
-  o.load = function(section_id) {
-    const values = getConfigListValues(section_id, key);
-    if (values.length) {
-      return values;
-    }
-    const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-    return legacyText ? parseValueList(`${legacyText}`) : [];
-  };
-  o.write = function(section_id, value) {
-    writeListOption(section_id, key, value);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text_mode`);
-  };
-}
-function addDynamicConditionField(section2, config) {
-  const o = section2.taboption(
-    "conditions",
-    form.DynamicList,
-    config.key,
-    config.label,
-    config.description
-  );
-  o.modalonly = true;
-  if (config.placeholder) {
-    o.placeholder = config.placeholder;
-  }
-  if (config.dynamicValidate) {
-    o.validate = config.dynamicValidate;
-  }
-  configureConditionListStorage(o, config.key);
-  return o;
-}
-function addLocalDeviceSubnetDynamicField(section2, config) {
-  const o = section2.taboption(
-    "conditions",
-    form.DynamicList,
-    config.key,
-    config.label,
-    config.description
-  );
-  o.modalonly = true;
-  o.placeholder = _("Device or IP");
-  o.validate = function(_section_id, value) {
-    if (!value || value.length === 0) {
-      return true;
-    }
-    if (value === SYSTEM_DEVICE_VALUE) {
-      return true;
-    }
-    return validateSubnet(value);
-  };
-  configureConditionListStorage(o, config.key);
-  o.renderWidget = function(section_id, _option_index, cfgvalue) {
-    return createLocalDeviceDynamicListWidget(this, section_id, cfgvalue);
-  };
-  return o;
-}
-function addDestinationField(section2, name, label, placeholder, analyze, description) {
-  const o = section2.taboption(
-    "conditions",
-    form.TextValue,
-    name,
-    label,
-    description
-  );
-  o.ucioption = "destinations";
-  o.retain = true;
-  o.rows = 8;
-  o.wrap = "soft";
-  o.textarea = true;
-  o.modalonly = true;
-  o.placeholder = placeholder;
-  o.validate = function(_section_id, value) {
-    const analysis = analyze(value);
-    return analysis.valid ? true : `${analysis.message}`;
-  };
-  configureTextareaOption(o, analyze);
-  return o;
-}
-
-// src/forkop/tabs/sections/constants.ts
-var RULE_SET_ITEM_SETTINGS_KEY = "rule_set_settings";
-var ROUTING_ACTIONS = [
-  "connection",
-  "proxy",
-  "outbound",
-  "vpn",
-  "bypass",
-  "block"
-];
-var JSON_ENDPOINT_PLACEHOLDER = [
-  "{",
-  '  "type": "wireguard",',
-  '  "tag": "my-endpoint",',
-  '  "address": ["10.0.0.2/32"],',
-  '  "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="',
-  "}"
-].join("\n");
-var CONNECTIONS_BLOCKED_INTERFACES = [
-  "br-lan",
-  "eth0",
-  "eth1",
-  "wan",
-  "phy0-ap0",
-  "phy1-ap0",
-  "pppoe-wan",
-  "lan"
-];
-var CONNECTION_OUTBOUND_SOURCES = [
-  "connection_link",
-  "subscription_url",
-  "interfaces",
-  "tunnels",
-  "outbound_jsons"
-];
-
-// src/validators/validateUrl.ts
-function validateUrl(url, protocols = ["http:", "https:"]) {
-  if (!protocols.some((p) => url.indexOf(p + "//") === 0)) {
-    return url.length ? _("Only %s").format(protocols.map((p) => `${p}//`).join(", ")) : message.invalidUrl();
-  }
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
-    return (isValidHost(host) || host === "localhost") && (!parsed.port || isValidPort(parsed.port)) ? true : message.invalidUrl();
-  } catch (_e) {
-    return message.invalidUrl();
-  }
-}
-function validateUrlField(value) {
-  const url = `${value || ""}`.trim();
-  return url ? validateUrl(url) : message.required();
-}
-
-// src/helpers/nextNumberedName.ts
-function nextNumberedName(prefix, taken, separator = " #") {
-  const marker = `${prefix}${separator}`;
-  const highest = Math.max(
-    0,
-    ...taken.map((name) => {
-      const label = `${name}`.trim();
-      const digits = label.slice(marker.length);
-      return label.startsWith(marker) && /^\d+$/.test(digits) ? Number(digits) : 0;
-    })
-  );
-  return `${marker}${highest + 1}`;
 }
 
 // src/forkop/cbi/modal.ts
@@ -14258,99 +13862,55 @@ function percentDecode(value) {
   return new TextDecoder().decode(new Uint8Array(bytes));
 }
 
-// src/forkop/tabs/sections/outboundJson.ts
-function parseOutboundJsonObject(value) {
-  try {
-    const parsed = JSON.parse(`${value || ""}`);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
-  } catch (_error) {
-    return null;
-  }
-}
-function outboundJsonDisplayTag(value) {
-  const parsed = parseOutboundJsonObject(value);
-  const tag = parsed && typeof parsed.tag === "string" ? parsed.tag.trim() : "";
-  return tag || "";
-}
-function outboundJsonListItemLabel(value) {
-  return textE(
-    "span",
-    { class: "fkp-dynlist-label" },
-    outboundJsonDisplayTag(value) || _("JSON outbound")
+// src/helpers/nextNumberedName.ts
+function nextNumberedName(prefix, taken, separator = " #") {
+  const marker = `${prefix}${separator}`;
+  const highest = Math.max(
+    0,
+    ...taken.map((name) => {
+      const label = `${name}`.trim();
+      const digits = label.slice(marker.length);
+      return label.startsWith(marker) && /^\d+$/.test(digits) ? Number(digits) : 0;
+    })
   );
+  return `${marker}${highest + 1}`;
 }
-var JSON_OUTBOUND_PLACEHOLDER = [
+
+// src/forkop/tabs/sections/constants.ts
+var RULE_SET_ITEM_SETTINGS_KEY = "rule_set_settings";
+var ROUTING_ACTIONS = [
+  "connection",
+  "proxy",
+  "outbound",
+  "vpn",
+  "bypass",
+  "block"
+];
+var JSON_ENDPOINT_PLACEHOLDER = [
   "{",
-  '  "type": "socks",',
-  '  "tag": "my-outbound",',
-  '  "server": "127.0.0.1",',
-  '  "server_port": 1080',
+  '  "type": "wireguard",',
+  '  "tag": "my-endpoint",',
+  '  "address": ["10.0.0.2/32"],',
+  '  "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="',
   "}"
 ].join("\n");
-function showOutboundJsonSettingsModal(section_id, itemValue, _option, widget, itemNode, context = {}) {
-  const data = {
-    settings: {
-      outbound_json: `${itemValue || ""}`
-    }
-  };
-  const map = new form.JSONMap(data);
-  const itemSection = map.section(form.NamedSection, "settings");
-  itemSection.anonymous = true;
-  itemSection.addremove = false;
-  const jsonOption = itemSection.option(
-    form.TextValue,
-    "outbound_json",
-    _("JSON outbound")
-  );
-  jsonOption.placeholder = JSON_OUTBOUND_PLACEHOLDER;
-  jsonOption.rows = 12;
-  jsonOption.wrap = "soft";
-  jsonOption.textarea = true;
-  jsonOption.modalonly = true;
-  jsonOption.validate = function(_itemId, value) {
-    const usedTags = widget && widget.node ? Array.from(widget.node.querySelectorAll(".item")).filter((item) => item !== itemNode).map(
-      (item) => outboundJsonDisplayTag(dynamicListItemCurrentValue(item, ""))
-    ).filter(Boolean) : [];
-    const validation = validateOutboundJson(`${value || ""}`, usedTags);
-    return validation === true ? validateSectionChildName(
-      section_id,
-      "json",
-      outboundJsonDisplayTag(value)
-    ) : validation;
-  };
-  configureTextareaOption(jsonOption);
-  const tag = context.adding ? "" : outboundJsonDisplayTag(itemValue);
-  return renderStackedJsonSettingsModal(
-    tag ? _("JSON outbound: %s").format(tag) : _("JSON outbound"),
-    map,
-    (settings) => {
-      const value = `${settings.outbound_json || ""}`.trim();
-      if (context.adding) {
-        addDynamicListItem(widget, value);
-        return;
-      }
-      setDynamicListItemValue(itemNode, value);
-      updateDynamicListItemLabel(itemNode, outboundJsonDisplayTag(value));
-      if (widget && widget.node) {
-        widget.dispatchCbiDynlistChange(widget.node, value);
-      }
-    },
-    { singleField: true }
-  );
-}
-function validateOutboundJsonItemsBeforeSave(_section_id, values) {
-  const items = Array.isArray(values) ? values : values ? [values] : [];
-  const tags = [];
-  for (const value of items) {
-    const validation = validateOutboundJson(`${value || ""}`, tags);
-    if (validation !== true) {
-      return message.item(outboundJsonDisplayTag(value), validation);
-    }
-    const tag = outboundJsonDisplayTag(value);
-    tags.push(tag);
-  }
-  return true;
-}
+var CONNECTIONS_BLOCKED_INTERFACES = [
+  "br-lan",
+  "eth0",
+  "eth1",
+  "wan",
+  "phy0-ap0",
+  "phy1-ap0",
+  "pppoe-wan",
+  "lan"
+];
+var CONNECTION_OUTBOUND_SOURCES = [
+  "connection_link",
+  "subscription_url",
+  "interfaces",
+  "tunnels",
+  "outbound_jsons"
+];
 
 // src/forkop/tabs/sections/references.ts
 function missingConnectionOutbound(modalMap, section_id) {
@@ -14460,6 +14020,37 @@ function validatePath(value) {
     return message.required();
   }
   return /^\/[a-zA-Z0-9_\-/.]+$/.test(value) ? true : message.invalidPath();
+}
+
+// src/validators/validateUrl.ts
+function validateUrl(url, protocols = ["http:", "https:"]) {
+  if (!protocols.some((p) => url.indexOf(p + "//") === 0)) {
+    return url.length ? _("Only %s").format(protocols.map((p) => `${p}//`).join(", ")) : message.invalidUrl();
+  }
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.startsWith("[") ? parsed.hostname.slice(1, -1) : parsed.hostname;
+    return (isValidHost(host) || host === "localhost") && (!parsed.port || isValidPort(parsed.port)) ? true : message.invalidUrl();
+  } catch (_e) {
+    return message.invalidUrl();
+  }
+}
+function validateUrlField(value) {
+  const url = `${value || ""}`.trim();
+  return url ? validateUrl(url) : message.required();
+}
+
+// src/forkop/tabs/sections/validators.ts
+function validateRegex(value) {
+  if (!value || !value.length) {
+    return true;
+  }
+  try {
+    new RegExp(value.replace(/^\(\?i\)/, "").replace(/\(\?P</g, "(?<"));
+    return true;
+  } catch (_error) {
+    return message.invalidRegex();
+  }
 }
 
 // src/forkop/tabs/sections/subscriptions/overrides.ts
@@ -15633,6 +15224,24 @@ function parseOpenVPNConfig(input, files = {}) {
     }
     throw error;
   }
+}
+
+// src/validators/validateSubnet.ts
+function validateSubnet(value) {
+  const [ip, cidr, extra] = value.split("/");
+  if (!ip || extra !== void 0 || !isIPv4(ip) && !isIPv6(ip)) {
+    return message.invalidIpOrSubnet();
+  }
+  if ((ip === "0.0.0.0" || ip === "::") && cidr == null) {
+    return _("Address %s is not allowed").format(ip);
+  }
+  if (cidr !== void 0) {
+    const maxPrefix = isIPv6(ip) ? 128 : 32;
+    if (!/^(?:0|[1-9]\d*)$/.test(cidr) || Number(cidr) > maxPrefix) {
+      return message.prefixRange(0, maxPrefix);
+    }
+  }
+  return true;
 }
 
 // src/forkop/tabs/sections/tunnels/openvpn.ts
@@ -17688,7 +17297,7 @@ function tunnelListItemLabel(sectionId, tunnelId) {
     endpointType = parseOutboundJsonObject(child?.endpoint_json)?.type || "";
   }
   const label = tunnelDisplayName(sectionId, tunnelId) || tunnelKindLabel(kind, `${endpointType}`.toLowerCase());
-  const feature = tunnelKindCoreFeature(kind);
+  const feature = tunnelCoreFeature(kind, child?.endpoint_json);
   return textE(
     "span",
     { class: "fkp-dynlist-label" },
@@ -18495,6 +18104,415 @@ function refreshDashboardFilterChoiceWidgets(section_id) {
   if (refreshers.size === 0) {
     dashboardFilterChoiceRefreshers.delete(section_id);
   }
+}
+
+// src/forkop/tabs/sections/outboundJson.ts
+function parseOutboundJsonObject(value) {
+  try {
+    const parsed = JSON.parse(`${value || ""}`);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch (_error) {
+    return null;
+  }
+}
+function outboundJsonDisplayTag(value) {
+  const parsed = parseOutboundJsonObject(value);
+  const tag = parsed && typeof parsed.tag === "string" ? parsed.tag.trim() : "";
+  return tag || "";
+}
+function outboundJsonListItemLabel(value) {
+  return textE(
+    "span",
+    { class: "fkp-dynlist-label" },
+    outboundJsonDisplayTag(value) || _("JSON outbound")
+  );
+}
+var JSON_OUTBOUND_PLACEHOLDER = [
+  "{",
+  '  "type": "socks",',
+  '  "tag": "my-outbound",',
+  '  "server": "127.0.0.1",',
+  '  "server_port": 1080',
+  "}"
+].join("\n");
+function showOutboundJsonSettingsModal(section_id, itemValue, _option, widget, itemNode, context = {}) {
+  const data = {
+    settings: {
+      outbound_json: `${itemValue || ""}`
+    }
+  };
+  const map = new form.JSONMap(data);
+  const itemSection = map.section(form.NamedSection, "settings");
+  itemSection.anonymous = true;
+  itemSection.addremove = false;
+  const jsonOption = itemSection.option(
+    form.TextValue,
+    "outbound_json",
+    _("JSON outbound")
+  );
+  jsonOption.placeholder = JSON_OUTBOUND_PLACEHOLDER;
+  jsonOption.rows = 12;
+  jsonOption.wrap = "soft";
+  jsonOption.textarea = true;
+  jsonOption.modalonly = true;
+  jsonOption.validate = function(_itemId, value) {
+    const usedTags = widget && widget.node ? Array.from(widget.node.querySelectorAll(".item")).filter((item) => item !== itemNode).map(
+      (item) => outboundJsonDisplayTag(dynamicListItemCurrentValue(item, ""))
+    ).filter(Boolean) : [];
+    const validation = validateOutboundJson(`${value || ""}`, usedTags);
+    return validation === true ? validateSectionChildName(
+      section_id,
+      "json",
+      outboundJsonDisplayTag(value)
+    ) : validation;
+  };
+  configureTextareaOption(jsonOption);
+  const tag = context.adding ? "" : outboundJsonDisplayTag(itemValue);
+  return renderStackedJsonSettingsModal(
+    tag ? _("JSON outbound: %s").format(tag) : _("JSON outbound"),
+    map,
+    (settings) => {
+      const value = `${settings.outbound_json || ""}`.trim();
+      if (context.adding) {
+        addDynamicListItem(widget, value);
+        return;
+      }
+      setDynamicListItemValue(itemNode, value);
+      updateDynamicListItemLabel(itemNode, outboundJsonDisplayTag(value));
+      if (widget && widget.node) {
+        widget.dispatchCbiDynlistChange(widget.node, value);
+      }
+    },
+    { singleField: true }
+  );
+}
+function validateOutboundJsonItemsBeforeSave(_section_id, values) {
+  const items = Array.isArray(values) ? values : values ? [values] : [];
+  const tags = [];
+  for (const value of items) {
+    const validation = validateOutboundJson(`${value || ""}`, tags);
+    if (validation !== true) {
+      return message.item(outboundJsonDisplayTag(value), validation);
+    }
+    const tag = outboundJsonDisplayTag(value);
+    tags.push(tag);
+  }
+  return true;
+}
+
+// src/forkop/tabs/sections/coreSupport.ts
+var CONNECTION_URI_TYPES = [
+  ["vless", "vless"],
+  ["vmess", "vmess"],
+  ["shadowsocks", "shadowsocks"],
+  ["trojan", "trojan"],
+  ["socks", "socks"],
+  ["tuic", "tuic"],
+  ["hysteria", "hysteria2"],
+  ["naiveproxy", "naive"],
+  ["mieru", "mieru"],
+  ["anytls", "anytls"],
+  ["trusttunnel", "trusttunnel"]
+];
+function connectionUriDescription() {
+  return _("Supported URIs: %s").format(
+    CONNECTION_URI_TYPES.filter(
+      ([, type]) => coreSupportsType(type, ["outbound"])
+    ).map(([name]) => name).join(", ")
+  );
+}
+function validateConnectionUriCore(link) {
+  return validateCoreFeature(
+    linkCoreFeatures(link).find((feature) => !coreHas(feature)) || ""
+  );
+}
+function tunnelKindCoreFeature(kind) {
+  return kind === "json" ? "" : coreFeatureOfType(kind, ["endpoint"]);
+}
+function tunnelKindAvailable(kind) {
+  if (kind === "json") {
+    return coreHasAnyEndpoint();
+  }
+  const feature = tunnelKindCoreFeature(kind);
+  return !feature || coreHas(feature);
+}
+function tunnelCoreFeature(kind, endpointJson) {
+  if (kind !== "json") {
+    return tunnelKindCoreFeature(kind);
+  }
+  const type = parseOutboundJsonObject(endpointJson)?.type;
+  return typeof type === "string" ? coreFeatureOfType(type.trim().toLowerCase(), ["endpoint"]) : "";
+}
+function sectionMissingCoreFeatures(sectionId) {
+  const missing = /* @__PURE__ */ new Set();
+  (uci.sections(FORKOP_UCI_PACKAGE, "tunnel") || []).filter((tunnel) => tunnel.section === sectionId).forEach((tunnel) => {
+    const feature = tunnelCoreFeature(
+      `${tunnel.kind || "wireguard"}`.toLowerCase(),
+      tunnel.endpoint_json
+    );
+    if (feature && !coreHas(feature)) {
+      missing.add(feature);
+    }
+  });
+  (uci.sections(FORKOP_UCI_PACKAGE, "connection_link") || []).filter((link) => link.section === sectionId).forEach(
+    (link) => linkCoreFeatures(`${link.uri || ""}`).filter((feature) => !coreHas(feature)).forEach((feature) => missing.add(feature))
+  );
+  return [...missing];
+}
+function coreFilterTypeChoices(choices, selected) {
+  return choices.filter(
+    (choice) => coreSupportsType(choice.value) || selected.includes(choice.value)
+  ).map(
+    (choice) => coreSupportsType(choice.value) ? choice : {
+      value: choice.value,
+      label: `${choice.label} (${missingCoreFeatureNote(coreFeatureOfType(choice.value))})`
+    }
+  );
+}
+
+// src/forkop/tabs/sections/actions.ts
+function getRuleConfiguredAction(section_id) {
+  const action = uci.get(FORKOP_UCI_PACKAGE, section_id, "action");
+  return action ? `${action}` : null;
+}
+function getRuleResolvedAction(section_id) {
+  return getRuleConfiguredAction(section_id) || "connection";
+}
+function getActionOptionLabel(action) {
+  switch (`${action}`) {
+    case "block":
+      return "Block";
+    case "bypass":
+      return "Bypass";
+    case "connection":
+      return "Connection";
+    case "dns":
+      return "DNS";
+    case "vpn":
+      return "VPN";
+    case "outbound":
+      return _("JSON outbound");
+    case "proxy":
+    default:
+      return "Proxy";
+  }
+}
+function getRuleActionDisplayValue(section_id) {
+  return getActionOptionLabel(getRuleResolvedAction(section_id));
+}
+function getRuleActionDisplayMarkup(section_id) {
+  const label = escapeHtml(getRuleActionDisplayValue(section_id));
+  const notes = sectionMissingCoreFeatures(section_id).map(
+    (feature) => escapeHtml(missingCoreFeatureNote(feature))
+  );
+  return notes.length ? `${label} (${notes.join("; ")})` : label;
+}
+function populateActionOptionValues(option2, currentAction) {
+  delete option2.keylist;
+  delete option2.vallist;
+  option2.value("connection", getActionOptionLabel("connection"));
+  option2.value("bypass", "Bypass");
+  option2.value("block", "Block");
+  option2.value("dns", "DNS");
+  const stored = `${currentAction || ""}`.trim();
+  if (stored && !option2.keylist.includes(stored)) {
+    option2.value(stored, getActionOptionLabel(stored));
+  }
+}
+
+// src/helpers/parseValueList.ts
+function parseValueList(value) {
+  return value.split(/\n/).map((line) => line.split("//")[0].split("#")[0]).join(" ").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+// src/forkop/tabs/sections/conditions.ts
+function makeDeviceOptionsExclusive(firstOption, secondOption) {
+  let changing = false;
+  const firstWidgets = {};
+  const secondWidgets = {};
+  function removeMatches(section_id, value, otherWidgets) {
+    if (changing) {
+      return;
+    }
+    const selected = new Set(normalizeOptionValues(value));
+    if (!selected.size) {
+      return;
+    }
+    const widget = otherWidgets[section_id];
+    if (!widget) {
+      return;
+    }
+    const current = normalizeOptionValues(widget.getValue());
+    const filtered = current.filter((item) => !selected.has(item));
+    if (stringArraysEqual(current, filtered)) {
+      return;
+    }
+    changing = true;
+    try {
+      widget.setValue(filtered);
+    } finally {
+      changing = false;
+    }
+  }
+  firstOption.onDeviceWidgetReady = function(section_id, widget) {
+    firstWidgets[section_id] = widget;
+  };
+  secondOption.onDeviceWidgetReady = function(section_id, widget) {
+    secondWidgets[section_id] = widget;
+  };
+  firstOption.onDeviceListChange = function(section_id, value) {
+    removeMatches(section_id, value, secondWidgets);
+  };
+  secondOption.onDeviceListChange = function(section_id, value) {
+    removeMatches(section_id, value, firstWidgets);
+  };
+}
+var DOMAIN_CONDITION_PLACEHOLDER = [
+  "example.com",
+  "full:api.example.com",
+  "keyword:google",
+  String.raw`regex:^ads\..*\.com$`
+].join("\n");
+var IP_CONDITION_PLACEHOLDER = [
+  "1.1.1.1",
+  "192.168.1.0/24",
+  "2606:4700::/32"
+].join("\n");
+var DESTINATION_CONDITION_PLACEHOLDER = [
+  DOMAIN_CONDITION_PLACEHOLDER,
+  IP_CONDITION_PLACEHOLDER
+].join("\n");
+var ADDRESS_SHAPE = /^[\d.]+(?:\/.*)?$|^[\da-f]*:[\da-f:.]*(?:\/.*)?$/i;
+function validateDomainCondition(item) {
+  const colonIndex = item.indexOf(":");
+  const prefix = colonIndex > 0 ? item.slice(0, colonIndex) : "";
+  const body = colonIndex > 0 ? item.slice(colonIndex + 1) : item;
+  if (prefix && !["full", "keyword", "regex"].includes(prefix)) {
+    return _("Prefixes: full:, keyword:, regex:");
+  }
+  if (prefix && !body.length) {
+    return _("Nothing after %s").format(`${prefix}:`);
+  }
+  if (prefix === "keyword") {
+    return true;
+  }
+  if (prefix === "regex") {
+    return validateRegex(body);
+  }
+  return body.includes("/") ? message.invalidDomain() : validateDomain(body, true);
+}
+function analyzeConditionText(value, validateItem) {
+  return analyzeTextListValue(value, validateItem, {
+    normalizeDuplicateValue: (item) => `${item}`.toLowerCase()
+  });
+}
+function analyzeDestinationText(value) {
+  return analyzeConditionText(
+    value,
+    (item) => ADDRESS_SHAPE.test(item) ? validateSubnet(item) : validateDomainCondition(item)
+  );
+}
+function analyzeDnsDestinationText(value) {
+  return analyzeConditionText(
+    value,
+    (item) => validateSubnet(item) === true ? _("Domains only") : validateDomainCondition(item)
+  );
+}
+function validatePortCondition(_section_id, value) {
+  const normalized = value ? `${value}`.trim() : "";
+  if (!normalized.length) {
+    return true;
+  }
+  const match = normalized.match(/^(\d+)(?:-(\d+))?$/);
+  if (!match) {
+    return _("Format: 80 or 1000-2000");
+  }
+  const start = Number.parseInt(match[1], 10);
+  const end = match[2] ? Number.parseInt(match[2], 10) : start;
+  if (start < 1 || start > 65535 || end < 1 || end > 65535) {
+    return message.invalidPort();
+  }
+  return start > end ? message.rangeReversed() : true;
+}
+function configureConditionListStorage(o, key) {
+  o.load = function(section_id) {
+    const values = getConfigListValues(section_id, key);
+    if (values.length) {
+      return values;
+    }
+    const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
+    return legacyText ? parseValueList(`${legacyText}`) : [];
+  };
+  o.write = function(section_id, value) {
+    writeListOption(section_id, key, value);
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
+    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text_mode`);
+  };
+}
+function addDynamicConditionField(section2, config) {
+  const o = section2.taboption(
+    "conditions",
+    form.DynamicList,
+    config.key,
+    config.label,
+    config.description
+  );
+  o.modalonly = true;
+  if (config.placeholder) {
+    o.placeholder = config.placeholder;
+  }
+  if (config.dynamicValidate) {
+    o.validate = config.dynamicValidate;
+  }
+  configureConditionListStorage(o, config.key);
+  return o;
+}
+function addLocalDeviceSubnetDynamicField(section2, config) {
+  const o = section2.taboption(
+    "conditions",
+    form.DynamicList,
+    config.key,
+    config.label,
+    config.description
+  );
+  o.modalonly = true;
+  o.placeholder = _("Device or IP");
+  o.validate = function(_section_id, value) {
+    if (!value || value.length === 0) {
+      return true;
+    }
+    if (value === SYSTEM_DEVICE_VALUE) {
+      return true;
+    }
+    return validateSubnet(value);
+  };
+  configureConditionListStorage(o, config.key);
+  o.renderWidget = function(section_id, _option_index, cfgvalue) {
+    return createLocalDeviceDynamicListWidget(this, section_id, cfgvalue);
+  };
+  return o;
+}
+function addDestinationField(section2, name, label, placeholder, analyze, description) {
+  const o = section2.taboption(
+    "conditions",
+    form.TextValue,
+    name,
+    label,
+    description
+  );
+  o.ucioption = "destinations";
+  o.retain = true;
+  o.rows = 8;
+  o.wrap = "soft";
+  o.textarea = true;
+  o.modalonly = true;
+  o.placeholder = placeholder;
+  o.validate = function(_section_id, value) {
+    const analysis = analyze(value);
+    return analysis.valid ? true : `${analysis.message}`;
+  };
+  configureTextareaOption(o, analyze);
+  return o;
 }
 
 // src/forkop/tabs/sections/providers.ts
@@ -21568,7 +21586,9 @@ function warpComplete(settings, endpoint) {
 }
 function validateTunnelSettings(settings, tunnelId, peerOption) {
   const kind = `${settings.tunnel_type || ""}`;
-  const core = validateCoreFeature(tunnelKindCoreFeature(kind));
+  const core = validateCoreFeature(
+    tunnelCoreFeature(kind, settings.endpoint_json)
+  );
   if (core !== true) {
     return core;
   }
@@ -21858,10 +21878,15 @@ var TUNNEL_KINDS = [
   ["openconnect", "OpenConnect"],
   ["json", _("JSON endpoint")]
 ];
+function availableTunnelKinds() {
+  return TUNNEL_KINDS.filter(([kind]) => tunnelKindAvailable(kind));
+}
+function canAddTunnel() {
+  return availableTunnelKinds().length > 0;
+}
 function tunnelKindsDescription() {
-  return _("Available: %s").format(
-    TUNNEL_KINDS.filter(([kind]) => tunnelKindAvailable(kind)).map(([, label]) => label).join(", ")
-  );
+  const kinds = availableTunnelKinds();
+  return kinds.length ? _("Available: %s").format(kinds.map(([, label]) => label).join(", ")) : "";
 }
 function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNode, context = {}) {
   const tunnelId = context.adding ? nextSectionId("tunnel") : `${itemValue || ""}`.trim();
@@ -21870,9 +21895,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   }
   const data = { settings: tunnelInitialSettings(tunnelId, section_id) };
   if (context.adding) {
-    data.settings.tunnel_type = TUNNEL_KINDS.find(
-      ([kind]) => tunnelKindAvailable(kind)
-    )[0];
+    data.settings.tunnel_type = availableTunnelKinds()[0][0];
     data.settings.name = nextSectionChildName(section_id, "Tunnel");
   }
   const map = new form.JSONMap(data);
@@ -21889,9 +21912,10 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     if (tunnelKindAvailable(kind)) {
       typeOption.value(kind, label);
     } else if (kind === previousTunnelType) {
+      const feature = tunnelCoreFeature(kind, data.settings.endpoint_json);
       typeOption.value(
         kind,
-        `${label} (${missingCoreFeatureNote(tunnelKindCoreFeature(kind))})`
+        feature ? `${label} (${missingCoreFeatureNote(feature)})` : label
       );
     }
   });
@@ -22698,6 +22722,13 @@ function createSectionContent(section2) {
     tunnelKindsDescription()
   );
   o.depends("action", "connection");
+  const dependsOnAction = o.checkDepends;
+  o.checkDepends = function(section_id) {
+    return dependsOnAction.call(this, section_id) && (canAddTunnel() || normalizeDynamicListItems(
+      this.formvalue(section_id) ?? this.cfgvalue(section_id)
+    ).length > 0);
+  };
+  o.addable = canAddTunnel;
   o.rmempty = true;
   o.modalonly = true;
   o.addButtonLabel = _("+ Add tunnel");
