@@ -52,6 +52,27 @@ describe('naming a subscription that is being added', () => {
     ).toBe('sub4');
   });
 
+  it('numbers past the highest tag, not past the count', () => {
+    const sections: Record<string, Record<string, string>> = {};
+    storedSubscription(sections, 'sub_first', 'sub1');
+    storedSubscription(sections, 'sub_second', 'sub5');
+    installUciStub(sections);
+
+    expect(
+      nextSubscriptionTag(SECTION, listOption(['sub_first', 'sub_second'])),
+    ).toBe('sub6');
+  });
+
+  it('does not count a subscription the user named', () => {
+    const sections: Record<string, Record<string, string>> = {};
+    storedSubscription(sections, 'sub_first', 'office');
+    installUciStub(sections);
+
+    expect(nextSubscriptionTag(SECTION, listOption(['sub_first']))).toBe(
+      'sub1',
+    );
+  });
+
   it('takes the numbers of subscriptions removed from the list', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
@@ -86,7 +107,7 @@ describe('naming a subscription that is being added', () => {
     ).toBe('sub2');
   });
 
-  it('counts the stored subscriptions when no list is on screen', () => {
+  it('numbers past the stored subscriptions when no list is on screen', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
     storedSubscription(sections, 'sub_second', 'sub2');

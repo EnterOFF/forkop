@@ -10,6 +10,7 @@ import {
 } from '../../../cbi/childItems';
 import { modalOptionFormValue } from '../../../cbi/modal';
 import { E } from '../../../../helpers/element';
+import { nextNumberedName } from '../../../../helpers/nextNumberedName';
 import { subscriptionOverrideKeys } from './overrides';
 
 export let defaultSubscriptionHeaderLines: string[] = [];
@@ -181,20 +182,16 @@ export function configuredSubscriptionTags(
     .filter(Boolean);
 }
 
-// sub{N} after the highest number named, never filling a gap a removed one left.
 export function nextSubscriptionTag(
   sectionId: string,
   option: CBIOption,
   values: string[] = listedSubscriptionValues(sectionId, option),
 ) {
-  const taken = new Set(
+  return nextNumberedName(
+    'sub',
     configuredSubscriptionTags(sectionId, option, [], values),
+    '',
   );
-  for (let number = taken.size + 1; number < 100000; number += 1) {
-    const value = `sub${number}`;
-    if (!taken.has(value)) return value;
-  }
-  return `sub${Date.now()}`;
 }
 
 export function subscriptionListItemLabel(sectionId: string, value: string) {

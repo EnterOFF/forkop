@@ -30,4 +30,10 @@ describe('nextNumberedName', () => {
       ]),
     ).toBe('Tunnel #2');
   });
+
+  it('numbers a prefix joined without a separator', () => {
+    expect(
+      nextNumberedName('sub', ['sub2', 'sub10', 'subway', 'sub #12'], ''),
+    ).toBe('sub11');
+  });
 });

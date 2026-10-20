@@ -1,6 +1,10 @@
 // One past the highest number taken, not the count, which would offer a name still in use.
-export function nextNumberedName(prefix: string, taken: string[]) {
-  const marker = `${prefix} #`;
+export function nextNumberedName(
+  prefix: string,
+  taken: string[],
+  separator: string = ' #',
+) {
+  const marker = `${prefix}${separator}`;
   const highest = Math.max(
     0,
     ...taken.map((name) => {

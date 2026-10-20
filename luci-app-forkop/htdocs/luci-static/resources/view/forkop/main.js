@@ -13305,8 +13305,8 @@ function validateUrlField(value) {
 }
 
 // src/helpers/nextNumberedName.ts
-function nextNumberedName(prefix, taken) {
-  const marker = `${prefix} #`;
+function nextNumberedName(prefix, taken, separator = " #") {
+  const marker = `${prefix}${separator}`;
   const highest = Math.max(
     0,
     ...taken.map((name) => {
@@ -14101,14 +14101,11 @@ function configuredSubscriptionTags(sectionId, option2, excluded = [], values = 
   return values.filter((value) => !excluded.includes(value)).map((value) => listedSubscriptionTag(sectionId, value)).filter(Boolean);
 }
 function nextSubscriptionTag(sectionId, option2, values = listedSubscriptionValues(sectionId, option2)) {
-  const taken = new Set(
-    configuredSubscriptionTags(sectionId, option2, [], values)
+  return nextNumberedName(
+    "sub",
+    configuredSubscriptionTags(sectionId, option2, [], values),
+    ""
   );
-  for (let number4 = taken.size + 1; number4 < 1e5; number4 += 1) {
-    const value = `sub${number4}`;
-    if (!taken.has(value)) return value;
-  }
-  return `sub${Date.now()}`;
 }
 function subscriptionListItemLabel(sectionId, value) {
   return textE(
