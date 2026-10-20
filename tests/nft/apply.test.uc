@@ -29,7 +29,7 @@ function before(lines, first, second, label) {
 const T = "add rule inet ForkopTable ";
 
 t.test("the base table captures the source interfaces, FakeIP and the TProxy inbounds", () => {
-    let lines = script_lines({ settings: { source_network_interfaces: "br-lan tun0", exclude_ntp: "1" } });
+    let lines = script_lines({ settings: { source_network_interfaces: "br-lan tun0" } });
     t.eq(lines[0], "add table inet ForkopTable");
     has(lines, "add set inet ForkopTable localv4 { type ipv4_addr; flags interval; auto-merge; }");
     has(lines, "add set inet ForkopTable localv6 { type ipv6_addr; flags interval; auto-merge; }");
@@ -62,7 +62,6 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
             before(lines, T + "system_dns_redirect meta mark != 0 return",
                 T + "system_dns_redirect " + address + " " + proto + " dport 53 counter redirect to :1605", "sing-box asking the resolver itself passes");
     lacks(lines, "system_dns_redirect udp dport 53", "the resolver's upstream queries are not taken back");
-    has(lines, "insert rule inet ForkopTable mangle udp dport 123 return", "the NTP exclusion");
     for (let pair in [ [ "ip", "198.18.0.0/16" ], [ "ip6", "fc00::/112" ] ])
         for (let proto in [ "tcp", "udp" ])
             has(lines, T + "mangle_output " + pair[0] + " daddr " + pair[1] + " meta l4proto " + proto + " meta mark set 0x04000000 counter",
@@ -215,7 +214,6 @@ t.test("the script is the same for the same configuration and moves with anythin
         { ".name": "s", action: "bypass", fully_routed_ips: "192.168.1.10/32" }
     ])
         t.ok(script([ section ]) != baseline, sprintf("%J", section) + " reaches nft");
-    t.ok(script(null, { source_network_interfaces: "br-lan", exclude_ntp: "1" }) != baseline);
     t.ok(script(null, { source_network_interfaces: "br-lan tun0" }) != baseline);
     t.ok(script([ { ".name": "s", action: "proxy", destinations: "192.0.2.0/24" } ]) != script([ { ".name": "s", action: "proxy", destinations: "198.51.100.0/24" } ]),
         "the elements are part of the table");

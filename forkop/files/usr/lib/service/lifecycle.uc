@@ -135,15 +135,6 @@ function wait_stopped() {
     return !runtime.process_running() && !health.sing_box_service_running();
 }
 
-// A router without an RTC starts in the past, and TLS certificates are not
-// valid there yet.
-function sync_time_if_needed() {
-    if (localtime().year >= 2024)
-        return;
-    exec.ok([ "/usr/sbin/ntpd", "-q", "-p", "194.190.168.1", "-p", "216.239.35.0", "-p", "216.239.35.4",
-        "-p", "162.159.200.1", "-p", "162.159.200.123" ]);
-}
-
 function clash_controller_free() {
     let settings = uci.get_all(CONFIG_NAME, "settings") ?? {};
     let config = common.read_json_file(common.option(settings, "config_path", ""));
@@ -232,7 +223,6 @@ function start_runtime() {
         log("error", "Failed to disable bridge netfilter for transparent proxying");
         return false;
     }
-    sync_time_if_needed();
 
     try {
         runtime.configure_service();

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 04:51+0300\n"
-"PO-Revision-Date: 2026-10-21 04:51+0300\n"
+"POT-Creation-Date: 2026-10-20 20:01+0300\n"
+"PO-Revision-Date: 2026-10-20 20:01+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -82,9 +82,6 @@ msgstr "%s ведёт на %s, а у роутера %s"
 
 msgid "%s of %s free"
 msgstr "свободно %s из %s"
-
-msgid "%s off from this device"
-msgstr "расходится с этим устройством на %s"
 
 msgid "%s takes DNS queries before Forkop"
 msgstr "%s забирает DNS-запросы раньше Forkop"
@@ -473,9 +470,6 @@ msgstr "Клиент: %s"
 msgid "Clients"
 msgstr "Клиенты"
 
-msgid "Clock"
-msgstr "Время"
-
 msgid "Close"
 msgstr "Закрыть"
 
@@ -808,9 +802,6 @@ msgstr "Исключить по шаблону"
 
 msgid "Exclude devices from routing"
 msgstr "Исключить устройства из маршрутизации"
-
-msgid "Exclude NTP"
-msgstr "Исключить NTP"
 
 msgid "Exclude servers"
 msgstr "Исключить серверы"
@@ -1366,9 +1357,6 @@ msgstr "Совпадение по доменам и адресам назнач�
 
 msgid "Match the domains of DNS queries"
 msgstr "Совпадение по доменам DNS-запросов"
-
-msgid "matches this device"
-msgstr "совпадает с этим устройством"
 
 msgid "Max speed from a client, Mbps"
 msgstr "Макс. скорость от клиента, Мбит/с"
@@ -2365,9 +2353,6 @@ msgstr "Этот JSON — не endpoint openconnect"
 
 msgid "Time"
 msgstr "Время"
-
-msgid "Time synchronisation goes directly, past the tunnel"
-msgstr "Синхронизация времени пойдёт напрямую, минуя туннель"
 
 msgid "TLS (certificates)"
 msgstr "TLS (сертификаты)"

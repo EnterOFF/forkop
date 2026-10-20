@@ -7624,7 +7624,6 @@ function formatMegabytes(kilobytes) {
 }
 
 // src/forkop/tabs/diagnostic/checks/service.ts
-var CLOCK_TOLERANCE_S = 30;
 var LOW_MEMORY_SHARE = 0.1;
 function forkopItem(data) {
   if (data.running) {
@@ -7700,43 +7699,21 @@ function memoryItem(data) {
   }
   return finding("success", key, free);
 }
-function clockSkewSeconds(routerTime, window2) {
-  const stamp = routerTime * 1e3;
-  const earliest = window2.sentAt - 1e3;
-  const latest = window2.receivedAt + 1e3;
-  const skew = stamp < earliest ? earliest - stamp : stamp > latest ? stamp - latest : 0;
-  return Math.round(skew / 1e3);
-}
-function clockItem(data, window2) {
-  const key = _("Clock");
-  const skew = clockSkewSeconds(data.time, window2);
-  if (skew > CLOCK_TOLERANCE_S) {
-    return finding(
-      "warning",
-      key,
-      _("%s off from this device").format(formatDuration(skew))
-    );
-  }
-  return finding("success", key, _("matches this device"));
-}
-function presentService(data, window2) {
+function presentService(data) {
   return [
     forkopItem(data),
     coreItem(data),
     ...conflictItems(data),
-    memoryItem(data),
-    clockItem(data, window2)
+    memoryItem(data)
   ];
 }
 async function runServiceCheck() {
-  const sentAt = Date.now();
   const response = await ForkopShellMethods.checkService();
-  const receivedAt = Date.now();
   if (!response.success) {
     return { result: unanswered(), running: true };
   }
   return {
-    result: outcome(presentService(response.data, { sentAt, receivedAt })),
+    result: outcome(presentService(response.data)),
     running: response.data.running,
     data: response.data
   };
@@ -27062,14 +27039,6 @@ function addServiceOptions(section2) {
   o.value("fatal", "Fatal");
   o.value("panic", "Panic");
   o.default = "warn";
-  o.rmempty = false;
-  o = section2.option(
-    form.Flag,
-    "exclude_ntp",
-    _("Exclude NTP"),
-    _("Time synchronisation goes directly, past the tunnel")
-  );
-  o.default = "0";
   o.rmempty = false;
 }
 

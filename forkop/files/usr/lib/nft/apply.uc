@@ -194,9 +194,6 @@ function add_base(settings, excluded_router, excluded) {
     // The resolver's own upstream queries never go through a section.
     add_rule("mangle_output", [ "meta", "l4proto", "{ tcp, udp }", "th", "dport", "53", "return" ]);
     add_rule("mangle_output", [ "jump", "priority_output_rules" ]);
-
-    if (common.option(settings, "exclude_ntp", "0") == "1")
-        nft([ "insert", "rule", "inet", TABLE, "mangle", "udp", "dport", "123", "return" ]);
 }
 
 function create_section_sets(m) {

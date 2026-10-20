@@ -1583,30 +1583,6 @@ ensure_bootstrap_ucode_runtime() {
     ensure_bootstrap_package "ucode-mod-uci"
 }
 
-sync_time() {
-    current_year=""
-
-    if ! command_exists ntpd; then
-        return 0
-    fi
-
-    current_year="$(date +%Y 2>/dev/null || true)"
-    case "$current_year" in
-        ''|*[!0-9]*) current_year=0 ;;
-    esac
-
-    if [ "$current_year" -ge 2024 ]; then
-        return 0
-    fi
-
-    ntpd -q \
-        -p 194.190.168.1 \
-        -p 216.239.35.0 \
-        -p 216.239.35.4 \
-        -p 162.159.200.1 \
-        -p 162.159.200.123 >/dev/null 2>&1 || true
-}
-
 check_root() {
     if command_exists id && [ "$(id -u)" != "0" ]; then
         fail "Please run this installer as root"
@@ -1934,7 +1910,6 @@ main() {
     check_root
     init_tmp_dir
     detect_fetcher
-    sync_time
     check_system
 
     detect_legacy_installation

@@ -10,16 +10,8 @@ import {
   unanswered,
 } from './present';
 
-// Shadowsocks 2022 refuses a client more than 30 seconds off.
-const CLOCK_TOLERANCE_S = 30;
 // Below this share of free memory the kernel is about to start killing.
 const LOW_MEMORY_SHARE = 0.1;
-
-// The router stamped its answer somewhere between these two moments.
-export interface RequestWindow {
-  sentAt: number;
-  receivedAt: number;
-}
 
 function forkopItem(data: Forkop.ServiceCheckResult) {
   if (data.running) {
@@ -120,42 +112,14 @@ function memoryItem(data: Forkop.ServiceCheckResult) {
   return finding('success', key, free);
 }
 
-// The stamp is whole seconds somewhere inside the window, so only a difference beyond it counts.
-export function clockSkewSeconds(routerTime: number, window: RequestWindow) {
-  const stamp = routerTime * 1000;
-  const earliest = window.sentAt - 1000;
-  const latest = window.receivedAt + 1000;
-  const skew =
-    stamp < earliest ? earliest - stamp : stamp > latest ? stamp - latest : 0;
-
-  return Math.round(skew / 1000);
-}
-
-function clockItem(data: Forkop.ServiceCheckResult, window: RequestWindow) {
-  const key = _('Clock');
-  const skew = clockSkewSeconds(data.time, window);
-
-  if (skew > CLOCK_TOLERANCE_S) {
-    return finding(
-      'warning',
-      key,
-      _('%s off from this device').format(formatDuration(skew)),
-    );
-  }
-
-  return finding('success', key, _('matches this device'));
-}
-
 export function presentService(
   data: Forkop.ServiceCheckResult,
-  window: RequestWindow,
 ): IDiagnosticsChecksItem[] {
   return [
     forkopItem(data),
     coreItem(data),
     ...conflictItems(data),
     memoryItem(data),
-    clockItem(data, window),
   ];
 }
 
@@ -165,16 +129,14 @@ export async function runServiceCheck(): Promise<{
   running: boolean;
   data?: Forkop.ServiceCheckResult;
 }> {
-  const sentAt = Date.now();
   const response = await ForkopShellMethods.checkService();
-  const receivedAt = Date.now();
 
   if (!response.success) {
     return { result: unanswered(), running: true };
   }
 
   return {
-    result: outcome(presentService(response.data, { sentAt, receivedAt })),
+    result: outcome(presentService(response.data)),
     running: response.data.running,
     data: response.data,
   };

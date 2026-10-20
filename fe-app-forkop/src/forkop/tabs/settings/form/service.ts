@@ -35,13 +35,4 @@ export function addServiceOptions(section: CBISection) {
   o.value('panic', 'Panic');
   o.default = 'warn';
   o.rmempty = false;
-
-  o = section.option(
-    form.Flag,
-    'exclude_ntp',
-    _('Exclude NTP'),
-    _('Time synchronisation goes directly, past the tunnel'),
-  );
-  o.default = '0';
-  o.rmempty = false;
 }

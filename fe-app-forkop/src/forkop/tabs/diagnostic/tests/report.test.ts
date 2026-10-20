@@ -74,7 +74,6 @@ describe('the diagnostic report', () => {
           memory: { total_kb: 239540, available_kb: 45476 },
           oom: [],
           router_uptime: 1902323,
-          time: 0,
         },
       },
       {

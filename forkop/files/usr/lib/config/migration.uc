@@ -1567,6 +1567,11 @@ function remove_component_manager_settings(ctx) {
     push(ctx.removed_cron_markers, COMPONENT_UPDATE_CHECK_CRON_MARKER);
 }
 
+// NTP follows the sections like any other traffic.
+function remove_ntp_exclusion(ctx) {
+    delete_option(ctx, ctx.model.settings, "exclude_ntp");
+}
+
 // Asks the runtime adapter to restore /etc/config/dhcp once, when this entry first applies.
 function request_dnsmasq_restore(ctx) {
     ctx.restore_dnsmasq = true;
@@ -1939,7 +1944,8 @@ const CURRENT_TRANSFORMS = [
     merge_destination_conditions,
     migrate_connection_links,
     migrate_section_cascades,
-    remove_component_manager_settings
+    remove_component_manager_settings,
+    remove_ntp_exclusion
 ];
 
 function migrate_to_current(ctx) {

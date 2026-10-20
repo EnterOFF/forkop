@@ -533,6 +533,14 @@ t.test("the component manager's settings and its crontab line leave a released c
     t.eq(again.operations, []);
 });
 
+t.test("the NTP exclusion leaves a released configuration", () => {
+    let out = migrated({ settings: settings("1.0.5", { exclude_ntp: "1" }), section: [] });
+    absent(out.config.settings, [ "exclude_ntp" ]);
+    let again = migrated(out.config);
+    t.eq(again.config, out.config);
+    t.eq(again.operations, []);
+});
+
 /* --------------------------------------------------------- the version graph */
 
 t.test("the 1.0.2 to 1.0.5 step turns a released HTTP link into an outbound before NEXT", () => {

@@ -131,8 +131,7 @@ function service() {
         conflicts: conflicts.find(output([ "nft", "-t", "list", "ruleset" ])),
         memory: meminfo(),
         oom: oom_kills(output([ "dmesg" ]), router_uptime),
-        router_uptime,
-        time: time()
+        router_uptime
     };
 }
 

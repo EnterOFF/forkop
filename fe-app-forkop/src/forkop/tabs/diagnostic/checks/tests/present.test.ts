@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import { summarize } from '../present';
-import { clockSkewSeconds, presentService } from '../service';
+import { presentService } from '../service';
 import { presentDns } from '../dns';
 import { presentTraffic } from '../traffic';
 import { presentServers } from '../servers';
 import type { Forkop } from '../../../../types';
-
-const WINDOW = { sentAt: 1_000_000_000, receivedAt: 1_000_000_400 };
 
 function service(
   overrides: Partial<Forkop.ServiceCheckResult> = {},
@@ -22,7 +20,6 @@ function service(
     memory: { total_kb: 239540, available_kb: 45476 },
     oom: [],
     router_uptime: 1902323,
-    time: 1_000_000,
     ...overrides,
   };
 }
@@ -30,7 +27,7 @@ function service(
 describe('a group summary', () => {
   it('takes the state of its worst finding and says only how bad that is', () => {
     const passed = { state: 'success' as const, key: 'A', value: '1' };
-    const warned = { state: 'warning' as const, key: 'Clock', value: 'off' };
+    const warned = { state: 'warning' as const, key: 'Memory', value: 'low' };
     const failed = { state: 'error' as const, key: 'DNS', value: 'silent' };
 
     expect(summarize([passed])).toEqual({
@@ -50,7 +47,7 @@ describe('a group summary', () => {
 
 describe('the service check', () => {
   it('passes a running Forkop with nothing in its way, one line per question', () => {
-    expect(presentService(service(), WINDOW)).toEqual([
+    expect(presentService(service())).toEqual([
       { state: 'success', key: 'Forkop', value: 'running for 2 h 15 min' },
       {
         state: 'success',
@@ -59,7 +56,6 @@ describe('the service check', () => {
       },
       { state: 'success', key: 'Conflicts', value: 'none found' },
       { state: 'success', key: 'Memory', value: '44 MB of 234 MB free' },
-      { state: 'success', key: 'Clock', value: 'matches this device' },
     ]);
   });
 
@@ -71,7 +67,6 @@ describe('the service check', () => {
           uptime: -1,
           last_error: 'Port 9090 is busy',
         }),
-        WINDOW,
       )[0],
     ).toEqual({
       state: 'error',
@@ -79,13 +74,13 @@ describe('the service check', () => {
       value: 'not running: Port 9090 is busy',
     });
     expect(
-      presentService(service({ running: false, uptime: -1 }), WINDOW)[0].value,
+      presentService(service({ running: false, uptime: -1 }))[0].value,
     ).toBe('not running');
   });
 
   it('fails a core that is not sing-box-forkop or one Forkop cannot run on', () => {
     const core = (value: Forkop.ServiceCheckResult['core']) =>
-      presentService(service({ core: value }), WINDOW).find(
+      presentService(service({ core: value })).find(
         (item) => item.key === 'Core',
       );
     expect(core({ version: '', variant: '', problem: '' })).toEqual({
@@ -119,7 +114,6 @@ describe('the service check', () => {
         ],
         foreign_sing_box: [812, 990],
       }),
-      WINDOW,
     ).filter((item) => item.key === 'Conflicts');
     expect(items.map((item) => [item.state, item.value])).toEqual([
       ['error', 'inet PodkopTable intercepts traffic'],
@@ -130,9 +124,7 @@ describe('the service check', () => {
 
   it('warns about memory once the kernel killed for it, or when it is nearly gone', () => {
     const memory = (overrides: Partial<Forkop.ServiceCheckResult>) =>
-      presentService(service(overrides), WINDOW).find(
-        (item) => item.key === 'Memory',
-      );
+      presentService(service(overrides)).find((item) => item.key === 'Memory');
     expect(
       memory({
         oom: [
@@ -148,17 +140,6 @@ describe('the service check', () => {
     expect(
       memory({ memory: { total_kb: 131072, available_kb: 10240 } }),
     ).toMatchObject({ state: 'warning', value: '10 MB of 128 MB free' });
-  });
-
-  it('judges the clock only beyond the time the request took', () => {
-    expect(clockSkewSeconds(1_000_000, WINDOW)).toBe(0);
-    expect(clockSkewSeconds(999_999, WINDOW)).toBe(0);
-    expect(clockSkewSeconds(1_000_100, WINDOW)).toBe(99);
-    expect(
-      presentService(service({ time: 999_000 }), WINDOW).find(
-        (item) => item.key === 'Clock',
-      ),
-    ).toMatchObject({ state: 'warning', value: '16 min off from this device' });
   });
 });
 

@@ -326,8 +326,6 @@ export namespace Forkop {
     memory: { total_kb: number; available_kb: number };
     oom: Array<{ process: string; seconds_ago: number }>;
     router_uptime: number;
-    // The router's clock, in seconds since the epoch.
-    time: number;
   }
 
   export interface DnsQueryResult {
