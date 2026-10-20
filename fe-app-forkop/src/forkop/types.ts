@@ -498,6 +498,21 @@ export namespace Forkop {
     url: string;
   }
 
+  // One address family of an outbound's exit: the address and country Cloudflare saw, or why
+  // the family gave no answer.
+  export interface ClashApiExitAddress {
+    address?: string;
+    country?: string;
+    error?: string;
+  }
+
+  export interface GetClashApiProxyExit {
+    // The outbound the request left through: a group's current choice, followed down.
+    outbound: string;
+    ipv4: ClashApiExitAddress;
+    ipv6: ClashApiExitAddress;
+  }
+
   export type GetClashApiGroupLatency = Record<string, number>;
 
   export interface ClashApiResponse {

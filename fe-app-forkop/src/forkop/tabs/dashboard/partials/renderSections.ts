@@ -6,6 +6,7 @@ import {
   renderCopyIcon24,
   renderInfoIcon24,
   renderGaugeIcon24,
+  renderGlobeIcon24,
   renderListFilterIcon24,
   renderRotateCcwIcon24,
 } from '../../../../icons';
@@ -13,6 +14,7 @@ import { isCopyableProxyLink } from '../../../../helpers/isCopyableProxyLink';
 import { prettyBytes } from '../../../../helpers/prettyBytes';
 import { Forkop } from '../../../types';
 import { renderFlagEmojis } from './renderFlagEmojis';
+import { ExitPanelState, renderExitPanel } from './renderExitPanel';
 import { E } from '../../../../helpers/element';
 
 interface IRenderSectionsProps {
@@ -40,6 +42,11 @@ interface IRenderSectionsProps {
   // Only once there is another section to scroll past.
   collapsible?: boolean;
   collapsed?: boolean;
+  // Set while this section's exit panel is the open one.
+  exitPanel?: ExitPanelState & { nodeName?: string };
+  onToggleExit?: () => void;
+  onRefreshExit?: () => void;
+  onCopyExitAddress?: (address: string) => void;
 }
 
 function renderFailedState() {
@@ -258,6 +265,10 @@ function renderDefaultState({
   sortByLatency,
   collapsible,
   collapsed,
+  exitPanel,
+  onToggleExit,
+  onRefreshExit,
+  onCopyExitAddress,
 }: IRenderSectionsProps) {
   function testLatency() {
     const target = sectionLatencyTarget(section);
@@ -467,6 +478,33 @@ function renderDefaultState({
           renderListFilterIcon24(),
         )
       : undefined;
+  const exitAction =
+    onToggleExit && sectionLatencyTarget(section)
+      ? E(
+          'button',
+          {
+            type: 'button',
+            class: [
+              'btn fkp_dashboard-page__outbound-section__exit',
+              exitPanel
+                ? 'fkp_dashboard-page__outbound-section__exit--open'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' '),
+            title: _('Check IP'),
+            'aria-label': _('Check IP'),
+            'aria-haspopup': 'dialog',
+            'aria-expanded': exitPanel ? 'true' : 'false',
+            click: (event: MouseEvent) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onToggleExit();
+            },
+          },
+          renderGlobeIcon24(),
+        )
+      : undefined;
   const collapseLabel = collapsed ? _('Expand section') : _('Collapse section');
   const collapseAction = collapsible
     ? E(
@@ -543,6 +581,8 @@ function renderDefaultState({
           section.displayName,
         ),
         ...(current ? [current] : []),
+        // Beside the node it describes, far from the look-alike latency test.
+        ...(exitAction ? [exitAction] : []),
       ]),
       E(
         'div',
@@ -570,6 +610,16 @@ function renderDefaultState({
           ),
         ],
       ),
+      ...(exitAction && exitPanel
+        ? [
+            renderExitPanel({
+              state: exitPanel,
+              nodeName: exitPanel.nodeName,
+              onRefresh: () => onRefreshExit?.(),
+              onCopy: (address) => onCopyExitAddress?.(address),
+            }),
+          ]
+        : []),
     ]),
     // Everything below the title folds away; the title row and its actions stay.
     ...(collapsed

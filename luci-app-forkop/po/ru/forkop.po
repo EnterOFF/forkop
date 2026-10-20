@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 18:39+0300\n"
-"PO-Revision-Date: 2026-10-20 18:39+0300\n"
+"POT-Creation-Date: 2026-10-21 04:51+0300\n"
+"PO-Revision-Date: 2026-10-21 04:51+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -178,6 +178,9 @@ msgstr "URL или абсолютный путь к файлу на роутер
 
 msgid "A WireGuard, OpenVPN or OpenConnect configuration, or a wireguard://, vpn:// or anyconnect:// link"
 msgstr "Конфигурация WireGuard, OpenVPN или OpenConnect либо ссылка wireguard://, vpn:// или anyconnect://"
+
+msgid "About the address on ipinfo.io"
+msgstr "Об адресе на ipinfo.io"
 
 msgid "Accept routes"
 msgstr "Принимать маршруты"
@@ -404,8 +407,14 @@ msgstr "Изменить HTTP-заголовки запроса"
 msgid "Change the parameters of the servers this subscription adds"
 msgstr "Изменить параметры серверов, которые добавляются из этой подписки"
 
+msgid "Check again"
+msgstr "Проверить снова"
+
 msgid "Check interval"
 msgstr "Интервал проверки"
+
+msgid "Check IP"
+msgstr "Проверить IP"
 
 msgid "Check timeout"
 msgstr "Таймаут проверки"
@@ -572,6 +581,9 @@ msgstr "Скопировано"
 msgid "Copy"
 msgstr "Копировать"
 
+msgid "Copy address"
+msgstr "Скопировать адрес"
+
 msgid "Copy matching"
 msgstr "Копировать найденное"
 
@@ -595,6 +607,9 @@ msgstr "Не удалось сгенерировать пару ключей Rea
 
 msgid "Could not get the check results"
 msgstr "Не удалось получить результаты проверки"
+
+msgid "Country"
+msgstr "Страна"
 
 msgid "CPU"
 msgstr "Процессор"
@@ -803,8 +818,14 @@ msgstr "Исключить серверы"
 msgid "Exclude types"
 msgstr "Исключить типы"
 
+msgid "Exit IP"
+msgstr "IP выхода"
+
 msgid "Exit node"
 msgstr "Выходной узел"
+
+msgid "Exit through"
+msgstr "Выход через"
 
 msgid "Exit via \"%s\""
 msgstr "Выход через «%s»"
@@ -880,6 +901,9 @@ msgstr "Fallback: %s"
 
 msgid "Fill in the credentials of this client to get a link."
 msgstr "Заполните учётные данные клиента, чтобы получить ссылку."
+
+msgid "Finding the exit…"
+msgstr "Определяем выход…"
 
 msgid "Fix the settings"
 msgstr "Исправьте настройки"
@@ -1450,6 +1474,9 @@ msgstr "нет ответа"
 
 msgid "no answer in time"
 msgstr "не ответил вовремя"
+
+msgid "No answer: %s"
+msgstr "Нет ответа: %s"
 
 msgid "No CA certificate (ca)"
 msgstr "Нет сертификата CA (ca)"
@@ -2428,6 +2455,9 @@ msgstr "неизвестно"
 
 msgid "Unknown compression mode %s"
 msgstr "Неизвестный режим сжатия %s"
+
+msgid "unknown error"
+msgstr "неизвестная ошибка"
 
 msgid "Unknown error"
 msgstr "Неизвестная ошибка"

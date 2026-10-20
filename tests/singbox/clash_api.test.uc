@@ -66,6 +66,7 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
     for (let request in [
         [ "GET", "/providers/proxies", "" ],
         [ "GET", "/proxies/proxy-out/delay?url=https%3A%2F%2Flatency.example%2Fgenerate_204&timeout=5000", "" ],
+        [ "GET", "/proxies/main-out/exit?timeout=8000", "" ],
         [ "PUT", "/proxies/main-out", "{\"name\":\"main-1-out\"}" ],
         [ "PUT", "/proxies/fallback-out", "{\"name\":\"\"}" ],
         [ "PUT", "/providers/rules", "" ],
@@ -76,7 +77,7 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
         t.eq(result.status, 0, join(" ", request));
     }
     stub.restore();
-    let put = join(" ", requests[2].argv);
+    let put = join(" ", requests[3].argv);
     t.contains(put, "-X PUT");
     t.contains(put, "Content-Type: application/json");
     t.contains(join(" ", requests[0].argv), "http://127.0.0.1:9090/providers/proxies", "a wildcard bind is reached over the loopback");
@@ -88,6 +89,8 @@ t.test("anything else is refused before it reaches the controller", () => {
     for (let request in [ [ "GET", "/configs", "" ], [ "PUT", "/configs", "{\"mode\":\"global\"}" ], [ "POST", "/proxies", "{\"name\":\"x\"}" ],
         [ "GET", "/proxies/../configs", "" ], [ "PUT", "/proxies/main-out", "{\"name\":\"x\",\"extra\":1}" ], [ "PUT", "/proxies/main-out", "not-json" ],
         [ "GET", "/proxies/main-out/delay?url=x&timeout=abc", "" ], [ "DELETE", "/connections", "{\"all\":true}" ],
+        [ "GET", "/proxies/main-out/exit", "" ], [ "GET", "/proxies/main-out/exit?timeout=5000&url=https%3A%2F%2Fexample.com", "" ],
+        [ "GET", "/group/main/exit?timeout=5000", "" ],
         [ "PUT", "/providers/rules", "{\"name\":\"geosite\"}" ], [ "PUT", "/providers/rules/geosite", "" ] ]) {
         let result = call([ "clash_api", ...request ]);
         t.eq([ result.status, result.reply ], [ 1, null ], join(" ", request));
@@ -115,13 +118,14 @@ t.test("the summary carries the totals and the count, never the connection list"
 
 });
 
-t.test("read deadlines are short while delay sweeps and updates retain their budget", () => {
+t.test("read deadlines are short while probes through an outbound and updates retain their budget", () => {
     config("127.0.0.1:9090");
     controller(200, {});
     for (let pair in [
         [ "GET", "/proxies", "5" ],
         [ "GET", "/connections", "5" ],
         [ "GET", "/group/main/delay?url=https%3A%2F%2Fexample.com&timeout=40000", "50" ],
+        [ "GET", "/proxies/main-out/exit?timeout=8000", "18" ],
         [ "PUT", "/providers/rules", "60" ]
     ]) {
         clash.request(pair[0], pair[1], "");

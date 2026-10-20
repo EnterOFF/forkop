@@ -44,6 +44,29 @@ it('chooses the CLI before sending concurrent first mutations to an unreachable 
   expect(mocks.clashApi).toHaveBeenCalledTimes(2);
 });
 
+it('asks for the exit of an outbound by its encoded tag', async () => {
+  const report = {
+    outbound: 'main/sub1/🇳🇱 Node',
+    ipv4: { address: '203.0.113.7', country: 'NL' },
+    ipv6: { error: 'connection refused' },
+  };
+  const fetchMock = vi.fn().mockResolvedValue({
+    status: 200,
+    text: async () => JSON.stringify(report),
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  const { getClashApiProxyExit } = await import('../clashApi');
+
+  expect(await getClashApiProxyExit('main-out/selector')).toEqual({
+    success: true,
+    data: report,
+  });
+  expect(fetchMock).toHaveBeenLastCalledWith(
+    'http://router.example:9090/proxies/main-out%2Fselector/exit?timeout=5000',
+    expect.anything(),
+  );
+});
+
 it('loads the configured test URL before the first latency request', async () => {
   const fetchMock = vi
     .fn()

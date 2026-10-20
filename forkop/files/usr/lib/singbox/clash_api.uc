@@ -58,8 +58,12 @@ function allowed(method, path, body) {
             let link = segments(path, "/proxies/");
             return length(link) == 2 && link[1] == "link";
         }
-        let delay = segments(substr(path, 0, query), "/");
-        return length(delay) == 3 && delay[2] == "delay" && (delay[0] == "proxies" || delay[0] == "group") &&
+        let target = segments(substr(path, 0, query), "/");
+        if (length(target) != 3)
+            return false;
+        if (target[0] == "proxies" && target[2] == "exit")
+            return match(substr(path, query), /^\?timeout=[0-9]+$/) != null;
+        return target[2] == "delay" && (target[0] == "proxies" || target[0] == "group") &&
             match(substr(path, query), /^\?url=[^&]+&timeout=[0-9]+$/) != null;
     }
 
@@ -115,8 +119,8 @@ function request(method, path, body) {
     if (!allowed(method, path, body))
         die("Clash API request is not allowlisted: " + method + " " + path);
 
-    let delay = match(path, /\/delay\?url=[^&]+&timeout=([0-9]+)$/);
-    let max_time = method != "GET" ? 60 : delay ? min(60, int((int(delay[1]) + 999) / 1000) + 10) : 5;
+    let probe = match(path, /\/(delay\?url=[^&]+&|exit\?)timeout=([0-9]+)$/);
+    let max_time = method != "GET" ? 60 : probe ? min(60, int((int(probe[2]) + 999) / 1000) + 10) : 5;
     let options = [ "-sS", "--path-as-is", "--connect-timeout", "3", "--max-time", "" + max_time, "-X", method ];
     if (body != "")
         push(options, "--header", "Content-Type: application/json", "--data-raw", body);

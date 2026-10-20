@@ -76,6 +76,25 @@ describe('ForkopShellMethods.clashApi', () => {
     });
   });
 
+  // The router holds a probe through an outbound for its own timeout, past a plain read's budget.
+  it('waits out a probe through an outbound like a write', async () => {
+    mocks.executeShellCommand.mockResolvedValue({
+      stdout: '{"status":200,"body":"{}"}',
+      stderr: '',
+      code: 0,
+    });
+
+    for (const path of [
+      '/proxies/main-out/delay?url=https%3A%2F%2Fexample.com&timeout=5000',
+      '/proxies/main-out/exit?timeout=5000',
+    ]) {
+      await ForkopShellMethods.clashApi('GET', path);
+      expect(mocks.executeShellCommand).toHaveBeenLastCalledWith(
+        expect.objectContaining({ timeout: 65000 }),
+      );
+    }
+  });
+
   it('reports a transport failure without inventing a status', async () => {
     mocks.executeShellCommand.mockResolvedValue({
       stdout: '',

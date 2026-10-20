@@ -116,7 +116,7 @@ export const ForkopShellMethods = {
       '/usr/bin/forkop',
       {
         timeout:
-          method.toUpperCase() === 'GET' && !path.includes('/delay?')
+          method.toUpperCase() === 'GET' && !/\/(delay|exit)\?/.test(path)
             ? 10000
             : CLASH_API_TRANSPORT_TIMEOUT_MS,
       },

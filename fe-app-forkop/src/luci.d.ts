@@ -24,6 +24,7 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
     'aria-hidden'?: string;
     'aria-disabled'?: string;
     'aria-expanded'?: string;
+    'aria-haspopup'?: string;
     'aria-label'?: string;
     'aria-pressed'?: string;
     // E() sets whatever it is given with setAttribute, so an attribute keeps its

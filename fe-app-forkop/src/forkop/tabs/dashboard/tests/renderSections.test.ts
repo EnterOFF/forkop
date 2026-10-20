@@ -1281,3 +1281,145 @@ describe('renderSections header', () => {
     expect(onCollapsedChange).not.toHaveBeenCalled();
   });
 });
+
+describe('renderSections exit action', () => {
+  async function render(
+    props: Partial<
+      Parameters<typeof import('../partials/renderSections').renderSections>[0]
+    >,
+  ) {
+    installElementFactory();
+    const { renderSections } = await import('../partials/renderSections');
+    return renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'main-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [
+          {
+            code: 'main/Node',
+            displayName: 'Node',
+            latency: 0,
+            type: 'VLESS',
+            selected: true,
+          },
+        ],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      latencyFetching: false,
+      ...props,
+    }) as unknown as FakeNode;
+  }
+
+  const hasClass = (name: string) => (candidate: FakeNode) =>
+    String(candidate.attrs.class || '')
+      .split(' ')
+      .includes(name);
+
+  it('opens the panel from a header icon without folding the section', async () => {
+    const onToggleExit = vi.fn();
+    const root = await render({ onToggleExit, collapsible: true });
+    const button = findNode(
+      root,
+      hasClass('fkp_dashboard-page__outbound-section__exit'),
+    )!;
+
+    expect(button.attrs['aria-expanded']).toBe('false');
+    expect(button.attrs['aria-haspopup']).toBe('dialog');
+    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    (button.attrs.click as (event: unknown) => void)(event);
+    expect(onToggleExit).toHaveBeenCalledOnce();
+    expect(event.stopPropagation).toHaveBeenCalledOnce();
+    expect(
+      findNode(root, hasClass('fkp_dashboard-page__exit-panel')),
+    ).toBeUndefined();
+  });
+
+  it('follows the section name and its choice, apart from the latency test', async () => {
+    const root = await render({
+      onToggleExit: vi.fn(),
+      section: {
+        code: 'main-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: ['A', 'B'].map((name, index) => ({
+          code: `main/${name}`,
+          displayName: name,
+          latency: 0,
+          type: 'VLESS',
+          selected: index === 0,
+        })),
+      },
+    });
+    const heading = findNode(
+      root,
+      hasClass('fkp_dashboard-page__outbound-section__heading'),
+    )!;
+    const classes = heading.children.map((child) =>
+      typeof child === 'string' ? child : String(child.attrs.class),
+    );
+
+    expect(classes.slice(-2)).toEqual([
+      'fkp_dashboard-page__outbound-section__current',
+      'btn fkp_dashboard-page__outbound-section__exit',
+    ]);
+    expect(
+      findNode(
+        findNode(
+          root,
+          hasClass(
+            'fkp_dashboard-page__outbound-section__title-section__actions',
+          ),
+        )!,
+        hasClass('fkp_dashboard-page__outbound-section__exit'),
+      ),
+    ).toBeUndefined();
+  });
+
+  it('hangs the open panel from the header band', async () => {
+    const root = await render({
+      onToggleExit: vi.fn(),
+      exitPanel: { loading: true, nodeName: 'Node' },
+    });
+    const header = findNode(
+      root,
+      hasClass('fkp_dashboard-page__outbound-section__title-section'),
+    )!;
+
+    expect(
+      findNode(
+        header,
+        hasClass('fkp_dashboard-page__outbound-section__exit--open'),
+      )?.attrs['aria-expanded'],
+    ).toBe('true');
+    expect(
+      findNode(header, hasClass('fkp_dashboard-page__exit-panel')),
+    ).toBeDefined();
+  });
+
+  it('is left out of a section with no outbound to ask through', async () => {
+    const root = await render({
+      onToggleExit: vi.fn(),
+      section: {
+        code: 'vpn-out',
+        sectionName: 'vpn',
+        displayName: 'VPN',
+        withTagSelect: false,
+        outbounds: [],
+      },
+    });
+
+    expect(
+      findNode(root, hasClass('fkp_dashboard-page__outbound-section__exit')),
+    ).toBeUndefined();
+  });
+});

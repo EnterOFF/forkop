@@ -338,6 +338,19 @@ export function setClashApiGroupProxy(group: string, proxy: string) {
   );
 }
 
+// Both address families are asked at once, so a family that never answers holds the reply for
+// the whole timeout.
+const EXIT_LOOKUP_TIMEOUT_MS = '5000';
+
+export function getClashApiProxyExit(tag: string) {
+  return requestClashApi<Forkop.GetClashApiProxyExit>(
+    `/proxies/${encodeURIComponent(tag)}/exit?timeout=${EXIT_LOOKUP_TIMEOUT_MS}`,
+    undefined,
+    latencyRequestTimeout(EXIT_LOOKUP_TIMEOUT_MS),
+    { keepsRunningAfterTimeout: true },
+  );
+}
+
 export function getClashApiProxyLink(tag: string) {
   return requestClashApi<Forkop.GetClashApiProxyLink>(
     `/proxies/${encodeURIComponent(tag)}/link`,

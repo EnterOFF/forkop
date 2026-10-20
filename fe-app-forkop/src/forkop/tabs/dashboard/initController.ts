@@ -20,6 +20,8 @@ import {
   renderWidget,
 } from './partials';
 import { sectionLatencyTarget } from './sectionLatencyTarget';
+import { exitNodeName } from './exitNodeName';
+import type { ExitPanelState } from './partials/renderExitPanel';
 import { getClashApiSecret } from '../../methods/custom/getClashApiSecret';
 import { resetClashApiTransport } from '../../methods/custom/clashApi';
 import { Forkop } from '../../types';
@@ -85,6 +87,8 @@ let activeDetailsModal: {
   render: () => Node[];
   unsubscribe: () => void;
 } | null = null;
+let exitPanel: (ExitPanelState & { sectionName: string }) | null = null;
+let exitLookupId = 0;
 
 // Folded sections stay folded across visits.
 function readCollapsedSections() {
@@ -859,6 +863,82 @@ async function handleCopyOutbound(outbound: Forkop.Outbound) {
   }
 
   showToast(_('Proxy link is unavailable'), 'error');
+}
+
+// One section's exit panel is open at a time; the sections refresh redraws it from here.
+async function lookupExit(section: Forkop.OutboundGroup) {
+  const target = sectionLatencyTarget(section);
+  if (!target) {
+    return;
+  }
+
+  const lookupId = ++exitLookupId;
+  exitPanel = {
+    sectionName: section.sectionName,
+    loading: true,
+    report:
+      exitPanel?.sectionName === section.sectionName
+        ? exitPanel.report
+        : undefined,
+  };
+  void renderSectionsWidget();
+
+  const response = await CustomForkopMethods.getClashApiProxyExit(target.tag);
+  if (lookupId !== exitLookupId) {
+    return;
+  }
+
+  exitPanel = response.success
+    ? {
+        sectionName: section.sectionName,
+        loading: false,
+        report: response.data,
+      }
+    : {
+        sectionName: section.sectionName,
+        loading: false,
+        error: response.error,
+      };
+  void renderSectionsWidget();
+}
+
+function closeExitPanel() {
+  if (!exitPanel) {
+    return;
+  }
+
+  exitPanel = null;
+  exitLookupId += 1;
+  void renderSectionsWidget();
+}
+
+function handleToggleExit(section: Forkop.OutboundGroup) {
+  if (exitPanel?.sectionName === section.sectionName) {
+    closeExitPanel();
+    return;
+  }
+
+  exitPanel = null;
+  void lookupExit(section);
+}
+
+// Captured before any handler below can stop the click, so a press anywhere else closes the panel.
+function closeExitPanelOnOutsidePress(event: Event) {
+  const target = event.target as Element | null;
+  if (
+    exitPanel &&
+    !target?.closest?.(
+      '.fkp_dashboard-page__exit-panel, .fkp_dashboard-page__outbound-section__exit',
+    )
+  ) {
+    closeExitPanel();
+  }
+}
+
+function closeExitPanelOnEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    closeExitPanel();
+  }
 }
 
 function formatUrlTestModalValue(value: unknown) {
@@ -1677,6 +1757,18 @@ async function renderSectionsWidget() {
       onShowFallbackInfo: (outbound) => {
         handleShowFallbackInfo(outbound);
       },
+      exitPanel:
+        exitPanel?.sectionName === section.sectionName
+          ? {
+              ...exitPanel,
+              nodeName: exitNodeName(section, exitPanel.report?.outbound),
+            }
+          : undefined,
+      onToggleExit: () => handleToggleExit(section),
+      onRefreshExit: () => {
+        void lookupExit(section);
+      },
+      onCopyExitAddress: (address) => copyToClipboard(address),
     }),
   );
 
@@ -1871,6 +1963,8 @@ async function onPageMount() {
   resetClashApiTransport();
 
   store.subscribe(onStoreUpdate);
+  document.addEventListener('pointerdown', closeExitPanelOnOutsidePress, true);
+  document.addEventListener('keydown', closeExitPanelOnEscape);
   void renderSectionsWidget();
   void renderBandwidthWidget();
   void renderTrafficTotalWidget();
@@ -1892,6 +1986,14 @@ function onPageUnmount() {
     coreAgeTimer = null;
   }
   store.unsubscribe(onStoreUpdate);
+  document.removeEventListener(
+    'pointerdown',
+    closeExitPanelOnOutsidePress,
+    true,
+  );
+  document.removeEventListener('keydown', closeExitPanelOnEscape);
+  exitPanel = null;
+  exitLookupId += 1;
   store.reset([
     'bandwidthWidget',
     'trafficTotalWidget',

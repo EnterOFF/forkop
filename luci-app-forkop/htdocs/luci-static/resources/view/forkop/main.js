@@ -807,6 +807,37 @@ function renderGaugeIcon24() {
   );
 }
 
+// src/icons/renderGlobeIcon24.ts
+function renderGlobeIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-globe-icon lucide-globe"
+    },
+    [
+      svgEl("circle", {
+        cx: "12",
+        cy: "12",
+        r: "10"
+      }),
+      svgEl("path", {
+        d: "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"
+      }),
+      svgEl("path", {
+        d: "M2 12h20"
+      })
+    ]
+  );
+}
+
 // src/icons/renderFolderOpenIcon24.ts
 function renderFolderOpenIcon24() {
   const NS = "http://www.w3.org/2000/svg";
@@ -846,6 +877,186 @@ function prettyBytes(n) {
   n = Number((n / Math.pow(1e3, exponent)).toPrecision(3));
   const unit = UNITS[exponent];
   return n + " " + unit;
+}
+
+// src/forkop/tabs/dashboard/partials/renderExitPanel.ts
+function describeCountry(code) {
+  if (!code || code === "XX") {
+    return void 0;
+  }
+  if (code === "T1") {
+    return { flag: "", name: "Tor" };
+  }
+  if (!/^[A-Z]{2}$/.test(code)) {
+    return { flag: "", name: code };
+  }
+  const flag2 = String.fromCodePoint(
+    ...[...code].map((letter) => 127462 + letter.charCodeAt(0) - 65)
+  );
+  let name = code;
+  try {
+    const lang = typeof document === "undefined" ? "" : document.documentElement?.lang;
+    name = new Intl.DisplayNames(lang ? [lang] : [], { type: "region" }).of(code) || code;
+  } catch {
+  }
+  return { flag: flag2, name };
+}
+function renderCountry(code) {
+  const country = describeCountry(code);
+  if (!country) {
+    return void 0;
+  }
+  return textE("span", { class: "fkp_dashboard-page__exit-panel__country" }, [
+    ...renderFlagEmojis(country.flag),
+    textE("span", { title: code }, country.name)
+  ]);
+}
+function renderAddressRow(label, family, onCopy) {
+  const address = family.address;
+  return [
+    textE("dt", {}, label),
+    textE(
+      "dd",
+      {},
+      address ? [
+        textE(
+          "span",
+          { class: "fkp_dashboard-page__exit-panel__address" },
+          address
+        ),
+        textE(
+          "button",
+          {
+            type: "button",
+            class: "btn fkp_dashboard-page__exit-panel__icon-button",
+            title: _("Copy address"),
+            "aria-label": _("Copy address"),
+            click: () => onCopy(address)
+          },
+          renderCopyIcon24()
+        )
+      ] : textE(
+        "span",
+        {
+          class: "fkp_dashboard-page__exit-panel__missing",
+          title: family.error || void 0
+        },
+        _("no answer")
+      )
+    )
+  ];
+}
+function renderCountryRow(report2) {
+  const primary = report2.ipv4.address ? report2.ipv4 : report2.ipv6;
+  const country = renderCountry(primary.country);
+  if (!country) {
+    return [];
+  }
+  const ipv6Country = primary === report2.ipv4 && report2.ipv6.address && report2.ipv6.country !== report2.ipv4.country ? renderCountry(report2.ipv6.country) : void 0;
+  return [
+    textE("dt", {}, _("Country")),
+    textE("dd", {}, [
+      country,
+      ...ipv6Country ? [
+        textE(
+          "span",
+          { class: "fkp_dashboard-page__exit-panel__family-note" },
+          "IPv6:"
+        ),
+        ipv6Country
+      ] : []
+    ])
+  ];
+}
+function renderReport(report2, stale, onCopy) {
+  const lookupAddress = report2.ipv4.address || report2.ipv6.address;
+  return [
+    textE(
+      "dl",
+      {
+        class: [
+          "fkp_dashboard-page__exit-panel__facts",
+          stale ? "fkp_dashboard-page__exit-panel__facts--stale" : ""
+        ].filter(Boolean).join(" ")
+      },
+      [
+        ...renderAddressRow("IPv4", report2.ipv4, onCopy),
+        ...renderAddressRow("IPv6", report2.ipv6, onCopy),
+        ...renderCountryRow(report2)
+      ]
+    ),
+    ...lookupAddress ? [
+      textE("div", { class: "fkp_dashboard-page__exit-panel__footer" }, [
+        textE(
+          "a",
+          {
+            href: `https://ipinfo.io/${lookupAddress}`,
+            target: "_blank",
+            rel: "noopener noreferrer"
+          },
+          `${_("About the address on ipinfo.io")} \u2197`
+        )
+      ])
+    ] : []
+  ];
+}
+function renderStatus(state) {
+  return state.loading ? textE("div", { class: "fkp_dashboard-page__exit-panel__status" }, [
+    renderLoaderCircleIcon24(),
+    textE("span", {}, _("Finding the exit\u2026"))
+  ]) : textE(
+    "div",
+    {
+      class: "fkp_dashboard-page__exit-panel__status fkp_dashboard-page__exit-panel__status--error"
+    },
+    _("No answer: %s").format(state.error || _("unknown error"))
+  );
+}
+function renderExitPanel({
+  state,
+  nodeName,
+  onRefresh,
+  onCopy
+}) {
+  return textE(
+    "div",
+    {
+      class: "fkp_dashboard-page__exit-panel",
+      role: "dialog",
+      "aria-label": _("Exit IP"),
+      click: (event) => event.stopPropagation()
+    },
+    [
+      textE("div", { class: "fkp_dashboard-page__exit-panel__header" }, [
+        textE("div", { class: "fkp_dashboard-page__exit-panel__heading" }, [
+          textE(
+            "span",
+            { class: "fkp_dashboard-page__exit-panel__caption" },
+            _("Exit through")
+          ),
+          textE(
+            "span",
+            { class: "fkp_dashboard-page__exit-panel__node" },
+            nodeName ? renderFlagEmojis(nodeName) : "\u2026"
+          )
+        ]),
+        textE(
+          "button",
+          {
+            type: "button",
+            class: "btn fkp_dashboard-page__exit-panel__icon-button",
+            title: _("Check again"),
+            "aria-label": _("Check again"),
+            "aria-busy": state.loading ? "true" : void 0,
+            disabled: state.loading ? true : void 0,
+            click: () => onRefresh()
+          },
+          state.loading ? renderLoaderCircleIcon24() : renderRotateCcwIcon24()
+        )
+      ]),
+      ...state.report ? renderReport(state.report, state.loading, onCopy) : [renderStatus(state)]
+    ]
+  );
 }
 
 // src/forkop/tabs/dashboard/partials/renderSections.ts
@@ -1019,7 +1230,11 @@ function renderDefaultState({
   latencyFetchingTargets = /* @__PURE__ */ new Set(),
   sortByLatency,
   collapsible,
-  collapsed
+  collapsed,
+  exitPanel: exitPanel2,
+  onToggleExit,
+  onRefreshExit,
+  onCopyExitAddress
 }) {
   function testLatency() {
     const target2 = sectionLatencyTarget(section2);
@@ -1179,6 +1394,26 @@ function renderDefaultState({
     },
     renderListFilterIcon24()
   ) : void 0;
+  const exitAction = onToggleExit && sectionLatencyTarget(section2) ? textE(
+    "button",
+    {
+      type: "button",
+      class: [
+        "btn fkp_dashboard-page__outbound-section__exit",
+        exitPanel2 ? "fkp_dashboard-page__outbound-section__exit--open" : ""
+      ].filter(Boolean).join(" "),
+      title: _("Check IP"),
+      "aria-label": _("Check IP"),
+      "aria-haspopup": "dialog",
+      "aria-expanded": exitPanel2 ? "true" : "false",
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onToggleExit();
+      }
+    },
+    renderGlobeIcon24()
+  ) : void 0;
   const collapseLabel = collapsed ? _("Expand section") : _("Collapse section");
   const collapseAction = collapsible ? textE(
     "button",
@@ -1233,7 +1468,9 @@ function renderDefaultState({
           },
           section2.displayName
         ),
-        ...current ? [current] : []
+        ...current ? [current] : [],
+        // Beside the node it describes, far from the look-alike latency test.
+        ...exitAction ? [exitAction] : []
       ]),
       textE(
         "div",
@@ -1260,7 +1497,15 @@ function renderDefaultState({
             latencyFetching ? renderLoaderCircleIcon24() : renderGaugeIcon24()
           )
         ]
-      )
+      ),
+      ...exitAction && exitPanel2 ? [
+        renderExitPanel({
+          state: exitPanel2,
+          nodeName: exitPanel2.nodeName,
+          onRefresh: () => onRefreshExit?.(),
+          onCopy: (address) => onCopyExitAddress?.(address)
+        })
+      ] : []
     ]),
     // Everything below the title folds away; the title row and its actions stay.
     ...collapsed ? [] : [
@@ -2054,7 +2299,7 @@ var ForkopShellMethods = {
     [method, path, body],
     "/usr/bin/forkop",
     {
-      timeout: method.toUpperCase() === "GET" && !path.includes("/delay?") ? 1e4 : CLASH_API_TRANSPORT_TIMEOUT_MS
+      timeout: method.toUpperCase() === "GET" && !/\/(delay|exit)\?/.test(path) ? 1e4 : CLASH_API_TRANSPORT_TIMEOUT_MS
     }
   ),
   clashSummary: async () => callBaseMethod(
@@ -2354,6 +2599,15 @@ function setClashApiGroupProxy(group, proxy) {
       body: JSON.stringify({ name: proxy })
     },
     CLASH_API_MUTATION_TIMEOUT_MS
+  );
+}
+var EXIT_LOOKUP_TIMEOUT_MS = "5000";
+function getClashApiProxyExit(tag) {
+  return requestClashApi(
+    `/proxies/${encodeURIComponent(tag)}/exit?timeout=${EXIT_LOOKUP_TIMEOUT_MS}`,
+    void 0,
+    latencyRequestTimeout(EXIT_LOOKUP_TIMEOUT_MS),
+    { keepsRunningAfterTimeout: true }
   );
 }
 function getClashApiProxyLink(tag) {
@@ -3289,6 +3543,7 @@ var CustomForkopMethods = {
   getClashApiConnections,
   getClashApiConnectionsSummary,
   getClashApiGroupLatency,
+  getClashApiProxyExit,
   getClashApiProxyLink,
   getClashApiProxyLatency,
   setClashApiGroupProxy,
@@ -4570,6 +4825,24 @@ var SocketManager = class _SocketManager {
 };
 var socket = SocketManager.getInstance();
 
+// src/forkop/tabs/dashboard/exitNodeName.ts
+function exitNodeName(section2, tag) {
+  if (!tag) {
+    const current = section2.withTagSelect ? section2.outbounds.find((outbound) => outbound.selected) : section2.outbounds[0];
+    return current?.displayName;
+  }
+  for (const outbound of section2.outbounds) {
+    if (outbound.code === tag) {
+      return outbound.displayName;
+    }
+    const member = (outbound.urlTestInfo?.outbounds || outbound.fallbackInfo?.outbounds || []).find((candidate) => candidate.code === tag);
+    if (member) {
+      return member.displayName;
+    }
+  }
+  return tag;
+}
+
 // src/forkop/methods/custom/getClashApiSecret.ts
 async function getClashApiSecret2() {
   const sections = await getConfigSections();
@@ -4786,6 +5059,8 @@ var selectorRequests = /* @__PURE__ */ new Set();
 var toolbarActions = /* @__PURE__ */ new Set();
 var fallbackPinRequests = /* @__PURE__ */ new Set();
 var activeDetailsModal = null;
+var exitPanel = null;
+var exitLookupId = 0;
 function readCollapsedSections() {
   try {
     const stored = JSON.parse(
@@ -5376,6 +5651,62 @@ async function handleCopyOutbound(outbound) {
     return;
   }
   showToast(_("Proxy link is unavailable"), "error");
+}
+async function lookupExit(section2) {
+  const target2 = sectionLatencyTarget(section2);
+  if (!target2) {
+    return;
+  }
+  const lookupId = ++exitLookupId;
+  exitPanel = {
+    sectionName: section2.sectionName,
+    loading: true,
+    report: exitPanel?.sectionName === section2.sectionName ? exitPanel.report : void 0
+  };
+  void renderSectionsWidget();
+  const response = await CustomForkopMethods.getClashApiProxyExit(target2.tag);
+  if (lookupId !== exitLookupId) {
+    return;
+  }
+  exitPanel = response.success ? {
+    sectionName: section2.sectionName,
+    loading: false,
+    report: response.data
+  } : {
+    sectionName: section2.sectionName,
+    loading: false,
+    error: response.error
+  };
+  void renderSectionsWidget();
+}
+function closeExitPanel() {
+  if (!exitPanel) {
+    return;
+  }
+  exitPanel = null;
+  exitLookupId += 1;
+  void renderSectionsWidget();
+}
+function handleToggleExit(section2) {
+  if (exitPanel?.sectionName === section2.sectionName) {
+    closeExitPanel();
+    return;
+  }
+  exitPanel = null;
+  void lookupExit(section2);
+}
+function closeExitPanelOnOutsidePress(event) {
+  const target2 = event.target;
+  if (exitPanel && !target2?.closest?.(
+    ".fkp_dashboard-page__exit-panel, .fkp_dashboard-page__outbound-section__exit"
+  )) {
+    closeExitPanel();
+  }
+}
+function closeExitPanelOnEscape(event) {
+  if (event.key === "Escape") {
+    closeExitPanel();
+  }
 }
 function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
@@ -6028,7 +6359,16 @@ async function renderSectionsWidget() {
       },
       onShowFallbackInfo: (outbound) => {
         handleShowFallbackInfo(outbound);
-      }
+      },
+      exitPanel: exitPanel?.sectionName === section2.sectionName ? {
+        ...exitPanel,
+        nodeName: exitNodeName(section2, exitPanel.report?.outbound)
+      } : void 0,
+      onToggleExit: () => handleToggleExit(section2),
+      onRefreshExit: () => {
+        void lookupExit(section2);
+      },
+      onCopyExitAddress: (address) => copyToClipboard(address)
     })
   );
   return preserveScrollForPage(() => {
@@ -6177,6 +6517,8 @@ async function onPageMount() {
   dashboardMountId += 1;
   resetClashApiTransport();
   store.subscribe(onStoreUpdate);
+  document.addEventListener("pointerdown", closeExitPanelOnOutsidePress, true);
+  document.addEventListener("keydown", closeExitPanelOnEscape);
   void renderSectionsWidget();
   void renderBandwidthWidget();
   void renderTrafficTotalWidget();
@@ -6196,6 +6538,14 @@ function onPageUnmount() {
     coreAgeTimer = null;
   }
   store.unsubscribe(onStoreUpdate);
+  document.removeEventListener(
+    "pointerdown",
+    closeExitPanelOnOutsidePress,
+    true
+  );
+  document.removeEventListener("keydown", closeExitPanelOnEscape);
+  exitPanel = null;
+  exitLookupId += 1;
   store.reset([
     "bandwidthWidget",
     "trafficTotalWidget",
@@ -6328,6 +6678,7 @@ fill the column. */
 }
 
 .fkp_dashboard-page__outbound-section__title-section {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -6401,6 +6752,7 @@ fill the column. */
 }
 
 .fkp_dashboard-page__outbound-section__sort-by-latency svg,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit svg,
 .fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
     width: 15px;
     height: 15px;
@@ -6409,6 +6761,192 @@ fill the column. */
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency--active {
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
+}
+
+/* A quiet icon after the section's choice, drawn like the fold chevron. */
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    margin-left: -4px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 4px;
+    box-shadow: none !important;
+    color: inherit;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit:focus-visible,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit--open {
+    opacity: 1;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit--open {
+    background: color-mix(in srgb, currentColor 14%, transparent) !important;
+}
+
+/* Hangs from the left end of the header band, under the node it describes, as a theme's open
+dropdown does; it carries the section's own outline and header band. */
+.fkp_dashboard-page__exit-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 8px;
+    z-index: 20;
+    box-sizing: border-box;
+    width: 320px;
+    max-width: calc(100% - 16px);
+    padding: 0 12px 10px;
+    border: 2px var(--background-color-low, lightgray) solid;
+    border-radius: 4px;
+    background: var(--background-color-high, Canvas);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    color: var(--text-color-high, inherit);
+    cursor: default;
+    line-height: 1.35;
+}
+
+.fkp_dashboard-page__exit-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 -12px 10px;
+    padding: 6px 6px 6px 12px;
+    background: var(--background-color-low, lightgray);
+}
+
+.fkp_dashboard-page__exit-panel__heading {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.fkp_dashboard-page__exit-panel__caption {
+    color: var(--text-color-medium, inherit);
+    font-size: 0.85em;
+}
+
+.fkp_dashboard-page__exit-panel__node {
+    color: var(--text-color-highest, inherit);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__exit-panel__icon-button {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.fkp_dashboard-page__exit-panel__icon-button svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.fkp_dashboard-page__exit-panel__facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 16px;
+    margin: 0;
+    transition: opacity 0.15s ease;
+}
+
+.fkp_dashboard-page__exit-panel__facts--stale {
+    opacity: 0.5;
+}
+
+.fkp_dashboard-page__exit-panel__facts > dt {
+    margin: 0;
+    color: var(--text-color-medium, inherit);
+    font-weight: normal;
+}
+
+.fkp_dashboard-page__exit-panel__facts > dd {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 26px;
+    margin: 0;
+}
+
+.fkp_dashboard-page__exit-panel__address {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text-color-highest, inherit);
+    font-family: monospace;
+    font-size: 1.05em;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+.fkp_dashboard-page__exit-panel__missing,
+.fkp_dashboard-page__exit-panel__family-note {
+    color: var(--text-color-medium, inherit);
+}
+
+.fkp_dashboard-page__exit-panel__missing[title] {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.fkp_dashboard-page__exit-panel__family-note {
+    margin-left: 6px;
+}
+
+.fkp_dashboard-page__exit-panel__country {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.fkp_dashboard-page__exit-panel__footer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color-low, rgba(128, 128, 128, 0.25));
+    font-size: 0.9em;
+}
+
+.fkp_dashboard-page__exit-panel__footer a {
+    color: var(--primary-color-high, #337ab7);
+}
+
+.fkp_dashboard-page__exit-panel__status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 26px;
+    color: var(--text-color-medium, inherit);
+}
+
+.fkp_dashboard-page__exit-panel__status svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+.fkp_dashboard-page__exit-panel__status--error {
+    color: var(--error-color-medium, red);
+    overflow-wrap: anywhere;
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse {

@@ -86,6 +86,7 @@ fill the column. */
 }
 
 .fkp_dashboard-page__outbound-section__title-section {
+    position: relative;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -159,6 +160,7 @@ fill the column. */
 }
 
 .fkp_dashboard-page__outbound-section__sort-by-latency svg,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit svg,
 .fkp_dashboard-page .btn.dashboard-sections-grid-item-test-latency svg {
     width: 15px;
     height: 15px;
@@ -167,6 +169,192 @@ fill the column. */
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__sort-by-latency--active {
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
+}
+
+/* A quiet icon after the section's choice, drawn like the fold chevron. */
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    margin-left: -4px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 4px;
+    box-shadow: none !important;
+    color: inherit;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit:focus-visible,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit--open {
+    opacity: 1;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit:hover,
+.fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__exit--open {
+    background: color-mix(in srgb, currentColor 14%, transparent) !important;
+}
+
+/* Hangs from the left end of the header band, under the node it describes, as a theme's open
+dropdown does; it carries the section's own outline and header band. */
+.fkp_dashboard-page__exit-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 8px;
+    z-index: 20;
+    box-sizing: border-box;
+    width: 320px;
+    max-width: calc(100% - 16px);
+    padding: 0 12px 10px;
+    border: 2px var(--background-color-low, lightgray) solid;
+    border-radius: 4px;
+    background: var(--background-color-high, Canvas);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+    color: var(--text-color-high, inherit);
+    cursor: default;
+    line-height: 1.35;
+}
+
+.fkp_dashboard-page__exit-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 -12px 10px;
+    padding: 6px 6px 6px 12px;
+    background: var(--background-color-low, lightgray);
+}
+
+.fkp_dashboard-page__exit-panel__heading {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.fkp_dashboard-page__exit-panel__caption {
+    color: var(--text-color-medium, inherit);
+    font-size: 0.85em;
+}
+
+.fkp_dashboard-page__exit-panel__node {
+    color: var(--text-color-highest, inherit);
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.fkp_dashboard-page .btn.fkp_dashboard-page__exit-panel__icon-button {
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    min-height: 26px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.fkp_dashboard-page__exit-panel__icon-button svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+}
+
+.fkp_dashboard-page__exit-panel__facts {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 16px;
+    margin: 0;
+    transition: opacity 0.15s ease;
+}
+
+.fkp_dashboard-page__exit-panel__facts--stale {
+    opacity: 0.5;
+}
+
+.fkp_dashboard-page__exit-panel__facts > dt {
+    margin: 0;
+    color: var(--text-color-medium, inherit);
+    font-weight: normal;
+}
+
+.fkp_dashboard-page__exit-panel__facts > dd {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 26px;
+    margin: 0;
+}
+
+.fkp_dashboard-page__exit-panel__address {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--text-color-highest, inherit);
+    font-family: monospace;
+    font-size: 1.05em;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+.fkp_dashboard-page__exit-panel__missing,
+.fkp_dashboard-page__exit-panel__family-note {
+    color: var(--text-color-medium, inherit);
+}
+
+.fkp_dashboard-page__exit-panel__missing[title] {
+    cursor: help;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+}
+
+.fkp_dashboard-page__exit-panel__family-note {
+    margin-left: 6px;
+}
+
+.fkp_dashboard-page__exit-panel__country {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+}
+
+.fkp_dashboard-page__exit-panel__footer {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color-low, rgba(128, 128, 128, 0.25));
+    font-size: 0.9em;
+}
+
+.fkp_dashboard-page__exit-panel__footer a {
+    color: var(--primary-color-high, #337ab7);
+}
+
+.fkp_dashboard-page__exit-panel__status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 26px;
+    color: var(--text-color-medium, inherit);
+}
+
+.fkp_dashboard-page__exit-panel__status svg {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+}
+
+.fkp_dashboard-page__exit-panel__status--error {
+    color: var(--error-color-medium, red);
+    overflow-wrap: anywhere;
 }
 
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse {
