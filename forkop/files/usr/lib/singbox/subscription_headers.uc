@@ -67,7 +67,7 @@ function header_line(name, value) {
 // Panels pick a sing-box template by this version and cannot parse the fork's suffix.
 function upstream_sing_box_version() {
     let installed = packages.sing_box_version();
-    let base = split(split(installed, "-extended-")[0], "-forkop.")[0];
+    let base = split(installed, "-")[0];
     return match(base, /^[0-9]+(\.[0-9]+)*$/) != null ? base : "";
 }
 

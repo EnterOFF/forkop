@@ -88,9 +88,12 @@ function apk_version(name) {
         apk_list_version(name, exec.output([ "apk", "info", "-v", name ]));
 }
 
+// X.Y.Z-rN for a release and X.Y.Z-rN+K between releases; the forms of the cores built on
+// sing-box-extended are read too, so an old core is reported as outdated, not as missing.
 function recorded_sing_box_version() {
     let value = trim(fs.readfile(paths.sing_box_version) ?? "");
-    return match(value, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) ||
+    return match(value, /^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+(\+[0-9]+)?$/) ||
+        match(value, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) ||
         match(value, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) ? value : "";
 }
 
