@@ -150,20 +150,6 @@ t.test("tunnels become native endpoints with the fields their kind allows", () =
     t.eq(config.experimental.cache_file.store_warp_config, true);
 });
 
-// sing-box sets Go's soft memory limit to two thirds of memory_limit.
-t.test("the core's memory limit is half the router's memory, and absent when that is unknown", () => {
-    let data = {
-        settings: settings(),
-        section: [ { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}" } ]
-    };
-    fixture.seed(data);
-    let known = generator.build({ service_address: "127.0.0.1", memory_total_kb: 239540 });
-    t.eq(known.experimental.debug, { memory_limit: "119770kb" });
-    fixture.seed(data);
-    let unknown = generator.build({ service_address: "127.0.0.1" });
-    t.eq(unknown.experimental.debug, null);
-});
-
 t.test("list update settings reach remote rule sets, and ports constrain the whole rule-set matcher", () => {
     let disabled = build({
         settings: settings({ list_update_enabled: "0", update_interval: "5m" }),

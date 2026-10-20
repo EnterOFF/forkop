@@ -220,12 +220,6 @@ function apply_matchers(rule, matchers) {
         rule[key] = value;
 }
 
-// sing-box sets Go's soft memory limit to two thirds of memory_limit, a third of RAM here, so
-// the collector works harder only as the core nears the size the OOM killer would take.
-function debug_config(memory_total_kb) {
-    return memory_total_kb > 0 ? { memory_limit: sprintf("%dkb", int(memory_total_kb / 2)) } : null;
-}
-
 function base_config(settings, service_address, runtime_context) {
     let log_level = option(settings, "log_level", "warn");
     let rewrite_ttl = int_option(settings, "dns_rewrite_ttl", "60");
@@ -268,7 +262,6 @@ function base_config(settings, service_address, runtime_context) {
     ];
 
     runtime_context.default_domain_resolver = runtime_dns.default_domain_resolver(settings);
-    let debug = debug_config(runtime_context.memory_total_kb);
 
     return {
         log: {
@@ -302,8 +295,7 @@ function base_config(settings, service_address, runtime_context) {
                 store_subscriptions: true,
                 store_warp_config: true
             },
-            clash_api: clash_api_config(settings, service_address),
-            ...(debug ? { debug } : {})
+            clash_api: clash_api_config(settings, service_address)
         }
     };
 }
@@ -1869,7 +1861,7 @@ function add_server_routes(config, servers, sections) {
 }
 
 // Throws with the reason when the configuration cannot be expressed.
-// context: { service_address, mwan3_active, memory_total_kb }
+// context: { service_address, mwan3_active }
 function build(context) {
     context = object_or_empty(context);
     connections.load();
@@ -1883,7 +1875,6 @@ function build(context) {
 
     let config = base_config(settings, context.service_address, {
         mwan3_active: !!context.mwan3_active,
-        memory_total_kb: int(context.memory_total_kb ?? 0),
         direct_server_route: has_direct_tailscale_server(servers)
     });
     add_source_aware_dns_support(config);

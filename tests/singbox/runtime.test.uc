@@ -72,6 +72,17 @@ t.test("the configuration is written where the service reads it, and only when i
     stub.restore();
 });
 
+// The core follows the memory the system can still give with Go's limit; a memory_limit in the
+// configuration would fix it instead.
+t.test("the written configuration leaves the memory limit to the core", () => {
+    let dir = stub.tmpdir();
+    fixture.seed(configuration(dir));
+    tools([ [ CHECK, {} ] ]);
+    runtime.write_config(false);
+    stub.restore();
+    t.eq(json(fs.readfile(dir + "/etc/sing-box/config.json")).experimental.debug, null);
+});
+
 t.test("a configuration the core refuses is reported by its first line and never written", () => {
     let dir = stub.tmpdir();
     fixture.seed(configuration(dir));
