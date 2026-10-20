@@ -1650,31 +1650,35 @@ function add_combined_route_for_section(config, section) {
     let target = runtime_route.target(section, outbound_tag(section_name));
     if (target.unsupported)
         runtime_generate_unsupported(target.unsupported);
-    let route_rule = { action: target.action };
+    let base_rule = { action: target.action };
     if (target.outbound)
-        route_rule.outbound = target.outbound;
-    add_domain_array(route_rule, "domain", domain);
-    add_domain_array(route_rule, "domain_suffix", domain_suffix);
-    add_domain_array(route_rule, "domain_keyword", domain_keyword);
-    add_domain_array(route_rule, "domain_regex", domain_regex);
-    if (length(ip_cidr) > 0)
-        route_rule.ip_cidr = ip_cidr;
-    add_port_matchers(route_rule, section);
-    if (length(rule_set_tags) > 0)
-        route_rule.rule_set = single_or_array(rule_set_tags);
+        base_rule.outbound = target.outbound;
+    add_port_matchers(base_rule, section);
 
-    let has_route_matchers = route_rule.domain != null || route_rule.domain_suffix != null ||
-        route_rule.domain_keyword != null || route_rule.domain_regex != null ||
-        route_rule.ip_cidr != null || route_rule.port != null || route_rule.port_range != null ||
-        route_rule.rule_set != null;
-    if (has_route_matchers) {
+    // sing-box ANDs a rule set of more than one rule with the domains of the rule naming it.
+    let route_rules = [];
+    if (length(domain) > 0 || length(domain_suffix) > 0 || length(domain_keyword) > 0 ||
+        length(domain_regex) > 0 || length(ip_cidr) > 0) {
+        let destination_rule = copy_matchers(base_rule);
+        add_domain_array(destination_rule, "domain", domain);
+        add_domain_array(destination_rule, "domain_suffix", domain_suffix);
+        add_domain_array(destination_rule, "domain_keyword", domain_keyword);
+        add_domain_array(destination_rule, "domain_regex", domain_regex);
+        if (length(ip_cidr) > 0)
+            destination_rule.ip_cidr = ip_cidr;
+        push(route_rules, destination_rule);
+    }
+    if (length(rule_set_tags) > 0)
+        push(route_rules, { ...base_rule, rule_set: single_or_array(rule_set_tags) });
+    if (length(route_rules) == 0 && (base_rule.port != null || base_rule.port_range != null))
+        push(route_rules, base_rule);
+
+    for (let route_rule in route_rules)
         for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", false)) {
             let device_route_rule = copy_matchers(route_rule);
             apply_matchers(device_route_rule, device_matchers);
-            device_route_rule = constrain_rule_set_by_section(device_route_rule, target);
-            push(config.route.rules, device_route_rule);
+            push(config.route.rules, constrain_rule_set_by_section(device_route_rule, target));
         }
-    }
 
     let rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
     if (length(domain) > 0 || length(domain_suffix) > 0 || length(domain_keyword) > 0 || length(domain_regex) > 0) {

@@ -513,6 +513,33 @@ t.test("a Tailscale server advertises a single address as its own prefix", () =>
     t.eq(q.find(d.endpoints, (e) => e.type == "tailscale").advertise_routes, [ "192.168.1.10/32", "192.168.2.0/24", "fd00::10/128" ]);
 });
 
+// sing-box merges only a rule set of one plain rule into the rule naming it, and discord has three.
+t.test("a section's own destinations and its rule sets each select traffic on their own", () => {
+    let d = build({ settings: settings(), section: [ { ".name": "proxy", enabled: "1", action: "connection",
+        outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "own.example\n203.0.113.0/24",
+        community_lists: [ "discord" ], ports: [ "443" ] } ] });
+    let rules = filter(d.route.rules, (r) => r.outbound == "proxy" && r.domain == null);
+    t.eq(length(rules), 2);
+    let own = q.find(rules, (r) => has(r.domain_suffix, "own.example"));
+    t.ok(own != null && has(own.ip_cidr, "203.0.113.0/24") && has(own.port, 443) && has(own.inbound, "tproxy-in"));
+    t.eq(own.rule_set, null, "the own destinations do not have to be in the rule set as well");
+    let listed = q.find(rules, (r) => r.type == "logical");
+    t.ok(has(listed.rules[0].rule_set, "proxy-discord-community-ruleset") && has(listed.rules[0].inbound, "tproxy-in"));
+    t.eq([ listed.rules[0].domain_suffix, listed.rules[0].ip_cidr ], [ null, null ], "a listed domain does not have to be an own one as well");
+    t.ok(has(listed.rules[1].port, 443), "the section's ports still narrow the rule set");
+});
+
+t.test("ports on their own select traffic in one rule", () => {
+    let d = build({ settings: settings(), section: [
+        { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], ports: [ "22", "6000-7000" ] },
+        { ".name": "deny", enabled: "1", action: "block", ports: [ "25" ] } ] });
+    let proxied = filter(d.route.rules, (r) => r.outbound == "proxy" && r.domain == null);
+    t.eq(length(proxied), 1);
+    t.eq([ proxied[0].port, proxied[0].port_range, proxied[0].rule_set ], [ [ 22 ], [ "6000:7000" ], null ]);
+    t.ok(has(proxied[0].inbound, "system-in"), "the router's own traffic is matched as well");
+    t.ok(q.route_rule(d, (r) => r.action == "reject" && has(r.port, 25) && has(r.inbound, "tproxy-in")) != null);
+});
+
 t.test("a range of one port is a port, since the core refuses a range without a colon", () => {
     let d = build({ settings: settings(), section: [ { ".name": "proxy", enabled: "1", action: "connection",
         outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org", ports: [ "443-443", "443", "1000-2000", "x" ], ports_text: "80, 1000-2000" } ] });
