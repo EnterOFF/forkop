@@ -61,9 +61,7 @@
     "mieru",
     "snell",
     "shadowtls",
-    "sudoku",
     "trusttunnel",
-    "masque",
     "ssh",
     "tor",
     "socks",
@@ -82,9 +80,7 @@
     "mieru",
     "snell",
     "shadowtls",
-    "sudoku",
     "trusttunnel",
-    "masque",
     "ssh",
     "tor",
     "socks",
@@ -128,7 +124,6 @@
   "password_fields": {
     "amnezia_header_protection_key": "amnezia_header_protection_key",
     "hysteria2_obfs_password": "hysteria2_obfs_password",
-    "native_api_secret": "native_api_secret",
     "openconnect_cookie": "endpoint_json",
     "openconnect_key_password": "endpoint_json",
     "openconnect_password": "endpoint_json",
@@ -172,11 +167,8 @@
       "tfogo_checklinkname0",
       "with_clash_api",
       "with_gvisor",
-      "with_masque",
-      "with_mtproxy",
       "with_openvpn",
       "with_quic",
-      "with_sudoku",
       "with_trusttunnel",
       "with_utls",
       "with_wireguard"
@@ -210,29 +202,13 @@
         "available": false,
         "tags": ["with_naive_outbound"]
       },
-      "mtproxy": {
-        "available": true,
-        "tags": ["with_mtproxy"]
-      },
-      "masque": {
-        "available": true,
-        "tags": ["with_masque", "with_gvisor"]
-      },
       "trusttunnel": {
         "available": true,
         "tags": ["with_trusttunnel"]
       },
-      "sudoku": {
-        "available": true,
-        "tags": ["with_sudoku"]
-      },
       "openconnect": {
         "available": false,
         "tags": ["with_openconnect", "with_gvisor"]
-      },
-      "api": {
-        "available": false,
-        "tags": ["with_api"]
       }
     },
     "types": {
@@ -241,17 +217,13 @@
         "hysteria2": "quic",
         "tuic": "quic",
         "naive": "naive",
-        "masque": "masque",
-        "trusttunnel": "trusttunnel",
-        "sudoku": "sudoku"
+        "trusttunnel": "trusttunnel"
       },
       "inbound": {
         "hysteria": "quic",
         "hysteria2": "quic",
         "tuic": "quic",
-        "mtproxy": "mtproxy",
-        "trusttunnel": "trusttunnel",
-        "sudoku": "sudoku"
+        "trusttunnel": "trusttunnel"
       },
       "endpoint": {
         "wireguard": "wireguard",

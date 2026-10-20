@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 08:07+0300\n"
-"PO-Revision-Date: 2026-10-20 08:07+0300\n"
+"POT-Creation-Date: 2026-10-20 11:12+0300\n"
+"PO-Revision-Date: 2026-10-20 11:12+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -301,9 +301,6 @@ msgstr "Любой"
 
 msgid "Anyone on the way can pose as the server. Add the CA certificate or a fingerprint instead"
 msgstr "Любой на пути до сервера сможет выдать себя за него. Лучше добавьте сертификат CA или отпечаток"
-
-msgid "API secret"
-msgstr "Секрет API"
 
 msgid "Applies WARP+ to the profile account"
 msgstr "Применяет WARP+ к аккаунту профиля"
@@ -1337,9 +1334,6 @@ msgstr "Основной DNS"
 msgid "Main DNS Query Mode"
 msgstr "Режим опроса основного DNS"
 
-msgid "Manage connections and interactive VPN authentication"
-msgstr "Управление соединениями и интерактивной авторизацией VPN"
-
 msgid "Masquerade"
 msgstr "Маскировка"
 
@@ -1612,9 +1606,6 @@ msgstr "Только буквы, цифры и . _ -"
 
 msgid "Only selected"
 msgstr "Только выбранные"
-
-msgid "Open dashboard"
-msgstr "Открыть панель"
 
 msgid "Open the port"
 msgstr "Открыть порт"
@@ -2093,17 +2084,11 @@ msgstr "Отображать блок метаданных в дашборде"
 msgid "Sign in with a certificate, alone or together with the login"
 msgstr "Вход по сертификату, отдельно или вместе с логином"
 
-msgid "sing-box API"
-msgstr "API sing-box"
-
 msgid "sing-box Clash API"
 msgstr "Clash API sing-box"
 
 msgid "sing-box configuration"
 msgstr "Конфигурация sing-box"
-
-msgid "sing-box Dashboard and API"
-msgstr "Панель sing-box и API"
 
 msgid "sing-box is built without %s"
 msgstr "sing-box собран без %s"

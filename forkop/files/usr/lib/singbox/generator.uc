@@ -290,12 +290,7 @@ function base_config(settings, service_address, runtime_context) {
             { type: "direct", tag: runtime_constants.DIRECT_OUTBOUND_TAG }
         ],
         route: runtime_route.config(settings, runtime_context),
-        services: bool_option(settings, "enable_native_api", false) ? [{
-            type: "api", tag: "forkop-api", listen: service_address || "127.0.0.1",
-            listen_port: 9091, secret: option(settings, "native_api_secret", ""),
-            dashboard: { enabled: true, path: "/tmp/sing-box/dashboard",
-                http_client: { detour: runtime_constants.DIRECT_OUTBOUND_TAG } }
-        }] : [],
+        services: [],
         experimental: {
             unified_delay: {
                 enabled: bool_option(settings, "unified_delay", true)

@@ -58,9 +58,4 @@ t.test("an OpenConnect tunnel is refused on what the core would refuse it for", 
     v.refuses(openconnect({ token: { mode: "totp" } }), "has an OpenConnect one-time code without its mode or secret");
 });
 
-t.test("the native API needs its secret", () => {
-    v.accepts(openvpn({ enable_native_api: "1", native_api_secret: "test-secret" }));
-    v.refuses(openvpn({ enable_native_api: "1" }), "'API secret' in Settings is empty");
-});
-
 t.done();

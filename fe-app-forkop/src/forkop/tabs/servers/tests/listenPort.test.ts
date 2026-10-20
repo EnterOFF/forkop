@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { installLuciStubs } from '../../../../helpers/tests/luciStubs';
 
 installLuciStubs({
-  settings: { '.type': 'settings', enable_native_api: '1' },
+  settings: { '.type': 'settings' },
   vless: {
     '.type': 'server',
     protocol: 'vless',
@@ -47,10 +47,5 @@ describe('the listen port of a server', () => {
     expect(listenTransports('naive', 'tcp_udp')).toEqual(['tcp', 'udp']);
     expect(listenTransports('mieru', 'UDP')).toEqual(['udp']);
     expect(listenTransports('vless', '')).toEqual(['tcp']);
-  });
-
-  it('may not take the port of the native API while it is on', () => {
-    expect(validateListenPort('vless', '9091')).toContain('Port taken by');
-    expect(validateListenPort('hysteria', '9091')).toBe(true);
   });
 });

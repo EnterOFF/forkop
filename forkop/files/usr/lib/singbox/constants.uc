@@ -49,8 +49,7 @@ const SERVER_FIREWALL_COMMENT = "forkop: server ports";
 const FILTERABLE_PROVIDER_TYPES = [
     "vless", "vmess", "trojan", "shadowsocks",
     "hysteria2", "hysteria", "tuic", "anytls",
-    "naive", "mieru", "snell", "shadowtls",
-    "sudoku", "trusttunnel", "masque",
+    "naive", "mieru", "snell", "shadowtls", "trusttunnel",
     "ssh", "tor", "socks", "http"
 ];
 

@@ -2,9 +2,9 @@ let t = require("t");
 let v = require("validation");
 let fixture = require("fixture");
 
-const BASE = [ "badlinkname", "tfogo_checklinkname0", "with_clash_api", "with_gvisor", "with_masque", "with_mtproxy",
-    "with_openvpn", "with_quic", "with_sudoku", "with_trusttunnel", "with_utls", "with_wireguard" ];
-const FULL = [ ...BASE, "with_tailscale", "with_naive_outbound", "with_call", "with_openconnect", "with_api" ];
+const BASE = [ "badlinkname", "tfogo_checklinkname0", "with_clash_api", "with_gvisor", "with_openvpn", "with_quic",
+    "with_trusttunnel", "with_utls", "with_wireguard" ];
+const FULL = [ ...BASE, "with_tailscale", "with_naive_outbound", "with_openconnect" ];
 
 function without(tags, tag) {
     return filter(tags, (item) => item != tag);
@@ -92,11 +92,6 @@ t.test("DNS over QUIC and HTTP/3 need QUIC", () => {
 t.test("a DNS section's servers need QUIC for DNS over QUIC too", () => {
     needs({ section: [ { ".name": "dns", enabled: "1", action: "dns", dns_server: [ "quic://dns.example.com" ], destinations: "example.org" } ] },
         without(BASE, "with_quic"), "DNS server 'quic://dns.example.com' uses DNS over QUIC");
-});
-
-t.test("the sing-box dashboard needs the API service", () => {
-    needs({ settings: { enable_native_api: "1", native_api_secret: "s" } }, BASE,
-        "The sing-box Dashboard and API setting is on, but this sing-box build lacks the sing-box API (built without with_api)");
 });
 
 t.test("requesting WARP profiles through a section needs WARP", () => {

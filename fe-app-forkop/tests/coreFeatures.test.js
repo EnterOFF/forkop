@@ -30,7 +30,7 @@ describe('before the router has answered', () => {
     expect(coreHas('tailscale')).toBe(true);
     expect(coreSupportsType('naive')).toBe(true);
     expect(linkCoreFeatures('hy2://p@example.com:443#h')).toEqual([]);
-    expect(validateCoreFeature('api')).toBe(true);
+    expect(validateCoreFeature('tailscale')).toBe(true);
     expect(coreFilterTypeChoices(groupTypeChoices(), [])).toEqual(
       groupTypeChoices(),
     );
@@ -48,7 +48,7 @@ describe('the base build', () => {
     expect(coreHas('quic')).toBe(true);
     expect(coreHas('wireguard')).toBe(true);
     expect(coreHas('tailscale')).toBe(false);
-    expect(coreHas('api')).toBe(false);
+    expect(coreHas('openconnect')).toBe(false);
   });
 
   it('looks a type up by the kind of object it is', () => {
@@ -66,8 +66,8 @@ describe('the base build', () => {
     expect(missingCoreFeatureNote('tailscale')).toBe(
       'the installed sing-box lacks with_tailscale',
     );
-    expect(validateCoreFeature('api')).toBe(
-      'sing-box is built without with_api',
+    expect(validateCoreFeature('naive')).toBe(
+      'sing-box is built without with_naive_outbound',
     );
     expect(validateCoreFeature('quic')).toBe(true);
     expect(validateCoreFeature('')).toBe(true);

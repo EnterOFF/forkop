@@ -46,9 +46,6 @@ export function occupiedPorts(currentSectionId: string) {
   };
 
   RESERVED_PORTS.forEach(([port, owner]) => claim(port, ['tcp', 'udp'], owner));
-  if (uci.get(FORKOP_UCI_PACKAGE, 'settings', 'enable_native_api') === '1') {
-    claim('9091', ['tcp'], _('sing-box API'));
-  }
 
   (uci.sections(FORKOP_UCI_PACKAGE, 'server') || []).forEach((server) => {
     if (server['.name'] === currentSectionId || server.enabled === '0') {

@@ -17772,9 +17772,7 @@ function providerTypeChoices() {
     ["mieru", "Mieru"],
     ["snell", "Snell"],
     ["shadowtls", "ShadowTLS"],
-    ["sudoku", "Sudoku"],
     ["trusttunnel", "TrustTunnel"],
-    ["masque", "MASQUE"],
     ["ssh", "SSH"],
     ["tor", "Tor"],
     ["socks", "SOCKS"],
@@ -22833,9 +22831,6 @@ function occupiedPorts(currentSectionId) {
     });
   };
   RESERVED_PORTS.forEach(([port2, owner]) => claim(port2, ["tcp", "udp"], owner));
-  if (uci.get(FORKOP_UCI_PACKAGE, "settings", "enable_native_api") === "1") {
-    claim("9091", ["tcp"], _("sing-box API"));
-  }
   (uci.sections(FORKOP_UCI_PACKAGE, "server") || []).forEach((server2) => {
     if (server2[".name"] === currentSectionId || server2.enabled === "0") {
       return;
@@ -26336,24 +26331,6 @@ function addTrafficOptions(section2) {
     )
   );
   o.depends("enable_yacd_wan_access", "1");
-  o.retain = true;
-  o.validate = required();
-  const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
-  o = section2.option(
-    form.Flag,
-    "enable_native_api",
-    _("sing-box Dashboard and API"),
-    coreHas("api") ? `${_("Manage connections and interactive VPN authentication")} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_("Open dashboard")}</a>` : `${_("Manage connections and interactive VPN authentication")} (${missingCoreFeatureNote("api")})`
-  );
-  o.default = "0";
-  o.rmempty = false;
-  o.checkDepends = function(sectionId) {
-    return coreHas("api") || this.cfgvalue(sectionId) === "1";
-  };
-  o.validate = (_sectionId, value) => value === "1" ? validateCoreFeature("api") : true;
-  o = section2.option(form.Value, "native_api_secret", _("API secret"));
-  o.password = true;
-  o.depends("enable_native_api", "1");
   o.retain = true;
   o.validate = required();
   o = section2.option(

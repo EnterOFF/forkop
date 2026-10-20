@@ -118,7 +118,6 @@ function forkop_config_line(line) {
     line = mask_after_token_space(line, "option private_key");
     line = mask_after_token_space(line, "option url");
     line = mask_after_token(line, "option yacd_secret_key");
-    line = mask_after_token(line, "option native_api_secret");
 
     return line;
 }

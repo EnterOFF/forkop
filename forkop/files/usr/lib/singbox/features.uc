@@ -21,22 +21,18 @@ const FEATURES = {
     openvpn: { name: "OpenVPN", tags: [ "with_openvpn", "with_gvisor" ] },
     tailscale: { name: "Tailscale", tags: [ "with_tailscale", "with_gvisor" ] },
     naive: { name: "the NaiveProxy client", tags: [ "with_naive_outbound" ] },
-    mtproxy: { name: "the MTProto proxy", tags: [ "with_mtproxy" ] },
-    masque: { name: "MASQUE", tags: [ "with_masque", "with_gvisor" ] },
     trusttunnel: { name: "TrustTunnel", tags: [ "with_trusttunnel" ] },
-    sudoku: { name: "Sudoku", tags: [ "with_sudoku" ] },
-    openconnect: { name: "OpenConnect", tags: [ "with_openconnect", "with_gvisor" ] },
-    api: { name: "the sing-box API", tags: [ "with_api" ] }
+    openconnect: { name: "OpenConnect", tags: [ "with_openconnect", "with_gvisor" ] }
 };
 
 // The naive inbound is in every build; its client is not.
 const OUTBOUND_TYPES = {
     hysteria: "quic", hysteria2: "quic", tuic: "quic",
-    naive: "naive", masque: "masque", trusttunnel: "trusttunnel", sudoku: "sudoku"
+    naive: "naive", trusttunnel: "trusttunnel"
 };
 const INBOUND_TYPES = {
     hysteria: "quic", hysteria2: "quic", tuic: "quic",
-    mtproxy: "mtproxy", trusttunnel: "trusttunnel", sudoku: "sudoku"
+    trusttunnel: "trusttunnel"
 };
 const ENDPOINT_TYPES = {
     wireguard: "wireguard", amneziawg: "wireguard", warp: "wireguard",

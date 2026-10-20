@@ -3,10 +3,10 @@ let stub = require("stub");
 let fs = require("fs");
 let features = require("singbox.features");
 
-const BASE = "badlinkname,tfogo_checklinkname0,with_clash_api,with_gvisor,with_masque,with_mtproxy,with_openvpn,with_quic,with_sudoku,with_trusttunnel,with_utls,with_wireguard";
+const BASE = "badlinkname,tfogo_checklinkname0,with_clash_api,with_gvisor,with_openvpn,with_quic,with_trusttunnel,with_utls,with_wireguard";
 
 function version_text(tags) {
-    return "sing-box version 1.14.1-extended-2.7.2-f125\n\nEnvironment: go1.26.4 linux/arm64\n" +
+    return "sing-box version 1.14.3-f.1\n\nEnvironment: go1.26.4 linux/arm64\n" +
         (tags == null ? "" : "Tags: " + tags + "\n") + "CGO: disabled\n";
 }
 
@@ -25,8 +25,8 @@ t.test("the tags are the Tags line of sing-box version", () => {
 
 t.test("the core is asked once for as long as its binary stays the same", () => {
     core(BASE);
-    t.eq(length(features.tags()), 12);
-    t.eq(length(features.tags()), 12);
+    t.eq(length(features.tags()), 9);
+    t.eq(length(features.tags()), 9);
     t.eq(length(filter(stub.calls(), (entry) => index(entry.command, "version") >= 0)), 1, "the second question was answered from memory");
 
     fs.writefile(features.paths.binary, "#!/bin/sh\n# another build\n");
@@ -45,9 +45,9 @@ t.test("without a binary there is nothing to ask and nothing is available", () =
 
 t.test("a feature is there when every tag it needs is", () => {
     let tags = split(BASE, ",");
-    for (let name in [ "clash_api", "wireguard", "utls", "quic", "openvpn", "mtproxy", "masque", "trusttunnel", "sudoku" ])
+    for (let name in [ "clash_api", "wireguard", "utls", "quic", "openvpn", "trusttunnel" ])
         t.ok(features.available(name, tags), name + " is in the base build");
-    for (let name in [ "tailscale", "naive", "openconnect", "api" ])
+    for (let name in [ "tailscale", "naive", "openconnect" ])
         t.ok(!features.available(name, tags), name + " is only in the full build");
     t.ok(!features.available("wireguard", [ "with_wireguard", "with_clash_api" ]), "WireGuard runs on gVisor");
     t.eq(features.unavailable_reason("quic", [ "with_clash_api" ]), "this sing-box build lacks QUIC (built without with_quic)");
@@ -58,7 +58,7 @@ t.test("a feature is there when every tag it needs is", () => {
 t.test("types name the feature they need by the kind of object they are", () => {
     t.eq(features.type_feature("outbound", "naive"), "naive");
     t.eq(features.type_feature("inbound", "naive"), "", "the naive server is in every build");
-    t.eq(features.type_feature("inbound", "mtproxy"), "mtproxy");
+    t.eq(features.type_feature("inbound", "trusttunnel"), "trusttunnel");
     t.eq(features.type_feature("endpoint", "warp"), "wireguard");
     t.eq(features.type_feature("endpoint", "openvpn-client"), "openvpn");
     t.eq(features.type_feature("outbound", "vless"), "");

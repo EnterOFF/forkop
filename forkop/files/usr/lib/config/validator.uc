@@ -1244,9 +1244,6 @@ function validate_server_listen_ports() {
     ])
         owners["tcp/" + port] = owners["udp/" + port] = "a Forkop inbound";
 
-    if (bool_option(settings_section(), "enable_native_api", false))
-        owners["tcp/9091"] = "the sing-box API";
-
     for (let server in sections_by_type("server")) {
         server = object_or_empty(server);
         let protocol = option(server, "protocol", "vless");
@@ -1671,8 +1668,6 @@ function validate_core_features(settings, sections, servers, core_tags) {
             refuse_without("quic", core_tags, "DNS server '" + value + "' uses " + (parsed.type == "quic" ? "DNS over QUIC" : "DNS over HTTP/3"));
     }
 
-    if (bool_option(settings, "enable_native_api", false))
-        refuse_without("api", core_tags, "The sing-box Dashboard and API setting is on");
     if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
         refuse_without("wireguard", core_tags, "Requesting WARP profiles through a section is on");
 }
@@ -1690,8 +1685,6 @@ function validate_runtime_config(context) {
     validate_runtime_mark_ranges_context(context);
     validate_dns_settings(settings, sections, context);
     validate_native_rule_set_update_settings(settings);
-    if (bool_option(settings, "enable_native_api", false) && option(settings, "native_api_secret", "") == "")
-        fail_validation("The sing-box API is enabled, but 'API secret' in Settings is empty");
     validate_http_url_option(option(settings, "latency_test_url", DEFAULT_LATENCY_TEST_URL) || DEFAULT_LATENCY_TEST_URL, "'Latency test URL' in Settings");
 
     for (let purpose in [ "lists", "warp_profiles" ])

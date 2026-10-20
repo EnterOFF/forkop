@@ -1,8 +1,3 @@
-import {
-  coreHas,
-  missingCoreFeatureNote,
-  validateCoreFeature,
-} from '../../../services/coreFeatures.service';
 import { getClashUIUrl } from '../../../../helpers/getClashApiUrl';
 import { required } from '../../../cbi/required';
 
@@ -37,31 +32,6 @@ export function addTrafficOptions(section: CBISection) {
     ),
   );
   o.depends('enable_yacd_wan_access', '1');
-  o.retain = true;
-  o.validate = required();
-
-  const nativeDashboardUrl = `http://${window.location.hostname}:9091/dashboard/`;
-  o = section.option(
-    form.Flag,
-    'enable_native_api',
-    _('sing-box Dashboard and API'),
-    coreHas('api')
-      ? `${_('Manage connections and interactive VPN authentication')} <a href="${nativeDashboardUrl}" target="_blank" rel="noopener noreferrer">${_('Open dashboard')}</a>`
-      : `${_('Manage connections and interactive VPN authentication')} (${missingCoreFeatureNote('api')})`,
-  );
-  o.default = '0';
-  o.rmempty = false;
-  // The API service exists only with its tag; without it the setting shows only while on, so it can
-  // be switched off.
-  o.checkDepends = function (sectionId: string) {
-    return coreHas('api') || this.cfgvalue(sectionId) === '1';
-  };
-  o.validate = (_sectionId: string, value: string) =>
-    value === '1' ? validateCoreFeature('api') : true;
-
-  o = section.option(form.Value, 'native_api_secret', _('API secret'));
-  o.password = true;
-  o.depends('enable_native_api', '1');
   o.retain = true;
   o.validate = required();
 

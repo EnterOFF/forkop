@@ -183,27 +183,6 @@ describe('the Settings tab', () => {
     return section;
   }
 
-  it('shows the sing-box dashboard only with the API service, or while it is on', async () => {
-    harness.bundle.setCoreFeatures(base());
-    addSections([['settings', 'settings', {}]]);
-    let dashboard = option(settings(), 'enable_native_api');
-    dashboard.cfgvalue('settings', '0');
-    expect(dashboard.checkDepends('settings')).toBe(false);
-
-    dashboard.cfgvalue('settings', '1');
-    expect(dashboard.checkDepends('settings')).toBe(true);
-    expect(dashboard.validate('settings', '1')).toBe(
-      'sing-box is built without with_api',
-    );
-    expect(dashboard.validate('settings', '0')).toBe(true);
-
-    harness.bundle.setCoreFeatures(coreFeatures({ add: ['with_api'] }));
-    dashboard = option(settings(), 'enable_native_api');
-    dashboard.cfgvalue('settings', '0');
-    expect(dashboard.checkDepends('settings')).toBe(true);
-    expect(dashboard.validate('settings', '1')).toBe(true);
-  });
-
   it('offers WARP profile requests through a section only with WARP, or while they are on', () => {
     harness.bundle.setCoreFeatures(without('with_wireguard'));
     addSections([['settings', 'settings', {}]]);
