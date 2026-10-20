@@ -143,9 +143,6 @@ t.test("the authentication file is removed even when the request runner throws",
     t.eq(fs.glob("/tmp/forkop-clash-header.*"), []);
 });
 
-// The page reaches the Clash API through this on every poll, so loading it has
-// to stay cheap: the modules a fresh interpreter ends up with are counted, not
-// the require lines, so what they load in turn counts too.
 t.test("the transport loads nothing beyond core and the constants", () => {
     let probe = stub.tmpdir() + "/probe.uc";
     fs.writefile(probe, "require(\"singbox.clash_api\");\nprint(join(\" \", keys(global.modules)), \"\\n\");\n");

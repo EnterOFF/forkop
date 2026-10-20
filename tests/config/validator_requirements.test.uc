@@ -54,7 +54,6 @@ t.test("the core version comes from the file the core package installs, never fr
 });
 
 
-// A core is installed and new enough; what it was built with is the question.
 function built_with(tags_line) {
     let features = require("singbox.features");
     features.paths.binary = stub.tmpdir() + "/sing-box";

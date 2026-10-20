@@ -19,13 +19,9 @@ let list_option = common.list_option;
 let bool_option = common.bool_option;
 let int_option = common.int_option;
 const CONFIG_NAME = "forkop";
-// The sing-box FakeIP transport answers address queries only and fails the
-// query with `only IP queries are supported by fakeip` for anything else, so
-// every rule that routes to it stays limited to A/AAAA and the remaining
-// types fall through to the ordinary DNS rules.
+// The FakeIP server answers only address queries and fails every other type.
 const FAKEIP_QUERY_TYPES = [ "A", "AAAA" ];
 const OPENCONNECT_RECONNECT_TIMEOUT = "876000h";
-// The DNS server type that answers for the names the server of a tunnel declares.
 const TUNNEL_DNS_SERVER_TYPES = { openconnect: "openconnect", "openvpn-client": "openvpn", tailscale: "tailscale" };
 
 function runtime_generate_unsupported(reason) {
@@ -36,10 +32,7 @@ function section_enabled(section) {
     return bool_option(section, "enabled", true);
 }
 
-// A server carries the switch from the moment its dialog is saved, so one without
-// it was added and never finished. The runtime check and the reload signature both
-// read a missing switch as off, and generating an inbound for it anyway is how an
-// unfinished server reached sing-box without ever being checked.
+// A server without the switch was never saved from its dialog, so it was never checked.
 function server_enabled(section) {
     return bool_option(section, "enabled", false);
 }
@@ -59,10 +52,6 @@ function local_resolver_domain() {
     return value == "" ? "lan" : value;
 }
 
-// The server that answers a captured query no section rule claimed, a client's
-// or the router's own: the Forkop DNS by default, or the local resolver when the
-// user sent unmatched queries back to it, so that DHCP names, hosts records and
-// ad-block lists keep answering.
 function unmatched_dns_server_tag() {
     return option(runtime_settings(), "unmatched_dns_mode", "forkop") == "router"
         ? runtime_constants.DNSMASQ_DNS_SERVER_TAG
@@ -93,8 +82,6 @@ function child_outbound_tag(section, display_name) {
     return runtime_constants.child_tag(connections.section_display_name(section), display_name);
 }
 
-// The outbound the core downloads through: the section chosen for the purpose,
-// else direct.
 function download_detour(settings, purpose) {
     if (!connections.download_via_proxy_enabled(settings, purpose))
         return runtime_constants.DIRECT_OUTBOUND_TAG;
@@ -233,11 +220,8 @@ function apply_matchers(rule, matchers) {
         rule[key] = value;
 }
 
-// Go lets the heap grow to twice what is live before it collects, and the
-// core's live heap is tens of megabytes on a router with little more free.
-// sing-box sets the soft memory limit to two thirds of memory_limit, a third of
-// the router's memory here: far above the usual heap, so the collector only
-// works harder once the core nears the size at which the OOM killer takes it.
+// sing-box sets Go's soft memory limit to two thirds of memory_limit, a third of RAM here, so
+// the collector works harder only as the core nears the size the OOM killer would take.
 function debug_config(memory_total_kb) {
     return memory_total_kb > 0 ? { memory_limit: sprintf("%dkb", int(memory_total_kb / 2)) } : null;
 }
@@ -399,8 +383,7 @@ function native_filter_options(mode,
     if (mode == "include" || mode == "exclude") {
         set_filter_side(result, "exclude",
             filter_name_pattern(exclude_names, exclude_regex), false);
-        // Only outbounds reach a provider, so an endpoint protocol in the
-        // native filter could never match and is left out of the config.
+        // Providers hold only outbounds, so an endpoint type could never match.
         let types = normalized_outbound_types(exclude_types, runtime_constants.FILTERABLE_PROVIDER_TYPES);
         if (length(types) > 0)
             result.exclude_types = types;
@@ -475,8 +458,6 @@ function canonical_json(value) {
     return sprintf("%J", value);
 }
 
-// The client key and server key pairs of a WireGuard-family endpoint; a WARP
-// endpoint's server is always Cloudflare, so its profile key alone.
 function wireguard_identities(endpoint) {
     let type_name = lc(as_string(endpoint.type || ""));
     if (type_name == "warp") {
@@ -489,10 +470,8 @@ function wireguard_identities(endpoint) {
         as_string(endpoint.private_key || "") + "/" + as_string(object_or_empty(peer).public_key || ""));
 }
 
-// A WireGuard server keeps one session per client key. The core runs endpoints
-// that are equal apart from their tag on one device, so one server can serve
-// several sections; the same key for the same server with other settings would
-// be two devices taking that session from each other.
+// The core runs endpoints equal apart from their tag on one device; the same client key with
+// other settings would be two devices taking one session from each other.
 function assert_compatible_wireguard_endpoints(config) {
     let holders = {};
     for (let endpoint in array_or_empty(config.endpoints)) {
@@ -518,8 +497,6 @@ function assert_compatible_wireguard_endpoints(config) {
     }
 }
 
-// The section a link, a subscription or a tunnel is dialled through, as the tag
-// of its selector, or "" for none.
 function cascade_tag(item) {
     let target = connections.cascade_section(item);
     return target == "" ? "" : outbound_tag(target);
@@ -681,8 +658,7 @@ function link_scheme(link) {
     return separator > 0 ? lc(substr(link, 0, separator)) : "";
 }
 
-// sing-box resolves a manual link at runtime, so a generated "parser" outbound
-// has to be matched by the protocol of the link it carries.
+// A manual link is parsed at runtime, so its outbound takes the type of the link's protocol.
 function outbound_effective_type(outbound) {
     outbound = object_or_empty(outbound);
     let type_name = lc(as_string(outbound.type || ""));
@@ -706,8 +682,7 @@ function candidate_outbound_types(config) {
     return result;
 }
 
-// Native exclude_types only reaches provider members, so the manually
-// configured servers of the section are filtered by the same list here.
+// exclude_types reaches only provider members, so manual servers are filtered here.
 function exclude_typed_candidates(mode, tags, candidate_types, exclude_types) {
     if (mode == "all")
         return tags;
@@ -856,10 +831,7 @@ function section_group_items(section) {
     return result;
 }
 
-// A Fallback level can hold a URLTest group, so every tag is allocated before
-// any group is built and the references resolve by display name. Only URLTest
-// names are resolvable: a nested Fallback would add nothing its parent levels
-// cannot express.
+// Every tag is allocated before any group is built, since a Fallback level can name a URLTest.
 function allocate_group_tags(section, items) {
     let by_name = {};
     for (let item in items) {
@@ -917,8 +889,6 @@ function prune_group_member_list(members, available, group_tags) {
     return filtered;
 }
 
-// A referenced group that ended up without members is dropped, and so is every
-// group left empty because it only pointed at such a group.
 function usable_group_descriptors(descriptors, group_tags) {
     let result = descriptors;
     for (let changed = true; changed; ) {
@@ -1091,18 +1061,13 @@ function first_outbound_section(sections) {
     return null;
 }
 
-// An inbound exists for what runs outside the core and so cannot name an
-// outbound: the page's WARP profile generator takes one when WARP profiles go
-// through a section. What the core downloads itself names its section as a
-// detour.
+// For what runs outside the core and cannot name an outbound: the page's WARP profile requests.
 function add_service_mixed_proxy(config, settings) {
     if (connections.download_via_proxy_enabled(settings, "warp_profiles"))
         add_service_mixed_proxy_inbound(config, runtime_constants.WARP_PROFILES_MIXED_INBOUND_TAG,
             runtime_constants.WARP_PROFILES_MIXED_INBOUND_PORT, download_detour(settings, "warp_profiles"));
 }
 
-// A resolver without an explicit detour keeps resolving through its own interface,
-// so a selected section only overrides that default.
 function interface_domain_resolver_detour_tag(section, interface_name, interface_tag) {
     if (!connections.interface_domain_resolver_dns_detour_enabled(section, interface_name))
         return interface_tag;
@@ -1189,9 +1154,7 @@ function add_connection_tunnels(config, section, selector_tags, urltest_candidat
                 endpoint.detour = detour;
         }
 
-        // The core gives up on an OpenConnect server for good once five minutes
-        // of reconnects have failed, and only a restart would try again. A
-        // router keeps trying through an outage of any length.
+        // The core gives up on an OpenConnect server after five minutes of failed reconnects.
         if (wrapper_kind != "json" && endpoint_type == "openconnect" && endpoint.reconnect_timeout == null)
             endpoint.reconnect_timeout = OPENCONNECT_RECONNECT_TIMEOUT;
 
@@ -1357,8 +1320,6 @@ function section_dns_server(section) {
         : runtime_constants.FAKEIP_DNS_SERVER_TAG;
 }
 
-// Real addresses for a device whose traffic goes around the proxy, from the
-// server that answers its unmatched queries.
 function add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl) {
     push_dns_matcher_rule(config, {
         type: "logical",
@@ -1403,11 +1364,8 @@ function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
     }
 }
 
-// The local resolver is whoever owns loopback port 53, which is what the
-// router itself resolves through: usually dnsmasq, or AdGuard Home with dnsmasq
-// moved behind it. Following dnsmasq to its own port instead would walk around
-// such a front resolver and drop its filtering. The router's lookups there are
-// captured, but sing-box marks its own socket, so this one reaches the resolver.
+// The local resolver is whoever owns loopback port 53: dnsmasq, or AdGuard Home in front of
+// it. sing-box marks its own socket, so this query is not captured again.
 function add_source_aware_dns_support(config) {
     push(config.dns.servers, {
         type: "udp",
@@ -1424,9 +1382,8 @@ function static_hosts_config() {
     return hosts;
 }
 
-// Static records answer before sing-box dials the destination itself, so direct
-// sections reach domains that the configured DNS servers cannot resolve. Section
-// DNS rules keep their FakeIP answers for client queries.
+// Static records answer before sing-box dials the destination, so direct sections reach
+// names the configured DNS servers cannot resolve.
 function add_static_hosts_support(config, hosts) {
     if (length(hosts.domains) == 0)
         return;
@@ -1455,12 +1412,8 @@ function add_static_hosts_dns_rule(config, hosts) {
     });
 }
 
-// Queries no section rule claimed, from a client or from the router itself. They
-// take the Forkop DNS, with only the resolver's own zone left on the resolver -
-// or return to the local resolver entirely when the user sent them back to it,
-// which keeps DHCP names, hosts records and ad-block filtering answering
-// everything. The resolver's own upstream queries are never captured, so
-// handing a query to it cannot bring it back here.
+// Unmatched queries take the Forkop DNS, or the local resolver when configured so. The
+// resolver's own upstream queries are never captured, so this cannot loop.
 function add_source_aware_dns_fallback(config) {
     let rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
     let server = unmatched_dns_server_tag();
@@ -1493,11 +1446,8 @@ function add_source_aware_dns_fallback(config) {
     });
 }
 
-// The names the server of a tunnel declares - split DNS and search domains, a
-// tailnet's MagicDNS - resolve through that server when the tunnel dials them.
-// The endpoint's lookup carries the inbound of the connection it dials for, so it
-// passes every rule for captured queries; a device's own query stops at the last
-// of them and is answered exactly as before.
+// The names a tunnel's server declares resolve through that server when the tunnel dials
+// them: the endpoint's lookups pass every captured-query rule, a device's stop before this.
 function add_tunnel_dns_rules(config) {
     for (let server in config.dns.servers)
         if (server.__tunnel)
@@ -1584,10 +1534,8 @@ function add_dns_action_rules_for_section(config, section) {
                 server: server_tag,
                 rewrite_ttl,
                 rule_set: single_or_array(rule_set_tags),
-                // A DNS query carries no destination address or port, so only the domain
-                // half of a mixed rule set can pick this server. Without the projection a
-                // subnet-only set matches every domain, and an address matcher anywhere in
-                // the set would also confine the rule to A, AAAA and HTTPS queries.
+                // A DNS query has no destination address or port, so only the domain half of a rule set
+                // can match it.
                 rule_set_domain_only: true
             };
             apply_matchers(dns_rule, device_matchers);
@@ -1598,7 +1546,6 @@ function add_dns_action_rules_for_section(config, section) {
         runtime_generate_unsupported("DNS action '" + section_name + "' has no domain matchers");
 }
 
-// The ports as the nft table reads them, where a range of one port is that port.
 function add_port_matchers(rule, section) {
     let ports = [];
     let port_ranges = [];
@@ -1645,11 +1592,8 @@ function add_fully_routed_ips_rules(config, section) {
     }
 }
 
-// sing-box hands the grouped matches of a rule-set branch back to the rule that
-// includes it, so a branch carrying its own ports or source addresses would satisfy
-// the section's ports or device filter instead of being narrowed by them. Moving
-// those matchers into a separate AND branch keeps the section constraining the rule
-// set rather than the rule set widening the section.
+// sing-box hands a rule-set branch's matches back to the rule including it, so ports and
+// source addresses inside a branch would widen the section; they go to a separate AND branch.
 const RULE_SET_CONSTRAINT_KEYS = [ "port", "port_range", "source_ip_cidr" ];
 
 function constrain_rule_set_by_section(route_rule, target) {
@@ -1832,8 +1776,7 @@ function has_direct_tailscale_server(servers) {
     return false;
 }
 
-// The rule a routing mode turns into. "rules" has no single rule of its own: it
-// clones the shared set onto the inbound, so it is handled by the caller.
+// "rules" clones the shared set onto the inbound and is handled by the caller.
 function server_route_rule(sections, routing_mode, routing_section_name, label) {
     if (routing_mode == "direct")
         return { action: "route", outbound: runtime_constants.DIRECT_OUTBOUND_TAG };
@@ -1857,11 +1800,8 @@ function server_route_rule(sections, routing_mode, routing_section_name, label) 
     return rule;
 }
 
-// Accounts that take their own route. A rule matches a client by what tells it
-// apart, so one client can go straight out while the rest of the server follows
-// its own mode.
-// An account that follows the shared rules needs no rule of its own when its server
-// already clones them; when it does not, the set is cloned for that account alone.
+// Accounts with a route of their own. An account that follows the shared rules gets them
+// cloned only when its server does not clone them already.
 function add_server_client_routes(config, server, sections, inbound, server_mode) {
     for (let client in connections.server_clients(server)) {
         if (!bool_option(client, "routing_override", false))
@@ -1925,17 +1865,14 @@ function add_server_routes(config, servers, sections) {
     }
 }
 
-// The sing-box configuration for the committed Forkop configuration, as an
-// object. Throws with the reason when the configuration cannot be expressed.
-// context: { service_address, mwan3_active, memory_total_kb }.
+// Throws with the reason when the configuration cannot be expressed.
+// context: { service_address, mwan3_active, memory_total_kb }
 function build(context) {
     context = object_or_empty(context);
     connections.load();
     runtime_settings_cache = null;
     let settings = runtime_settings();
 
-    // A Connection section without a single source contributes no outbound and
-    // no route, so only the sections that reach the runtime graph count.
     let sections = runtime_sections(enabled_sections());
     let servers = enabled_servers();
     if (length(sections) == 0 && length(servers) == 0)

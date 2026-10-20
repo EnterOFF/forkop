@@ -18,8 +18,6 @@ function seed(sections) {
     fixture.seed({ settings: { config_path }, section: sections });
 }
 
-// The core names an export by a hash of its content; any string that follows
-// the content stands in for it here.
 function provider(revision, ip_cidr) {
     let exported = { ipv4: [], ipv6: [], scoped_ipv4: [], scoped_ipv6: [], ...ip_cidr };
     return { revision, ip_cidr: { digest: sprintf("%J", exported), ...exported } };

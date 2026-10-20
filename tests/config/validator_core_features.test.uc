@@ -18,8 +18,6 @@ function server(protocol, extra) {
     return { ".name": "srv", enabled: "1", protocol, ...(extra ?? {}) };
 }
 
-// The refusal names what the configuration asks for and the tags the build
-// lacks; with the tags present, whatever else the fixture lacks is not about the core.
 function needs(data, tags, message) {
     v.refuses(data, message, { core_tags: tags });
     let result = v.run(data, { core_tags: FULL });
@@ -55,7 +53,6 @@ t.test("a tunnel of a type the build lacks is refused by name", () => {
         BASE, "has a openconnect tunnel 'Work', but this sing-box build lacks OpenConnect (built without with_openconnect)");
 });
 
-// The field is the user's own sing-box object, and its type is the core's to judge.
 t.test("a JSON endpoint is not judged by its type", () => {
     let result = v.run({
         section: [ section() ],

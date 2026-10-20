@@ -1,7 +1,5 @@
-// What one Forkop section contributes to the nftables runtime table. nft/apply.uc
-// builds the table and nft/ruleset_sync.uc refills its sets from the rule-set
-// providers, so both read the section from here: a set apply.uc does not create
-// is a set ruleset_sync must not flush.
+// Shared by nft/apply.uc and nft/ruleset_sync.uc: a set apply.uc does not create is a set
+// ruleset_sync must not flush.
 
 let common = require("core.common");
 let connections = require("config.connections");
@@ -11,8 +9,6 @@ let runtime_rulesets = require("singbox.rulesets");
 let as_string = common.as_string;
 let object_or_empty = common.object_or_empty;
 
-// Every action whose traffic the table marks for the transparent proxy. bypass
-// reaches nft as well, to accept traffic before one of those rules can mark it.
 const CAPTURE_ACTIONS = {
     connection: true,
     proxy: true,
@@ -61,10 +57,6 @@ function set_names(section) {
     return result;
 }
 
-// The rule-set providers that can hand this section IP prefixes: the built-in
-// lists that carry subnets and every custom rule set the user asked to import
-// subnets from. Their number is also the answer to "does this section get
-// subnets from anywhere but its own configuration".
 function subnet_source_tags(section) {
     section = object_or_empty(section);
     let name = section_name(section);
@@ -90,9 +82,7 @@ function subnet_source_tags(section) {
     return result;
 }
 
-// One walk over a section's conditions answers everything the builders ask. The
-// `needs_*` flags say which sets the rules reference, which is both which sets
-// have to be created and which ones hold elements.
+// The needs_* flags name the sets the rules reference, which are the sets to create.
 function matchers(section) {
     section = object_or_empty(section);
 
@@ -103,9 +93,7 @@ function matchers(section) {
     let subnets = join(",", connections.destinations(section).ip_cidr);
     let tags = subnet_source_tags(section);
     let ip_matchers = subnets != "" || length(tags) > 0;
-    // A port on its own selects traffic. A port next to a destination - an
-    // address, a domain, a rule set - is a condition on that destination
-    // instead, and is matched together with it rather than on its own.
+    // A port next to a destination narrows that destination instead of selecting on its own.
     let port_only = ports != "" && subnets == "" && !connections.has_dns_matchers(section);
 
     return {
@@ -117,12 +105,8 @@ function matchers(section) {
         sources: sources,
         fully: fully,
         needed: action != "" && (fully.selected || ip_matchers || port_only),
-        // The addresses, and the ports they are matched on, are each a plain
-        // interval set, where overlapping elements merge.
         needs_subnet_sets: ip_matchers,
         needs_port_set: ports != "" && (ip_matchers || port_only),
-        // A provider can limit addresses to ports or to a transport of its own,
-        // which only a set keyed on the address and the port can say.
         needs_ip_port_sets: length(tags) > 0,
         needs_proto_port_sets: length(tags) > 0,
         needs_source_sets: length(sources.ips) > 0,
@@ -130,17 +114,12 @@ function matchers(section) {
     };
 }
 
-// The sets the rule-set worker writes for a section a provider feeds. A rebuilt
-// table keeps them, so what the providers gave stays matched until the worker
-// writes it again.
+// The sets the rule-set worker writes; a rebuilt table keeps their elements.
 function provider_sets(m) {
     let s = m.sets;
     return length(m.subnet_tags) == 0 ? [] : [ s.subnets, s.subnets6, s.ip_ports, s.ip6_ports, s.proto_ports, s.proto6_ports ];
 }
 
-// The enabled sections that reach the table, each with its classification, in
-// configuration order. A duplicate name would have two sections claim the same
-// sets, so it is reported rather than silently applied twice.
 function with_priority_sets(sections) {
     let result = [];
     let seen = {};

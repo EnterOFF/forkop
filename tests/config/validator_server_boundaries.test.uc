@@ -1,8 +1,5 @@
-// The Servers tab writes a sing-box inbound directly, so the rule is symmetric: what
-// the core refuses, the runtime check refuses by name, and what the core accepts the
-// runtime check must not refuse. Every verdict below was measured against
-// `sing-box check` and a real start on a listener carrying exactly that value; with
-// FORKOP_SING_BOX_BIN set the accepted cases are measured again.
+// Every verdict matches `sing-box check` and a real start; with FORKOP_SING_BOX_BIN set the
+// accepted cases run against that binary.
 
 let t = require("t");
 let v = require("validation");
@@ -59,8 +56,6 @@ function static_key() {
     return join("\n", lines);
 }
 
-// What prepare leaves on an OpenVPN server and its clients: the certificate and
-// key sing-box issued, a tls-crypt key and the fingerprint of the client.
 const openvpn = {
     protocol: "openvpn", listen: "::", openvpn_network: "udp", tunnel_address: [ "10.8.0.1/24" ],
     openvpn_certificate: fs.readfile(cert), openvpn_key: fs.readfile(key),
@@ -69,8 +64,6 @@ const openvpn = {
 const openvpn_client = { openvpn_certificate: fs.readfile(cert), openvpn_key: fs.readfile(key), openvpn_certificate_sha256: "abababababababababababababababababababababababababababababababab" };
 const key32 = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
 
-// What prepare leaves on a WireGuard server and its clients: the keys, and an
-// address of each client's own in every tunnel subnet.
 const wireguard = {
     protocol: "wireguard", tunnel_address: [ "10.8.0.1/24", "fd00:8::1/64" ],
     wireguard_private_key: key32, wireguard_public_key: key32

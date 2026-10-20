@@ -1,8 +1,3 @@
-// The Forkop runtime table: the nft script that builds it from the
-// configuration, and applying that script as one transaction. The script is
-// also what a reload compares with the one it applied last, so the table is
-// rebuilt exactly when it would come out different.
-
 let fs = require("fs");
 let common = require("core.common");
 let exec = require("core.exec");
@@ -36,9 +31,7 @@ const IPV6_SET = "{ type ipv6_addr; flags interval; auto-merge; }";
 const PORT_SET = "{ type inet_service; flags interval; auto-merge; }";
 const IPV4_PORT_SET = "{ type ipv4_addr . inet_service; flags interval; auto-merge; }";
 const IPV6_PORT_SET = "{ type ipv6_addr . inet_service; flags interval; auto-merge; }";
-// The transport joins the key so one rule can match what a rule set says: read
-// through a rule per transport, an address a rule set limited to UDP would be
-// matched on TCP as well.
+// The key carries the transport, so an address a rule set limits to UDP is not matched on TCP.
 const IPV4_PROTO_PORT_SET = "{ type ipv4_addr . inet_proto . inet_service; flags interval; auto-merge; }";
 const IPV6_PROTO_PORT_SET = "{ type ipv6_addr . inet_proto . inet_service; flags interval; auto-merge; }";
 
@@ -52,7 +45,6 @@ let paths = {
     rt_tables: "/etc/iproute2/rt_tables"
 };
 
-// The script under construction and the values it had to leave out.
 let lines = null;
 let skipped = null;
 
@@ -81,8 +73,6 @@ function add_elements(set_name, elements) {
         nft([ "add", "element", "inet", TABLE, set_name, "{ " + join(",", slice(elements, i, i + ELEMENTS_PER_COMMAND)) + " }" ]);
 }
 
-// One walk over the addresses fills both families. The owner names the list in
-// the report of a value left out.
 function add_addresses(values, set4, set6, owner) {
     let family = { "4": [], "6": [] };
     for (let value in values) {
@@ -101,8 +91,6 @@ function csv_values(csv) {
     return filter(map(split(csv ?? "", ","), (value) => trim(replace(value, /\r/g, ""))), (value) => value != "");
 }
 
-// The devices Forkop ignores entirely, the System device standing for the router
-// itself: every capture chain returns their traffic before touching it.
 function excluded_devices(settings) {
     let values = common.words(common.option(settings, "routing_excluded_ips", ""));
     return {
@@ -124,19 +112,15 @@ function tproxy_target(family, port) {
 
 const CAPTURE_MARKED = [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK ];
 
-// A flow sing-box holds stays with it: its packets are marked from the flow,
-// whatever the sets hold at the moment. Only the first packet of a connection
-// is NATed, so one forwarded later would leave with the client's own address,
-// and flow offloading would then carry the whole connection past this table.
+// Packets of a flow sing-box holds are marked from the flow: only its first packet is NATed,
+// and a later one forwarded directly would let flow offloading take the whole connection.
 function add_held_flow_rule(chain) {
     add_rule(chain, [ "ct", "direction", "original", "ct", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK,
         "meta", "mark", "set", FAKEIP_MARK, "counter", "accept" ]);
 }
 
-// The capture pauses while sing-box rebinds its listeners: lookups go to the
-// resolver they were sent to, and traffic for sing-box waits - dropped, so the
-// client sends it again - rather than going direct, where flow offloading would
-// keep it for good. One nft call, one transaction.
+// While sing-box rebinds its listeners its traffic is dropped, not sent direct: a forwarded
+// packet would be offloaded past this table for good.
 function capture_command(active) {
     let chain = [ "inet", TABLE, PAUSE_CHAIN ];
     let commands = [ [ "flush", "chain", ...chain ] ];
@@ -171,9 +155,6 @@ function add_base(settings, excluded_router, excluded) {
     add_chain("proxy", "{ type filter hook prerouting priority -100; policy accept; }");
     add_chain(PAUSE_CHAIN, "{ }");
 
-    // Client DNS capture: whatever resolver a client was configured with, its
-    // queries land on the sing-box client DNS inbound. An excluded device keeps
-    // its own resolver.
     add_chain("dns_redirect", "{ type nat hook prerouting priority " + constants.NFT_DNS_REDIRECT_PRIORITY + "; policy accept; }");
     add_rule("dns_redirect", [ "jump", PAUSE_CHAIN ]);
     add_excluded_returns("dns_redirect", excluded);
@@ -195,8 +176,6 @@ function add_base(settings, excluded_router, excluded) {
 
     add_rule("proxy", [ "jump", PAUSE_CHAIN ]);
     add_rule("proxy", [ ...CAPTURE_MARKED, "ct", "mark", "set", "ct", "mark", "|", FAKEIP_MARK ]);
-    // The router's own traffic reaches the System inbound, and it is classified
-    // before the generic inbound can take it.
     for (let family in [ 4, 6 ])
         for (let proto in [ "tcp", "udp" ])
             add_rule("proxy", [ "iifname", "lo", "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK, "meta", "l4proto", proto,
@@ -212,8 +191,7 @@ function add_base(settings, excluded_router, excluded) {
     add_rule("mangle_output", [ "ip", "daddr", "@" + LOCAL4, "return" ]);
     add_rule("mangle_output", [ "ip6", "daddr", "@" + LOCAL6, "ip6", "daddr", "!=", FAKEIP6, "return" ]);
     add_rule("mangle_output", [ "meta", "mark", OUTBOUND_MARK, "counter", "return" ]);
-    // The resolver's own questions to its upstream servers, which no section
-    // should send through a proxy the upstream may not answer.
+    // The resolver's own upstream queries never go through a section.
     add_rule("mangle_output", [ "meta", "l4proto", "{ tcp, udp }", "th", "dport", "53", "return" ]);
     add_rule("mangle_output", [ "jump", "priority_output_rules" ]);
 
@@ -247,9 +225,7 @@ function create_section_sets(m) {
     }
 }
 
-// What every rule of a section shares: the local set and FakeIP range of the
-// family, and the verdict its action asks for. A bypass verdict leaves FakeIP
-// traffic alone, since that address only means anything to its resolver.
+// Bypass leaves FakeIP traffic alone: those addresses mean something only to sing-box.
 function section_rule(m, family, match_args, match_source) {
     let ip = family == 6 ? "ip6" : "ip";
     let args = [];
@@ -266,10 +242,6 @@ function section_rule(m, family, match_args, match_source) {
     return args;
 }
 
-// Both chains get the same matcher from the two directions traffic reaches it:
-// prerouting for the source interfaces, output for the router's own traffic. A
-// section scoped to client addresses has nothing to say about the router, and one
-// scoped to @system nothing about the clients.
 function add_section_rule_pair(m, match4, match6) {
     if (!m.sources.selected || length(m.sources.ips) > 0)
         for (let family in [ 4, 6 ])
@@ -279,8 +251,6 @@ function add_section_rule_pair(m, match4, match6) {
             add_rule("priority_output_rules", section_rule(m, family, family == 6 ? match6 : match4, false));
 }
 
-// Fully routed traffic has no destination matcher, so a capture names the
-// protocols it can proxy transparently; a bypass accepts whatever the address is.
 function add_fully_routed_rules(m) {
     if (!m.fully.selected)
         return;
@@ -310,7 +280,6 @@ function add_section_rules(m) {
     for (let proto in [ "tcp", "udp" ]) {
         if (m.needs_subnet_sets && m.needs_port_set)
             add_section_rule_pair(m, [ "ip", "daddr", "@" + s.subnets, ...port(proto) ], [ "ip6", "daddr", "@" + s.subnets6, ...port(proto) ]);
-        // Ports on their own are family agnostic, so both sides read the same set.
         else if (m.needs_port_set)
             add_section_rule_pair(m, port(proto), port(proto));
     }
@@ -322,19 +291,14 @@ function add_section_rules(m) {
             [ "ip6", "daddr", ".", "meta", "l4proto", ".", "th", "dport", "@" + s.proto6_ports ]);
 }
 
-// The router's own traffic to a FakeIP address, which only sing-box can turn
-// back into a destination.
 function add_fakeip_output() {
     for (let pair in [ [ "ip", FAKEIP4 ], [ "ip6", FAKEIP6 ] ])
         for (let proto in [ "tcp", "udp" ])
             add_rule("mangle_output", [ pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", FAKEIP_MARK, "counter" ]);
 }
 
-// The router's own lookups: whatever asks its resolver on loopback is answered
-// by sing-box, the way a client's query is, so domain rules reach the router as
-// well. Only loopback: the resolver's forwards to its upstream servers stay
-// uncaptured, so sing-box can hand it what no rule claims without a circle.
-// sing-box marks its own sockets, so its own questions to the resolver pass.
+// Only loopback is captured, so the resolver's upstream queries never come back here;
+// sing-box marks its own sockets, so its queries to the resolver pass.
 function add_router_dns(excluded_router) {
     add_chain("system_dns_redirect", "{ type nat hook output priority " + constants.NFT_SYSTEM_DNS_REDIRECT_PRIORITY + "; policy accept; }");
     add_rule("system_dns_redirect", [ "jump", PAUSE_CHAIN ]);
@@ -346,8 +310,6 @@ function add_router_dns(excluded_router) {
             add_rule("system_dns_redirect", [ address[0], "daddr", address[1], proto, "dport", "53", "counter", "redirect", "to", ":" + singbox_constants.SYSTEM_DNS_INBOUND_PORT ]);
 }
 
-// What the configuration puts in a section's sets; what a rule-set provider puts
-// there is the sync worker's.
 function fill_section_sets(section, m) {
     let s = m.sets;
     let owner = "Section '" + connections.section_display_name(section) + "'";
@@ -361,8 +323,7 @@ function fill_section_sets(section, m) {
         nft([ "add", "element", "inet", TABLE, s.ports, "{ " + m.ports + " }" ]);
 }
 
-// The whole table as { script, skipped, kept }: kept names the sets the
-// rule-set worker fills, which the script declares but leaves to the worker.
+// Returns { script, skipped, kept }; kept names the sets the rule-set worker fills.
 function build() {
     let settings = uci.get_all(CONFIG_NAME, "settings") ?? {};
     let sections = uci.section_objects(CONFIG_NAME, "section");
@@ -390,10 +351,8 @@ function build() {
     return result;
 }
 
-// The script replaces the live table in the same transaction: every rule goes,
-// every chain is defined again, and so is every set but the ones the worker
-// fills, which keep their addresses. Emptied, they would let traffic the
-// providers name go direct until the worker wrote them again.
+// The sets the rule-set worker fills keep their elements across a rebuild; emptied, they
+// would let provider traffic go direct until the worker wrote them again.
 function reset_lines(kept) {
     let result = [ "add table inet " + TABLE, "flush table inet " + TABLE ];
     for (let line in split(exec.output([ "nft", "-t", "list", "table", "inet", TABLE ]) ?? "", "\n")) {
@@ -413,7 +372,6 @@ function ensure_rt_table_entry() {
     return common.write_file(paths.rt_tables, data + "105 " + RT_TABLE + "\n");
 }
 
-// Package removal takes the name back out; other tables stay as they were.
 function remove_rt_table_entry() {
     let data = fs.readfile(paths.rt_tables);
     if (data == null || !nft_state.rt_table_has_entry(data, "105", RT_TABLE))
@@ -427,8 +385,6 @@ function ensure_route(present, argv, failed) {
         die(failed);
 }
 
-// The routing table the TProxy marks send traffic to. It lives outside nft and
-// survives a table replace.
 function ensure_tproxy_routing() {
     let ip = nft_state.IP_BIN;
     let mark = FAKEIP_MARK + "/" + FAKEIP_MARK;
@@ -444,10 +400,8 @@ function ensure_tproxy_routing() {
         "Failed to add the IPv6 TProxy routing rule");
 }
 
-// nft names the command it refused and then repeats it, which for a set element
-// line is thousands of addresses, so only the first line is the reason - unless
-// nft was killed first: it holds every element of the transaction before it
-// commits, and a large enough rule set runs out of memory.
+// nft repeats the refused command, which for a set line is thousands of addresses, so only
+// the first line is the reason. A large transaction can also get nft killed for memory.
 function refusal(result) {
     let signal = common.signal_from_status(result.status);
     if (signal == 9)

@@ -45,8 +45,6 @@ function openconnect_fixture(endpoint, tunnel) {
     };
 }
 
-// The core stops reconnecting to an OpenConnect server after five minutes of
-// failures and stays down until it restarts; a router's tunnel keeps trying.
 t.test("an OpenConnect tunnel reaches the core as written and keeps reconnecting", () => {
     fixture.seed(openconnect_fixture());
     let config = generator.build({ service_address: "127.0.0.1" });
@@ -132,9 +130,6 @@ t.test("an OpenVPN server with an IPv6 subnet routes IPv6 too, and one told othe
     t.eq(push, { dns: [ "10.8.0.1" ], ping_interval: "10s", ping_restart: "120s", routes: [ "192.168.1.0/24" ] });
 });
 
-// The core knows an OpenVPN client by the common name of the certificate issued
-// to it, its section, so the rule of a client names the section, not the name it
-// is shown under.
 t.test("a client of an OpenVPN server takes its own route by the name on its certificate", () => {
     let data = openvpn_server({ routing_mode: "direct" }, [
         { ".name": "laptop", server: "office", name: "Laptop", openvpn_certificate: "C", openvpn_key: "K",
@@ -176,8 +171,6 @@ function wireguard_server(server, clients) {
     return data;
 }
 
-// The bind addresses keep the dialer from binding the listening socket to the
-// interface of the default route, where no LAN client reaches it.
 t.test("a WireGuard server knows each client by its key and the addresses it may send from", () => {
     fixture.seed(wireguard_server());
     let config = generator.build({ service_address: "127.0.0.1" });
@@ -193,8 +186,6 @@ t.test("a WireGuard server knows each client by its key and the addresses it may
         "its DNS on the server's address is sniffed and hijacked like the router's");
 });
 
-// Signature packets are an initiator's, and the Amnezia installer leaves them
-// out of a server; the clients get them in their profiles.
 t.test("an AmneziaWG server runs with every parameter but the signature packets", () => {
     fixture.seed(wireguard_server({ protocol: "amneziawg", amnezia_jc: "5", amnezia_jmin: "10", amnezia_jmax: "50",
         amnezia_i1: "<r 2>", amnezia_s1: "12", amnezia_h1: "1", amnezia_header_protection_key: SERVER_KEY,
@@ -205,8 +196,6 @@ t.test("an AmneziaWG server runs with every parameter but the signature packets"
         random_trailers: true, rekey_after_time: "100-120" });
 });
 
-// The core reports no user for a WireGuard client, and a peer's packets are
-// accepted only from the addresses it was given, so the address is its name.
 t.test("a client of a WireGuard server takes its own route by its tunnel addresses", () => {
     let data = wireguard_server({ routing_mode: "direct" });
     data.server_client[0].routing_override = "1";

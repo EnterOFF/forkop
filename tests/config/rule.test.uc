@@ -34,8 +34,6 @@ t.test("entries may share a line, separated by spaces or commas, and comments ar
     });
 });
 
-// The kinds are answered from one parse that is kept; a wrong key would hand a
-// section the destinations of the one asked before it.
 t.test("two sections asked in turn each keep their own destinations", () => {
     let expected = {
         [TEXT_A]: parsed(TEXT_A),
@@ -64,9 +62,6 @@ t.test("an international entry is punycoded for every domain kind", () => {
     ]);
 });
 
-// An address and a domain never look alike: a domain always ends in a label
-// that is not a number, and an IPv6 address is hex digits and colons, which
-// never spell full, keyword or regex.
 t.test("every address form is an address, and nothing else is", () => {
     for (let value in [ "192.0.2.1", "192.0.2.0/24", "0.0.0.0/0", "2001:db8::1", "2001:db8::/32", "::/0",
         "::ffff:192.0.2.1", "FD00::1" ])

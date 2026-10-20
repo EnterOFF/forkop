@@ -190,8 +190,6 @@ t.test("accepts valid-json-endpoint", () => {
     });
 });
 
-// What a JSON field holds is sing-box's to judge, so a type Forkop does not know,
-// or one sing-box would put somewhere else, is handed to the core.
 t.test("leaves the contents of JSON outbounds, endpoints and inbounds to sing-box", () => {
     v.accepts({
         "settings": {},
@@ -1129,9 +1127,6 @@ t.test("server without clients", () => {
     }, "has no clients");
 });
 
-// The dialog writes the switch on by default, and a listener that asks for
-// nothing is an open proxy on a port the firewall opens: a section written
-// without the switch is authenticated too.
 t.test("a Tailscale server advertises addresses and subnets only", () => {
     let data = (routes) => ({
         section: [ { ".name": "main", enabled: "1", action: "connection" } ],
@@ -1339,7 +1334,6 @@ t.test("server on a Forkop port", () => {
     }, "already used by a Forkop inbound");
 });
 
-// A port is two sockets, one per transport: a TCP server and a UDP one share it.
 t.test("servers share a port only on different transports", () => {
     let data = (servers) => ({
         section: [ { ".name": "main", enabled: "1", action: "connection" } ],
@@ -1501,9 +1495,7 @@ t.test("AmneziaWG flags are 0 or 1", () => {
     }
 });
 
-// The core accepts both in its check and fails the whole service when the
-// endpoint starts: the device refuses headers that overlap, and a junk minimum
-// above the maximum is a size stock AmneziaWG clients cannot draw from.
+// sing-box check accepts both, and the endpoint then fails to start.
 t.test("AmneziaWG headers do not overlap, the device's own included", () => {
     v.accepts(amnezia_tunnel({ amnezia_h1: "100-200", amnezia_h2: "201", amnezia_h3: "300-400", amnezia_h4: "5" }));
     v.refuses(amnezia_tunnel({ amnezia_h1: "100-200", amnezia_h2: "150" }), "AmneziaWG headers h1 and h2 that overlap");

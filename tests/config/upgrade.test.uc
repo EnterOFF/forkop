@@ -1,7 +1,5 @@
-// A router on the public 1.0.5 release upgrades to a configuration the current
-// code accepts. tests/fixtures/forkop-1.0.5.conf is the default configuration
-// 1.0.5 shipped with its commented examples filled in: every section type and
-// every server protocol it knew.
+// tests/fixtures/forkop-1.0.5.conf is the default configuration of 1.0.5 with its commented
+// examples filled in: every section type and server protocol it knew.
 
 let t = require("t");
 let fs = require("fs");
@@ -11,7 +9,6 @@ let fixture = require("fixture");
 let validation = require("validation");
 let generator = require("singbox.generator");
 
-// The sections of a UCI file in the shape the migration fixture mode reads.
 function parse_uci(text) {
     let data = {};
     let current = null;

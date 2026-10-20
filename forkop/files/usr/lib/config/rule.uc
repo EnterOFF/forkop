@@ -107,9 +107,7 @@ function normalize_domain_subnet_value(value, kind) {
 
 const DESTINATION_KINDS = [ "domain", "domain_suffix", "domain_keyword", "domain_regex", "ip_cidr" ];
 
-// An entry of a section's destinations is an address or a subnet when it is one,
-// and otherwise a domain of the kind its prefix names. No top-level domain is a
-// number, so a name ending in one is a mistyped address rather than a domain.
+// A name whose last label is a number is a mistyped address, not a domain.
 function destination_kind_value(value) {
     value = trim(as_string(value));
     if (ip.valid_ip_or_cidr(value))
@@ -123,11 +121,7 @@ function destination_kind_value(value) {
     return parsed;
 }
 
-// The same destinations are asked for more than once in a row - the nft builder
-// wants a section's addresses and then whether it names any domain - so the last
-// text parsed is kept. One entry is enough for that; holding more would keep whole
-// domain lists alive for no further gain. Every caller gets lists of its own to
-// build rules from.
+// Callers ask for the same destinations several times in a row, so the last parse is kept.
 let destinations_text = null;
 let destinations_parsed = null;
 

@@ -1,9 +1,5 @@
-// The Servers tab writes a sing-box inbound directly, so a key the core does
-// not have is a start-up failure. The generator runs over one server per
-// protocol, filled in the way the dialog fills it, and every key it emits is
-// looked up in tests/fixtures/singbox_inbound_options.json, a snapshot of the
-// core's inbound option structs; tests/fixtures/singbox_inbound_options.js
-// rebuilds it from a core checkout.
+// Every inbound key the generator emits must exist in tests/fixtures/singbox_inbound_options.json,
+// a snapshot of the core's option structs that tests/fixtures/singbox_inbound_options.js rebuilds.
 
 let t = require("t");
 let fs = require("fs");
@@ -13,15 +9,12 @@ let generator = require("singbox.generator");
 
 let schema = json(fs.readfile(repo.path("tests/fixtures/singbox_inbound_options.json")));
 
-// What the router issues a TLS server, and what the user pastes as their own.
 const PEM = {
     certificate: "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----",
     key: "-----BEGIN PRIVATE KEY-----\nMIIE\n-----END PRIVATE KEY-----"
 };
 const SELF_SIGNED = { tls_self_signed_certificate: PEM.certificate, tls_self_signed_key: PEM.key };
 
-// What the router issues a WireGuard server and its clients, and an AmneziaWG
-// server's parameters with the junk the dialog fills in.
 const WG_KEY = "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=";
 const AWG_KEY = "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=";
 const AMNEZIA_SERVER = {
@@ -215,7 +208,6 @@ const SERVERS = {
     ]
 };
 
-// The keys of a user are checked against the user struct of its protocol.
 const USER_KEYS = {
     mixed: [ "username", "password" ],
     naive: [ "username", "password" ],
@@ -233,7 +225,6 @@ fixture.seed(SERVERS);
 let config = generator.build({ service_address: "127.0.0.1" });
 let listeners = filter([ ...(config.inbounds ?? []), ...(config.endpoints ?? []) ], (item) => schema[item.type] != null);
 
-// Every key below `node` that the core has no option for, as a dotted path.
 function unknown_keys(node, allowed, trail) {
     let unknown = [];
     for (let key, value in node) {

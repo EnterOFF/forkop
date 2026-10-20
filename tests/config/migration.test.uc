@@ -1,6 +1,3 @@
-// What config/migration.uc makes of a released configuration, through the
-// fixture mode it runs a configuration through without a router.
-
 let t = require("t");
 let stub = require("stub");
 let repo = require("repo");

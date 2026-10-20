@@ -397,8 +397,6 @@ t.test("subscription request profiles, filters and a local source pass", () => {
     });
 });
 
-// One address may be two subscriptions of a section, the same account split by
-// two filters or dialled through two cascades: each is a provider of its own.
 t.test("a section may hold one subscription twice", () => {
     v.accepts({
         section: [ { ".name": "proxy", label: "Main", enabled: "1", action: "connection" } ],

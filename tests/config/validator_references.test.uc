@@ -6,8 +6,6 @@ function section(name, action, extra) {
     return { ".name": name, enabled: "1", action, ...(extra ?? {}) };
 }
 
-// A server of its own for each section named, which is what makes a section
-// carry traffic at all.
 function served(names) {
     let result = [];
     for (let name in names)
@@ -15,7 +13,6 @@ function served(names) {
     return result;
 }
 
-// A section whose one link goes through another section.
 function through(name, target) {
     return fixture.links(name, [ "socks://127.0.0.1:1080#one" ], { detour_section: target });
 }
@@ -54,9 +51,6 @@ t.test("a subscription and a tunnel name their cascade the same way", () => {
             detour_section: "target" } ] });
 });
 
-// A section's selector holds the server that goes through another section, so
-// that section reaching back to the first one through any of its servers is a
-// loop sing-box refuses to start with.
 t.test("a cascade never leads back to its own section", () => {
     let first = section("first", "connection");
     let second = section("second", "connection");
@@ -74,9 +68,6 @@ t.test("a cascade never leads back to its own section", () => {
         connection_link: [ ...through("first", "third"), ...through("second", "third"), ...served([ "third" ]) ] });
 });
 
-// The runtime leaves out a Connection section without servers, so everything
-// that can name one as the way out refuses it rather than start sing-box with
-// an outbound that does not exist.
 t.test("no reference may lead to a section without servers", () => {
     let empty = section("empty", "connection");
     let dns = section("dns", "dns", { dns_server: [ "8.8.8.8" ], destinations: "example.org", dns_detour_enabled: "1", dns_detour_section: "empty" });

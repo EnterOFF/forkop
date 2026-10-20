@@ -45,9 +45,7 @@ function command_success_from_args(args) {
     return system(command_from_args(args) + " >/dev/null 2>&1") == 0;
 }
 
-// Whether the runtime table is loaded, and nothing else. Asked without -t, nft
-// prints every element of every set first, which on a real rule set is seconds
-// of work and megabytes of output to answer a yes or no.
+// -t leaves out the set elements, which on a real rule set are seconds of output.
 function table_present(table) {
     return command_success_from_args([ "nft", "-t", "list", "table", "inet", as_string(table) ]);
 }
@@ -71,10 +69,8 @@ function rule_line_has_fwmark(fields, expected_mark) {
     return false;
 }
 
-// The rule list is requested for a single table, so the query itself proves
-// the table. Matching the printed table name would be wrong: any other
-// package that registers the same table id in /etc/iproute2/rt_tables, for
-// example `105 podkop`, can own the name that iproute2 prints for table 105.
+// Asking for one table's rules proves the table: another package may own the name iproute2
+// prints for that id, e.g. `105 podkop` in /etc/iproute2/rt_tables.
 function has_tproxy_marking_rule_text(rule_list, mark) {
     let expected_mark = parse_mark_number(mark);
     if (expected_mark == null)
@@ -130,18 +126,8 @@ function tproxy_marking_rule6_present(table, mark) {
         command_output_from_args([ IP_BIN, "-6", "rule", "list", "table", table ]), mark);
 }
 
-// The status feed asks the same question behind every poll, and answering it
-// piecewise costs five `popen` round trips - five shells plus five binaries -
-// to read four short lists. One shell collects all of them instead. nft lists
-// the pause chain rather than the table: naming the table made nft walk and
-// filter the whole rule set, and it measured four times slower on a real
-// router, while one chain is read without the sets.
-//
-// The route and rule output for a family arrive concatenated, without a
-// separator, because the two predicates below match disjoint shapes: a route
-// line never carries `fwmark`, and a rule line never carries `local default dev
-// lo`. Feeding both the same text is therefore unambiguous and saves marking up
-// the stream.
+// One shell collects every list the status needs. Route and rule output share a stream: a
+// route line never carries fwmark, and a rule line never carries `local default dev lo`.
 const IP_BATCH_COMMANDS = "route list table %s
 rule list table %s
 ";
@@ -175,8 +161,7 @@ function split_snapshot(output) {
     };
 }
 
-// The table captures while its pause chain holds no rule. The listing comes
-// from nft with JSON output or, built without it, as text.
+// The table captures while its pause chain is empty; nft built without JSON prints text.
 function capture_active_output(output, table) {
     let lines = filter(map(split(as_string(output), "\n"), (line) => join(" ", normalized_fields(line))), (line) => line != "");
     if (length(lines) > 0 && lines[0] == "table inet " + table + " {")
@@ -211,7 +196,6 @@ function runtime_network_configured_snapshot(snapshot, nft_table, mark) {
         has_tproxy_marking_rule_text(snapshot.inet6, mark);
 }
 
-// The whole `forkop_runtime_network_configured` predicate in one shell.
 function runtime_network_configured(nft_table, rt_table, mark) {
     return runtime_network_configured_snapshot(
         split_snapshot(command_output(runtime_snapshot_command(rt_table, nft_table))),

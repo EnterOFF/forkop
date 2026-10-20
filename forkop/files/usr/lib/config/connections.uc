@@ -132,8 +132,7 @@ function item_index_from_uci() {
     return index;
 }
 
-// Reads the configuration as it is committed now, for an operation that has to
-// see the current one rather than what an earlier step of this process loaded.
+// Reads the committed configuration afresh rather than what this process loaded earlier.
 function load() {
     uci_core.reset();
     item_sections = item_index_from_uci();
@@ -192,9 +191,6 @@ function child_items_by_owner(type_name, owner_key, owner_value) {
     return result;
 }
 
-// The accounts a server accepts, in configuration order. sing-box takes a user list
-// on every protocol Forkop serves, so the generator, the validator and the reload
-// signature all read the clients through this one accessor.
 function server_clients(server) {
     return child_items_by_owner("server_client", "server", section_name(server));
 }
@@ -227,9 +223,7 @@ function is_connections_action(action) {
     return action == "connection" || is_legacy_connection_action(action);
 }
 
-// The subscriptions a section fetches, in configuration order. Two of them may
-// fetch one address, each a provider of its own with a name, a filter and a
-// cascade of its own, so a subscription is its item and never its address.
+// A subscription is its item, not its address: two of them may fetch one address.
 function subscription_items(section) {
     let result = [];
     for (let child in child_items(section, "subscription_url"))
@@ -276,8 +270,6 @@ function child_order_sort(left, right) {
     return left_name == right_name ? 0 : (left_name < right_name ? -1 : 1);
 }
 
-// The links a section dials, in the order its selector lists them. Each one is
-// stored with the name the page gave it, which is the name its server runs under.
 function connection_link_items(section) {
     let result = child_items(section, "connection_link");
     sort(result, child_order_sort);
@@ -382,8 +374,7 @@ function tunnel_endpoint(tunnel) {
         push(endpoint.peers, item);
     }
 
-    // An amneziawg peer speaks AmneziaWG, so it takes the whole parameter set; a
-    // wireguard peer only takes what one side can add on its own.
+    // AmneziaWG takes the whole parameter set, plain WireGuard only what one side can add alone.
     if (kind == "amneziawg" || kind == "wireguard") {
         let parameters = amnezia.object(tunnel, kind == "amneziawg" ? amnezia.KEYS : amnezia.ONE_SIDED_KEYS);
         if (parameters)
@@ -438,8 +429,6 @@ function destinations(section) {
     return rule_config.destination_conditions(option(section, "destinations", ""));
 }
 
-// Which section a download is routed through: rule sets, built-in lists among
-// them, take the lists section, WARP profiles name their own or none.
 function download_via_proxy_flag_option(purpose) {
     purpose = as_string(purpose || "lists");
     if (purpose == "lists")
@@ -485,8 +474,6 @@ function has_connection_sources(section) {
         length(tunnels(section)) > 0;
 }
 
-// The section a link, a subscription or a tunnel is dialled through, or "" when
-// it connects on its own.
 function cascade_section(item) {
     return trim(option(item, "detour_section", ""));
 }
@@ -504,8 +491,6 @@ function link_display_name(link) {
     return trim(option(link, "name", ""));
 }
 
-// A JSON tunnel carries its tag in its endpoint; every other kind the name its
-// dialog stores beside the endpoint.
 function tunnel_display_name(tunnel, index) {
     let name = lc(trim(option(tunnel, "kind", "wireguard"))) == "json"
         ? as_string(tunnel_endpoint(tunnel).tag || "")
@@ -575,8 +560,6 @@ function subscription_tag(subscription) {
     return trim(option(subscription, "tag", ""));
 }
 
-// The provider a subscription becomes is addressed by its tag, so the validator
-// refuses a section whose subscriptions lack one or share one.
 function subscription_tags(section) {
     return map(subscription_items(section), (subscription) => subscription_tag(subscription));
 }
@@ -585,8 +568,7 @@ function subscription_exclude_types(subscription) {
     return list_value(subscription, "exclude_types");
 }
 
-// A rename rule is stored the way it is written: "pattern => replacement".
-// The first separator wins, so a replacement may contain one itself.
+// "pattern => replacement"; the first separator wins.
 function parse_rename_rule(value) {
     value = as_string(value);
     let separator = index(value, "=>");
@@ -738,9 +720,7 @@ function fallback_level_exclude_types(group_id, value) {
     return list_value(fallback_level_child(group_id, value), "exclude_types");
 }
 
-// Every server and group a connection section builds, in the order the generator
-// adds them. Each runs as "<section>/<name>", and groups, filters and the
-// Dashboard find it by that name.
+// Each runs as "<section>/<name>", the name groups, filters and the Dashboard use.
 function section_child_names(section) {
     let result = [];
     for (let link in connection_link_items(section))

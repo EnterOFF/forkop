@@ -19,8 +19,6 @@ t.test("an ASCII domain is lowered and kept as written", () => {
         t.eq(domain.suffix_to_ascii(entry[0]), entry[1], entry[0]);
 });
 
-// Handing such a label to the punycode encoder would turn -abc into the valid
-// xn---abc and match a domain nobody wrote.
 t.test("an ASCII label that is not a valid label is refused, not encoded into one", () => {
     let refused = [
         "-abc.com", "-" + substr(label63, 0, 58) + ".com", "abc-.com", "a..com",

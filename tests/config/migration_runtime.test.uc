@@ -1,7 +1,3 @@
-// config/migration.uc against a live configuration: the parser preflight, the
-// backup, the edits committed through core.uci, and the reset that replaces a
-// file too old to migrate.
-
 let t = require("t");
 let stub = require("stub");
 let repo = require("repo");
@@ -11,14 +7,12 @@ let core_uci = require("core.uci");
 
 const DEFAULT_CONFIG = repo.path("forkop/files/etc/config/forkop");
 
-// `uci show` for the given sections, which is what the preflight parses.
 function uci_show(sections) {
     let lines = map(sections, (section) => "forkop." + section[".name"] + "=" + section[".type"]);
     return { stdout: join("\n", lines) + "\n" };
 }
 
-// Migrates a router whose /etc/config/forkop holds `file` and whose UCI holds
-// `sections`; `preflight` stands in for what `uci show` answers.
+// `preflight` stands in for what `uci show` answers.
 function migrate_router(file, sections, preflight) {
     let dir = stub.tmpdir();
     let config_path = dir + "/forkop";
@@ -87,8 +81,6 @@ t.test("a file the UCI parser refuses stops the migration with the parser's own 
     t.contains(run.error, run.config_path);
 });
 
-// Every kind of section the page writes, which a router already on the current
-// schema holds and a reinstall must leave alone.
 t.test("the current schema keeps every section type the page writes", () => {
     let sections = [ { ".name": "settings", ".type": "settings", config_version: "NEXT" } ];
     for (let type_name in [ "section", "server", "server_client", "subscription_url", "section_interface",

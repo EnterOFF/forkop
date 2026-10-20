@@ -1,8 +1,5 @@
-// Fills the sets of the sections that take subnets from rule-set providers with
-// what the providers hold, and keeps them filled: the worker follows the Clash
-// API's provider events and rewrites a section when a provider it reads changed.
-// Each section is its own nft transaction, so the largest section, not the sum of
-// them, is what nft has to hold at once.
+// Fills the sets of provider-fed sections, one nft transaction per section, so nft never
+// holds more than the largest one.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -26,10 +23,8 @@ const RETRY_MAX_SECONDS = 300;
 
 let as_string = common.as_string;
 
-// Per section: the key of what its sets were last filled from, and the key nft
-// or the snapshot refused. Everything a section's transaction is made of is in
-// its key, so a refused key is not tried again until a provider or the section
-// changes.
+// Per section: the key its sets were last filled from and the key that was refused; a
+// refused key is not tried again until a provider or the section changes.
 let applied = {};
 let refused = {};
 
@@ -49,8 +44,6 @@ function normalize_ranges(ranges) {
     return result;
 }
 
-// The section's own ports, which the reader of that option has already
-// normalized to numbers and ranges.
 function section_ranges(csv) {
     let ranges = [];
     for (let value in split(as_string(csv), ",")) {
@@ -71,8 +64,7 @@ function snapshot_ranges(values, label) {
     return normalize_ranges(map(values, (value) => ({ start: value.start, end: value.end })));
 }
 
-// Only the two transports nft can be told to match: the core exports nothing
-// else, so anything else is a snapshot this reader does not understand.
+// The only transports the core exports and nft can match.
 function snapshot_protocols(values, label) {
     if (values == null)
         return [];
@@ -100,9 +92,7 @@ function port_text(range) {
     return range.start == range.end ? "" + range.start : range.start + "-" + range.end;
 }
 
-// A provider prefix goes into the transaction unquoted, so anything that is not
-// part of an address stops it. Checked, not parsed: a country-sized list is
-// written as it came.
+// A provider prefix goes into the transaction unquoted.
 function prefix_is_nft_safe(prefix, family) {
     return type(prefix) == "string" && (family == 4
         ? index(prefix, ".") >= 0 && match(prefix, /[^0-9.\/]/) == null
@@ -116,7 +106,6 @@ function compare_addresses(left, right) {
     return 0;
 }
 
-// The next or the previous address, null past either end.
 function step_address(address, delta) {
     let result = [ ...address ];
     for (let i = length(result) - 1; i >= 0; i--) {
@@ -130,7 +119,6 @@ function step_address(address, delta) {
     return null;
 }
 
-// The first and the last address of the block of `bits` leading bits, as bytes.
 function block_bounds(address, bits) {
     let low = [], high = [];
     for (let i = 0; i < length(address); i++) {
@@ -152,7 +140,6 @@ function prefix_bounds(prefix, family, label) {
     return block_bounds(address, min(bits, length(address) * 8));
 }
 
-// A segment that is exactly a block reads as the prefix it came from.
 function segment_text(low, high) {
     if (compare_addresses(low, high) == 0)
         return arrtoip(low);
@@ -166,11 +153,8 @@ function segment_text(low, high) {
     return arrtoip(low) + "-" + arrtoip(high);
 }
 
-// The elements of a set keyed on an address and a port must not overlap: the
-// kernel refuses one that starts or ends inside another unless both are the
-// same, and the whole transaction with it. Swept along the address space, the
-// boxes become segments, each carrying the union of the port ranges of every box
-// covering it, and neighbours that carry the same ranges are joined.
+// The kernel refuses overlapping address.port intervals in one set, so the boxes are swept
+// into disjoint address segments carrying the union of their port ranges.
 function disjoint(boxes) {
     let events = [];
     for (let box in boxes) {
@@ -216,9 +200,6 @@ function disjoint(boxes) {
     return { elements, count: length(segments) };
 }
 
-// A group limited to ports goes into the address-port set, one limited to a
-// transport into the set whose key also carries the transport. The section's
-// own ports narrow either, and a group they do not overlap selects nothing.
 function add_groups(boxes, groups, family, ports, label) {
     if (type(groups) != "array")
         die(label + " must be an array");
@@ -250,10 +231,8 @@ function add_groups(boxes, groups, family, ports, label) {
     }
 }
 
-// The elements of each set the section owns, or null while one of its providers
-// has not loaded yet. The section's own addresses are user input rather than
-// something the core produced, so one nft cannot match is dropped, as the table
-// drops it, instead of stopping the section.
+// null while a provider has not loaded. A section address nft cannot match is dropped, as
+// the table drops it, instead of failing the section.
 function section_plan(snapshot, entry) {
     let m = entry.matchers;
     let ports = section_ranges(m.ports);
@@ -309,9 +288,7 @@ function section_plan(snapshot, entry) {
     };
 }
 
-// One set replaced in place: nft applies the file as one transaction, so the
-// flush and the elements that follow it are never observed apart. Duplicates
-// two providers share are dropped, and the elements go in bounded lines.
+// The flush and the new elements land in one transaction, so the set is never seen empty.
 function write_set(handle, set_name, elements) {
     handle.write("flush set inet " + TABLE + " " + set_name + "\n");
     let prefix = "add element inet " + TABLE + " " + set_name + " { ";
@@ -338,8 +315,7 @@ function write_set(handle, set_name, elements) {
     return written;
 }
 
-// The transaction goes to a file, so that what this process holds is released
-// before nft starts allocating. The count is the addresses the sets now hold.
+// Written to a file, so what this process holds is released before nft starts allocating.
 function apply_plan(plan) {
     let now = clock();
     let path = sprintf("/tmp/forkop-ruleset-sync.%d.%d.nft", now[0], now[1]);
@@ -362,8 +338,7 @@ function apply_plan(plan) {
     return count;
 }
 
-// A provider's revision starts over with every core, so across a reload only
-// its digest tells content already written from new content.
+// A provider's revision restarts with every core; only the digest tells written content from new.
 function plan_key(snapshot, entry) {
     let m = entry.matchers;
     let parts = [ m.subnets, m.ports ];
@@ -372,9 +347,6 @@ function plan_key(snapshot, entry) {
     return join("\t", parts);
 }
 
-// The sections of the table whose subnets a provider feeds, which is what the
-// worker exists for. A configuration naming two sections alike has no table:
-// building it refuses that.
 function native_sections(sections) {
     return filter(nft_sections.with_priority_sets(sections).sections, (entry) => length(entry.matchers.subnet_tags) > 0);
 }
@@ -383,9 +355,6 @@ function configured_sections() {
     return uci.section_objects(constants.FORKOP_CONFIG_NAME, "section");
 }
 
-// The providers each of those sections reads: the one input of the worker the
-// table's script does not carry. A section's own addresses and ports are in the
-// script, so a change to them rebuilds the table and starts the worker anyway.
 function subnet_sources(sections) {
     let result = {};
     for (let entry in native_sections(sections))
@@ -393,8 +362,6 @@ function subnet_sources(sections) {
     return result;
 }
 
-// Every section fed by a provider whose inputs changed, each on its own: one
-// refused does not keep the others from loading.
 function sync(snapshot, sections) {
     let native = native_sections(sections);
     let loaded = 0, written = 0;
@@ -426,8 +393,7 @@ function sync(snapshot, sections) {
     return { loaded, written };
 }
 
-// The snapshot is parsed straight out of curl's pipe: read into a string first,
-// it would exist twice, and on a country-sized list that is megabytes.
+// Decoded straight from curl's pipe, so a country-sized list is never held twice.
 function snapshot(api) {
     return clash_api.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "10" ], "/providers/rules", (argv) => {
         let pipe = fs.popen(exec.command_line(argv) + " 2>/dev/null", "r");
@@ -444,8 +410,7 @@ function snapshot(api) {
     });
 }
 
-// The revision synced from, null when the controller gave no snapshot, and
-// false when no section takes subnets from a provider.
+// The revision synced, null without a snapshot, false when no section reads a provider.
 function sync_once(api) {
     let sections = configured_sections();
     if (length(native_sections(sections)) == 0)
@@ -457,9 +422,7 @@ function sync_once(api) {
     return value.revision;
 }
 
-// true once a provider changed, false when none did within the wait, null when
-// the controller could not be asked. The controller answers at once when its
-// revision is no longer the one given, and otherwise when a provider updates.
+// true on a provider change, false when the wait ran out, null when the controller is unreachable.
 function next_change(api, revision, seconds) {
     let result = clash_api.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "" + seconds ],
         "/providers/rules/events?since=" + revision, exec.capture);
@@ -468,8 +431,6 @@ function next_change(api, revision, seconds) {
     return result.status == 0 && type(common.parse_json(result.stdout)?.revision) == "int" ? true : null;
 }
 
-// procd keeps the sources the worker was started with, which is how a reload
-// tells whether they changed.
 function worker_spec(sources) {
     return {
         name: "forkop-ruleset-sync",
@@ -481,9 +442,6 @@ function worker_spec(sources) {
     };
 }
 
-// A controller that does not answer is looked up again and asked later and
-// later; one that does is followed by its events. A reloaded core drops the
-// wait, so the worker syncs from the new one and writes only what changed.
 function worker() {
     worker_process.announce(worker_spec());
     let api = clash_api.controller();
@@ -509,8 +467,6 @@ function stop_worker() {
     return worker_process.stop(worker_spec());
 }
 
-// Only while a section takes its subnets from a provider. A fresh worker has
-// written nothing yet, so it fills every section.
 function start_worker() {
     let sources = subnet_sources(configured_sections());
     if (length(sources) == 0)
@@ -518,8 +474,6 @@ function start_worker() {
     return worker_process.start(worker_spec(sources));
 }
 
-// Whether the running worker reads what the configuration says: the same
-// providers for the same sections, or no worker while no section reads one.
 function worker_current() {
     let spec = worker_spec(subnet_sources(configured_sections()));
     if (length(spec.data.subnet_sources) == 0)

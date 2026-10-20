@@ -94,8 +94,6 @@ t.test("a subscription override carries the name changes, the cascade and the pa
         t.ok(override[key] == null && provider[key] == null, "removed provider option " + key);
 });
 
-// The same account dialled two ways is two subscriptions of one address, and
-// each takes its own name, filter, cascade and schedule into its provider.
 t.test("two subscriptions of one address are two providers", () => {
     fixture.seed({
         settings: { dns_server: [ "1.1.1.1" ], bootstrap_dns_server: [ "1.1.1.1" ], service_listen_address: "127.0.0.1" },

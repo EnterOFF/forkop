@@ -36,8 +36,6 @@ function is_client_catch_all(rule) {
         rule.query_type == null && q.has(rule.inbound, constants.SOURCE_DNS_INBOUND_TAG);
 }
 
-// A lookup the endpoint makes for a connection it carries never matches the rules
-// for captured queries, so only a rule after them is reached by the tunnel alone.
 for (let kind in keys(TUNNELS)) {
     let current = kind;
     t.test(current + " tunnel resolves the names its server declares through that server's DNS", () => {
