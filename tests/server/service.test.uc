@@ -142,6 +142,17 @@ t.test("a TLS server is issued a self-signed certificate for its SNI into its ow
     t.eq(value("hy2", "tls_certificate_source"), "", "the source is derived where it is read, not written back");
 });
 
+t.test("a certificate is issued for a host name, never an address or a name X.509 cannot carry", () => {
+    fresh_paths();
+    prepared({ server: [
+        { ".name": "by_label", protocol: "anytls", public_host: "203.0.113.9", label: "edge" },
+        { ".name": "by_section", protocol: "trojan", public_host: "2001:db8::1", label: "Рабочий стол" },
+        { ".name": "by_host", protocol: "tuic", public_host: "vpn.example.com", label: "edge" }
+    ] });
+    t.eq(issued, [ "generate tls-keypair edge --months 1200", "generate tls-keypair by_section --months 1200",
+        "generate tls-keypair vpn.example.com --months 1200" ]);
+});
+
 t.test("a second prepare over prepared servers changes and generates nothing", () => {
     fresh_paths();
     prepared(configuration());

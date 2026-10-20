@@ -102,9 +102,15 @@ function keypair(subject) {
     return key == "" || certificate == "" ? null : { key, certificate };
 }
 
-// Clients skip the name check, so the subject only matters to a reader.
+// sing-box refuses a name that is not ASCII, and clients check an address only against an IP
+// entry, which it never writes.
 function certificate_subject(name) {
-    return trim(get(name, "tls_server_name")) || trim(get(name, "public_host")) || trim(get(name, "label")) || name;
+    for (let value in [ get(name, "tls_server_name"), get(name, "public_host"), get(name, "label") ]) {
+        value = trim(value);
+        if (match(value, /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$/) && !core_ip.valid_ip(value))
+            return value;
+    }
+    return name;
 }
 
 // Its fingerprint is what a Hysteria2 link pins.
