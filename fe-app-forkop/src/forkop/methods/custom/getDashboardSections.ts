@@ -73,12 +73,16 @@ type ChildType =
   | 'tunnel_peer';
 
 const EXPORTABLE_PROVIDER_PROXY_TYPES = new Set([
+  'anytls',
   'http',
   'hysteria',
   'hysteria2',
+  'mieru',
+  'naive',
   'shadowsocks',
   'socks',
   'trojan',
+  'trusttunnel',
   'tuic',
   'vless',
   'vmess',

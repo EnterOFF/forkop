@@ -2413,12 +2413,16 @@ function closeAllClashApiConnections() {
 
 // src/forkop/methods/custom/getDashboardSections.ts
 var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
+  "anytls",
   "http",
   "hysteria",
   "hysteria2",
+  "mieru",
+  "naive",
   "shadowsocks",
   "socks",
   "trojan",
+  "trusttunnel",
   "tuic",
   "vless",
   "vmess"

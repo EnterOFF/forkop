@@ -301,6 +301,53 @@ describe('getDashboardSections', () => {
     ]);
   });
 
+  it('offers the link of a subscription node whose link the core writes', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      section(),
+      child('subscription_url', 'subscription1', {
+        url: 'https://example.com/subscription',
+        tag: 'premium',
+      }),
+    ]);
+    const types = ['TrustTunnel', 'AnyTLS', 'Naive', 'Mieru', 'Snell'];
+    const nodes = types.map((type) =>
+      proxy(type, { name: `Office/premium/${type}` }),
+    );
+    setClashProxies({
+      Office: proxy('Selector', {
+        name: 'Office',
+        now: nodes[0].name,
+        all: nodes.map((node) => node.name),
+      }),
+      ...Object.fromEntries(nodes.map((node) => [node.name, node])),
+    });
+    setClashProviders({
+      'Office/premium': {
+        name: 'Office/premium',
+        type: 'Remote',
+        vehicleType: 'HTTP',
+        proxies: nodes,
+      },
+    });
+
+    const [dashboardSection] = (await getDashboardSections()).data;
+
+    expect(
+      Object.fromEntries(
+        dashboardSection.outbounds.map((outbound) => [
+          outbound.code,
+          outbound.canCopyLink,
+        ]),
+      ),
+    ).toEqual({
+      'Office/premium/TrustTunnel': true,
+      'Office/premium/AnyTLS': true,
+      'Office/premium/Naive': true,
+      'Office/premium/Mieru': true,
+      'Office/premium/Snell': false,
+    });
+  });
+
   it('shows two subscriptions of one address under their own tags', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section(),
