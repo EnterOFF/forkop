@@ -33,6 +33,10 @@ const validUrls = [
   ['socks4a', 'socks4a://example.com:1080'],
   ['socks5', 'socks5://user:pass@example.com:1080'],
   ['tuic', 'tuic://uuid:password@example.com:443'],
+  [
+    'tt',
+    'tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQz',
+  ],
   ['hysteria', 'hysteria://example.com:443?auth=secret'],
   ['hysteria2', 'hysteria2://password@example.com:443'],
   ['hy2', 'hy2://password@example.com:443'],

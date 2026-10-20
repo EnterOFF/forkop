@@ -82,7 +82,8 @@ const LINK_SCHEME_OUTBOUND_TYPES = {
     "socks4": "socks",
     "socks4a": "socks",
     "socks5": "socks",
-    "socks5h": "socks"
+    "socks5h": "socks",
+    "tt": "trusttunnel"
 };
 
 // A subscription sets every imported server's detour from its cascade, so a patch may not.

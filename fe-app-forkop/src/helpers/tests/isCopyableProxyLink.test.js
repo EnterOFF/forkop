@@ -19,6 +19,7 @@ const copyableLinks = [
   'anytls://password@example.com:443',
   'naive+https://user:pass@example.com:443',
   'mieru://example.com:443',
+  'tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQz',
 ];
 
 const nonCopyableLinks = [

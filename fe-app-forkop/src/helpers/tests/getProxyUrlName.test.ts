@@ -36,4 +36,24 @@ describe('getProxyUrlName', () => {
   ])('names %s the way the backend does', (link, name) => {
     expect(getProxyUrlName(link)).toBe(name);
   });
+
+  // The links come from TrustTunnel's own encoder, scripts/config_to_deeplink.py.
+  it.each([
+    [
+      'tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQzDArQntGE0LjRgSAx',
+      'Офис 1',
+    ],
+    [
+      'tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQzDArQntGE0LjRgSAx#Mine',
+      'Mine',
+    ],
+    [
+      'tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQz',
+      '',
+    ],
+    ['tt://?AAECAQ92cG4uZXhh', ''],
+    ['tt://?not base64!', ''],
+  ])('names the TrustTunnel link %s by its payload', (link, name) => {
+    expect(getProxyUrlName(link)).toBe(name);
+  });
 });

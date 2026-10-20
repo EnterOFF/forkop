@@ -17,6 +17,7 @@ const NATIVE_PROXY_SCHEMES = new Set([
   'socks5',
   'ss',
   'trojan',
+  'tt',
   'tuic',
   'vless',
   'vmess',

@@ -21,6 +21,7 @@ const CONNECTION_URI_TYPES = [
   ['naiveproxy', 'naive'],
   ['mieru', 'mieru'],
   ['anytls', 'anytls'],
+  ['trusttunnel', 'trusttunnel'],
 ];
 
 export function connectionUriDescription() {

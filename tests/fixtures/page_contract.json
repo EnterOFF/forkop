@@ -158,7 +158,8 @@
     ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJ0bHMiOiJ0bHMiLCJmcCI6ImNocm9tZSJ9", ["utls"]],
     ["vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6InUiLCJmcCI6ImNocm9tZSJ9", []],
     ["vmess://u@example.com:443?security=tls&fp=chrome#v", ["utls"]],
-    ["socks5://127.0.0.1:1080#local", []]
+    ["socks5://127.0.0.1:1080#local", []],
+    ["tt://?AAECAQ92cG4uZXhhbXBsZS5jb20FBWFsaWNlBglzZWNyZXQxMjMCCzEuMi4zLjQ6NDQz", ["trusttunnel"]]
   ],
   "core_report_base": {
     "known": true,
@@ -256,7 +257,8 @@
       "socks4": "socks",
       "socks4a": "socks",
       "socks5": "socks",
-      "socks5h": "socks"
+      "socks5h": "socks",
+      "tt": "trusttunnel"
     }
   },
   "amnezia_parameters": [

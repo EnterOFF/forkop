@@ -805,7 +805,7 @@ function renderFolderOpenIcon24() {
 }
 
 // src/helpers/isCopyableProxyLink.ts
-var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5):\/\//i;
+var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5|tt):\/\//i;
 function isCopyableProxyLink(link) {
   return COPYABLE_PROXY_URI_RE.test((link || "").trim());
 }
@@ -12550,7 +12550,8 @@ var CONNECTION_URI_TYPES = [
   ["hysteria", "hysteria2"],
   ["naiveproxy", "naive"],
   ["mieru", "mieru"],
-  ["anytls", "anytls"]
+  ["anytls", "anytls"],
+  ["trusttunnel", "trusttunnel"]
 ];
 function connectionUriDescription() {
   return _("Supported URIs: %s").format(
@@ -13506,7 +13507,51 @@ function getProxyUrlName(url) {
     }
   }
   const marker = link.indexOf("#");
-  return marker >= 0 ? percentDecode(link.slice(marker + 1)) : "";
+  if (marker >= 0) {
+    return percentDecode(link.slice(marker + 1));
+  }
+  return scheme === "tt" ? trustTunnelName(link.slice("tt://".length)) : "";
+}
+function trustTunnelName(source) {
+  const encoded = source.replace(/^\?/, "").replace(/-/g, "+").replace(/_/g, "/");
+  let payload;
+  try {
+    payload = Uint8Array.from(
+      atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
+      (character) => character.charCodeAt(0)
+    );
+  } catch {
+    return "";
+  }
+  let name = "";
+  for (let offset = 0; offset < payload.length; ) {
+    const field = readVarint(payload, offset);
+    const size = field && readVarint(payload, field.next);
+    if (!size || size.next + size.value > payload.length) {
+      return "";
+    }
+    if (field.value === 12) {
+      name = new TextDecoder().decode(
+        payload.subarray(size.next, size.next + size.value)
+      );
+    }
+    offset = size.next + size.value;
+  }
+  return name;
+}
+function readVarint(bytes, offset) {
+  if (offset >= bytes.length) {
+    return null;
+  }
+  const length = 1 << (bytes[offset] >> 6);
+  if (offset + length > bytes.length) {
+    return null;
+  }
+  let value = bytes[offset] & 63;
+  for (let index = 1; index < length; index++) {
+    value = value * 256 + bytes[offset + index];
+  }
+  return { value, next: offset + length };
 }
 function vmessName(source) {
   let payload = source;
@@ -18588,6 +18633,7 @@ var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
   "socks5",
   "ss",
   "trojan",
+  "tt",
   "tuic",
   "vless",
   "vmess"
