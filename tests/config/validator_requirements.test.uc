@@ -53,10 +53,11 @@ t.test("the core version comes from the file the core package installs, never fr
         t.ok(!match(entry.command, /opkg|apk /), "ran the package manager: " + entry.command);
 });
 
-t.test("a core of the sing-box-extended line is older than the minimum, a build of the current one is not", () => {
+t.test("a core of the sing-box-extended line or a build before the first release is older than the minimum", () => {
     let present = [ [ /command -v/, { status: 0 } ] ];
-    t.contains(requirements("1.13.18-extended-2.6.5-f165\n", present).error, "is lower than the required minimum");
-    for (let version in [ "1.14.3-r0+12", "1.14.3-r1", "1.14.3-r1+3", "1.14.4-r1" ])
+    for (let version in [ "1.13.18-extended-2.6.5-f165", "1.14.3-r0+12" ])
+        t.contains(requirements(version + "\n", present).error, "is lower than the required minimum");
+    for (let version in [ "1.14.3-r1", "1.14.3-r1+3", "1.14.4-r1" ])
         t.ok(index(requirements(version + "\n", present).error ?? "", "required minimum") < 0, version);
 });
 
