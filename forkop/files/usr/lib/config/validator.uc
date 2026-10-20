@@ -1635,20 +1635,19 @@ function validate_core_features(settings, sections, servers, core_tags) {
     for (let section in sections) {
         if (!section_enabled(section) || !connections.is_connections_action(rule_action(section)))
             continue;
-        let name = section_name(section);
         for (let tunnel_id in connections.tunnels(section)) {
             let tunnel = connections.tunnel_child(section, tunnel_id);
             let kind = lc(trim(as_string(connections.option(tunnel, "kind", "wireguard"))));
             let feature = kind == "json" ? "" : features.type_feature("endpoint", kind);
             if (feature != "")
-                refuse_without(feature, core_tags, "Section '" + name + "' has a " + kind + " tunnel '" +
+                refuse_without(feature, core_tags, "Section '" + section_label(section) + "' has a " + kind + " tunnel '" +
                     trim(as_string(connections.option(tunnel, "name", tunnel_id))) + "'");
         }
         for (let item in connections.connection_link_items(section)) {
             let link = connections.option(item, "uri", "");
             let label = core_url.scheme(link) + ":// link '" + connections.option(item, "name", "") + "'";
             for (let feature in features.link_features(link))
-                refuse_without(feature, core_tags, "Section '" + name + "' has a " + label +
+                refuse_without(feature, core_tags, "Section '" + section_label(section) + "' has a " + label +
                     (feature == "utls" ? " that uses Reality or a TLS fingerprint" : ""));
         }
     }

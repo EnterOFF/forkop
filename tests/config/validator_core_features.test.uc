@@ -12,7 +12,7 @@ function without(tags, tag) {
 }
 
 function section(extra) {
-    return { ".name": "proxy", enabled: "1", action: "connection", ...(extra ?? {}) };
+    return { ".name": "proxy", label: "Proxy", enabled: "1", action: "connection", ...(extra ?? {}) };
 }
 
 function server(protocol, extra) {
@@ -59,7 +59,7 @@ t.test("a disabled server asks nothing of the core", () => {
 t.test("a tunnel of a type the build lacks is refused by name", () => {
     for (let kind in [ "wireguard", "amneziawg", "warp" ])
         needs({ section: [ section() ], tunnel: [ { ".name": "tun", section: "proxy", kind, name: "Home" } ] },
-            without(BASE, "with_gvisor"), "Section 'proxy' has a " + kind + " tunnel 'Home', but this sing-box build lacks WireGuard, AmneziaWG and WARP (built without with_gvisor)");
+            without(BASE, "with_gvisor"), "Section 'Proxy' has a " + kind + " tunnel 'Home', but this sing-box build lacks WireGuard, AmneziaWG and WARP (built without with_gvisor)");
     needs({ section: [ section() ], tunnel: [ { ".name": "tun", section: "proxy", kind: "tailscale", name: "Net" } ] },
         BASE, "has a tailscale tunnel 'Net'");
     needs({ section: [ section() ], tunnel: [ { ".name": "tun", section: "proxy", kind: "openvpn-client", name: "Office" } ] },
@@ -79,7 +79,7 @@ t.test("a JSON endpoint is not judged by its type", () => {
 t.test("a link the build cannot dial is refused, without printing its secrets", () => {
     let hy2 = "hy2://secret-password@example.com:443?sni=example.com#Fast";
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ hy2 ]) }, without(BASE, "with_quic"),
-        "Section 'proxy' has a hy2:// link 'Fast', but this sing-box build lacks QUIC (built without with_quic)");
+        "Section 'Proxy' has a hy2:// link 'Fast', but this sing-box build lacks QUIC (built without with_quic)");
     let result = v.run({ section: [ section() ], connection_link: fixture.links("proxy", [ hy2 ]) }, { core_tags: without(BASE, "with_quic") });
     t.ok(index(result.error, "secret-password") < 0, "the refusal carries the password");
 
@@ -91,7 +91,7 @@ t.test("a link the build cannot dial is refused, without printing its secrets", 
 
 t.test("a link of a protocol the build was given no tag for is refused by name", () => {
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vmess://u@example.com:443?security=none#V" ]) },
-        without(BASE, "with_vmess"), "Section 'proxy' has a vmess:// link 'V', but this sing-box build lacks VMess (built without with_vmess)");
+        without(BASE, "with_vmess"), "Section 'Proxy' has a vmess:// link 'V', but this sing-box build lacks VMess (built without with_vmess)");
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "anytls://p@example.com:443#A" ]) },
         without(BASE, "with_anytls"), "has a anytls:// link 'A'");
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "mierus://u:p@example.com?profile=p&port=443&protocol=TCP#M" ]) },
