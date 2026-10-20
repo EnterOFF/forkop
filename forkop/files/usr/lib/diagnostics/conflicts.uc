@@ -1,7 +1,5 @@
-// Other programs that intercept what Forkop intercepts, read from the loaded
-// nftables rule set: a transparent proxy of their own, or a DNS redirect hooked
-// before Forkop's, which takes the clients' queries first. Two interceptors
-// split the traffic between them, and part of it never reaches Forkop.
+// Other programs intercepting what Forkop intercepts, read from the loaded nft rule set: a
+// transparent proxy of their own, or a DNS redirect hooked before Forkop's.
 
 let constants = require("core.constants");
 
@@ -23,8 +21,6 @@ function priority_value(text) {
     return match(text, /^-?[0-9]+$/) != null ? int(text) : null;
 }
 
-// The tables of a listing, each with its chains: the hook and priority of a base
-// chain, and the rules of every chain.
 function parse(listing) {
     let tables = [];
     let table = null;
@@ -64,8 +60,6 @@ function parse(listing) {
     return tables;
 }
 
-// Every rule of a table with the hook and priority of each base chain that
-// reaches it, through jumps and gotos.
 function reached_rules(table) {
     let result = [];
     for (let name, chain in table.chains) {
@@ -102,11 +96,8 @@ function redirects_dns(rule) {
     return ports != null && port_listed(ports[1], 53) && match(rule, /(^|[ \t])(redirect|dnat)([ \t]|$)/) != null;
 }
 
-// A DNS redirect counts when it is hooked where one of Forkop's is and can run
-// first; a later one never sees a query Forkop already redirected. Of two nat
-// chains at the same priority the one loaded last runs first, so a redirect at
-// Forkop's own priority takes the queries whenever its table is loaded again
-// after Forkop's.
+// Of two nat chains at one priority the one loaded last runs first, so a redirect at Forkop's
+// priority wins whenever its table is loaded after Forkop's.
 function dns_redirect_first(entry) {
     if (entry.priority == null)
         return false;

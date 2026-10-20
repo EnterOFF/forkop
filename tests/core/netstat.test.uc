@@ -1,8 +1,6 @@
 let t = require("t");
 let netstat = require("core.netstat");
 
-// Whether the Clash API controller address is already taken on the router, read
-// from netstat's listening sockets.
 const EXPLICIT = "tcp 0 0 192.168.1.1:9090 0.0.0.0:* LISTEN";
 const IPV4_WILDCARD = "tcp 0 0 0.0.0.0:9090 0.0.0.0:* LISTEN";
 const IPV6_WILDCARD = "tcp 0 0 :::9090 :::* LISTEN";

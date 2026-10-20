@@ -1,9 +1,3 @@
-// What a diagnostic report carries beside the checks the page ran: the recent
-// log, both configurations, and the capture as the kernel holds it. Masked, it
-// hides every credential, the server addresses the configuration names, the
-// names of the router's own servers and public addresses, so it can be posted
-// where others read it.
-
 let fs = require("fs");
 let common = require("core.common");
 let exec = require("core.exec");
@@ -28,8 +22,6 @@ function last_lines(text, count) {
     return join("\n", slice(lines, length(lines) > count ? length(lines) - count : 0)) + "\n";
 }
 
-// The names clients reach this router's servers by, which the generated
-// configuration does not always repeat.
 function server_hosts() {
     let result = [];
     for (let section in uci.section_objects(constants.FORKOP_CONFIG_NAME, "server"))
@@ -41,8 +33,7 @@ function server_hosts() {
     return result;
 }
 
-// The resolvers the router asks are public services, and which one it asks is
-// half of any DNS question, so their addresses stay readable.
+// Public resolvers stay readable: which one the router asks matters to any DNS question.
 function resolver_addresses(settings) {
     let result = [];
     for (let key in [ "dns_server", "bootstrap_dns_server" ])
@@ -54,8 +45,6 @@ function resolver_addresses(settings) {
     return result;
 }
 
-// The checks the page ran come in as text, so they are masked by the same rules
-// as everything else in the report.
 function report(visibility, checks) {
     let masked = visibility != "raw";
     let settings = uci.get_all(constants.FORKOP_CONFIG_NAME, "settings") ?? {};

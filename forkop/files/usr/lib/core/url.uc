@@ -155,8 +155,7 @@ function vmess_name(value) {
     }
 }
 
-// The name a share link carries for its server: a VMess link's own "ps", and
-// otherwise its fragment. getProxyUrlName() on the page reads it the same way.
+// A VMess link's "ps", otherwise the fragment; getProxyUrlName() on the page reads it alike.
 function link_name(value) {
     return scheme(value) == "vmess"
         ? (vmess_name(value) || fragment(value))

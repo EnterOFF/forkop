@@ -1,8 +1,3 @@
-// The rules the server check reasons with, separated from the commands that
-// collect the facts: where the generated configuration keeps a server, when a
-// listen address is exposed to WAN, and how the advertised public host compares
-// with the WAN.
-
 let core_ip = require("core.ip");
 let servers = require("singbox.servers");
 
@@ -23,15 +18,12 @@ function contains(values, needle) {
     return false;
 }
 
-// Where the generated configuration keeps it: Tailscale, OpenVPN and WireGuard
-// are endpoints, all but Tailscale with a listener of their own.
+// Tailscale, OpenVPN and WireGuard are endpoints; all but Tailscale listen.
 function runtime_kind(protocol) {
     return servers.is_endpoint(protocol) ? "endpoints" : "inbounds";
 }
 
-// A firewall rule is only meaningful when the listener can be reached from
-// WAN: on a wildcard address, on a routable address, or on the WAN address
-// itself.
+// Only a listener reachable from WAN needs a firewall rule: wildcard, routable or WAN address.
 function listen_requires_firewall(listen, wan_ip) {
     listen = as_string(listen);
     if (listen == "0.0.0.0" || listen == "::" || core_ip.valid_public_ip(listen))
@@ -42,10 +34,8 @@ function listen_requires_firewall(listen, wan_ip) {
     return false;
 }
 
-// How usable the advertised public host is, as three flags that stay -1 when
-// the question does not apply: does it resolve at all, are all of its
-// addresses routable from the Internet, and does one of them equal the WAN
-// address. Without a public WAN address the last comparison is meaningless.
+// Three flags, -1 where the question does not apply: resolves, all addresses public, one
+// equals the WAN address.
 function public_host_flags(public_host, public_host_ips, wan_ip, wan_public) {
     let resolved = -1;
     let public_ip = -1;

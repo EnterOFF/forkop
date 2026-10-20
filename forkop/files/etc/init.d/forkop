@@ -43,8 +43,7 @@ service_stopped() {
     return "${FORKOP_LAST_STOP_STATUS:-0}"
 }
 
-# A restart is one operation to whoever asked for it, where rc.common would run
-# a stop and a start each tracked on its own.
+# One tracked operation instead of rc.common's separate stop and start.
 restart() {
     "$FORKOP_BIN" initd_restart
 }

@@ -534,7 +534,6 @@ t.test("a forced reload says what set it off", () => {
     t.eq(world.logs[length(world.logs) - 1], "[info] Configuration applied");
 });
 
-// The page closes the alerts of earlier actions at the first line of a new one.
 t.test("every action opens with a line the page knows", () => {
     let contract = json(fs.readfile(repo.path("tests/fixtures/page_contract.json")));
     let openings = [];

@@ -1,20 +1,8 @@
 #!/usr/bin/env ucode
 
-// Every Forkop command runs as a short-lived `ucode` process, and each one
-// parses the modules it imports from source before it does any work. On an
-// MT7621 router that parse dominates: `require("config.validator")` alone costs
-// about 470 ms of a 640 ms process, and a single reload starts more than twenty
-// such processes. ucode also executes precompiled bytecode, so the installed
-// library is compiled once into a tmpfs cache and every later process loads
-// that instead.
-//
-// The manifest records the size and mtime of every source file the cache was
-// built from, plus the ucode binary that produced it, so a package upgrade, a
-// hand-copied module during development or a new interpreter all invalidate the
-// cache instead of silently running stale code. Living in tmpfs is the second
-// half of that guarantee: bytecode carries a format version the interpreter
-// refuses to load when it changes, and a cache that cannot outlive a reboot
-// cannot outlive the ucode upgrade that would break it.
+// The installed library is compiled once into a tmpfs bytecode cache: parsing modules from
+// source dominates every short-lived Forkop process. The manifest records every source file
+// and the interpreter, so an upgrade, a hand-copied module or a new ucode invalidates it.
 
 let fs = require("fs");
 
@@ -22,10 +10,8 @@ function as_string(value) {
     return value == null ? "" : "" + value;
 }
 
-// The interpreter that writes the cache has to be the one that later loads it.
-// Bytecode carries a format version, and while a newer interpreter rejects an
-// older file with a clear error, an older one can accept a newer header and
-// then misread the body. /proc/self/exe names the binary actually running.
+// The cache must be loaded by the interpreter that wrote it: an older ucode may accept a newer
+// header and misread the body.
 function ucode_binary() {
     let configured = getenv("FORKOP_UCODE_BIN");
     if (configured != null && configured != "")
@@ -39,20 +25,11 @@ const SOURCE_DIR = getenv("FORKOP_SOURCE_LIB") || "/usr/lib/forkop";
 const CACHE_DIR = getenv("FORKOP_BYTECODE_CACHE_DIR") || "/var/run/forkop/bytecode";
 const UCODE_BIN = ucode_binary();
 const MANIFEST_VERSION = "4";
-// Loaded through the freshly built cache to prove the interpreter accepts what
-// it just produced. A leaf module with no imports and no side effects.
+// A leaf module, loaded through the fresh cache to prove the interpreter accepts it.
 const SELF_CHECK_MODULE = "config.domain";
 const BUILD_LOCK_MAX_AGE = 120;
-// Revalidating the manifest means one stat per installed module, and it is the
-// single largest fixed cost of a Forkop command: about 45 ms of the 85 ms that
-// `forkop <anything>` spends before it starts working, paid again by each of the
-// twenty-odd processes one reload starts. Within a short window the answer
-// cannot have changed for any reason that matters - an upgrade clears the stamp
-// from postinst - so it is taken once and reused.
-//
-// The window is deliberately short. A module copied over an installed one during
-// development is the case full validation exists to catch, and it still is
-// caught, just up to this many seconds later.
+// Revalidating the manifest costs a stat per module, so a proven manifest is trusted for a few
+// seconds; an upgrade clears the stamp from postinst.
 const VALIDATION_TTL_SECONDS = int(getenv("FORKOP_BYTECODE_VALIDATION_TTL") || "3");
 
 function enabled() {
@@ -89,9 +66,7 @@ function command_success(args) {
     return system(join(" ", parts) + " >/dev/null 2>&1") == 0;
 }
 
-// A package manager replaces a file by renaming a new one over it, which the
-// inode shows whenever it happens. The mtime has only a second's resolution, so
-// on its own it misses an edit in the same second the cache was built.
+// The inode catches a rename over the file; the mtime alone misses an edit in the build's second.
 function file_signature(path) {
     let stat = fs.stat(as_string(path));
     if (stat == null || stat.type != "file")
@@ -99,8 +74,7 @@ function file_signature(path) {
     return as_string(stat.size) + " " + as_string(stat.mtime) + " " + as_string(stat.inode);
 }
 
-// The entries themselves: a directory's mtime moves when one is added or
-// removed, but not visibly within the second the cache was built in.
+// The entries, since a directory mtime may not move visibly within the build's second.
 function directory_signature(path) {
     let names = fs.lsdir(as_string(path));
     if (type(names) != "array")
@@ -130,8 +104,6 @@ function remove_tree(path) {
         command_success([ "rm", "-rf", path ]);
 }
 
-// The interpreter decides which bytecode version the cache has to carry, so its
-// own identity is part of what the manifest validates.
 function runtime_dependencies() {
     let result = [ UCODE_BIN ];
     for (let path in fs.glob("/usr/lib/libucode.so*"))
@@ -170,12 +142,7 @@ function collect_files(dir, prefix, result, directories) {
     return result;
 }
 
-// Validating the recorded files proves none of them changed, but says nothing
-// about a file that appeared beside them - and a module added by an upgrade
-// whose siblings kept their size and mtime would then be missing from the
-// cache, so every command reaching for it fails outright. A directory mtime
-// moves when an entry is added or removed, so recording the dozen directories
-// closes that gap for the cost of a few more stat calls.
+// Directory mtimes catch a module added beside unchanged siblings.
 function source_directories() {
     let directories = [ "" ];
     collect_files(SOURCE_DIR, "", [], directories);
@@ -183,11 +150,7 @@ function source_directories() {
     return directories;
 }
 
-// The directories and their mtimes as one snapshot. A build takes this first,
-// enumerates the files second and checks the snapshot again at the end: an
-// install writing into the tree while the build walks it would otherwise
-// produce a cache missing whatever had not landed yet, and a manifest whose
-// directory signatures were read afterwards would then vouch for it forever.
+// Taken before the walk and checked after it, so an install writing during a build is noticed.
 function directory_signatures() {
     let result = [];
     for (let relative_path in source_directories()) {
@@ -233,9 +196,6 @@ function manifest_text(library, files, dependencies, directories) {
             text += "dep=" + path + "\t" + signature + "\n";
     }
 
-    // The snapshot the file list is consistent with, not a fresh reading:
-    // recording what the tree looks like after the walk would certify a cache
-    // built from what it looked like before.
     for (let entry in directories)
         text += "dir=" + entry[0] + "\t" + entry[1] + "\n";
 
@@ -320,10 +280,7 @@ function now_seconds() {
     return int(clock()[0]);
 }
 
-// The stamp records when the manifest was last proven and which library it was
-// proven for. Naming the library is what lets a fresh stamp answer on its own:
-// reading and parsing the manifest to learn the same path costs 20 ms of the
-// 45 ms this exists to avoid, so the fast path must not touch it at all.
+// The stamp names the library it proved, so the fast path never reads the manifest.
 function validation_stamp_library() {
     if (VALIDATION_TTL_SECONDS <= 0)
         return "";
@@ -351,8 +308,6 @@ function write_validation_stamp(library) {
     fs.writefile(validation_stamp_path(), now_seconds() + " " + as_string(library) + "\n");
 }
 
-// Dropped when the installed library changes under us, so the next command
-// revalidates in full rather than trusting a window that spans the change.
 function invalidate_validation_stamp() {
     try {
         fs.unlink(validation_stamp_path());
@@ -362,8 +317,6 @@ function invalidate_validation_stamp() {
     return true;
 }
 
-// Where a Forkop process should load its modules from: the compiled cache while
-// it still matches the installed sources, and the sources themselves otherwise.
 function library_dir() {
     if (!enabled())
         return SOURCE_DIR;
@@ -385,10 +338,7 @@ function library_dir() {
 }
 
 function compile_file(source, target) {
-    // -s drops debug information, which makes the cache smaller than the
-    // sources it stands in for and halves what is left of the load time. The
-    // sources stay installed next to it, so a traceback can still be read
-    // against them.
+    // -s drops debug information; the sources stay installed for reading tracebacks.
     return command_success([ UCODE_BIN, "-c", "-s", "-o", target, source ]) &&
         fs.stat(target) != null;
 }
@@ -414,9 +364,7 @@ function publish_manifest(text) {
     return false;
 }
 
-// One build at a time. A second process that arrives while the cache is being
-// compiled runs from source rather than waiting or duplicating the work; the
-// next command it starts finds the finished cache.
+// A process that finds a build running uses the sources rather than waiting.
 function acquire_build_lock() {
     let path = build_lock_path();
     if (fs.mkdir(path))
@@ -450,9 +398,7 @@ function compile_library(files) {
             return null;
         }
 
-        // A module that refuses to compile still has to be present under the
-        // cache, or the `require` that reaches for it would resolve past the
-        // cache directory and find nothing.
+        // A module that fails to compile is copied as source, so its require still resolves.
         if (is_module_file(relative_path) && compile_file(source, target))
             continue;
 
@@ -470,10 +416,7 @@ function compile_library(files) {
     return library;
 }
 
-// Every cache directory is memory until a reboot, and each upgrade adds one.
-// The library a build replaces stays, because a worker started before the build
-// may still load modules from it; anything older goes. An upgrade stops the
-// workers before the files change, so none can still run from those.
+// The replaced library stays for workers started before the build; older ones go.
 function remove_older_libraries(current, replaced) {
     for (let name in fs.lsdir(CACHE_DIR) ?? []) {
         let path = CACHE_DIR + "/" + name;
@@ -482,8 +425,6 @@ function remove_older_libraries(current, replaced) {
     }
 }
 
-// Compiles the installed library into a new cache directory and publishes it by
-// pointing the manifest at it.
 function build() {
     if (!enabled())
         return SOURCE_DIR;
@@ -496,16 +437,12 @@ function build() {
     if (!ensure_dir(CACHE_DIR))
         return SOURCE_DIR;
 
-    // Another process is already compiling. If it published while we were
-    // looking, use that; otherwise this one run stays on the sources.
     if (!acquire_build_lock())
         return library_dir();
 
     let library = compile_library(files);
 
-    // The tree moved while we walked it, so the file list is not what is
-    // installed. Publishing this would cache a library missing whatever landed
-    // late, and nothing afterwards would notice.
+    // The tree changed during the walk, so this file list may miss what landed late.
     if (library != null && !directory_signatures_match(directories)) {
         remove_tree(library);
         release_build_lock();

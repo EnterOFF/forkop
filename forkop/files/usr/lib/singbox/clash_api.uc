@@ -1,7 +1,5 @@
-// The Clash API transport the LuCI pages fall back to when the browser cannot
-// reach the controller itself - an HTTPS page, a firewalled port, a host that
-// only serves LuCI. A page on it asks for something every couple of seconds, so
-// it loads nothing beyond core and the constants.
+// The Clash API transport the pages fall back to when the browser cannot reach the controller.
+// It is called every couple of seconds, so it loads nothing beyond core and the constants.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -27,9 +25,7 @@ function endpoint(address) {
     return host + ":" + (port == "" ? DEFAULT_PORT : port);
 }
 
-// The address the running configuration told sing-box to bind, which is the
-// socket it listens on - a wildcard bind is reached over the loopback - and the
-// secret it expects.
+// A wildcard bind is reached over loopback.
 function controller() {
     let settings = uci.get_all(CONFIG_NAME, "settings") ?? {};
     let clash_api = common.read_json_file(common.option(settings, "config_path", ""))?.experimental?.clash_api;
@@ -47,9 +43,7 @@ function segments(path, prefix) {
     return result;
 }
 
-// Only what the dashboard and monitoring pages drive is reachable, so a page
-// cannot turn the transport into an arbitrary client of the sing-box control
-// plane.
+// Only what the dashboard and monitoring drive, so the transport is no general control-plane client.
 function allowed(method, path, body) {
     if (path == "" || length(path) > 4096 || match(path, /[\r\n ]/))
         return false;
@@ -86,9 +80,8 @@ function allowed(method, path, body) {
     return false;
 }
 
-// Runs `run` on curl's arguments for a request to `path`, with the secret in
-// a 0600 file rather than on the command line, where any process on the router
-// can read it. The file is gone once `run` returns.
+// The secret goes in a 0600 file, not on the command line every process can read; the file is
+// gone once run returns.
 function curl(api, options, path, run) {
     let header = null;
     if (api.secret != "") {
@@ -141,9 +134,7 @@ function request(method, path, body) {
     return { status, body: join(STATUS_MARKER, slice(parts, 0, length(parts) - 1)) };
 }
 
-// The three numbers the Dashboard reads out of a snapshot that carries every open
-// connection, which through rpcd would be refused past about 256 KB. An answer
-// the controller gave as an error is passed on as it is.
+// The three numbers the Dashboard reads; the full snapshot would exceed rpcd's limit of about 256 KB.
 function summary() {
     let response = request("GET", "/connections", "");
     let payload = response.status >= 200 && response.status < 300 ? common.parse_json(response.body) : null;

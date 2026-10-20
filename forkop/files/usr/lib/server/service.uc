@@ -1,7 +1,3 @@
-// What a server section needs before sing-box can serve it: the defaults and
-// key material the configuration refers to, and the firewall rules that open
-// its ports.
-
 let fs = require("fs");
 let common = require("core.common");
 let core_ip = require("core.ip");
@@ -17,10 +13,8 @@ let paths = {
     firewall_init: "/etc/init.d/firewall"
 };
 
-// A client checks the expiry of a self-signed certificate it pins or trusts
-// through a profile, and one issued again would leave every link and profile
-// handed out before it unable to connect. So the router issues each once, for
-// a hundred years.
+// Issued once, for a hundred years: clients pin or trust a self-signed certificate, and a
+// reissued one would break every link and profile handed out.
 const CERTIFICATE_MONTHS = 1200;
 const FIREWALL_COMMENT = singbox_constants.SERVER_FIREWALL_COMMENT;
 
@@ -31,7 +25,6 @@ function get(name, key, fallback) {
     return value == "" ? (fallback ?? "") : value;
 }
 
-// How the page names a server.
 function label(name) {
     return get(name, "label", name);
 }
@@ -109,14 +102,11 @@ function keypair(subject) {
     return key == "" || certificate == "" ? null : { key, certificate };
 }
 
-// The name a self-signed certificate is issued for: the SNI, else the address
-// the links carry, else the name the server is shown under. A client accepts it
-// without a name check, so it only matters to whoever looks at it.
+// Clients skip the name check, so the subject only matters to a reader.
 function certificate_subject(name) {
     return trim(get(name, "tls_server_name")) || trim(get(name, "public_host")) || trim(get(name, "label")) || name;
 }
 
-// The certificate a TLS server serves unless it is given one of the user's.
 // Its fingerprint is what a Hysteria2 link pins.
 function prepare_self_signed_certificate(name, protocol) {
     let section = uci.get_all(CONFIG_NAME, name) ?? {};
@@ -164,10 +154,7 @@ function openvpn_static_key() {
     return join("\n", lines);
 }
 
-// The server certificate, its tls-crypt key and a certificate for every client
-// that has none yet. A client is its certificate: the server trusts only the
-// fingerprints of those it issued, and each is named after the section it
-// belongs to, which the name a client is shown under is not bound by.
+// The server trusts only the fingerprints it issued, each named after the client's section.
 function prepare_openvpn(name) {
     if (get(name, "openvpn_certificate") == "" || get(name, "openvpn_key") == "") {
         let pair = keypair(file_name(name));
@@ -228,10 +215,7 @@ function plus(bytes, offset) {
     return result;
 }
 
-// The subnets a server hands its clients addresses from: the family, the network,
-// the prefix length, the server's own address and how many hosts may be handed
-// out, an IPv4 subnet keeping its broadcast address and an IPv6 one its size
-// within reason.
+// An IPv4 pool keeps its broadcast address out; an IPv6 pool is capped to a sane size.
 function tunnel_pools(name) {
     let pools = [];
     for (let value in get_list(name, "tunnel_address")) {
@@ -256,8 +240,6 @@ function same_bytes(left, right) {
     return join(".", left) == join(".", right);
 }
 
-// The address a client keeps, or the lowest one nobody holds: never the server's
-// own or the subnet itself, and one another client already has is not kept twice.
 function client_address(pool, current, taken) {
     for (let value in current) {
         let bytes = address_bytes(value);
@@ -278,9 +260,7 @@ function client_address(pool, current, taken) {
     return null;
 }
 
-// The key of the server and, for every client, its key pair, a pre-shared key
-// and an address in each of the server's subnets. A client is its key: the
-// server accepts only the keys it issued, so removing a client revokes it.
+// The server accepts only the keys it issued, so removing a client revokes it.
 function prepare_wireguard(name) {
     if (get(name, "wireguard_private_key") == "" || get(name, "wireguard_public_key") == "") {
         let pair = wireguard_keypair();
@@ -325,9 +305,8 @@ function prepare_wireguard(name) {
     }
 }
 
-// An account name goes on the wire, so it is kept to the characters the login
-// protocols carry; a name that already fits is compared byte for byte by them
-// and stays exactly as it was typed.
+// Account names go on the wire, so they are kept to what the login protocols carry; a name
+// that already fits stays as typed.
 function login_safe_name(value, fallback) {
     if (match(value, /^[A-Za-z0-9._-]+$/))
         return value;
@@ -335,8 +314,7 @@ function login_safe_name(value, fallback) {
     return result == "" ? fallback : result;
 }
 
-// Client names are normalised, never invented: a client with no credentials is
-// reported by the validator instead.
+// Normalised, never invented; a client without credentials is the validator's to report.
 function prepare_clients(name, protocol) {
     if (length(servers.CLIENT_FIELDS[protocol] ?? []) == 0)
         return;
@@ -351,8 +329,6 @@ function prepare_clients(name, protocol) {
     }
 }
 
-// A disabled server is left as it is: nothing runs it, and the validator does not
-// look at it either. The security mode is derived wherever it is read.
 function prepare_server(name) {
     if (get(name, "enabled", "1") == "0")
         return;
@@ -372,8 +348,7 @@ function prepare_server(name) {
         return;
     }
 
-    // A WireGuard endpoint binds its port on every address and takes no listen
-    // address, so it is given none.
+    // A WireGuard endpoint binds every address and takes no listen address.
     if (protocol == "wireguard" || protocol == "amneziawg") {
         prepare_clients(name, protocol);
         prepare_wireguard(name);
@@ -394,8 +369,7 @@ function prepare_server(name) {
     prepare_self_signed_certificate(name, protocol);
 }
 
-// Nothing is removed while there are no servers at all: an empty list cannot be
-// told from a list that could not be read.
+// An empty list cannot be told from one that could not be read.
 function remove_orphaned_clients(names) {
     for (let client in section_names("server_client")) {
         let owner = get(client, "server");
@@ -409,9 +383,8 @@ function remove_orphaned_clients(names) {
     }
 }
 
-// The defaults, names, keys and certificates the servers need before the
-// configuration is validated. Only additions: what removed servers left behind
-// goes once the configuration is known good, so a refused one loses nothing.
+// Additions only: what removed servers left goes once the configuration is known good, so a
+// refused configuration loses nothing.
 function prepare() {
     changed = false;
     for (let name in section_names("server"))
@@ -450,8 +423,7 @@ function firewall_ports() {
     return ports;
 }
 
-// fw4 prepends this file to its input chain. nftables takes only a double quoted
-// comment; fw4 drops an include with a single quoted one without saying so.
+// fw4 prepends this to its input chain and silently drops an include with a single-quoted comment.
 function firewall_include_text() {
     let ports = firewall_ports();
     let rules = [];
@@ -465,8 +437,7 @@ function firewall_include_text() {
         "# every apply. fw4 prepends this file to its own input chain.\n" + join("\n", rules) + "\n";
 }
 
-// fw4 reads the include only while it builds its ruleset, so the file being right
-// says nothing about the chain that is loaded.
+// fw4 reads the include only while it builds its ruleset.
 function firewall_rules_loaded() {
     let chain = exec.output([ "nft", "list", "chain", "inet", "fw4", "input" ]);
     return chain != null && index(chain, FIREWALL_COMMENT) >= 0;
@@ -480,9 +451,8 @@ function reload_firewall() {
         exec.log("warn", "Failed to reload the firewall; the server ports stay as they were until it is reloaded");
 }
 
-// The firewall is reloaded whenever the loaded chain disagrees with the file, not
-// only when the file changed: a failed reload or one by somebody else would
-// otherwise leave the ports wrong until the next change.
+// Reloaded whenever the loaded chain disagrees with the file, so a failed or foreign reload
+// is corrected too.
 function sync_firewall(clear) {
     let wanted = clear ? "" : firewall_include_text();
     let current = fs.readfile(paths.firewall_include) ?? "";

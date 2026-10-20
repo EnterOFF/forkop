@@ -1,7 +1,5 @@
-// The backend package is built two ways: by the OpenWrt feed Makefile, and by
-// build.sh, which stages the IPK and APK packages itself. Each carries its own
-// dependency and conflict lists, install layout and package hooks; these
-// checks hold the copies to each other and to what the library needs.
+// The backend package is built by the feed Makefile and by build.sh, each with its own
+// dependency lists, layout and hooks; these checks hold the copies to each other.
 
 let t = require("t");
 let fs = require("fs");
@@ -67,8 +65,6 @@ t.test("the IPK and APK packages conflict with what the feed package conflicts w
         makefile_conflicts, "APK");
 });
 
-// A native module is a package of its own, and a router without it fails on
-// the first require.
 t.test("every native ucode module the library loads is a dependency", () => {
     let pipe = fs.popen("grep -rhoE 'require\\(\"[a-z]+\"\\)' '" + repo.path("forkop/files/usr/lib") + "'", "r");
     let found = pipe.read("all");
@@ -79,8 +75,7 @@ t.test("every native ucode module the library loads is a dependency", () => {
         t.contains(makefile_depends, "ucode-mod-" + module, module);
 });
 
-// The hooks run the command line by name. A name it does not have prints the
-// usage and fails, which a package script ignores.
+// A name the command line lacks prints the usage and fails, which a package script ignores.
 t.test("every command a package hook or an init script runs is one the command line has", () => {
     let sources = [
         MAKEFILE, BUILD_SH,
@@ -98,9 +93,8 @@ t.test("every command a package hook or an init script runs is one the command l
         t.ok(cli.COMMANDS[name] != null, name + " is not a command");
 });
 
-// A command in the seconds before postinst leaves a fresh validation stamp, and
-// the launcher would trust it and run the previous release's hooks from the old
-// bytecode.
+// A command just before postinst leaves a fresh validation stamp, which would run the old
+// release's hooks from the old bytecode.
 t.test("every postinst migrates the configuration, then runs its hook with the cache revalidated", () => {
     let calls = 0;
     for (let source in [ MAKEFILE, BUILD_SH ]) {
@@ -132,8 +126,6 @@ t.test("both packagers stamp the release into the files that carry the placehold
     t.contains(BUILD_SH, "\"$output_root/www/luci-static/resources/view/forkop/main.js\"");
 });
 
-// fw4 prepends this file to its input chain, where a zone that does not accept
-// input would otherwise drop the packets TPROXY hands to sing-box.
 t.test("the fw4 input include accepts the traffic Forkop marks and the DNS it redirects", () => {
     let include = fs.readfile(repo.path("forkop/files/usr/share/nftables.d/chain-pre/input/forkop.nft"));
     t.contains(include, "meta mark & " + constants.NFT_FAKEIP_MARK + " == " + constants.NFT_FAKEIP_MARK);

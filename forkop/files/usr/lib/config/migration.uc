@@ -1008,10 +1008,8 @@ function migrate_subscription_headers(ctx) {
     }
 }
 
-// Released configs carried the User-Agent as its own option, and the provider
-// now reads it from the ordinary headers. A missing header would fall back to
-// the core default instead of the value the release actually sent, so every
-// subscription gets the header written out explicitly.
+// The released User-Agent option becomes an explicit header, so the provider keeps sending
+// the value the release sent instead of the core default.
 function subscription_user_agent_header_lines(item) {
     let configured = trim(as_string(option(item, "user_agent", "")));
     if (configured == "")
@@ -1182,11 +1180,8 @@ function migrate_urltest_expected_status(ctx) {
         set_option_if_missing(ctx, child, "expected_status", "*");
 }
 
-// Interrupting live connections on every automatic switch is far more
-// disruptive than the switch itself, so both group types now default to
-// leaving connections alone. Released configs stored the previous default
-// explicitly, therefore that stored value has to be dropped for the new
-// default to take effect.
+// Released configs stored the old interrupt default explicitly; dropping it lets the new
+// default, leaving connections alone, apply.
 function migrate_group_interrupt_defaults(ctx) {
     for (let type_name in [ "urltest", "fallback_group" ])
         for (let child in ctx.model[type_name] || [])
@@ -1223,9 +1218,7 @@ function login_safe_value(value, fallback) {
     return result == "" ? as_string(fallback) : result;
 }
 
-// The SOCKS inbound only ever served SOCKS5 without TLS. The mixed inbound answers
-// both SOCKS5 and HTTP on the same port with the same accounts and can carry TLS, so
-// the released socks servers become mixed servers and keep working unchanged.
+// The mixed inbound serves SOCKS5 with the same accounts, so released socks servers keep working.
 function migrate_socks_servers_to_mixed(ctx) {
     for (let server in ctx.model.servers || []) {
         if (option(server, "protocol", "") != "socks")
@@ -1237,15 +1230,11 @@ function migrate_socks_servers_to_mixed(ctx) {
         delete_option(ctx, server, "socks_auth_enabled");
     }
 
-    // The option was only ever written for socks servers, but a stale value on any
-    // other server would otherwise stay behind forever.
     for (let server in ctx.model.servers || [])
         delete_option(ctx, server, "socks_auth_enabled");
 }
 
-// Credentials a released server carried inline. They live on client sections now, so
-// the server options are removed. sing-box has no MD5 authenticated VMess either, so
-// the alterId option is dropped instead of migrated.
+// Credentials move to client sections; sing-box has no MD5-authenticated VMess, so alterId goes.
 function delete_server_credentials(ctx, server) {
     delete_option(ctx, server, "server_uuid");
     delete_option(ctx, server, "server_username");
@@ -1255,9 +1244,6 @@ function delete_server_credentials(ctx, server) {
     delete_option(ctx, server, "vmess_alter_id");
 }
 
-// Released servers held one account inline. Every protocol sing-box serves takes a
-// user list, so the inline credentials move into a client section and the server
-// stops carrying credentials of its own.
 function migrate_server_clients(ctx) {
     for (let server in ctx.model.servers || []) {
         let protocol = option(server, "protocol", "vless");
@@ -1290,8 +1276,6 @@ function migrate_server_clients(ctx) {
     }
 }
 
-// Forkop no longer serves MTProto, so a released MTProto server goes with its
-// clients instead of staying behind as a server nothing can build.
 function remove_mtproto_servers(ctx) {
     let removed = {};
     let kept = [];
@@ -1318,11 +1302,8 @@ function remove_mtproto_servers(ctx) {
     ctx.model.server_client = clients;
 }
 
-// Shadowsocks servers released with a legacy AEAD method keep it: changing the method
-// would invalidate every distributed link, so the released default is written out
-// where nothing stored one. A 2022 method was never offered by the released dialog,
-// but a hand written one carried its key in the server password, and that key is the
-// listener key now, so it moves there instead of being thrown away.
+// A released legacy AEAD method stays, since changing it breaks every distributed link; a
+// hand-written 2022 key in the server password moves to the listener key.
 function migrate_shadowsocks_server_keys(ctx) {
     for (let server in ctx.model.servers || []) {
         if (option(server, "protocol", "") != "shadowsocks")
@@ -1336,9 +1317,7 @@ function migrate_shadowsocks_server_keys(ctx) {
     }
 }
 
-// Options the dialog no longer asks for. Every one of them had a working default in
-// the core or belonged to MTProto, none changed whether a client could connect, and
-// an unread value left in the configuration would only show up in diagnostics forever.
+// Options the dialog no longer asks for; each had a working core default or belonged to MTProto.
 const REMOVED_SERVER_OPTIONS = [
     "mtproto_faketls",
     "mtproto_padding",
@@ -1353,8 +1332,6 @@ const REMOVED_SERVER_OPTIONS = [
     "mtproto_idle_timeout",
     "mtproto_handshake_timeout",
     "reality_max_time_difference",
-    // The exit node is what a Tailscale server is for, so the switch that could
-    // take it away is gone and the runtime always advertises it.
     "tailscale_advertise_exit_node"
 ];
 
@@ -1364,10 +1341,8 @@ function remove_expert_server_options(ctx) {
             delete_option(ctx, server, key);
 }
 
-// The released dialog asked for the handshake target next to the SNI and defaulted
-// both to the same site, so the second field only ever added a way to disagree with
-// the first. The SNI is the half already baked into every link a client holds, so it
-// keeps its value and the target is adopted only where no SNI was stored at all.
+// The SNI is in every link a client holds, so it wins; the handshake target is adopted only
+// where no SNI was stored.
 function merge_reality_handshake_into_sni(ctx) {
     for (let server in ctx.model.servers || []) {
         let handshake = option(server, "reality_handshake_server", "");
@@ -1400,12 +1375,8 @@ function released_pem_block(path, label) {
     return begin < 0 || end < begin ? "" : substr(text, begin, end + length(end_line) - begin);
 }
 
-// A released TLS server named its certificate and key by path, and the page wrote
-// a path in Forkop's own directory for every server. A certificate there is the
-// self-signed one Forkop issued: it moves into the server's options, so the
-// fingerprint a Hysteria2 link pins stays the same, and when it cannot be read the
-// router issues a new one. Any other path is the user's own certificate and stays
-// a path, so a file that is renewed on the router keeps being picked up.
+// A certificate in Forkop's own directory is the self-signed one it issued and moves into the
+// server's options, keeping a Hysteria2 pin; any other path is the user's and stays a path.
 function migrate_server_certificates(ctx) {
     for (let server in ctx.model.servers || []) {
         let certificate = option(server, "tls_certificate_path", "");
@@ -1432,9 +1403,7 @@ function migrate_server_certificates(ctx) {
     }
 }
 
-// The released dialog gave the HTTP transport a list of hosts next to the one host
-// every other transport has. One host is what a link carries, so the first of the
-// list becomes the host of the transport.
+// A link carries one host, so the first of the released list becomes the host.
 function migrate_http_transport_hosts(ctx) {
     for (let server in ctx.model.servers || []) {
         let hosts = option_list_values(server, "transport_hosts");
@@ -1444,9 +1413,7 @@ function migrate_http_transport_hosts(ctx) {
     }
 }
 
-// No client format carries Trojan without TLS, so the released dialog could offer
-// such a server but no link to it. It runs with TLS now, and the warning says that
-// its clients need the new link.
+// No client format carries Trojan without TLS, so such a server gets TLS and a warning.
 function migrate_plaintext_trojan_servers(ctx) {
     for (let server in ctx.model.servers || []) {
         if (option(server, "protocol", "") != "trojan" || option(server, "security", "") != "none")
@@ -1457,11 +1424,7 @@ function migrate_plaintext_trojan_servers(ctx) {
     }
 }
 
-// The section settings carried a mixed proxy of their own: one listener on the
-// service address that handed everything it accepted to that section. The Servers
-// tab owns every inbound Forkop opens now, and a mixed server routed to a section is
-// that listener with a name, a client list and a firewall switch, so each released
-// switch becomes such a server instead of a second way to open a port.
+// A section's own mixed proxy becomes a mixed server routed to the section.
 const MIXED_PROXY_SECTION_ACTIONS = {
     connection: true,
     proxy: true,
@@ -1501,9 +1464,8 @@ function taken_section_names(ctx) {
     return result;
 }
 
-// Both the display name and the uci id have to be free, and a config that already
-// holds the obvious candidate gets the next number instead of a silent collision:
-// two servers of one name fail validation, and two ids write over each other.
+// Both the display name and the uci id must be free: duplicate names fail validation and
+// duplicate ids overwrite each other.
 function claim_free_name(taken, name, separator) {
     let candidate = name;
     for (let suffix = 2; taken[candidate]; suffix++)
@@ -1529,10 +1491,7 @@ function migrate_section_mixed_proxies(ctx) {
         let auth = bool_option(section, "mixed_proxy_auth_enabled", false);
         let username = option(section, "mixed_proxy_username", "");
         let password = option(section, "mixed_proxy_password", "");
-        // What the released dialog could produce. Anything else never reached a
-        // listener either: the generator refused to write the whole configuration
-        // over a port it could not use, an action with no outbound to route to, or
-        // authentication with half a login, so there is nothing to carry over.
+        // Only what the released dialog could produce ever reached a listener.
         let convert = bool_option(section, "mixed_proxy_enabled", false) &&
             MIXED_PROXY_SECTION_ACTIONS[option(section, "action", "")] &&
             port_number >= 1 && port_number <= 65535 &&
@@ -1553,13 +1512,10 @@ function migrate_section_mixed_proxies(ctx) {
             claim_free_name(section_names, "server_" + section_name(section) + "_mixed", "_"));
         set_option(ctx, server, "label",
             claim_free_name(display_names, section_label(section) + " - Mixed proxy", " "));
-        // A disabled section had no listener and a server may not route to one, so
-        // the switch of the section decides the switch of the server.
         set_option(ctx, server, "enabled", bool_option(section, "enabled", true) ? "1" : "0");
         set_option(ctx, server, "protocol", "mixed");
-        // The released listener followed the service address, which is read from the
-        // lan interface on every start and is no value to freeze into the config. The
-        // firewall stays shut instead, so the port answers on the lan and nowhere else.
+        // The released listener followed the service address; :: with the firewall shut still
+        // answers on the LAN alone.
         set_option(ctx, server, "listen", "::");
         set_option(ctx, server, "listen_port", port);
         set_option(ctx, server, "open_firewall", "0");
@@ -1571,16 +1527,12 @@ function migrate_section_mixed_proxies(ctx) {
             continue;
 
         let client = create_child_for_owner(ctx, server, "server_client", "server");
-        // A Mixed account is a login name, and the released field took any text.
         set_option(ctx, client, "name", login_safe_value(username, "client"));
         set_option(ctx, client, "password", password);
     }
 }
 
-// The released dialog listened on 0.0.0.0, where sing-box opens an IPv4 socket
-// only, and offered the router's IPv6 address for the links wherever it had no
-// public IPv4. Such a server handed out links nothing answered, so it listens on
-// :: - both families - which is what its links always asked for.
+// The released dialog listened on 0.0.0.0 yet handed out IPv6 links; :: serves both families.
 function migrate_ipv6_linked_server_listeners(ctx) {
     for (let server in ctx.model.servers || []) {
         let host = replace(trim(option(server, "public_host", "")), /^\[|\]$/g, "");
@@ -1589,23 +1541,15 @@ function migrate_ipv6_linked_server_listeners(ctx) {
     }
 }
 
-// The released switch added one `resolve` route rule ahead of the rule of the very
-// section that emitted it, so the real address only ever reached the outbound this
-// section had already chosen. It never moved a connection between sections, and it
-// traded resolution at the proxy exit for resolution at the router, which picks the
-// wrong CDN node and turns a local DNS failure into a dropped connection.
+// The released switch only re-resolved at the router for the section's own outbound and never
+// moved a connection between sections.
 function remove_resolve_real_ip_for_routing(ctx) {
     for (let section in ctx.model.sections || [])
         delete_option(ctx, section, "resolve_real_ip_for_routing");
 }
 
-// The released dnsmasq takeover is gone: DNS is captured by nftables and the
-// dnsmasq configuration is never written again. The flag that guarded the
-// takeover and the flag the service flipped on every start and stop both leave
-// with the mechanism they served. dont_touch_dhcp kept the router's resolver in
-// charge of every name, and the nearest the capture comes to that is handing it
-// every query no rule claims; a device the user wants left alone is the
-// routing_excluded_ips list now.
+// The dnsmasq takeover is gone; the nearest the capture comes to dont_touch_dhcp is handing
+// unmatched queries to the local resolver.
 function migrate_dns_capture_settings(ctx) {
     let settings = ctx.model.settings;
     if (bool_option(settings, "dont_touch_dhcp", false))
@@ -1614,10 +1558,7 @@ function migrate_dns_capture_settings(ctx) {
     delete_option(ctx, settings, "shutdown_correctly");
 }
 
-// Forkop no longer checks for or installs new Forkop and sing-box releases, so
-// the schedule of the check, the section its downloads went through and the
-// crontab line that ran it go with the component manager. The dashboards it
-// also routed now download through the lists section.
+// The component manager is gone, with its check schedule, download section and crontab line.
 function remove_component_manager_settings(ctx) {
     let settings = ctx.model.settings;
     for (let key in [ "component_update_check_enabled", "component_update_check_interval",
@@ -1626,26 +1567,13 @@ function remove_component_manager_settings(ctx) {
     push(ctx.removed_cron_markers, COMPONENT_UPDATE_CHECK_CRON_MARKER);
 }
 
-// The model carries no dhcp state, so this only asks the runtime adapter to
-// restore /etc/config/dhcp the one time this registry entry first applies.
+// Asks the runtime adapter to restore /etc/config/dhcp once, when this entry first applies.
 function request_dnsmasq_restore(ctx) {
     ctx.restore_dnsmasq = true;
 }
 
-// Forkop no longer drives an external DPI engine. Zapret, Zapret2 and ByeDPI
-// were section actions that steered selected traffic into an nfqueue or a local
-// SOCKS proxy Forkop started itself, and none of that exists any more, so a
-// released section carrying one of those actions describes a route with no
-// destination. The section goes, together with the child items it owned and
-// every option elsewhere that named it - leaving the name behind would only
-// make the next configuration validation refuse to start over a section that
-// cannot come back. The strategy options leave every remaining section too,
-// because a section whose action was changed away from a provider in an earlier
-// release still carries them.
-//
-// What the engines left on the router is not touched: /opt/zapret, /opt/zapret2,
-// the ciadpi package and their own init scripts belong to whoever installed
-// them, and Forkop has no claim on them once it stops offering the actions.
+// The Zapret, Zapret2 and ByeDPI actions are gone: such a section goes with its children and
+// every reference to it. What those engines installed on the router is left alone.
 const REMOVED_DPI_ACTIONS = {
     zapret: true,
     zapret2: true,
@@ -1658,9 +1586,8 @@ const REMOVED_DPI_SECTION_OPTIONS = [
     "byedpi_cmd_opts"
 ];
 
-// Each entry is an option naming a section, together with the switch that made
-// Forkop read it. Clearing the name without clearing the switch trades a
-// dangling reference for an empty required field, and both stop the service.
+// Each option naming a section, with the switch that makes Forkop read it: clearing only the
+// name would leave an empty required field.
 const SECTION_REFERENCE_OPTIONS = [
     [ "dns_detour_section", "dns_detour_enabled" ],
     [ "outbound_detour_section", "outbound_detour_enabled" ],
@@ -1703,9 +1630,6 @@ function remove_dpi_provider_sections(ctx) {
         for (let key in REMOVED_DPI_SECTION_OPTIONS)
             delete_option(ctx, section, key);
 
-    // A child item belongs to exactly one owner. Once that owner is gone the
-    // child is unreachable configuration that still validates and still shows up
-    // in the section lists the page builds.
     for (let type_name in CHILD_ITEM_TYPES) {
         let kept_children = [];
 
@@ -1739,8 +1663,8 @@ function remove_dpi_provider_sections(ctx) {
 
 function migrate_openvpn_json(ctx, outbound, label) {
     let endpoint = json(sprintf("%J", outbound));
-    // The old system interface installed allowed_ips as OS routes; native
-    // OpenVPN routes are preferences inside sing-box, so that cannot be renamed.
+    // The system interface installed allowed_ips as OS routes; native OpenVPN routes live inside
+    // sing-box, so the option cannot be carried over.
     if (endpoint.system || (endpoint.reconnect_delay != null && endpoint.reconnect_delay != "")) {
         migration_error(ctx, label + ": OpenVPN system routes and reconnect_delay require manual conversion to native openvpn-client options");
         return null;
@@ -1802,9 +1726,7 @@ function migrate_openvpn_json(ctx, outbound, label) {
     return endpoint;
 }
 
-// Public 1.0.5 accepted arbitrary outbound_jsons. Its contemporaneous extended
-// release already supplied OpenVPN and Snell with these legacy option shapes.
-// This runs only on the released-schema edge; NEXT -> NEXT remains a no-op.
+// Released 1.0.5 accepted any outbound_json, including the old OpenVPN and Snell shapes.
 function migrate_native_protocol_json(ctx) {
     for (let section in ctx.model.sections) {
         let remaining = [];
@@ -1868,10 +1790,8 @@ function migrate_native_protocol_json(ctx) {
     }
 }
 
-// The domains and the addresses a section matches are one text in destinations.
-// A released section kept the domains in domain and the addresses in ip_cidr. A
-// DNS section never matched its addresses, and destinations refuses them there,
-// so they are dropped instead of carried along.
+// Domains and addresses merge into destinations; a DNS section never matched addresses, so
+// they are dropped there.
 function merge_destination_conditions(ctx) {
     for (let section in ctx.model.sections || []) {
         if (!option_exists(section, "domain") && !option_exists(section, "ip_cidr"))
@@ -1894,8 +1814,6 @@ function merge_destination_conditions(ctx) {
     }
 }
 
-// The names a section's interfaces, tunnels, JSON outbounds and groups run under,
-// none of which a link of the section may share.
 function section_names_besides_links(ctx, section) {
     let owner = section_name(section);
     let names = [];
@@ -1921,8 +1839,7 @@ function section_names_besides_links(ctx, section) {
     return names;
 }
 
-// A released filter matched every server that carried a name, so one that named
-// a link by the name it no longer holds names its new one as well.
+// A released filter matched any server name, so a filter naming a renamed link follows it.
 function follow_renamed_links(ctx, section, renamed) {
     let filters = child_sections_by_owner(ctx, "urltest", "section", section_name(section));
     for (let group in child_sections_by_owner(ctx, "fallback_group", "section", section_name(section)))
@@ -1941,12 +1858,8 @@ function follow_renamed_links(ctx, section, renamed) {
         }
 }
 
-// A released section kept the links it dials in its selector_proxy_links list, and
-// each link's server ran under the link's own name, or "Node #N" by its position.
-// Every link is now a connection_link of its own that stores that name, with any
-// "/" made "／" and numbered when another link or another server or group of the
-// section holds it, so that it names that one server. A group or a filter naming
-// the server keeps finding it.
+// Each link of the released selector_proxy_links becomes a connection_link storing its server's
+// name ("/" as "／", numbered on a clash), so groups and filters keep finding it.
 function migrate_connection_links(ctx) {
     for (let section in ctx.model.sections || []) {
         let links = list_option(section, "selector_proxy_links");
@@ -1969,10 +1882,7 @@ function migrate_connection_links(ctx) {
     }
 }
 
-// A released section's cascade sent every link and subscription of the section
-// through another section, and nothing else it had. The cascade now belongs to
-// each link, subscription and tunnel, so the section's goes to its links and
-// subscriptions and leaves the section.
+// The section's cascade moves to each of its links and subscriptions.
 function migrate_section_cascades(ctx) {
     for (let section in ctx.model.sections || []) {
         let target = bool_option(section, "outbound_detour_enabled", false) ? trim(option(section, "outbound_detour_section", "")) : "";
@@ -2241,14 +2151,10 @@ function commit_cursor(cursor) {
     return true;
 }
 
-// ---- One-time restore of the dnsmasq takeover a released Forkop wrote ----
+// ---- One-time restore of the dnsmasq takeover of releases up to 1.0.5 ----
 //
-// Up to release 1.0.5 Forkop pointed dhcp.@dnsmasq[0] at the sing-box resolver
-// and kept the original values under its own forkop_* options; podkop, which
-// Forkop installs over, used the same shape under podkop_*. DNS is captured by
-// nftables now and dnsmasq is never written again, so whatever such a release
-// left behind - after a crash, a failed removal or an unclean upgrade - is
-// restored here exactly once, from the backups when they exist.
+// Those releases pointed dhcp.@dnsmasq[0] at sing-box and kept the originals under forkop_*
+// options (podkop: podkop_*); whatever such a release left behind is restored once.
 
 const SB_DNS_INBOUND_ADDRESS = getenv("SB_DNS_INBOUND_ADDRESS") || "127.0.0.42";
 const DNSMASQ_INIT = getenv("DNSMASQ_INIT") || "/etc/init.d/dnsmasq";
@@ -2294,9 +2200,7 @@ function list_without(values, needle) {
     return result;
 }
 
-// What has to change in dhcp.@dnsmasq[0] to undo the takeover. Pure: reads the
-// section object and the legacy-instance facts, returns the edits, so a fixture
-// can prove the exact transformation the runtime adapter applies.
+// The edits that undo the takeover in dhcp.@dnsmasq[0]. Pure, so a fixture can prove them.
 function dnsmasq_restore_plan(dnsmasq, legacy_present, legacy_interfaces) {
     dnsmasq = object_or_empty(dnsmasq);
     let servers = value_words(dnsmasq.server);
@@ -2368,8 +2272,7 @@ function dnsmasq_restore_plan(dnsmasq, legacy_present, legacy_interfaces) {
     return plan;
 }
 
-// What the restore actually did, option by option: the values it put back are
-// the one thing a user debugging a changed dnsmasq needs from the log.
+// The values put back, for the log.
 function dnsmasq_restore_summary(plan) {
     let parts = [];
     for (let key, values in plan.set_lists)
@@ -2387,8 +2290,6 @@ function restore_dnsmasq_runtime(settings) {
     if (!uci_core.load("dhcp"))
         return true;
 
-    // The takeover always wrote the first dnsmasq instance; resolving it by
-    // type works against the live cursor and the test fixture alike.
     let instances = uci_core.section_objects("dhcp", "dnsmasq");
     let dnsmasq = length(instances) > 0 ? object_or_empty(instances[0]) : {};
     let dnsmasq_name = as_string(dnsmasq[".name"] == null ? "" : dnsmasq[".name"]);

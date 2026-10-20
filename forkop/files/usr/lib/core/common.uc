@@ -1,7 +1,6 @@
 let fs = require("fs");
 
-// A string argument is returned as is rather than copied: the nft set builders
-// pass every address of a list through here.
+// Returned as is, not copied: the nft set builders pass every address through here.
 function as_string(value) {
     if (type(value) == "string")
         return value;
@@ -16,9 +15,7 @@ function array_or_empty(value) {
     return type(value) == "array" ? value : [];
 }
 
-// Which signal killed a command, or 0 for one that exited on its own. A shell
-// that execs the command reports the signal negated, one that waits for it
-// reports 128 plus the signal.
+// A shell that execs the command reports the signal negated, one that waits reports 128 + signal.
 function signal_from_status(status) {
     status = int(status || 0);
     if (status < 0)
@@ -69,8 +66,6 @@ function write_file(path, text) {
     return fs.writefile(as_string(path), as_string(text)) != null;
 }
 
-// Readers never see a half-written file: the text goes to a sibling first and
-// replaces the target in one rename.
 function write_file_atomic(path, text) {
     path = as_string(path);
     let now = clock();
@@ -115,7 +110,6 @@ function own_pid() {
     return separator > 0 ? substr(stat, 0, separator) : "";
 }
 
-// /proc/<pid> exists exactly while the process does.
 function pid_alive(pid) {
     pid = as_string(pid);
     return match(pid, /^[1-9][0-9]*$/) != null && fs.stat("/proc/" + pid) != null;
@@ -145,9 +139,7 @@ function strip_internal_fields(value) {
     return value;
 }
 
-// Go duration syntax, which sing-box accepts for every interval and timeout:
-// amount+unit pairs such as "3m", "1h30m" or "1.5s". Whole seconds, or null for
-// text that is not a positive duration.
+// Go duration syntax ("3m", "1h30m", "1.5s") as whole seconds, or null.
 function duration_to_seconds(value) {
     let rest = as_string(value);
     if (rest == "")
@@ -176,7 +168,6 @@ function duration_to_seconds(value) {
     return total <= 0 ? null : int(total + 0.5);
 }
 
-// A number written the way an nftables mark is: "0x40000000" or plain decimal.
 function parse_number(value) {
     value = lc(trim(as_string(value)));
     if (value == "")
@@ -230,7 +221,7 @@ function list_option(section, key) {
     return words(value);
 }
 
-// An empty value is an option nobody set, as UCI means it.
+// An empty value is unset, as in UCI.
 function bool_value(value, fallback) {
     if (value == null || value == "")
         return !!fallback;

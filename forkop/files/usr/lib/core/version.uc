@@ -14,8 +14,7 @@ function strip_leading_zeroes(value) {
     return substr(value, i);
 }
 
-// Compares two package versions the way opkg does, so "1.13.18-extended-2.6.5"
-// orders after "1.13.18" and a "~" segment sorts before everything else.
+// opkg's ordering: "1.13.18-extended-2.6.5" after "1.13.18", a "~" segment before everything.
 function version_compare(lhs, rhs) {
     lhs = as_string(lhs);
     rhs = as_string(rhs);

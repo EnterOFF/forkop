@@ -11,9 +11,7 @@ const TYPES = [
     "connection_link", "urltest", "fallback_group", "fallback_level", "tunnel", "tunnel_peer"
 ];
 
-// The connection_link children a section dials, named the way the page names a
-// pasted link: after the link itself, or "Node #N" by its position, and "#1" on
-// for a name an earlier link already took.
+// Named as the page names a pasted link: after the link, or "Node #N", numbered on a clash.
 function links(section_name, uris, extra) {
     let result = [];
     let taken = {};

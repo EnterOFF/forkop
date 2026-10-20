@@ -1,6 +1,5 @@
-// Cross-process coordination under /var/run: the directory locks that serialize
-// lifecycle actions, and the marker files that carry a request - a queued
-// reload, a failed start to retry - from one process to the next.
+// Directory locks that serialize lifecycle actions, and marker files carrying a request (a
+// queued reload, a failed start to retry) from one process to the next.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -12,9 +11,8 @@ function owner_of(lock_dir) {
     return common.read_first_line(lock_dir + "/pid");
 }
 
-// True while another process owns the lock. Creating the directory and writing
-// the owner are two steps, so a lock that has no owner yet counts as held for a
-// grace period instead of as stale.
+// Creating the directory and writing the owner are two steps, so an ownerless lock counts as
+// held for a grace period.
 function held(lock_dir, owner_grace) {
     let stat = lock_dir == "" ? null : fs.stat(lock_dir);
     if (stat == null)

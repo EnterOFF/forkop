@@ -1,10 +1,5 @@
-// The Forkop runtime and the order it comes up and goes down in: sing-box, the
-// nft table that steers traffic to it, the routing that table relies on, and the
-// workers that keep both current. Every action holds the lifecycle lock.
-//
-// A reload changes only what would come out different: the nft script is
-// compared with the one applied last, the sing-box configuration with the file
-// the service reads.
+// Every action holds the lifecycle lock. A reload changes only what would come out different:
+// the nft script against the one applied last, the sing-box config against the service's file.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -27,9 +22,9 @@ const RT_TABLE = constants.RT_TABLE_NAME;
 const NFT_TABLE = constants.NFT_TABLE_NAME;
 const FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
 const LOCK_TIMEOUT = 360;
-// A start watches a fresh sing-box long enough to see an early crash; a reload
-// only has to outlast the gap between the HUP and the ports dropping, measured at
-// 0.2 s. The hold is how many consecutive one-second looks must see readiness.
+// A start watches a fresh sing-box long enough to see an early crash; a reload only has to
+// outlast the gap between the HUP and the ports dropping. The hold counts the consecutive
+// one-second looks that must see readiness.
 const START_READY_WINDOW = 8;
 const RELOAD_READY_WINDOW = 2;
 const READY_HOLD = 2;
@@ -50,8 +45,7 @@ let paths = {
     rc_dir: "/etc/rc.d"
 };
 
-// The reason an action failed is what its caller needs, and procd drops the
-// output of what it runs itself, so an error goes to stderr as well as the log.
+// procd drops the output of what it runs, so an error goes to stderr as well as the log.
 function log(level, message) {
     exec.log(level, message);
     if (level == "error")
@@ -72,8 +66,7 @@ function queue_reload_if_changed(fingerprint, context) {
         log("warn", "The configuration changed " + during + ", and applying it could not be queued; apply it again");
 }
 
-// The installed system, the defaults a server needs, and the configuration
-// itself. The server ports open only once the configuration is known good.
+// The server ports open only once the configuration is known good.
 function validate() {
     try {
         validator.check_requirements();
@@ -89,12 +82,8 @@ function validate() {
     return true;
 }
 
-// The one readiness wait behind every action, dated from the moment it is
-// called: a live reload leaves the process in place, so no look taken before its
-// rebind can hold to the end of the window. The process is pinned by its start
-// ticks from the first look that finds it - procd answers a start before it has
-// forked anything - and one that exits or is replaced mid-wait fails at once,
-// because whatever procd respawns is not the runtime the caller built.
+// Dated from the call, since a live reload keeps the process. The process is pinned by its
+// start ticks from the first look (procd answers before it forks); one replaced mid-wait fails.
 function wait_ready(window, hold, with_network) {
     let pid = 0;
     let ticks = null;
@@ -130,8 +119,7 @@ function wait_ready(window, hold, with_network) {
     }
 }
 
-// Why a wait for readiness failed, told apart by whether the process is still
-// there: a core that exits on the way up has written its reason to the log.
+// A core that exits on the way up has written its reason to the log.
 function not_ready(after) {
     return health.sing_box_service_running()
         ? "sing-box did not become ready after it was " + after
@@ -182,8 +170,7 @@ function apply_nft(built) {
         log("warn", "Failed to record the applied nftables rules; the next apply rebuilds them");
 }
 
-// The table goes, and with it every capture; the routing it relied on lives
-// outside nft and is removed with the binary that added it.
+// The routing lives outside nft and is removed with the binary that added it.
 function cleanup_network() {
     let ok = true;
     let ip = nft_state.IP_BIN;
@@ -224,8 +211,6 @@ function stop_runtime(keep_watcher) {
     return ok;
 }
 
-// Whatever a failed start or reload left running goes, including the server
-// ports it opened. What the failure left is the caller's to say.
 function cleanup_failed_runtime(keep_watcher) {
     server.sync_firewall(true);
     return stop_runtime(keep_watcher);
@@ -233,8 +218,7 @@ function cleanup_failed_runtime(keep_watcher) {
 
 let start_fingerprint = "";
 
-// Every step that gives up says why in one error line, the one the page raises
-// as an alert; the action around it says what the failure left.
+// Every step that gives up logs one error line, which the page raises as an alert.
 function start_runtime() {
     if (runtime.process_running()) {
         log("error", "Another sing-box process is running outside Forkop; stop it before starting Forkop");
@@ -342,8 +326,6 @@ function start() {
     });
 }
 
-// A stop of a Forkop that is not running still clears whatever it left, but
-// has nothing to report.
 function stop() {
     return locked(function() {
         let active = health.sing_box_service_running() || nft_state.table_present(NFT_TABLE);
@@ -401,11 +383,9 @@ function capture(active) {
     return exec.ok(nft.capture_command(active));
 }
 
-// procd brings a crashed sing-box back a few seconds later. Until the new one
-// listens the capture pauses, as it does while a reload rebinds, so clients and
-// the router resolve through the resolver instead of at closed ports, and their
-// traffic for sing-box waits for the new one. An action holding the lifecycle
-// lock owns the runtime, so neither step waits for one.
+// procd brings a crashed sing-box back a few seconds later; until the new one listens the
+// capture pauses, as during a reload. An action holding the lifecycle lock owns the runtime,
+// so neither step waits for one.
 function crash_pause() {
     let owner = common.own_pid();
     if (!lock.acquire(paths.lock, owner))
@@ -436,8 +416,7 @@ function crash_resume() {
     return 0;
 }
 
-// The first line of a reload: what set it off. A forced one reapplies the
-// configuration whether or not it changed.
+// A forced reload reapplies the configuration whether or not it changed.
 function reload_announcement(reason, forced) {
     if (!forced)
         return "Applying configuration";
@@ -445,19 +424,16 @@ function reload_announcement(reason, forced) {
     return "Reapplying configuration" + (interface_up ? ": interface '" + interface_up[1] + "' came up" : "");
 }
 
-// A config change and a queued reload apply what changed; any other reason - a
-// reload asked for by hand, a monitored interface coming up - also reloads
-// sing-box. Everything that can be refused is built before anything is
-// applied, so a configuration refused on the way leaves the running one as it
-// was.
+// Everything that can be refused is built before anything is applied, so a refused
+// configuration leaves the running one as it was. Reasons other than a config change or a
+// queued reload also reload sing-box.
 function reload_runtime(reason) {
     let forced = reason != "on_config_change" && reason != "pending";
     log("info", reload_announcement(reason, forced));
     if (!validate())
         return reload_failed(false);
-    // After validation, which writes the defaults a new server needs: a
-    // fingerprint taken before it would read this reload's own writing as
-    // somebody else's change.
+    // After validation, which writes the defaults a new server needs, so this reload's own
+    // writing is not taken for somebody else's change.
     let fingerprint = config_fingerprint();
 
     if (!forkop_running()) {
@@ -493,8 +469,7 @@ function reload_runtime(reason) {
         }
     }
 
-    // The capture pauses while sing-box rebinds, so lookups and traffic do not
-    // reach ports that are closed.
+    // Paused while sing-box rebinds, so nothing reaches closed ports.
     if (config_changed || forced) {
         if (!capture(false))
             return abort_reload("Failed to pause the traffic capture before reloading sing-box", true);
@@ -509,11 +484,8 @@ function reload_runtime(reason) {
             return abort_reload(NOT_CAPTURING, true);
     }
 
-    // A rebuilt table keeps what the worker wrote, but a section's own
-    // addresses and ports in it may have changed, so the worker starts again
-    // and writes every section. Otherwise a running worker keeps what it wrote
-    // and follows the core across its reload on its own; only a change to the
-    // providers a section reads starts it again.
+    // A rebuilt table may change a section's own addresses and ports, so the worker restarts and
+    // writes every section; otherwise it follows the core across its reload on its own.
     let worker_changed = nft_changed || !rulesets.worker_current();
     if (worker_changed && !rulesets.start_worker())
         return abort_reload("Failed to start the rule-set sync worker", true);
@@ -530,9 +502,8 @@ function reload(reason) {
     return locked(() => reload_runtime(reason ?? ""));
 }
 
-// Autostart is the rc.d link and has nothing to do with the runtime. The init
-// script's own enable waits on procd's per-service lock for as long as any other
-// command on the service runs - measured at 41 s during a restart.
+// Autostart is the rc.d link. The init script's enable would wait on procd's per-service lock
+// for as long as any other command on the service runs.
 const AUTOSTART_PRIORITY = constants.FORKOP_START_PRIORITY;
 
 function enable() {

@@ -1,36 +1,13 @@
 #!/usr/bin/env ucode
 
-// The service state, served from a process that is already running.
+// The service state, served from a resident process, so a status refresh costs no interpreter
+// start. It is recomputed when something could have changed: procd service events over ubus,
+// the mtimes of the action directories, the reload lock and the autostart link, once a second
+// while an action runs, and a slow sweep for what nothing announces.
 //
-// Every status refresh used to be a `forkop get_ui_state`: a ucode start, the
-// bytecode-cache resolution, a second interpreter for the module, and only then
-// the state itself - about 190 ms on an MT7621, of which roughly 100 ms was
-// getting to the point of asking. Paid per refresh, per open tab. This process
-// pays none of it: the library is loaded once and the answer is already in
-// memory when the question arrives.
-//
-// It does not poll for the answer either. Computing the state means asking nft
-// and iproute2, which is the expensive half, so it is recomputed when something
-// could have changed and not on a clock:
-//
-//   * procd publishes service events over ubus, which is how sing-box going up
-//     or down is noticed the moment it happens;
-//   * the action directories, the reload lock and the autostart symlink are
-//     watched by mtime, which costs a stat and catches every action whoever
-//     started it - the page, the init script, ssh;
-//   * while an action is running the runtime is re-read once a second, because
-//     that is when it is genuinely changing and when someone is watching;
-//   * and a slow sweep runs regardless, so a change nothing announced - an nft
-//     table dropped by hand - is still picked up.
-//
-// `state_wait` is what removes polling from the page as well: it holds the
-// request until the state actually differs from what the caller last saw, or a
-// log line arrives the caller has not seen, so a change reaches the browser in
-// the time it takes to serialise it, and an idle page costs one parked request
-// instead of a refresh every ten seconds. One, because a browser keeps six
-// connections to a host and lets every other request of every tab wait behind
-// them: a page that parked a request for the log beside the one for the state
-// made three open pages enough to stall the whole of LuCI.
+// state_wait parks a request until the state or the log moves past what the caller has seen.
+// A page parks one request: a browser keeps six connections to a host, and every other LuCI
+// request queues behind parked ones.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -43,52 +20,31 @@ let features = require("singbox.features");
 
 const OBJECT_NAME = getenv("FORKOP_STATE_SERVICE_OBJECT") || "forkop";
 
-// Cheap enough to run several times a second: a handful of stat calls.
 const WATCH_INTERVAL_MS = 500;
-// While an action runs the runtime itself is what changes, and nothing stats it.
 const BUSY_REFRESH_MS = 1000;
-// The runtime keeps settling after the action that changed it has finished:
-// sing-box has to reach its minimum age, the nft table and the routing rules
-// have to come back. Nothing stats any of that, so without looking closely for
-// a while after every change the reported state stayed at whatever it happened
-// to be at the moment the action ended - a service reported stopped, with a
-// Start button, until the next sweep noticed otherwise.
+// The runtime keeps settling after an action finishes (sing-box age, nft table, routing), and
+// nothing stats that, so it is watched closely for a while after every change.
 const SETTLE_MS = 10000;
-// The backstop for a change nothing announced.
 const SWEEP_INTERVAL_MS = 20000;
-// Long enough that an idle page reparks rarely, short enough to sit inside
-// uhttpd's network timeout and LuCI's own request ceiling.
+// Inside uhttpd's network timeout and LuCI's own request ceiling.
 const MAX_WAIT_MS = 15000;
-// A port rebind is not an outage. sing-box closes and reopens every inbound
-// when it reloads and when procd respawns it - six seconds after a reload
-// signal and about twelve around a crash respawn, measured on the reference
-// router - and through that window the readiness predicate is honestly false
-// while the service the user is looking at never went away. So a running
-// service is not reported stopped on one look: as long as the sing-box process
-// exists, the flip to "stopped" has to persist for this long to be believed.
-// A stop and a crash procd gave up on kill the process, and are reported the
-// moment they are seen.
+// sing-box closes and reopens its inbounds on a reload and a respawn, so a running service is
+// reported stopped only once the flip outlasts this while its process exists. A stop, or a
+// crash procd gave up on, removes the process and shows at once.
 const DOWN_GRACE_MS = 15000;
 
-// The page watched the log by asking for the whole filtered buffer every five
-// seconds - 48 KB and 310 ms per tab - and working out for itself which lines
-// were new. Reading only the tail is ten times cheaper, doing it once serves
-// every tab, and only the new lines then cross the wire.
 const LOG_PATTERN = constants.FORKOP_LOG_PATTERN;
 // Deep enough that a poll cannot miss lines between two reads on a busy router.
 const LOG_TAIL_LINES = 200;
 const LOG_BUFFER_LINES = 400;
 const LOG_POLL_MS = 1500;
-// Polling stops when nobody has asked for a while, so a router with no tab open
-// pays nothing for a feature nobody is watching.
+// Log polling stops when nobody has asked for a while.
 const LOG_INTEREST_MS = 60000;
 
 let paths = {
     config: "/etc/config/forkop",
-    // Installed versions change when a package is installed or removed and at
-    // no other time, and both package managers record that in one file.
-    // Watching it is a stat; working the versions out is a CLI run, so this is
-    // what decides when to pay that.
+    // Both package managers record installs and removals in these files; watching them is a stat,
+    // reading the versions a CLI run.
     package_databases: [ "/usr/lib/opkg/status", "/lib/apk/db/installed" ]
 };
 
@@ -104,9 +60,8 @@ function path_signature(path) {
     return stat.mtime + ":" + stat.size;
 }
 
-// One string standing for everything that can change the state without this
-// process being told. Comparing it is a few stat calls; recomputing the state is
-// three child processes, so the comparison is what runs often.
+// Everything that can change the state without this process being told, compared by a few
+// stat calls.
 function watch_signature() {
     return path_signature(paths.config) + "|" +
         path_signature(ui.paths.service_actions) + "|" +
@@ -133,10 +88,8 @@ function read_log_tail() {
     return filter(split(data ?? "", "\n"), (line) => line != "");
 }
 
-// Where the lines we already have end inside a freshly read tail. Matching the
-// last known line rather than counting is what survives a busy router pushing
-// unrelated entries between two reads; if it has scrolled past, everything in
-// the new tail is treated as new, which is the honest answer.
+// Matching the last known line rather than counting survives unrelated entries between two
+// reads; if it scrolled past, the whole tail is new.
 function new_log_lines(tail) {
     if (length(log_lines) == 0)
         return tail;
@@ -252,9 +205,8 @@ function package_db_signature() {
     return signature;
 }
 
-// Read from the CLI rather than by requiring diagnostics/runtime.uc: that module
-// is fifteen hundred lines with a wide require chain, and this process would
-// carry all of it in memory to answer a question asked once per package change.
+// Through the CLI: requiring diagnostics/runtime.uc would keep its whole require chain in this
+// process for a question asked once per package change.
 function read_system_info() {
     let value = common.parse_json(exec.output([ constants.FORKOP_BIN, "get_system_info" ]));
     return type(value) == "object" ? value : null;
@@ -275,9 +227,6 @@ function refresh_system_info() {
     return true;
 }
 
-// True while the state deserves the close cadence rather than the slow sweep:
-// an action is running, or something changed recently enough that the runtime
-// may not have finished settling.
 function needs_close_refresh(now, busy, deadline, last_refresh) {
     now = int(now);
     if (!busy && now >= int(deadline || 0))
@@ -290,9 +239,7 @@ function state_is_busy() {
     return payload != null && payload.service.forkop.busy != null;
 }
 
-// Whether a freshly observed "not running" is believed yet, given what was
-// published before. Pure so the grace behavior can be tested without a clock:
-// the caller owns `down_since_ms` and passes it back in.
+// Pure, so the grace can be tested without a clock: the caller owns down_since and passes it back.
 function settled_running(observed_running, process_alive, prev_running, down_since, now_ms, grace_ms) {
     if (observed_running)
         return { running: true, down_since_ms: 0 };
@@ -305,10 +252,7 @@ function settled_running(observed_running, process_alive, prev_running, down_sin
     return { running: true, down_since_ms: int(down_since) };
 }
 
-// The instantaneous state says what is true this instant; what this process
-// publishes is what has settled. While the grace holds a flip back, the
-// running-derived fields are kept coherent with it: the status text follows the
-// held value and the fresh enabled bit.
+// While the grace holds a flip back, the running-derived fields follow the held value.
 function apply_settled_running(payload) {
     let forkop = payload.service.forkop;
     let previous = state.payload;
@@ -329,20 +273,14 @@ function apply_settled_running(payload) {
 
     forkop.running = 1;
     forkop.status = health.service_status_text(1, forkop.enabled);
-    // The premise of holding the value is that the process exists, so the
-    // sing-box row must not contradict it while a respawned process is still
-    // younger than its own stability age.
+    // Held only while the process exists, so the sing-box row agrees.
     payload.service.sing_box.running = 1;
     payload.service.sing_box.status = health.service_status_text(1, payload.service.sing_box.enabled);
 }
 
-// The revision moves only when the answer does. A recompute that produces the
-// same payload must not wake a parked request, or an idle page would be handed
-// an identical state every sweep and the parking would buy nothing.
+// The revision moves only when the answer does, so a parked request stays parked.
 function recompute() {
-    // A configuration the cursor has already read stays in it, so a changed one
-    // is read again rather than answered from memory - by every recompute, the
-    // one a page asks for right after saving included.
+    // A changed configuration is read again rather than answered from memory.
     let config = path_signature(paths.config);
     if (config != last_config) {
         last_config = config;
@@ -350,8 +288,7 @@ function recompute() {
     }
 
     let payload = ui.current_ui_state();
-    // What the core can do rides along, so the page learns it from the first
-    // answer; it is read from the binary once, and again only once that changes.
+    // Read from the binary once, and again only once it changes.
     payload.capabilities.core = features.report();
     apply_settled_running(payload);
     let text = sprintf("%J", payload);
@@ -359,8 +296,7 @@ function recompute() {
         return false;
 
     state = { revision: state.revision + 1, payload, text };
-    // Every change restarts the settle window, so a runtime that is still coming
-    // up is watched until it stops changing rather than for a fixed time.
+    // Every change restarts the settle window.
     settle_until_ms = monotonic_ms() + SETTLE_MS;
     wake_waiters();
     return true;
@@ -370,9 +306,8 @@ function tick() {
     let now = monotonic_ms();
     let signature = watch_signature();
     let due_sweep = now - last_sweep_ms >= SWEEP_INTERVAL_MS;
-    // A pending down-flip needs the close cadence too: holding the old value
-    // often publishes nothing, so the settle window is not extended, and the
-    // grace has to expire on a look rather than on the next slow sweep.
+    // A pending down-flip needs the close cadence too, so the grace expires on a look rather than
+    // on the next slow sweep.
     let due_close = needs_close_refresh(now, state_is_busy() || down_since_ms != 0, settle_until_ms, last_busy_refresh_ms);
 
     if (signature == last_watch && !due_sweep && !due_close)
@@ -386,8 +321,6 @@ function tick() {
 
     recompute();
 
-    // Cheap unless a package actually changed, and the sweep is a fine moment to
-    // notice one installed from outside Forkop.
     if (due_sweep)
         refresh_system_info();
 }
@@ -399,19 +332,14 @@ function log_tick() {
 
 function object_methods() {
     return {
-        // The state as it stands. Used for the first paint and whenever a page
-        // wants an answer without waiting for one to change.
         state: {
             call: function(request) {
                 return reply_payload();
             },
             args: { ubus_rpc_session: "" }
         },
-        // Held until the state differs from the revision the caller already has,
-        // until a line arrives past the log cursor it sent, or until the
-        // ceiling, whichever comes first. A caller that is already behind is
-        // answered at once. One ahead of the log holds a cursor from before this
-        // process started, and is handed the current one to wait from.
+        // Held until the state moves past the caller's revision, a line arrives past its log cursor,
+        // or the ceiling. A cursor from before this process started gets the current one back.
         state_wait: {
             call: function(request) {
                 let waiter = { request, cursor: null };
@@ -430,8 +358,7 @@ function object_methods() {
             },
             args: { revision: 0, cursor: 0, ubus_rpc_session: "" }
         },
-        // Where the log of Forkop and sing-box lines stands now, for a page to
-        // wait from. What it held before is history the page does not show.
+        // Where the log stands now, for a page to wait from.
         logs: {
             call: function(request) {
                 log_interest();
@@ -440,9 +367,7 @@ function object_methods() {
             },
             args: { ubus_rpc_session: "" }
         },
-        // Installed versions and the device it all runs on. Worked out once and
-        // held until the installed packages change, which is what the page used
-        // to keep in a file with a TTL it then had to prove.
+        // Installed versions and the device, held until the installed packages change.
         system_info: {
             call: function(request) {
                 refresh_system_info();
@@ -452,9 +377,7 @@ function object_methods() {
             },
             args: { ubus_rpc_session: "" }
         },
-        // What the core costs the router now and how long it has run. The
-        // dashboard asks every few seconds while it is shown, so the answer is
-        // read from /proc by the process already running, not by a CLI start.
+        // What the core costs the router now and how long it has run.
         usage: {
             call: function(request) {
                 return health.sing_box_usage();
@@ -479,10 +402,8 @@ function run() {
     let uloop = require("uloop");
 
     uloop.init();
-    // libubox's own SIGTERM handler only raises a flag that uloop.run() clears
-    // when it starts: a stop arriving while the first state is read would be
-    // lost, and procd would kill the service five seconds later. A handler of
-    // our own is queued until the loop runs.
+    // libubox's SIGTERM handler only raises a flag uloop.run() clears, so a stop arriving before
+    // the loop runs would be lost and procd would kill the service; this handler is queued.
     uloop.signal("SIGTERM", () => uloop.end());
 
     let connection = ubus.connect();
@@ -496,9 +417,7 @@ function run() {
         return 1;
     }
 
-    // procd reports sing-box starting or stopping, which is the one change that
-    // matters most and the one no directory mtime reflects. It reports on every
-    // other service of the router as well, and none of them is in the state.
+    // procd reports sing-box starting and stopping, which no mtime reflects; other services are ignored.
     let subscriber = connection.subscriber(function(notification) {
         if (notification.data?.service == "sing-box")
             recompute();
@@ -518,9 +437,7 @@ function run() {
         log_tick();
     });
 
-    // A parked request must not outlive what the transport in front of it will
-    // wait for, so the ceiling is enforced here rather than left to time out
-    // somewhere less forgiving.
+    // Enforced here, inside what the transport in front of a parked request will wait for.
     uloop.interval(MAX_WAIT_MS, function() {
         wake_waiters();
     });
@@ -537,8 +454,6 @@ if ((sourcepath(1) != null && sourcepath(1) != "") || ARGV[0] == null)
         needs_close_refresh,
         settled_running,
         new_log_lines,
-        // Seeding the buffer is what lets the delta logic be exercised without a
-        // router and without a log to read.
         remember_log_line: function(line) { append_log_lines([ line ]); },
         object_methods,
         run

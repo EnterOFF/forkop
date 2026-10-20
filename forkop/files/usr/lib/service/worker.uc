@@ -1,11 +1,7 @@
-// A long-lived Forkop process that procd supervises as a service of its own and
-// respawns when it exits. The process records its pid once it is up, and that
-// record is how it is found again - checked against the command line, so a pid
-// the kernel handed to something else is never signalled.
+// A long-lived process procd supervises and respawns. Its recorded pid is checked against the
+// command line, so a pid the kernel reused is never signalled.
 //
-// A worker is described by { name, command, pid_file, env, data }: the procd
-// service name, the argv it runs, where it records itself, and what procd keeps
-// beside the instance for whoever starts it next.
+// worker: { name, command, pid_file, env, data }
 
 let fs = require("fs");
 let common = require("core.common");
@@ -36,8 +32,8 @@ function running(worker) {
     return is_worker(worker, recorded_pid(worker));
 }
 
-// Running, and started with the same data. procd keeps an instance's data but
-// does not restart it when a later add brings other data, so the caller does.
+// procd keeps an instance's data but does not restart it when later data differs, so the
+// caller compares it.
 function current(worker) {
     if (!running(worker))
         return false;

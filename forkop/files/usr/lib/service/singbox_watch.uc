@@ -1,8 +1,5 @@
-// Follows sing-box through procd's respawns. procd brings a crashed core back
-// after a few seconds, and meanwhile the capture pauses so traffic goes direct
-// instead of at closed ports; once procd gives up and leaves it dead, the
-// runtime is taken down, since the rules would keep steering traffic at a proxy
-// that is gone.
+// Follows sing-box through procd's respawns: the capture pauses meanwhile, and once procd gives
+// up the runtime is taken down, so nothing steers traffic at a dead proxy.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -13,8 +10,7 @@ let worker = require("service.worker");
 
 let paths = {
     pid: "/var/run/forkop/sing-box-watch.pid",
-    // The crash being cleaned up, kept until the cleanup has run, so a watcher that
-    // died halfway finishes the job after procd respawns it.
+    // Kept until the cleanup has run, so a watcher that died halfway finishes it after a respawn.
     pending_cleanup: "/var/run/forkop/sing-box-watch.cleanup"
 };
 
@@ -28,8 +24,6 @@ function spec() {
     };
 }
 
-// The lifecycle step for procd's account of a respawn in progress: the core
-// exited and will be started again, or the new one started.
 function crash_step(event) {
     if (event?.data?.service != "sing-box")
         return null;

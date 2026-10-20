@@ -1,9 +1,5 @@
-// ucode resolves a name when the call runs, not when the file compiles. A
-// function that calls one declared further down the file compiles to a global
-// lookup and fails with "left-hand side is not a function"; a dispatch branch
-// that calls a function nobody defines is valid text too. Both fail on the
-// router, in whichever branch reaches them first, so both are read off the
-// sources here.
+// ucode resolves names at call time, so a call to a function declared further down, or to one
+// nobody defines, fails only when that branch runs on the router; both are read off the sources.
 
 let t = require("t");
 let fs = require("fs");
@@ -27,10 +23,8 @@ function builtin(name) {
     return exists(global, name);
 }
 
-// Bare calls on a line: a name followed by `(` and not preceded by a dot, so
-// a member call, which resolves on its object, is left out. A space goes in
-// after every bracket first, so a call that starts right inside another one is
-// not swallowed by the match of the outer call.
+// A name followed by `(` and not preceded by a dot; brackets get a space after them first, so a
+// call nested right inside another is not swallowed.
 function calls(line) {
     let result = [];
     for (let found in match(replace(line, /\(/g, "( "), /(^|[^.A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)[ \t]*\(/g) ?? [])

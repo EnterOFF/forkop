@@ -1,5 +1,3 @@
-// The directory the running library was loaded from.
-
 let dir = getenv("FORKOP_LIB") || "/usr/lib/forkop";
 
 function set_dir(path) {

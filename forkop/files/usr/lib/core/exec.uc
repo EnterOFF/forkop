@@ -1,5 +1,4 @@
-// Every external command the backend runs goes through here, as an argv array
-// quoted for /bin/sh.
+// Every external command runs through here, as an argv array quoted for /bin/sh.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -35,10 +34,8 @@ function capture(argv) {
     return { status: pipe.close(), stdout: stdout ?? "" };
 }
 
-// The { status, stdout } of each command, all run at once, so slow ones wait
-// together. Each writes to a file of its own rather than to a pipe: in a process
-// with a ubus connection, a child that exits while another one's pipe is being
-// read interrupts that read for good, and its output is lost.
+// All at once, each writing to a file: with a ubus connection open, a child that exits while
+// another's pipe is read interrupts that read for good.
 function capture_parallel(commands) {
     let now = clock();
     let base = sprintf("/tmp/forkop-exec.%d.%d.%d", common.own_pid(), now[0], now[1]);
@@ -85,14 +82,13 @@ function feed(argv, text) {
     return result;
 }
 
-// A detached child. procd holds the service lock on fd 1000 for as long as an
-// init action runs, and a child that inherited it would hold it past its parent.
+// Detached: procd holds the service lock on fd 1000 while an init action runs, and an
+// inheriting child would hold it past its parent.
 function background(argv) {
     return system(command_line(argv) + " >/dev/null 2>&1 1000>&- &") == 0;
 }
 
-// The level is written twice: as the tag the page reads its alerts from, and as
-// the syslog priority, so logread and a remote syslog see an error as one.
+// The level goes into the tag the page reads alerts from and into the syslog priority.
 const PRIORITIES = { info: "info", warn: "warning", error: "err" };
 
 function log(level, message) {

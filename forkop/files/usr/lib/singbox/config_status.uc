@@ -1,7 +1,3 @@
-// What the generated sing-box configuration says about one tagged inbound or
-// endpoint. The Servers diagnostics read this to tell a listener that was
-// actually written into the configuration from one that only exists in UCI.
-
 // { exists, type, listen, listen_port } of the item tagged `tag` under
 // config[kind] - "inbounds" or "endpoints".
 function summary(config, kind, tag) {

@@ -1,12 +1,6 @@
-// What the installed sing-box can do. A core is built with a set of tags, and
-// the Tags line of `sing-box version` names them. Every Forkop function that
-// needs more than the core itself is listed here with the tags it needs; the
-// validator, the generator and the page ask this table, and nothing else in
-// Forkop names a tag.
-//
-// The answer is read from the binary, never from the package, so a core built
-// by hand is described as truthfully as an official one. Reading it runs the
-// binary, so it is kept for as long as the file stays the same.
+// What the installed sing-box was built with, from the Tags line of `sing-box version`. Every
+// Forkop function that needs a build tag is listed here, and nothing else in Forkop names a tag.
+// Read from the binary, never the package, and kept while the file stays the same.
 
 let fs = require("fs");
 let exec = require("core.exec");
@@ -16,8 +10,7 @@ let paths = {
     binary: "/usr/bin/sing-box"
 };
 
-// Forkop does not start without the Clash API: its dashboard, groups, latency
-// tests and the nft subnet sync all go through it.
+// The dashboard, groups, latency tests and the nft subnet sync all need the Clash API.
 const REQUIRED = "clash_api";
 
 const FEATURES = {
@@ -36,8 +29,7 @@ const FEATURES = {
     api: { name: "the sing-box API", tags: [ "with_api" ] }
 };
 
-// The sing-box types that exist only with a feature, by the kind of object they
-// are. The naive inbound is in every build; its client is not.
+// The naive inbound is in every build; its client is not.
 const OUTBOUND_TYPES = {
     hysteria: "quic", hysteria2: "quic", tuic: "quic",
     naive: "naive", masque: "masque", trusttunnel: "trusttunnel", sudoku: "sudoku"
@@ -153,8 +145,8 @@ function vmess_payload(link) {
 // without a security parameter.
 const ALWAYS_TLS_TYPES = { trojan: true, tuic: true, hysteria: true, hysteria2: true, anytls: true };
 
-// Whether sing-box reads the link into a uTLS hello: a fingerprint on a TLS
-// link, or Reality, which always sends one. The rules are the core's link parser.
+// A fingerprint on a TLS link, or Reality, which always sends one; the rules are the core's
+// link parser.
 function link_uses_utls(scheme, type_name, link) {
     if (type_name == "vmess") {
         let payload = vmess_payload(link);
@@ -186,9 +178,8 @@ function link_features(link) {
     return result;
 }
 
-// What the page is told: whether each feature is there with the tags that make
-// it, so a missing one can be named, and which types need which feature. Unknown
-// when there is no core to ask.
+// Each feature with the tags that make it, and which types need which feature; unknown without
+// a core to ask.
 function report(present) {
     let current = present ?? tags();
     let features = {};

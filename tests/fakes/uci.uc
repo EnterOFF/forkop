@@ -1,6 +1,5 @@
-// An in-memory stand-in for the ucode uci module, with the cursor API the
-// backend uses. A cursor works on its own copy of each package and publishes it
-// on commit, so a second cursor sees only what was committed - as on a router.
+// In-memory ucode uci module: each cursor works on its own copy and publishes it on commit, so
+// another cursor sees only what was committed.
 
 let store = {};
 let commits = [];

@@ -1,6 +1,5 @@
-// core/bytecode.uc against a miniature library: one leaf module the cache
-// self-check loads, one module that imports it, an entry script and a file
-// that is not a module.
+// A miniature library: a leaf module the cache self-check loads, a module importing it, an
+// entry script and a file that is not a module.
 
 let t = require("t");
 let stub = require("stub");
@@ -27,9 +26,7 @@ function new_library() {
     return { library, cache: dir + "/cache" };
 }
 
-// Calls fn with a fresh core.bytecode reading the given library and cache.
-// Validation is reused for a few seconds by default; the checks that are about
-// full validation turn that window off.
+// Validation is reused for a few seconds by default; the checks of full validation turn that off.
 function bytecode(where, fn, env) {
     stub.env({
         FORKOP_SOURCE_LIB: where.library,
@@ -113,7 +110,6 @@ t.test("a replaced, added or removed module rebuilds the cache", () => {
     t.eq(fs.stat(removed + "/core/added.uc"), null, "the removed module does not survive");
 });
 
-// Each cache is a directory in tmpfs, which is memory until a reboot.
 t.test("a rebuild keeps the library it replaces and removes older ones", () => {
     let where = new_library();
     let first = refresh(where);
@@ -129,7 +125,6 @@ t.test("a rebuild keeps the library it replaces and removes older ones", () => {
         sort(map([ second, third ], (path) => substr(path, length(where.cache) + 1))));
 });
 
-// A newer interpreter writes a bytecode format the running one refuses.
 t.test("a different interpreter invalidates the cache", () => {
     let where = new_library();
     refresh(where);
@@ -145,8 +140,6 @@ t.test("with the cache switched off the sources are used and nothing is written"
     t.eq(fs.stat(where.cache), null);
 });
 
-// The broken module stays in the cache as source, so require still reports the
-// real syntax error instead of a missing file.
 t.test("a module that does not compile is carried as source", () => {
     let where = new_library();
     write(where.library + "/core/broken.uc", "this is ( not ucode\n");
@@ -161,8 +154,6 @@ t.test("the manifest records the directories its file list was read against", ()
     t.matches(fs.readfile(where.cache + "/manifest"), /(^|\n)dir=/);
 });
 
-// Inside the window a proven manifest is reused without looking at the files;
-// the window is bounded, and an install drops it outright.
 t.test("validation is reused within its window, and not past it or an install", () => {
     let where = new_library();
     let window = { FORKOP_BYTECODE_VALIDATION_TTL: "30" };

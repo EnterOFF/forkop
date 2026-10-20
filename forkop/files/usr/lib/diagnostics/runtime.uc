@@ -1,7 +1,3 @@
-// What the page and a shell ask about the installation and its state: the
-// service status, the versions, both configurations and the log. The checks of
-// the Status tab are diagnostics/checks.uc.
-
 let fs = require("fs");
 let common = require("core.common");
 let exec = require("core.exec");
@@ -39,9 +35,8 @@ function status() {
     return { running, enabled, status: health.service_status_text(running, enabled) };
 }
 
-// Whether the core package is installed. While postinst starts Forkop the
-// package manager can be locked, and the version the core package records
-// still proves that it is.
+// postinst may start Forkop while the package manager is locked; the version file still
+// proves the core is installed.
 function sing_box_installed() {
     return packages.installed("sing-box-forkop") || (packages.sing_box_version() != "" && has_command("sing-box"));
 }
@@ -75,8 +70,6 @@ function sing_box_config_path() {
     return common.option(settings(), "config_path", "");
 }
 
-// Masked, a configuration also loses the server addresses the generated one
-// names, wherever a label or a tag repeats them.
 function show_config(visibility) {
     let data = fs.readfile(paths.forkop_config);
     if (data == null)

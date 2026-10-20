@@ -1,8 +1,5 @@
-// Two modules still run as programs, with a mode as their first argument: the
-// package scripts and the installer run the migration, the init script the
-// state service. A mode the module does not dispatch prints its usage and exits
-// 1, so every mode asked for anywhere is checked against the literals the target
-// compares its mode to.
+// The migration and the state service still run as programs with a mode argument; an unknown
+// mode prints the usage and exits 1, so every requested mode is checked against its target.
 
 let t = require("t");
 let fs = require("fs");

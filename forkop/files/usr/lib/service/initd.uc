@@ -1,6 +1,4 @@
-// What the init script's hooks do. procd runs them - a start, a stop, a reload
-// its config trigger fired, a WAN interface coming up - and each one is tracked
-// as a UI action unless the page already opened one for it.
+// The init script's hooks; each is tracked as a UI action unless the page opened one for it.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -65,16 +63,12 @@ function internal_change(reason) {
     return guard[1] == hash;
 }
 
-// procd holds the service from the init script's start to its stop, and a reload
-// only has something to apply to inside that window. Only procd's own answer
-// counts: without one the reload runs.
+// A reload applies only while procd holds the service; without procd's answer it runs.
 function registered() {
     let services = common.parse_json(exec.output([ "ubus", "call", "service", "list", sprintf("%J", { name: "forkop" }) ]));
     return type(services) != "object" || services.forkop != null;
 }
 
-// A failed start says what comes next: with autostart on, the next WAN coming
-// up tries again.
 function start(reason) {
     print("Start Forkop\n");
     let job = begin("start");
@@ -97,8 +91,7 @@ function stop() {
     return status;
 }
 
-// One action for whoever asked, though rc.common would run a stop and a start:
-// the nested two open no action of their own while this one runs.
+// One action, though rc.common runs a stop and a start: the nested two open none of their own.
 function restart() {
     let job = begin("restart");
     let status = exec.run([ SERVICE_INIT, "stop" ]);
@@ -156,8 +149,6 @@ function status() {
     return running ? 0 : 1;
 }
 
-// A start that failed is retried once a WAN comes up, but only a failed start:
-// a stopped or disabled service stays as it is.
 function retry_start() {
     if (runtime_running() || fs.stat(paths.autostart) == null) {
         lock.consume_request(paths.start_retry);

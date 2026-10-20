@@ -44,11 +44,7 @@ function sing_box_service_pid_from_value(value) {
     return 0;
 }
 
-// The status feed asks procd for the same instance behind every poll. The ubus
-// binding answers in-process, where shelling out to `ubus call` paid for a
-// shell, a second binary and a JSON reparse to reach the same object. The
-// connection is opened once and reused: within one short-lived status process
-// that is a single round trip instead of one per question.
+// One ubus connection, reused for every question of the process.
 let ubus_connection = null;
 let ubus_connection_tried = false;
 
@@ -109,9 +105,8 @@ function pid_is_sing_box(pid) {
     }
 }
 
-// The fields of /proc/<pid>/stat after the command name, which may hold spaces
-// and parentheses of its own: fields[0] is the state, fields[11] and [12] the
-// user and system time, fields[19] the start time.
+// After the command name, which may hold spaces and parentheses: [0] state, [11] and [12]
+// user and system time, [19] start time.
 function stat_fields(stat) {
     stat = as_string(stat);
     let marker = rindex(stat, ") ");
@@ -135,10 +130,8 @@ function start_ticks(pid) {
     return process_start_ticks(fs.readfile("/proc/" + pid + "/stat"));
 }
 
-// What a process costs the router: the processor time it has used, in kernel
-// ticks, and the memory only it holds - its anonymous pages. The resident total
-// also counts the pages of its binary, a cache of the file the kernel drops
-// under pressure, and for sing-box that is more than half of it.
+// Processor ticks and anonymous memory: the resident total also counts the binary's pages, a
+// file cache the kernel drops, which for sing-box is over half of it.
 function process_usage(pid) {
     let dir = paths.proc + "/" + pid;
     let fields = stat_fields(fs.readfile(dir + "/stat"));
@@ -156,10 +149,8 @@ function cpu_count() {
     return count || 1;
 }
 
-// The core's usage and the moment it was read, on the monotonic clock: a load
-// worked out from two readings is timed by the router rather than by the
-// network to the page, and the kernel stamps a process start on that same
-// scale, in ticks since boot, so one reading also tells the core's age.
+// Read on the monotonic clock, the scale the kernel stamps a process start on, so the load is
+// timed by the router and the same reading gives the core's age.
 function sing_box_usage() {
     let pid = sing_box_service_pid_runtime();
     let usage = pid > 0 && pid_is_sing_box(pid) ? process_usage(pid) : null;
@@ -180,14 +171,8 @@ function process_age_seconds_from_ticks(start_ticks, current_ticks) {
     return current_ticks < start_ticks ? null : int((current_ticks - start_ticks) / 100);
 }
 
-// How long a pid has been alive, in seconds. The clock is the awkward part: the
-// start time in /proc/<pid>/stat counts ticks from boot, and lxcfs virtualizes
-// /proc/uptime inside a container while leaving that field alone, so subtracting
-// one from the other invented an age and declared a healthy sing-box unstable.
-// A freshly spawned child answers instead - its own start time is now, on exactly
-// the scale the target pid was measured on. The spawn is the mechanism and not
-// overhead: service/lifecycle.uc requires this module and lives for the whole
-// reload, so reading /proc/self/stat inline would time the reload, not the moment.
+// Timed against a fresh child's start time, on the same scale as the target's: lxcfs
+// virtualizes /proc/uptime in containers but not that field.
 function process_age_seconds(pid, expected_start_ticks) {
     pid = as_string(pid);
     if (match(pid, /^[0-9]+$/) == null)
@@ -217,8 +202,6 @@ function sing_box_service_stable(min_age) {
     return age != null && age >= min_age;
 }
 
-// Read straight from /proc instead of spawning netstat, which enumerates and
-// formats every socket on the box to report three of them.
 function sing_box_runtime_ports_ready() {
     let tcp6 = fs.readfile(paths.tcp6);
     let dns_address = [ runtime_constants.SOURCE_DNS_INBOUND_ADDRESS ];
@@ -233,11 +216,6 @@ function sing_box_runtime_ports_ready() {
         netstat.proc_socket_listening(fs.readfile(paths.udp6), dns_address, dns_port, "07");
 }
 
-// This runs on every reload, in every readiness poll and behind every UI status
-// refresh, so nft/state.uc collects the table index and both families of routes
-// and rules in one shell rather than five, and asks nft for the table index
-// instead of a named table: naming it made nft walk the whole rule set, which on
-// a set holding 40k addresses is seconds of work to answer a yes or no.
 function forkop_runtime_network_configured(rt_table, nft_table, mark) {
     return nft_state.runtime_network_configured(nft_table, rt_table, mark);
 }
@@ -252,8 +230,7 @@ function forkop_stably_running(rt_table, nft_table, mark, min_age) {
         forkop_runtime_network_configured(rt_table, nft_table, mark);
 }
 
-// The four words the UI shows for a service. Both the LuCI state feed and the
-// diagnostics status command report them, so the wording lives in one place.
+// Shared by the LuCI state feed and the diagnostics status command.
 function service_status_text(running, enabled) {
     running = running === true || running == "true" || running == "1" || running == 1;
     enabled = enabled === true || enabled == "true" || enabled == "1" || enabled == 1;

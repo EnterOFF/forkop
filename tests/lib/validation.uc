@@ -5,8 +5,6 @@ let stub = require("stub");
 let fixture = require("fixture");
 let validator = require("config.validator");
 
-// Every fixture needs the DNS servers the validator requires, so a case about
-// something else sets only what it is about.
 function with_dns(data) {
     data = { ...(data ?? {}) };
     data.settings = { ...(data.settings ?? {}) };

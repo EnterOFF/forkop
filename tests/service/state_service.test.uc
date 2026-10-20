@@ -60,9 +60,8 @@ function started(during) {
     return { status, looped };
 }
 
-// procd stops the service with a SIGTERM and kills it five seconds later if it
-// is still there. The two package scripts restart it a moment apart, so on an
-// install that stop lands while the service is still reading its first state.
+// procd sends SIGTERM and kills five seconds later; on an install the stop lands while the
+// service is still reading its first state.
 t.test("a stop that arrives while the service starts up ends it as soon as its loop runs", () => {
     runtime.on_read = () => uloop.__raise("SIGTERM");
     let result = started(null);
@@ -84,8 +83,6 @@ function fire_interval(ms) {
             entry.callback();
 }
 
-// A quiet router has no line yet, and a page that has seen everything waits
-// for the next one instead of asking again at once, round after round.
 t.test("a reader that has seen every line waits, however few lines there are", () => {
     let parked = {};
     started((service) => {
@@ -109,8 +106,6 @@ t.test("a reader behind is answered at once, and one ahead of a restarted servic
     t.eq(replies, { behind: [ false, 2, [ "forkop: second" ] ], ahead: [ false, 2, [] ] });
 });
 
-// A browser keeps six connections to the router, and every other request of
-// every tab waits behind the ones held open. A page parks one, for both.
 t.test("a page's one parked request is answered by a new line and by a new state", () => {
     let answers = {};
     started((service) => {
@@ -141,8 +136,6 @@ t.test("a request that sends no cursor waits for the state alone", () => {
     t.eq(seen, { after_line: null, at_ceiling: [ 1, null, null ] });
 });
 
-// A page's first log answer only places its feed: the lines held before it
-// opened are history it never shows, and they were up to 400 lines a load.
 t.test("the first log answer says where the log stands and carries none of it", () => {
     let service = fresh_service();
     service.remember_log_line("forkop: first");
@@ -153,8 +146,6 @@ t.test("the first log answer says where the log stands and carries none of it", 
     t.eq(reply, { cursor: 2 });
 });
 
-// Matching the last line already held is what survives unrelated entries
-// arriving between two reads; counting would drift on a busy router.
 t.test("the new lines of a tail are the ones after the last line already held", () => {
     let cases = [
         [ [ "a", "b" ], [ "a", "b", "c" ], [ "c" ], "only the lines after the held ones" ],
@@ -180,9 +171,6 @@ t.test("the runtime is read closely while an action runs and while it settles, a
     t.ok(!service.needs_close_refresh(20000, false, 10000, 0), "a settled runtime is left to the sweep");
 });
 
-// A port rebind is not an outage: a running service seen down while its
-// sing-box process lives stays reported running until the flip outlasts the
-// grace.
 t.test("a service seen down while its process lives is believed only after the grace", () => {
     let service = fresh_service();
     let settled = (observed, alive, previous, down_since, now) => {
@@ -198,8 +186,6 @@ t.test("a service seen down while its process lives is believed only after the g
     t.eq(settled(false, true, false, 0, 1000), [ false, 0 ], "a service already down stays down");
 });
 
-// procd reports on every service of the router, and each report is a full read
-// of the runtime: nft, iproute2 and a process spawn.
 t.test("only procd's reports on sing-box make the service read the runtime again", () => {
     let reads = {};
     started((service) => {
@@ -229,8 +215,6 @@ t.test("the watch notices the autostart link the state reads", () => {
     t.eq(reads, 1);
 });
 
-// A request reads the log too, and a tick that took the read it had just made
-// for its own was skipped, which left a new line waiting two intervals.
 t.test("the log is read on every tick while it is watched, however recently a request read it", () => {
     let reads = null;
     started((service) => {
@@ -244,8 +228,6 @@ t.test("the log is read on every tick while it is watched, however recently a re
     t.eq(reads, 1);
 });
 
-// A page that has just saved asks for `refresh` rather than wait for the
-// watch, and has to be answered from what it saved.
 t.test("a refresh after the configuration changed reads the committed configuration", () => {
     let fixture = require("fixture");
     let uci = require("uci");
@@ -287,8 +269,6 @@ t.test("a refresh after the configuration changed reads the committed configurat
     t.eq(counts, [ 1, 2 ]);
 });
 
-// An answer held until the package database had been quiet for a while was the
-// version from before an install that had just ended.
 t.test("the installed versions are read again as soon as the package database changes", () => {
     let db = stub.tmpdir() + "/installed";
     fs.writefile(db, "one");
@@ -304,8 +284,6 @@ t.test("the installed versions are read again as soon as the package database ch
     stub.restore();
 });
 
-// The page builds its forms from what the core can do before it renders, so the
-// state it asks for first has to carry it.
 t.test("the state carries what the installed core was built with", () => {
     let features = require("singbox.features");
     features.paths.binary = stub.tmpdir() + "/sing-box";

@@ -1,9 +1,6 @@
-// Group membership by name. sing-box filters a group's provider nodes with Go's
-// RE2, and the section's own servers are filtered here, so a pattern is written
-// in RE2 and translated into the POSIX expression ucode compiles. What has no
-// translation is refused rather than matched differently: libc's regcomp takes
-// \d as a digit on musl and as the letter d on glibc, and knows neither (?i) nor
-// (?:.
+// sing-box filters provider nodes with RE2 and the section's own servers are filtered here, so
+// a pattern is translated into the POSIX expression ucode compiles. What has no translation is
+// refused: regcomp takes \d as a digit on musl and as d on glibc, and knows neither (?i) nor (?:.
 
 let common = require("core.common");
 
@@ -22,9 +19,8 @@ function literal(character) {
     return index(SPECIAL, character) >= 0 ? "\\" + character : character;
 }
 
-// A bracket expression from `i`, just past its "[", as { text, end }. POSIX
-// reads a backslash in brackets as itself, so escapes are resolved here, and
-// "]", "^" and "-" are placed where they are literal.
+// { text, end } from just past the "[". POSIX reads a backslash in brackets as itself, so
+// escapes are resolved here and "]", "^" and "-" placed where they are literal.
 function translate_bracket(pattern, i) {
     let negated = substr(pattern, i, 1) == "^";
     if (negated)
@@ -151,9 +147,8 @@ function translate(pattern) {
     return { source: result, flags };
 }
 
-// The compiled filter, or dies with the reason it cannot be one. The
-// translation is inside the try: ucode hands a try the exception of a `let`
-// initializer right before it, with a function in place of the error.
+// The translation is inside the try: ucode hands a try the exception of a `let` initializer
+// right before it, with a function in place of the error.
 function compile(pattern) {
     try {
         let translated = translate(pattern);

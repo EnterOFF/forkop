@@ -26,12 +26,7 @@ function command_output(command) {
     return status == 0 && output != null ? as_string(output) : "";
 }
 
-// X-Ver-OS is the version of the operating system - the panel's own example is
-// iOS 18.3 - and for OpenWrt that is its release, not the Linux kernel that
-// happens to sit under it. Sending 6.6.122 told a panel nothing it could use.
-// An empty answer means the release is unknown, and the header is then left
-// out: it is optional, and substituting a number that answers a different
-// question would be a wrong value dressed up as a working one.
+// The OpenWrt release, not the kernel; left out when unknown, since the header is optional.
 function os_version() {
     let data = fs.readfile(paths.openwrt_release);
     if (data != null) {
@@ -69,28 +64,21 @@ function header_line(name, value) {
     return as_string(name) + ": " + clean_header_value(value);
 }
 
-// The sing-box release the core is built on, without the fork's own suffix.
-// A subscription panel picks which sing-box template to serve from this
-// number, and "1.13.18-extended-2.6.5-f70" is not a version it can parse.
-// The file is shipped by the core package, so reading it costs nothing.
+// Panels pick a sing-box template by this version and cannot parse the fork's suffix.
 function upstream_sing_box_version() {
     let installed = packages.sing_box_version();
     let base = split(split(installed, "-extended-")[0], "-forkop.")[0];
     return match(base, /^[0-9]+(\.[0-9]+)*$/) != null ? base : "";
 }
 
-// Naming the core first keeps the token panels match on at the start of the
-// value, and the version after it is what tells them which template to send.
-// Without an installed core there is nothing honest to claim a version of.
+// The core's name first, as panels match on that token; without a core no version is claimed.
 function default_user_agent() {
     let version = upstream_sing_box_version();
     return version != "" ? "sing-box/" + version : "sing-box";
 }
 
-// Exactly the set Happ defined and Remnawave standardised: X-HWID is the only
-// one a panel requires, and the three device fields are what it shows the user
-// when a key turns up on a second device. Nothing else belongs here - a header
-// no panel reads is a fingerprint that cannot even be acted on.
+// The set Happ defined and Remnawave standardised: X-HWID is the one a panel requires, and the
+// device fields are what it shows when a key turns up on a second device.
 function default_header_lines(hwid) {
     if (hwid == null)
         hwid = generated_hwid();

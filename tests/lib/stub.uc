@@ -85,11 +85,9 @@ function record(command) {
     return entry;
 }
 
-// Replaces system() and fs.popen() for the rest of the test. Each handler is
-// [ match, reply ]: the match is an argv prefix written as one string, a regexp
-// over the raw command line, or a function of (argv, command); the reply is
-// { status, stdout } or a function returning one. A command no handler claims
-// fails the test, so a fake cannot silently answer for something it never saw.
+// Each handler is [ match, reply ]: match is an argv prefix as one string, a regexp over the
+// command line or a function of (argv, command); reply is { status, stdout } or a function
+// returning one. A command no handler claims fails the test.
 function commands(handlers) {
     state = { handlers: handlers ?? [], calls: [] };
 
@@ -176,9 +174,8 @@ function capture(fn) {
     return { result, stdout: out, stderr: err };
 }
 
-// Replaces clock() with one that stands at `seconds` and counts nanoseconds up
-// from zero, for a check against a time window: a virtual machine can step its
-// wall clock backwards in the middle of a test.
+// A clock standing at `seconds`, for checks against a time window: a VM can step its wall
+// clock backwards mid-test.
 function clock(seconds) {
     let ticks = 0;
     global.clock = function() {

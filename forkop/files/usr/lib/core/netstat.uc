@@ -82,9 +82,8 @@ function addr_host(addr) {
     return colon >= 0 ? substr(addr, 0, colon) : addr;
 }
 
-// A wildcard listener answers for every address of its family, so it satisfies
-// any requested listen address; a requested wildcard is satisfied by any
-// address of the matching family.
+// A wildcard listener serves every address of its family, and a requested wildcard is
+// satisfied by any address of that family.
 function addr_matches(addr, listen, port) {
     addr = as_string(addr);
     listen = as_string(listen);
@@ -136,10 +135,8 @@ function sorted_unique(values) {
     return result;
 }
 
-// Reads `netstat -lnp` output. Without the PID/Program column busybox netstat
-// reports no owner at all, so ownership is only claimed when the header shows
-// it. sing-box itself is never a conflict: it is the process expected to hold
-// the port.
+// Without the PID/Program column busybox netstat reports no owner, so none is claimed then.
+// sing-box itself is never a conflict.
 function port_conflict_owners(data, listen, port, proto) {
     let owners = [];
     let line_number = 0;
@@ -169,18 +166,9 @@ function port_conflict_owners(data, listen, port, proto) {
     return sorted_unique(owners);
 }
 
-// /proc/net/tcp{,6} answers the readiness question without spawning netstat,
-// which walks and formats every socket on the box to report three of them. The
-// kernel prints the local address as little-endian hex words, so a configured
-// address is compared by converting it the same way rather than by formatting
-// the kernel's copy back into text. TCP_LISTEN is 0x0A; the old text match
-// accepted any socket state, so an outgoing connection to the port used to read
-// as a listener.
-//
-// Everything below avoids regular expressions and sprintf on purpose. This runs
-// behind every status poll, and on a MIPS router a single regex match costs
-// about 0.2 ms - enough that the obvious implementation spent more time parsing
-// three lines than the netstat process it replaced.
+// Readiness is read from /proc/net/tcp{,6} rather than netstat. The kernel prints local
+// addresses as little-endian hex words; TCP_LISTEN is 0A. No regex or sprintf below: this
+// runs behind every status poll, and a regex match is costly on a MIPS router.
 const PROC_TCP_LISTEN = "0A";
 const HEX_DIGITS = "0123456789ABCDEF";
 const DECIMAL_DIGITS = "0123456789";
@@ -190,8 +178,7 @@ function hex_byte(value) {
     return substr(HEX_DIGITS, value / 16, 1) + substr(HEX_DIGITS, value % 16, 1);
 }
 
-// A 4-byte group as the kernel prints it: host byte order, little-endian on
-// every target OpenWrt builds for here.
+// Host byte order, little-endian on every target OpenWrt builds for here.
 function proc_hex_word(bytes, offset) {
     return hex_byte(bytes[offset + 3]) + hex_byte(bytes[offset + 2]) +
         hex_byte(bytes[offset + 1]) + hex_byte(bytes[offset]);
@@ -236,8 +223,6 @@ function ipv6_group_bytes(group) {
     return [ (value / 256) & 255, value & 255 ];
 }
 
-// Expands the one allowed "::" run so a configured "::1" compares against the
-// fully written out form the kernel prints.
 function ipv6_bytes(address) {
     address = as_string(address);
     if (address == "")
@@ -279,8 +264,7 @@ function ipv6_bytes(address) {
     return result;
 }
 
-// The handful of addresses asked about never change within a process, and the
-// conversion is the expensive half, so each answer is kept.
+// The addresses asked about never change within a process, and the conversion is costly.
 let proc_address_hex_cache = {};
 
 function proc_address_hex(address) {
@@ -306,13 +290,9 @@ function proc_port_hex(port) {
     return hex_byte(value / 256) + hex_byte(value % 256);
 }
 
-// tcp4_seq_show and tcp6_seq_show print a fixed layout - "%4d: %08X:%04X
-// %08X:%04X %02X ..." - with single spaces between the sl, local, remote and
-// state columns. That makes a listening socket on a given endpoint an exact
-// substring: the ": " anchor proves the match is the local column and not the
-// remote one, an all-zero remote and state 0A prove it is listening rather than
-// a connection to the same address. One index() over a few kilobytes replaces
-// splitting every line into every column, which measured 5 ms on a real router.
+// tcp{4,6}_seq_show print a fixed layout ("%4d: %08X:%04X %08X:%04X %02X ..."), so a listening
+// socket is an exact substring: ": " anchors the local column, an all-zero remote and state
+// 0A prove it listens.
 const PROC_ZERO_WORDS = "00000000000000000000000000000000";
 
 function proc_zero_remote(width) {
@@ -329,8 +309,7 @@ function proc_listener_token(address, port, state) {
         " " + (state || PROC_TCP_LISTEN);
 }
 
-// True when one of `addresses` - the family wildcard included, because a
-// wildcard listener serves every address of its family - listens on `port`.
+// The family wildcard counts, since it serves every address of its family.
 function proc_socket_listening(data, addresses, port, state) {
     data = uc(as_string(data));
 
@@ -343,7 +322,6 @@ function proc_socket_listening(data, addresses, port, state) {
     return false;
 }
 
-// The same three listeners the netstat text check looked for, read from /proc.
 function sing_box_standard_ports_listening_proc(tcp, tcp6, dns_address, tproxy_port, tproxy6_address) {
     dns_address = dns_address == null || dns_address == "" ? "127.0.0.42" : as_string(dns_address);
     tproxy_port = tproxy_port == null || tproxy_port == "" ? "1602" : as_string(tproxy_port);

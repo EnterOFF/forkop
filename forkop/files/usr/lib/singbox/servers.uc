@@ -12,13 +12,8 @@ let bool_option = common.bool_option;
 let int_option = common.int_option;
 let array_or_empty = common.array_or_empty;
 
-// What every layer of the server side has to agree on: which fields every client
-// of a protocol holds, which protocols use the client name as the account name
-// on the wire, and which Shadowsocks methods take a base64 key of an exact length
-// instead of a password. The generator, the runtime validator and the service
-// preparation all read these from here. An OpenVPN client is its certificate and
-// a WireGuard client its keys and tunnel addresses, which the router issues
-// rather than asks for.
+// Shared by the generator, the runtime validator and the service preparation. An OpenVPN
+// client is its certificate and a WireGuard client its keys and addresses, all router-issued.
 const CLIENT_FIELDS = {
     vless: [ "uuid" ],
     vmess: [ "uuid" ],
@@ -37,16 +32,11 @@ const CLIENT_FIELDS = {
     json_inbound: []
 };
 const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, mieru: true };
-// The servers the core runs as an endpoint rather than an inbound, by the type
-// each becomes there.
 const ENDPOINT_TYPES = { tailscale: "tailscale", openvpn: "openvpn-server", wireguard: "wireguard", amneziawg: "amneziawg" };
-// What an AmneziaWG server runs with: every parameter but the signature packets,
-// which only an initiator sends and the profiles carry for the clients. The
-// Amnezia installer leaves them out of its servers the same way.
+// Every parameter but the signature packets, which only an initiator sends.
 const AMNEZIA_SERVER_KEYS = filter(amnezia.KEYS, (key) => match(key, /^i[1-5]$/) == null);
-// What OpenVPN's own "keepalive 10 120" sets up: the client reconnects after two
-// minutes without a packet, and the server waits twice that before it drops the
-// session, so a client that comes back finds its address still there.
+// OpenVPN's own "keepalive 10 120": the server waits twice the client's timeout, so a client
+// that comes back finds its address still there.
 const OPENVPN_PING_INTERVAL = "10s";
 const OPENVPN_CLIENT_PING_RESTART = "120s";
 const OPENVPN_SERVER_PING_RESTART = "240s";
@@ -86,9 +76,7 @@ function client_user(protocol, client) {
         return { name, uuid: option(client, "uuid", ""), alterId: 0 };
     if (protocol == "trojan" || protocol == "hysteria2" || protocol == "anytls" ||
         protocol == "mieru" || protocol == "shadowsocks")
-        // A 2022 inbound holds the server key of its own and every account carries
-        // just its own key here. The two joined belong in the link a client reads,
-        // not in the user list, where sing-box decodes this field on its own.
+        // Each account carries only its own key; the server key joins it in the link, not here.
         return { name, password: option(client, "password", "") };
     if (protocol == "mixed" || protocol == "naive")
         return { username: name, password: option(client, "password", "") };
@@ -131,14 +119,11 @@ function effective_security(section, protocol) {
     return security;
 }
 
-// A NaiveProxy client checks the certificate the way a browser does and has no
-// way to accept one it does not trust, so that server always takes the user's.
+// A NaiveProxy client checks the certificate like a browser and cannot accept an untrusted one.
 function certificate_source(section, protocol) {
     return protocol == "naive" || option(section, "tls_certificate_source", "") == "custom" ? "custom" : "self_signed";
 }
 
-// Where the certificate and the key of a TLS server come from: what the router
-// issued it, or what the user gave, PEM text or the path of a file on the router.
 function certificate_material(section, protocol) {
     return certificate_source(section, protocol) == "custom"
         ? { certificate: option(section, "tls_certificate", ""), key: option(section, "tls_key", "") }
@@ -159,8 +144,8 @@ function pem_lines(value) {
     return filter(map(split(as_string(value), "\n"), (line) => rtrim(line, "\r")), (line) => line != "");
 }
 
-// sing-box reads a file again whenever it changes, so a certificate a client
-// such as acme.sh renews on the router is picked up without an apply.
+// sing-box reloads a certificate file when it changes, so one renewed on the router (acme.sh)
+// is picked up without an apply.
 function apply_material(tls, field, value) {
     value = trim(as_string(value));
     if (value == "")
@@ -188,11 +173,8 @@ function apply_tls(inbound, section, protocol) {
         apply_material(tls, "key", material.key);
     }
     else if (security == "reality") {
-        // The SNI is what a client sends and the handshake target is where the
-        // listener goes to borrow a certificate for exactly that name, so the two
-        // are the same site: a target answering for another name hands a prober a
-        // certificate that does not match the name it asked for. One field names
-        // the site and the handshake goes to it on the port a site serves TLS on.
+        // The handshake target is the site the SNI names: a target answering for another name would
+        // hand a prober a certificate that does not match.
         let reality = {
             enabled: true,
             handshake: {
@@ -242,9 +224,8 @@ function apply_transport(inbound, section, protocol) {
         transport.mode = option(section, "transport_xhttp_mode", "auto");
         transport.path = path != "" ? path : "/";
         maybe_string(transport, "host", host);
-        // The only field the core has no default for: x_padding_bytes is a value, not
-        // a pointer, and a zero range is refused with "x_padding_bytes cannot be
-        // disabled". Everything else the mode needs it fills in itself.
+        // The only field the core has no default for: a zero range is refused as "x_padding_bytes
+        // cannot be disabled".
         transport.x_padding_bytes = "100-1000";
     }
     else {
@@ -254,8 +235,7 @@ function apply_transport(inbound, section, protocol) {
     inbound.transport = transport;
 }
 
-// Multiplexing is accepted, never required: a client that does not use it keeps
-// working, and TCP Brutal only takes effect when both sides load the module.
+// Accepted, never required; TCP Brutal works only when both sides load the module.
 function apply_multiplex(inbound, section, protocol) {
     if (protocol != "vless" && protocol != "vmess" && protocol != "trojan" && protocol != "shadowsocks")
         return;
@@ -306,8 +286,7 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         if (obfs_type != "" && obfs_password != "")
             inbound.obfs = { type: obfs_type, password: obfs_password };
         maybe_string(inbound, "bbr_profile", option(section, "hysteria2_bbr_profile", ""));
-        // sing-box reads a masquerade URL as a string and picks the mode from its
-        // scheme, so the single form field is passed through unchanged.
+        // sing-box picks the masquerade mode from the URL scheme.
         maybe_string(inbound, "masquerade", option(section, "hysteria2_masquerade", ""));
     }
     else if (protocol == "naive") {
@@ -350,8 +329,7 @@ function add_json_inbound(config, section, tag_name) {
     push(config.inbounds, inbound);
 }
 
-// The transports a listener of this protocol takes. A port can be shared by two
-// servers when one takes TCP and the other UDP.
+// Two servers may share a port when one takes TCP and the other UDP.
 function transports(protocol, network) {
     network = lc(as_string(network));
     if (protocol == "openvpn")
@@ -381,9 +359,7 @@ function add_tailscale_endpoint(config, section, tag_name) {
         auth_key: option(section, "tailscale_auth_key", ""),
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
         hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name)),
-        // The offer does nothing until the exit node is approved in the
-        // Tailscale console, so a server meant only to share subnets leaves it
-        // unapproved instead of needing a switch of its own.
+        // Inert until approved in the Tailscale console, so a subnet-only server just stays unapproved.
         advertise_exit_node: true
     };
     if (bool_option(section, "tailscale_detour_enabled", false)) {
@@ -403,13 +379,10 @@ function add_tailscale_endpoint(config, section, tag_name) {
     push(config.endpoints, endpoint);
 }
 
-// Clients are told apart by the certificate each was issued: the server trusts
-// nothing but their fingerprints, so removing a client revokes it. sing-box
-// issues every certificate for a TLS server, a client's included, so the check
-// of what a client certificate was issued for stays off. The server's own
-// certificate is what the profiles carry as their CA. Every client gets the DNS
-// of the router on the server's tunnel address and, unless the server is told
-// to leave the rest of their traffic alone, the default route.
+// The server trusts only the client fingerprints it issued, so removing a client revokes it.
+// sing-box issues every certificate, so the check of what a client certificate was issued for
+// stays off. Clients get the router's DNS on the tunnel address and, unless told otherwise,
+// the default route.
 function add_openvpn_endpoint(config, section, tag_name) {
     let pools = list_option(section, "tunnel_address");
     let fingerprints = [];
@@ -456,14 +429,9 @@ function add_openvpn_endpoint(config, section, tag_name) {
     });
 }
 
-// Each client is a peer known by its key, and its tunnel addresses are the only
-// ones it may send from, so a rule can tell the clients apart by address. The
-// endpoint takes no listen address and binds the port on every address of the
-// router. Its socket comes from the endpoint's dialer, which binds it to the
-// interface of the default route while that is detected, and a socket bound to
-// the WAN never sees a client on the LAN, a phone at home dialling the router's
-// public address included. A bind address of its own is what turns that binding
-// off, so the endpoint is given the wildcard of each family.
+// A peer's tunnel addresses are the only ones it may send from, so rules tell clients apart by
+// address. The endpoint's dialer binds its socket to the default route's interface, where no
+// LAN client reaches it, unless it has a bind address, so it gets each family's wildcard.
 function add_wireguard_endpoint(config, section, protocol, tag_name) {
     let endpoint = {
         type: protocol,
@@ -527,12 +495,9 @@ function add_server(config, section) {
     add_dns_bypass(config, section);
 }
 
-// What a route rule tells one client of the server apart by, or null: the user
-// the core reports for it, which is the name of its account or, for OpenVPN, the
-// common name of the certificate issued to it, its section; for WireGuard the
-// tunnel addresses it alone may send from. auth_user is what a rule matches an
-// account on: a user field is not part of a rule, and sing-box drops the whole
-// rule that carries one.
+// The user the core reports (the account name; for OpenVPN the certificate's common name, its
+// section) or, for WireGuard, the client's tunnel addresses. Rules match accounts on auth_user:
+// sing-box drops a rule that carries a user field.
 function client_match(section, client) {
     let protocol = option(section, "protocol", "vless");
     if (protocol == "wireguard" || protocol == "amneziawg") {
@@ -592,10 +557,8 @@ function value_contains(value, item) {
     return value == item;
 }
 
-// A client narrows the clones to one account of the inbound, which is what a
-// client that follows the shared rules needs when its server does not.
-// A section whose rule set is narrowed by ports or devices is a logical AND of
-// what identifies it, which carries the inbound, and the narrowing.
+// Narrows the clones to one account, for a client following the shared rules when its server
+// does not; a section narrowed by ports or devices becomes a logical AND with the narrowing.
 function identity_rule(rule) {
     return rule.type == "logical" ? rule.rules?.[0] : rule;
 }

@@ -1,6 +1,5 @@
-// IP literals as sing-box reads them. It refuses an octet or a prefix length
-// written with a leading zero, and nft reads one as octal - 010.0.0.1 is 8.0.0.1
-// and /024 is /20 - so such a number is not part of an address here either.
+// sing-box refuses an octet or prefix length with a leading zero and nft reads one as octal
+// (010.0.0.1 is 8.0.0.1), so such a number is not part of an address here either.
 
 function as_string(value) {
     return value == null ? "" : "" + value;
@@ -110,15 +109,11 @@ function valid_ip_or_cidr(value) {
     return valid_ip(value) || valid_ip_cidr(value);
 }
 
-// 4 or 6 for an address or a prefix, 0 for anything else. Walks of long lists
-// ask for the family and the verdict at once, so no address is checked twice.
+// 4 or 6 for an address or a prefix, 0 for anything else.
 function ip_family(value) {
     return valid_ipv4(value) || valid_ipv4_cidr(value) ? 4 : (valid_ipv6(value) || valid_ipv6_cidr(value) ? 6 : 0);
 }
 
-// Addresses that are routable on the public Internet: everything the IANA
-// special-purpose registries reserve for private, link-local, loopback,
-// documentation or multicast use is not.
 function valid_public_ipv4(value) {
     value = as_string(value);
     if (!valid_ipv4(value))
@@ -165,7 +160,6 @@ function valid_public_ip(value) {
     return valid_public_ipv4(value) || valid_public_ipv6(value);
 }
 
-// The bytes of the network a prefix of the given length keeps of an address.
 function network_bytes(bytes, bits) {
     return map(bytes, (byte, i) => {
         let kept = bits - i * 8;
@@ -173,7 +167,6 @@ function network_bytes(bytes, bits) {
     });
 }
 
-// Whether a prefix such as 10.8.0.1/24 holds an address of the same family.
 function prefix_contains(prefix, address) {
     if (!valid_ip_cidr(prefix) || !valid_ip(address))
         return false;

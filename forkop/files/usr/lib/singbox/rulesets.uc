@@ -1,4 +1,3 @@
-
 const SRS_MAIN_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download";
 const SRS_ADS_HAGEZI_PRO_URL = "https://github.com/zxc-rv/ad-filter/releases/latest/download/adlist.srs";
 const SRS_SUPERCELL_URL = "https://raw.githubusercontent.com/ushan0v/sing-box-supercell-ruleset/main/supercell.srs";
@@ -53,13 +52,9 @@ function community_url(name) {
     return SRS_MAIN_URL + "/" + name + ".srs";
 }
 
-// Twelve hex digits that stand for a rule set reference too long to name a tag
-// with. Two multiplicative hashes run over the bytes and each is folded to 24
-// bits, so the pair fills the digits; the seeds happen to be FNV's basis and
-// prime, but nothing here is FNV, and it does not matter - the only requirement
-// is that the two accumulators mix differently, because this names a tag rather
-// than checking anything. The numbers are frozen for the same reason: a changed
-// constant renames every inline custom rule set in the generated config.
+// Twelve hex digits naming a rule set reference too long for a tag: two multiplicative hashes
+// folded to 24 bits each. The constants are frozen, since changing one renames every inline
+// custom rule set in the generated config.
 function hash12(value) {
     value = as_string(value);
     let first = 2166136261;

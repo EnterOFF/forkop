@@ -1,11 +1,8 @@
-// The forkop command line: the command table, its help and its dispatch.
-
 let exec = require("core.exec");
 let constants = require("core.constants");
 let library = require("core.library");
 
-// Only the init script's start registers the service with procd, and that
-// registration carries the triggers Apply and a WAN coming up depend on.
+// Only the init script's start registers the procd triggers Apply and WAN-up depend on.
 function init_script(verb) {
     return function(args) {
         return exec.run([ constants.FORKOP_SERVICE_INIT, verb, ...args ]);

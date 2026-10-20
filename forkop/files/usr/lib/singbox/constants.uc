@@ -32,8 +32,8 @@ const DIRECT_OUTBOUND_TAG = "direct-out";
 const CLASH_API_CONTROLLER_PORT = 9090;
 // The mark sing-box puts on its own traffic is the one the nft table lets pass.
 const OUTBOUND_MARK = hex(require("core.constants").NFT_OUTBOUND_MARK);
-// The cache file keeps every name it hands an address to until the range comes
-// round again, in tmpfs, at about 170 bytes a name: 65536 addresses a family.
+// The cache file keeps a name for every address until the range wraps, about 170 bytes each in
+// tmpfs, hence 65536 addresses a family.
 const FAKEIP_INET4_RANGE = "198.18.0.0/16";
 const FAKEIP_INET6_RANGE = "fc00::/112";
 
@@ -41,14 +41,11 @@ const URLTEST_DEFAULT_IDLE_TIMEOUT = "30m";
 const CHECK_PROXY_IP_DOMAIN = "ip.podkop.fyi";
 const FAKEIP_TEST_DOMAIN = "fakeip.podkop.fyi";
 const TMP_SING_BOX_FOLDER = "/tmp/sing-box";
-// The comment on the nftables rules the Servers tab writes. The service marks its
-// rules with it and the inbound check looks for it in the loaded chain, because
-// those ports are an nftables.d include and never appear in `uci show firewall`.
+// Marks the Servers tab's nft rules, an nftables.d include that never appears in
+// `uci show firewall`; the inbound check looks for it in the loaded chain.
 const SERVER_FIREWALL_COMMENT = "forkop: server ports";
 
-// Outbound types a subscription can produce. sing-box builds provider nodes
-// from outbounds only, so endpoint protocols and the types its parsers refuse
-// are not offered here.
+// Providers build nodes from outbounds only, so endpoint protocols and refused types are absent.
 const FILTERABLE_PROVIDER_TYPES = [
     "vless", "vmess", "trojan", "shadowsocks",
     "hysteria2", "hysteria", "tuic", "anytls",
@@ -57,18 +54,14 @@ const FILTERABLE_PROVIDER_TYPES = [
     "ssh", "tor", "socks", "http"
 ];
 
-// A group also holds the servers a section configures itself, which is the
-// only way a tunnel or a network interface becomes a member.
+// Groups also hold a section's own servers, the only way tunnels and interfaces become members.
 const FILTERABLE_GROUP_TYPES = [
     ...FILTERABLE_PROVIDER_TYPES,
     "wireguard", "amneziawg", "warp", "tailscale", "openvpn-client", "openconnect", "direct"
 ];
 
-// sing-box resolves a manual link at runtime, so the generated "parser"
-// outbound has to be matched by the protocol its link carries. The schemes are
-// the ones ParseSubscriptionLink accepts in the core; a scheme missing here
-// leaves the node with no protocol, and a group filtering by protocol then
-// keeps a server it was told to exclude.
+// A manual link is parsed at runtime, so its outbound is typed by the link's scheme. These are
+// the schemes ParseSubscriptionLink accepts; a missing one leaves the node without a protocol.
 const LINK_SCHEME_OUTBOUND_TYPES = {
     "ss": "shadowsocks",
     "vmess": "vmess",
@@ -93,9 +86,7 @@ const LINK_SCHEME_OUTBOUND_TYPES = {
     "socks5h": "socks"
 };
 
-// A subscription fills in the detour of every server it imports from its cascade
-// connection. Repeating it in the free-form patch would silently fight the
-// control beside it, so it is refused instead of resolved by precedence.
+// A subscription sets every imported server's detour from its cascade, so a patch may not.
 const RESERVED_OVERRIDE_PATCH_PATHS = [ "detour" ];
 
 const RESERVED_TAGS = {
@@ -139,10 +130,8 @@ function domain_resolver_tag(section_name) {
     return tag(section_name, "domain-resolver");
 }
 
-// The display name verbatim, the way outbound_tag takes a section name: the tab
-// shows it and the Clash API reports it, so anything added here would be a second
-// name for the same listener. The runtime check refuses a name Forkop already uses,
-// which is what a suffix would otherwise be for.
+// Verbatim: the tab shows it and the Clash API reports it; the runtime check refuses a name
+// already in use.
 function server_inbound_tag(display_name) {
     return as_string(display_name);
 }

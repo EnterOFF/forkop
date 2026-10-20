@@ -1,8 +1,5 @@
-// The LuCI page cannot ask ucode while a dialog validates or the dashboard
-// draws, so it carries its own copy of a few backend tables and rules.
-// tests/fixtures/page_contract.json is what both copies are held to, along with
-// the core report the page is built from: this file checks the backend against
-// it, fe-app-forkop/tests/pageContract.test.js the page.
+// The page carries its own copy of a few backend tables; tests/fixtures/page_contract.json holds
+// both copies: this file checks the backend, fe-app-forkop/tests/pageContract.test.js the page.
 
 let t = require("t");
 let fs = require("fs");
@@ -49,8 +46,6 @@ t.test("the page checks the domain the generated configuration answers with Fake
     t.eq(constants.FAKEIP_TEST_DOMAIN, contract.check_domains.fakeip);
 });
 
-// The dashboard describes a group from the same UCI options the generator
-// reads, so an unset option has to mean the same thing on both sides.
 t.test("an unset group option means what the dashboard says it means", () => {
     fixture.seed({
         section: [ { ".name": "proxy", action: "connection" } ],
@@ -83,8 +78,7 @@ t.test("the state service parks a request as long as the page expects", () => {
     t.eq(state_service.MAX_WAIT_MS, contract.state_wait_ms);
 });
 
-// rpcd refuses a method the page's ACL does not list, and the page sees only
-// that the call failed.
+// rpcd refuses a method the page's ACL does not list.
 t.test("the page may call every method the state service publishes", () => {
     let acl = json(fs.readfile(repo.path("luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json")));
     t.eq(sort(acl["luci-app-forkop"].read.ubus.forkop), sort(keys(state_service.object_methods())));
@@ -97,16 +91,11 @@ t.test("the option every password field is stored in is masked in diagnostics", 
     }
 });
 
-// A fingerprint counts on a TLS link, Reality always sends one, and Trojan,
-// TUIC, Hysteria and AnyTLS are TLS without saying so. The page reads links by
-// the same cases.
 t.test("a link needs what the core needs to dial it", () => {
     for (let entry in contract.link_features)
         t.eq(features.link_features(entry[0]), entry[1], entry[0]);
 });
 
-// A tunnel dialog validates and stores the AmneziaWG parameters by the page's
-// table, and the router reads them back by its own.
 t.test("the AmneziaWG parameters are read by the kinds and sides the page writes them with", () => {
     t.eq(amnezia.PARAMETERS, contract.amnezia_parameters);
 });

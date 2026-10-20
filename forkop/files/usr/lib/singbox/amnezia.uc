@@ -1,9 +1,6 @@
-// The AmneziaWG parameters as UCI holds them, on a tunnel or a server, one row
-// each: how the value is written and whether a tunnel to a peer speaking plain
-// WireGuard uses it, which the peer then ignores. DisableCookies is not among
-// those: it only changes what a server under load answers. The page carries the
-// same table (fe-app-forkop/src/helpers/wireguard.ts)
-// and tests/fixtures/page_contract.json holds the two to each other.
+// The AmneziaWG parameters, one row each: how a value is written and whether a tunnel whose
+// peer may speak plain WireGuard uses it. The page carries the same table
+// (fe-app-forkop/src/helpers/wireguard.ts); tests/fixtures/page_contract.json holds them together.
 
 let common = require("core.common");
 
@@ -36,8 +33,7 @@ const PARAMETERS = [
 ];
 
 const KEYS = map(PARAMETERS, (entry) => entry.key);
-// What an endpoint whose peer may be a plain WireGuard implementation accepts:
-// the WARP endpoint, whose peer is Cloudflare, and a wireguard tunnel.
+// Accepted where the peer may be plain WireGuard: the WARP endpoint and a wireguard tunnel.
 const ONE_SIDED_KEYS = map(filter(PARAMETERS, (entry) => entry.one_sided), (entry) => entry.key);
 
 // Tags the core accepts inside a Custom Protocol Signature.
@@ -78,9 +74,8 @@ function valid_key(value) {
     return decoded != null && length(decoded) == 32;
 }
 
-// A Custom Protocol Signature is a chain of <tag value> packets such as
-// <b 0xdeadbeef><r 4>. The core refuses an unknown tag and sends nothing at all
-// for a signature without any tag, so neither reaches it.
+// A chain of <tag value> packets such as <b 0xdeadbeef><r 4>. The core refuses an unknown tag
+// and sends nothing for a signature without tags.
 function valid_signature(value) {
     let rest = value;
     let tags = 0;
@@ -124,11 +119,9 @@ function range_bounds(value) {
     return [ int(parts[0]), int(parts[length(parts) - 1]) ];
 }
 
-// What the values have to hold together. The device refuses padding too short
-// to carry the header protection nonce (the all-zero key turns protection off)
-// and headers that overlap, a header it is not given being the WireGuard type
-// number it keeps; sing-box's check passes both and the whole service fails to
-// start. A junk minimum above the maximum is a size stock AmneziaWG cannot draw.
+// The device refuses padding too short for the header protection nonce and overlapping headers
+// (an unset header keeps its WireGuard type number); sing-box check passes both and the service
+// fails to start. Stock AmneziaWG cannot draw a junk size whose minimum exceeds its maximum.
 function set_problem(values) {
     let protection_key = values.header_protection_key ?? "";
     if (protection_key != "" && match(protection_key, /^A{43}=$/) == null)

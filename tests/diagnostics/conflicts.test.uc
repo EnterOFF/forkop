@@ -1,8 +1,7 @@
 let t = require("t");
 let conflicts = require("diagnostics.conflicts");
 
-// What the AX3000T runs beside Forkop: Zapret marks with its own bits and
-// queues, fw4 redirects DNS at its own priority, after Forkop's.
+// What the AX3000T runs beside Forkop: Zapret with its own marks and queues, fw4's DNS redirect.
 const NEIGHBOURS = join("\n", [
     "table inet zapret {",
     "\tset wanif {",

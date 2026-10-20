@@ -30,10 +30,8 @@ function __fire(kind) {
     return fired;
 }
 
-// The process receiving a signal. A handler registered with signal() runs in
-// the loop: at once while it runs, and as soon as it starts otherwise. Without
-// one, libubox's own handler ends a loop that is running, and a loop started
-// afterwards never hears of it.
+// A handler registered with signal() runs in the loop, at once or as soon as it starts; without
+// one, libubox's own handler ends a running loop, and a loop started later never hears of it.
 function __raise(name) {
     if (signals[name] == null) {
         running = false;

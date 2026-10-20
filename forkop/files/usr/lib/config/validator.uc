@@ -128,7 +128,6 @@ function section_name(section) {
     return option(section, ".name", "");
 }
 
-// How the page names a section or a server: its label, or its id without one.
 function section_label(section) {
     return connections.section_display_name(section);
 }
@@ -174,9 +173,7 @@ function validate_subscription_tags(section) {
     }
 }
 
-// A link's server runs under the name the link stores, which groups and filters
-// refer to, so every link has one. An http:// or https:// address is no link
-// the core dials.
+// An http:// or https:// address is no link the core dials.
 function validate_connection_links(section) {
     for (let link in connections.connection_link_items(section)) {
         let link_name = option(link, "name", "");
@@ -199,8 +196,7 @@ const CHILD_KINDS = {
     fallback: [ "a fallback group", "fallback group" ]
 };
 
-// Every server and group of a section runs as "<section>/<name>" and is found by
-// that name, so a name belongs to one of them and holds no "/".
+// Children run as "<section>/<name>", so a name is unique in its section and holds no "/".
 function validate_section_child_names(section) {
     let owners = {};
     for (let child in connections.section_child_names(section)) {
@@ -232,9 +228,8 @@ function find_section(sections, name) {
     return null;
 }
 
-// Refuses a reference to anything but an enabled Connection section with
-// servers of its own. The runtime leaves out a section without servers, so a
-// reference to one would reach sing-box as an outbound that does not exist.
+// The runtime leaves out a section without servers, so a reference to one would name an
+// outbound that does not exist.
 function outbound_section(sections, label, target_name) {
     let target = find_section(sections, target_name);
     let reason = target == null ? "section '" + target_name + "', which does not exist"
@@ -247,17 +242,14 @@ function outbound_section(sections, label, target_name) {
     return target;
 }
 
-// The tunnels that dial their server through a cascade. A Tailscale tunnel
-// reaches its coordination server through a section of its own choosing, and a
-// JSON endpoint names its own detour.
+// Tailscale reaches its coordination server through a section of its own choosing, and a JSON
+// endpoint names its own detour.
 const CASCADE_TUNNEL_KINDS = { wireguard: true, amneziawg: true, warp: true, "openvpn-client": true, openconnect: true };
 
 function tunnel_kind(tunnel) {
     return lc(trim(as_string(option(tunnel, "kind", "wireguard"))));
 }
 
-// Every server of a section that is dialled through another section, as the
-// label a refusal names it by and the section it goes through.
 function section_cascades(section) {
     let owner = " in section '" + section_label(section) + "'";
     let result = [];
@@ -275,9 +267,6 @@ function section_cascades(section) {
     return result;
 }
 
-// The sections whose selectors one section's servers dial through, a Tailscale
-// coordination server included: the graph a cascade must not loop in. A section
-// the runtime leaves out dials nothing.
 function cascade_neighbours(sections, name) {
     let section = find_section(sections, name);
     if (section == null || !section_enabled(section) || !connections.is_connections_action(rule_action(section)))
@@ -326,8 +315,8 @@ function validate_download_section(sections, target_name) {
     outbound_section(sections, "Downloading external resources through a section", target_name);
 }
 
-// A WARP tunnel waits for its profile before it carries anything, so a profile
-// requested through the section that holds the tunnel would wait for itself.
+// A WARP tunnel waits for its profile, so fetching the profile through the tunnel's own
+// section would wait for itself.
 function validate_warp_profile_section(target_name) {
     for (let tunnel in sections_by_type("tunnel"))
         if (option(tunnel, "kind", "") == "warp" && option(tunnel, "section", "") == target_name)
@@ -406,8 +395,7 @@ function validate_dns_settings(settings, sections, context) {
     outbound_section(sections, "DNS through a section", target_name);
 }
 
-// config/rule.uc turns these into the CSV the ruleset and the generated config
-// are built from, so what it can normalize is exactly what may be accepted.
+// Accepts exactly what config/rule.uc can normalize.
 function validate_port_condition_value(value, section) {
     if (rule_config.normalize_port_condition_value(value) != null)
         return;
@@ -584,9 +572,8 @@ function validate_fallback_group(section, group_id) {
     }
 }
 
-// Only a Fallback level can hold another group, and only a URLTest, because a
-// nested Fallback adds nothing its parent levels cannot already express. That
-// keeps the references one level deep, so a cycle cannot form.
+// Only a Fallback level may hold a group, and only a URLTest, so references stay one level
+// deep and cannot form a cycle.
 function validate_section_group_references(section) {
     let urltest_names = {};
     for (let urltest_id in connections.urltests(section)) {
@@ -606,8 +593,7 @@ function validate_section_group_references(section) {
             }
 }
 
-// A DNS section picks a server for a query by its name, which carries no address
-// to match, so an address among its destinations would never match anything.
+// A DNS section matches a query's name, which carries no address.
 function validate_destinations(section, action) {
     for (let value in rule_config.text_list_values(option(section, "destinations", ""), "comma-space")) {
         let parsed = rule_config.destination_kind_value(value);
@@ -654,8 +640,7 @@ function outbound_json_object(value) {
     return type(value) == "object" ? value : null;
 }
 
-// A JSON field reaches sing-box as written, and sing-box says in its log what it
-// refuses; Forkop needs no more than an object, and the tag it lists it under.
+// sing-box judges a JSON field and logs what it refuses; Forkop needs an object and its tag.
 function validate_outbound_json_rule(section) {
     let name = section_name(section);
     let outbound_json = option(section, "outbound_json", "");
@@ -716,15 +701,12 @@ function valid_amnezia_range(value) {
     return length(parts) == 1 || int(parts[0]) <= int(parts[1]);
 }
 
-// Empty, or a whole number from minimum to 65535, as the dialog's port and
-// range datatypes take it.
 function valid_optional_uint16(value, minimum) {
     value = trim(as_string(value));
     return value == "" || (match(value, /^[0-9]+$/) != null && int(value) >= minimum && int(value) <= 65535);
 }
 
-// What LuCI's host datatype takes besides an address: dot-separated labels of
-// letters, digits, hyphens and underscores.
+// LuCI's host datatype, besides addresses.
 function valid_hostname(value) {
     return length(value) <= 253 &&
         match(value, /^[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?(\.[A-Za-z0-9_]([A-Za-z0-9_-]*[A-Za-z0-9_])?)*$/) != null;
@@ -732,8 +714,7 @@ function valid_hostname(value) {
 
 const OPENCONNECT_FLAVORS = [ "anyconnect", "gp", "fortinet", "pulse", "nc", "f5" ];
 
-// The server of an OpenConnect endpoint as the core takes it: an HTTPS host
-// with an optional port and path, and no user, query or fragment.
+// As the core takes it: an HTTPS host, optional port and path, no user, query or fragment.
 function valid_openconnect_server(value) {
     value = trim(as_string(value));
     if (substr(lc(value), 0, 8) == "https://")
@@ -1161,13 +1142,9 @@ function validate_subscription_download_sections(sections, context) {
 }
 
 
-// The generator owns what a protocol asks a client for; the check reads the same
-// tables instead of keeping a second copy that can drift out of step.
 const SERVER_CLIENT_FIELDS = runtime_servers.CLIENT_FIELDS;
 const SHADOWSOCKS_2022_KEY_BYTES = runtime_servers.SHADOWSOCKS_2022_KEY_BYTES;
 const LOGIN_NAME_PROTOCOLS = runtime_servers.LOGIN_NAME_PROTOCOLS;
-// A credential the dialog asks for is named by its field, one the router issues
-// by what it is.
 const CLIENT_FIELD_LABELS = { uuid: "UUID", password: "Password" };
 const ISSUED_CLIENT_FIELDS = {
     wireguard_private_key: "WireGuard private key",
@@ -1190,8 +1167,6 @@ function base64_decoded_length(value) {
     return (length(value) / 4) * 3 - padding;
 }
 
-// The clients of one server: a name every client can carry, credentials the protocol
-// can use, and at least one enabled account so the inbound accepts somebody.
 function validate_server_clients(server, protocol, name) {
     let fields = SERVER_CLIENT_FIELDS[protocol];
     if (fields == null || length(fields) == 0)
@@ -1237,8 +1212,6 @@ function validate_server_clients(server, protocol, name) {
                 fail_validation("Server '" + server_label(name) + "' client '" + client_name + "' needs a base64 pre-shared key of " + key_bytes + " bytes for method '" + option(server, "shadowsocks_method", "") + "'");
         }
 
-        // A client that takes its own route needs a mode the generator can turn into a
-        // rule, and a section that is still there.
         if (!bool_option(client, "routing_override", false))
             continue;
 
@@ -1255,9 +1228,8 @@ function validate_server_clients(server, protocol, name) {
         fail_validation("Server '" + server_label(name) + "' needs a base64 server pre-shared key of " + key_bytes + " bytes for method '" + option(server, "shadowsocks_method", "") + "'");
 }
 
-// sing-box binds every inbound itself, so two listeners on one port stop the whole
-// service. Reporting the pair here keeps a bad apply from taking the router offline.
-// Ports are owned per transport: TCP 443 and UDP 443 are two sockets.
+// sing-box binds every inbound itself, so two listeners on one port stop the whole service.
+// Ports are per transport: TCP 443 and UDP 443 are two sockets.
 function validate_server_listen_ports() {
     let owners = {};
 
@@ -1308,7 +1280,6 @@ function validate_server_listen_ports() {
 
 const PRIVATE_KEY_LABELS = [ "PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY" ];
 
-// The labels of the complete PEM blocks in a text whose base64 body decodes.
 function pem_labels(text) {
     let labels = [];
     let open = null;
@@ -1331,10 +1302,7 @@ function pem_labels(text) {
     return labels;
 }
 
-// A TLS server serves what the router issued it, which the service preparation
-// writes before this runs, or the user's own: PEM text the core parses while it
-// starts, or a file it opens then. Either one it cannot read takes the whole
-// service down, so it is refused here by name.
+// A certificate the core cannot read takes the whole service down, so it is refused here.
 function validate_server_certificate(server, protocol, name) {
     let material = runtime_servers.certificate_material(server, protocol);
     if (runtime_servers.certificate_source(server, protocol) == "self_signed") {
@@ -1369,9 +1337,7 @@ function validate_server_certificate(server, protocol, name) {
         fail_validation("Server '" + server_label(name) + "' uses the same file as its certificate and its key");
 }
 
-// Security material a protocol cannot start without. Forkop never sets the inbound
-// insecure flag, which is the only thing that would let sing-box invent a keypair
-// per handshake, so a missing certificate is a start-up failure and not a default.
+// Forkop never sets the inbound insecure flag, so a missing certificate fails the start.
 function validate_server_security(server, protocol, name) {
     let security = runtime_servers.effective_security(server, protocol);
 
@@ -1379,8 +1345,7 @@ function validate_server_security(server, protocol, name) {
         validate_server_certificate(server, protocol, name);
 
     if (security == "reality") {
-        // One name for both: the generator borrows the handshake from the site the
-        // SNI names, so this is also the check on the handshake target.
+        // The generator borrows the handshake from the site the SNI names.
         if (option(server, "tls_server_name", "") == "")
             fail_validation("Server '" + server_label(name) + "' uses Reality and needs an SNI");
         for (let field in [ [ "reality_private_key", "Reality private key" ], [ "reality_public_key", "Reality public key" ] ]) {
@@ -1406,9 +1371,7 @@ function validate_server_security(server, protocol, name) {
         option(server, "hysteria2_obfs_password", "") == "")
         fail_validation("Server '" + server_label(name) + "' enables obfuscation and needs an obfuscation password");
 
-    // A multiplexed VLESS client drops the flow before it authenticates, and the
-    // inbound then refuses the account with a flow mismatch, so the pair cannot
-    // connect at all. The dialog hides the field; a hand written config is named here.
+    // A multiplexed VLESS client drops the flow before it authenticates, so the inbound refuses it.
     if (protocol == "vless" && bool_option(server, "multiplex_enabled", false))
         for (let client in connections.server_clients(server)) {
             let flow = option(client, "flow", "");
@@ -1418,11 +1381,8 @@ function validate_server_security(server, protocol, name) {
         }
 }
 
-// Values with a closed set the core refuses outright. The dialog offers a list for
-// every one of them, so this only catches a configuration written straight through
-// uci - but the core refuses these while it builds the listener, which takes the
-// whole service down instead of only that server. Each entry was checked against
-// `sing-box check` on a listener carrying exactly that value.
+// Closed sets the core refuses while it builds the listener, which takes the whole service
+// down; each checked against `sing-box check`.
 const SERVER_ENUMS = [
     [ "listen", "transport", [ "", "tcp", "raw", "ws", "grpc", "http", "httpupgrade", "xhttp" ], "Transport" ],
     [ "xhttp", "transport_xhttp_mode", [ "", "auto", "packet-up", "stream-up", "stream-one" ], "XHTTP mode" ],
@@ -1446,8 +1406,7 @@ function server_enum_applies(scope, protocol, server) {
     return scope == protocol;
 }
 
-// The host bits of a prefix: none set is the address of the subnet itself, and
-// in IPv4 all of them set is its broadcast address; the server takes neither.
+// The subnet address, and in IPv4 the broadcast address, cannot be the server's.
 function prefix_host_address(prefix) {
     let parts = split(prefix, "/");
     let bytes = iptoarr(parts[0]);
@@ -1461,9 +1420,6 @@ function prefix_host_address(prefix) {
     return any && (length(bytes) == 16 || !all);
 }
 
-// What the clients of a VPN server are given: the address of the server in one
-// IPv4 and at most one IPv6 subnet, whose other addresses are theirs, and the
-// routes they send through it when not all of their traffic goes there.
 function validate_tunnel_subnets(server, name) {
     let owner = "Server '" + server_label(name) + "'";
     let families = {};
@@ -1490,9 +1446,6 @@ function validate_tunnel_subnets(server, name) {
             fail_validation(owner + " routes '" + route + "', which is not a subnet");
 }
 
-// A WireGuard server and its clients are what the router issued them: the keys,
-// and for each client an address of its own in every tunnel subnet, which is
-// the one it may send from and what tells it apart in a route rule.
 function validate_wireguard_server(server, name, protocol) {
     validate_tunnel_subnets(server, name);
     let owner = "Server '" + server_label(name) + "'";
@@ -1538,9 +1491,6 @@ function validate_openvpn_server(server, name) {
                 " yet");
 }
 
-// Everything else the core parses out of a server option and refuses on its own: a
-// listen address that is not an address, a duration it cannot read and a masquerade
-// URL whose scheme it does not know.
 function validate_server_values(server, protocol, name) {
     for (let entry in SERVER_ENUMS) {
         if (!server_enum_applies(entry[0], protocol, server))
@@ -1570,8 +1520,7 @@ function validate_server_values(server, protocol, name) {
         validate_wireguard_server(server, name, protocol);
 
     if (protocol == "hysteria2") {
-        // sing-box reads a masquerade as a URL and picks the mode from its scheme, so
-        // anything but those three stops the listener before it binds.
+        // sing-box picks the masquerade mode from the URL scheme and refuses any other.
         let masquerade = option(server, "hysteria2_masquerade", "");
         if (masquerade != "" && match(masquerade, /^(https?|file):\/\//) == null)
             fail_validation("Server '" + server_label(name) + "' masquerade '" + masquerade +
@@ -1665,11 +1614,8 @@ function refuse_without(feature, core_tags, what) {
         fail_validation(what + ", but " + reason + ". Disable it or install a sing-box build that has it");
 }
 
-// What the configuration asks of the core that only some builds have. The core
-// refuses to start on a static server, tunnel, link or DNS server of a type it
-// was built without, so each is refused here by name, with the tags it needs.
-// A subscription's servers are not: the core skips one it cannot build and logs
-// which tag it lacks.
+// The core refuses to start on a server, tunnel, link or DNS server of a type it was built
+// without; a subscription's servers it skips and logs instead.
 function validate_core_features(settings, sections, servers, core_tags) {
     for (let server in servers) {
         if (!server_enabled(server))
@@ -1780,8 +1726,6 @@ function service_exists(service) {
     return file_executable("/etc/init.d/" + as_string(service));
 }
 
-// Only a Connection section builds outbounds from its sources; one whose action
-// changed keeps them in the configuration without the runtime using them.
 function has_outbound_section() {
     for (let section in sections_by_type("section"))
         if (section_enabled(section) && connections.is_connections_action(rule_action(section)) &&
@@ -1818,8 +1762,8 @@ function check_requirements() {
         core_exec.log("warn", "No enabled Connection section has servers, so no traffic is proxied");
 }
 
-// Refuses a configuration sing-box could not run, by throwing the reason. The
-// overrides replace values of the runtime context, for a check about them.
+// Throws the reason when sing-box could not run the configuration. overrides replace values
+// of the runtime context.
 function validate(overrides) {
     connections.load();
     validate_runtime_config({ ...context_from_runtime(), ...object_or_empty(overrides) });

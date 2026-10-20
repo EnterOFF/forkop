@@ -1,5 +1,4 @@
-// The checks of the Status tab. Each looks at the router as it is and returns
-// what it found; the page judges the facts and words the verdict.
+// The Status tab checks return facts; the page judges them and words the verdict.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -22,13 +21,11 @@ let conflicts = require("diagnostics.conflicts");
 
 const CONFIG_NAME = constants.FORKOP_CONFIG_NAME;
 const STABLE_MIN_AGE = 2;
-// How far back a kernel OOM kill still counts as a problem of today.
 const OOM_WINDOW = 86400;
 const DNS_INBOUND = singbox_constants.DNS_INBOUND_ADDRESS;
 const FAKEIP_DOMAIN = singbox_constants.FAKEIP_TEST_DOMAIN;
 const IP_DOMAIN = singbox_constants.CHECK_PROXY_IP_DOMAIN;
-// A name nobody has asked for yet, under a zone that exists: no cache can
-// answer it, so the reply proves the upstream server was reached.
+// A name no cache can answer, so a reply proves the upstream server was reached.
 const UNCACHED_ZONE = "example.com";
 const CGNAT_RANGE = "100.64.0.0/10";
 
@@ -61,9 +58,8 @@ function uptime_seconds() {
     return int(split(trim(fs.readfile(paths.uptime) ?? "0"), " ")[0]);
 }
 
-// Why the last action left Forkop down: the first error logged since Forkop's
-// last info line, as every action opens and closes with one. The errors after
-// it are mostly what the cleanup of the failure ran into.
+// The first error since Forkop's last info line: every action opens and closes with one, and
+// the later errors are mostly the cleanup's.
 function last_error(log) {
     let result = null;
     for (let line in split(log ?? "", "\n")) {
@@ -84,8 +80,7 @@ function meminfo() {
     return { total_kb: value("MemTotal"), available_kb: value("MemAvailable") };
 }
 
-// The processes the kernel killed for want of memory within the window, from
-// its own log, whose stamps count seconds since boot.
+// The kernel log stamps count seconds since boot.
 function oom_kills(kernel_log, uptime) {
     let result = [];
     for (let line in split(kernel_log ?? "", "\n")) {
@@ -99,8 +94,7 @@ function oom_kills(kernel_log, uptime) {
     return result;
 }
 
-// Running cores only: Forkop itself runs `sing-box check` and `sing-box version`
-// for a moment now and then, and those hold no port.
+// Forkop itself runs `sing-box check` and `sing-box version` briefly; those hold no port.
 function sing_box_cores() {
     let result = [];
     for (let dir in fs.glob(paths.proc + "/[0-9]*")) {
@@ -111,8 +105,6 @@ function sing_box_cores() {
     return sort(result, (a, b) => a - b);
 }
 
-// Whether Forkop runs, for how long its core has, and what on the router could
-// keep it from working whatever it is configured to do.
 function service() {
     let running = health.forkop_stably_running(constants.RT_TABLE_NAME, constants.NFT_TABLE_NAME, constants.NFT_FAKEIP_MARK, STABLE_MIN_AGE);
     let pid = health.sing_box_service_pid_runtime();
@@ -131,9 +123,7 @@ function service() {
     };
 }
 
-// { answered, status, ms } of one dig: any reply that resolved the name counts,
-// NXDOMAIN included; SERVFAIL or REFUSED is the server failing, and no status
-// at all is no reply.
+// NXDOMAIN counts as an answer; SERVFAIL or REFUSED is the server failing.
 function dig_result(text) {
     let status = match(text ?? "", /status: ([A-Z]+)/)?.[1] ?? "";
     let ms = match(text ?? "", /Query time: ([0-9]+) msec/)?.[1];
@@ -145,8 +135,6 @@ function uncached_name() {
     return sprintf("forkop-%x%x.%s", now[0], now[1], UNCACHED_ZONE);
 }
 
-// The dig options that reach a resolver as the core does, or null for a
-// transport dig cannot speak.
 function dig_server(uri) {
     let parsed = runtime_dns.parse_server_uri(uri, false);
     if (parsed.unsupported)
@@ -163,9 +151,6 @@ function dig_server(uri) {
     return argv;
 }
 
-// A host name the bootstrap servers have to find for the core: a main DNS
-// server's, or with DNS sent through a section, a proxy server's. "" when they
-// have nothing to find.
 function bootstrap_host(values, servers, config) {
     for (let server in servers) {
         let host = core_url.host(server) || server;
@@ -182,9 +167,6 @@ function bootstrap_host(values, servers, config) {
     return "";
 }
 
-// What the core resolves with: the main servers, asked through the core with a
-// name no cache holds; the bootstrap servers, asked directly for the name they
-// exist to find; and the local resolver behind local names.
 function dns() {
     let values = settings();
     let servers = runtime_dns.server_list(values, "dns_server", "77.88.8.8");
@@ -223,8 +205,6 @@ function rule_names_domain(rule, domain) {
     return type(rule?.domain) == "array" ? index(rule.domain, domain) >= 0 : rule?.domain == domain;
 }
 
-// The section the check address goes out through: what the generated
-// configuration routes it to, or "" when no section takes it.
 function check_section(config) {
     for (let rule in config?.route?.rules ?? [])
         if (rule_names_domain(rule, IP_DOMAIN) && common.as_string(rule.outbound) != "")
@@ -242,11 +222,8 @@ function in_fakeip_range(address) {
         core_ip.prefix_contains(singbox_constants.FAKEIP_INET6_RANGE, address);
 }
 
-// The router's own traffic, the way any client's goes: it looks the check
-// domain up through its resolver, which must hand out a FakeIP address, and
-// fetches it, which the public endpoint answers with whether the connection
-// came through Forkop and from which address. The second check address goes
-// out through the first section, so its answer is that section's exit.
+// The router looks the check domain up through its resolver, which must hand out a FakeIP
+// address, and fetches it; the endpoint reports whether the connection came through Forkop.
 function traffic() {
     let section = check_section(runtime_config());
     let commands = [
@@ -281,8 +258,7 @@ function wan_addresses() {
                 add(common.as_string(item?.address));
     }
 
-    // The addresses of whatever device the default routes leave through, which
-    // is how a WAN that is not called wan is found.
+    // The device the default routes leave through, so a WAN not called wan is found.
     for (let family in [ [ "-4", /(^|\n)[ \t]*inet[ \t]+([0-9.]+)\//g ], [ "-6", /(^|\n)[ \t]*inet6[ \t]+([^\/ \t]+)\//g ] ]) {
         let device = match(output([ "ip", family[0], "route", "show", "default" ]), /[ \t]dev[ \t]+([^ \t\n]+)/);
         if (device == null)
@@ -312,16 +288,12 @@ function resolve_host(host) {
     return join(" ", sort(keys(found)));
 }
 
-// A port that a firewall rule or one of Forkop's own server rules opens.
 function firewall_opens(port, transports, input_chain) {
     return firewall.required_protocols_open(uci.section_objects("firewall", "rule"), port, transports) ||
         firewall.forkop_accepts_port(input_chain, singbox_constants.SERVER_FIREWALL_COMMENT, port, transports);
 }
 
-// Every enabled server with a listener of its own: whether it listens, and if
-// not, who holds its port; whether WAN reaches it through the firewall; and
-// whether its public address leads to this router. A Tailscale server dials out
-// and has nothing to listen on. A router whose only WAN address is the
+// A Tailscale server dials out and listens on nothing. A router whose only WAN address is the
 // provider's shared one is behind its NAT, where no port can be opened.
 function servers() {
     let config = runtime_config();

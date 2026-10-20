@@ -1,9 +1,5 @@
-// Answers one question about the router firewall: would an inbound connection
-// from WAN reach a given port and protocol? The answer comes from two places.
-// The firewall rules are the configuration the user can fix, and the only place a
-// port the user opened appears. The loaded input chain is the other, because the
-// ports of the Servers tab are an nftables.d include that fw4 folds into its
-// ruleset and that no rule mentions.
+// Whether a connection from WAN reaches a port: the firewall rules hold what the user opened,
+// the loaded input chain the Servers tab ports, an nftables.d include no rule names.
 
 function as_string(value) {
     return value == null ? "" : type(value) == "array" ? join(" ", value) : "" + value;
@@ -69,10 +65,8 @@ function proto_spec_contains(spec, proto) {
     return false;
 }
 
-// Only rules that let WAN traffic reach the router itself count: a destination
-// zone means forwarding, an IPv6 family rule does not cover the IPv4 listener
-// the check is about, and a source port restriction cannot match a client's
-// ephemeral port.
+// A destination zone means forwarding, an IPv6-only rule misses the IPv4 listener, and a
+// source port restriction cannot match a client's ephemeral port.
 function rules_allow_port_proto(rules, port, proto) {
     for (let rule in rules) {
         let enabled = as_string(rule.enabled);
@@ -109,9 +103,7 @@ function rules_allow_port_proto(rules, port, proto) {
     return false;
 }
 
-// required_proto is the whitespace separated protocol list an inbound needs;
-// every one of them has to be open before the port counts as reachable. The
-// rules are the firewall's rule sections in file order, with their lists.
+// Every protocol in required_proto must be open.
 function required_protocols_open(rules, port, required_proto) {
     for (let proto in whitespace_values(required_proto))
         if (!rules_allow_port_proto(rules, port, proto))
@@ -121,12 +113,10 @@ function required_protocols_open(rules, port, required_proto) {
 }
 
 
-// The ports one of Forkop's own accept rules covers, read out of the input chain
-// the firewall is running. nft prints a single port bare and a set in braces:
+// Read from the loaded chain, not the include file, which fw4 may have refused. nft prints a
+// single port bare and a set in braces:
 //   tcp dport { 443, 8443 } counter packets 0 bytes 0 accept comment "..."
 //   udp dport 443 counter packets 0 bytes 0 accept comment "..."
-// The loaded chain is asked rather than the include file, because a written file
-// that fw4 refused says the port is open when it is not.
 function accepted_ports_by_proto(chain_data, comment) {
     let result = { tcp: {}, udp: {} };
     comment = as_string(comment);
@@ -150,8 +140,6 @@ function accepted_ports_by_proto(chain_data, comment) {
     return result;
 }
 
-// Whether Forkop's own rules already accept every protocol the inbound needs. An
-// inbound that needs none is open the same way required_protocols_open reads it.
 function forkop_accepts_port(chain_data, comment, port, required_proto) {
     let accepted = accepted_ports_by_proto(chain_data, comment);
 

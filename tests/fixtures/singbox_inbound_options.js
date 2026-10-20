@@ -1,17 +1,9 @@
-// Rebuilds singbox_inbound_options.json from the option structs of a sing-box
-// checkout:
+// Rebuilds singbox_inbound_options.json, the nested JSON keys of each inbound the Servers tab
+// builds, from the option structs of a sing-box checkout:
 //
 //     node tests/fixtures/singbox_inbound_options.js <sing-box>/option
 //
-// The snapshot is the nested set of JSON keys each inbound the Servers tab
-// builds accepts, which tests/singbox/server_options.test.uc holds the
-// generator to. Only the shape matters: which key exists under which object, and
-// which struct a nested object expands into.
-//
-// The Go source is simple enough to read with a struct scanner: a field is either
-// `Name Type `json:"key,..."`` or an embedded type with no name and no tag, which is
-// flattened into the parent the way encoding/json does. Anything without a json tag
-// and without a name is an embedded struct; anything with `json:"-"` is skipped.
+// Embedded structs are flattened as encoding/json does; fields tagged `json:"-"` are skipped.
 "use strict";
 
 const fs = require("fs");
@@ -143,8 +135,7 @@ const INBOUND_STRUCTS = {
   amneziawg: "AmneziaWGEndpointOptions",
 };
 
-// The V2Ray transport object is a union: the type field picks which of the
-// per-transport structs the remaining keys come from, so all of them are merged.
+// A union: the type field picks the struct of the remaining keys, so all of them are merged.
 const TRANSPORT_STRUCTS = [
   "V2RayHTTPOptions",
   "V2RayWebsocketOptions",

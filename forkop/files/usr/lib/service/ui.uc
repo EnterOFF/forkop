@@ -1,8 +1,5 @@
-// What the page shows about the service: whether it runs, what is being done to
-// it right now, and the service actions the page started. An action is a job
-// file under /var/run that its worker finishes; the page reads the files
-// through the state service, and a job whose worker died is marked stale
-// instead of running forever.
+// An action is a job file under /var/run that its worker finishes; a job whose worker died is
+// marked stale instead of running forever.
 
 let fs = require("fs");
 let common = require("core.common");
@@ -126,10 +123,8 @@ function default_headers() {
     return subscription_headers.default_header_lines();
 }
 
-// `status` is what the service is and `busy` what is being done to it: a
-// reload keeps the service running the whole time. Elapsed seconds rather than a
-// start time, because a router without an RTC does not agree with the browser
-// about the time.
+// status is what the service is and busy what is being done to it. Elapsed seconds, not a start
+// time: a router without an RTC disagrees with the browser about the time.
 function current_state() {
     refresh();
     let executable = (path) => ((fs.stat(path)?.mode ?? 0) & 0111) != 0;
@@ -237,8 +232,7 @@ function finish(action, job_id, status) {
         run_pending_reload(action, success);
 }
 
-// The background half of an action the page asked for. The init script is what
-// runs it, because only its start registers the service with procd.
+// The init script runs it, because only its start registers the service with procd.
 function worker(action, job_id, reason) {
     let argv = [ "env", "FORKOP_UI_ACTION_TRACKED=1", constants.FORKOP_SERVICE_INIT, action ];
     if (reason != null && reason != "")

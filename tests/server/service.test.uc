@@ -193,8 +193,6 @@ t.test("a broken server refuses the whole prepare and commits nothing, unless it
     t.ok(length(uci.__commits()) > 0, "a disabled server does not stop the others from being prepared");
 });
 
-// Removal waits for a configuration the validator accepted, so the prepare that
-// runs before it only adds.
 t.test("prepare removes nothing: what removed servers left goes afterwards", () => {
     fresh_paths();
     fixture.seed({ server: [ { ".name": "a", protocol: "mixed" } ],

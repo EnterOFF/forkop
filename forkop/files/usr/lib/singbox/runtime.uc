@@ -1,6 +1,3 @@
-// The sing-box service as Forkop runs it: its procd settings, the configuration
-// file generated for it, and what the core says about itself.
-
 let fs = require("fs");
 let common = require("core.common");
 let exec = require("core.exec");
@@ -17,9 +14,8 @@ function settings() {
     return uci.get_all(CONFIG_NAME, "settings") ?? {};
 }
 
-// Forkop starts sing-box itself, through the core's own init script configured to
-// run the generated file as root; the core's autostart would start it without
-// the rules around it.
+// Forkop starts sing-box itself; the core's own autostart would start it without the rules
+// around it.
 function configure_service() {
     if (!uci.exists("sing-box.main") && !uci.set_section("sing-box.main", "sing-box"))
         die("Failed to create the sing-box service section in /etc/config/sing-box");
@@ -72,8 +68,8 @@ function listen_address(values) {
     return address;
 }
 
-// mwan3 owns egress routing while it has an enabled interface and is running or
-// set to start, and sing-box must then leave the interface choice to it.
+// While mwan3 has an enabled interface and runs or will start, it owns egress routing and
+// sing-box leaves the interface choice to it.
 function mwan3_active() {
     if (((fs.stat("/etc/init.d/mwan3")?.mode ?? 0) & 0111) == 0 || (fs.stat("/etc/config/mwan3")?.size ?? 0) == 0)
         return false;
@@ -104,18 +100,15 @@ function check(text) {
     die("sing-box refused the generated configuration: " + failure_reason(result));
 }
 
-// Generates the configuration and writes it where the service reads it once the
-// core has accepted it, so a refused one leaves the file the service runs.
-// Returns whether the file changed. A start checks the file even when it did not
-// change: the core may have been replaced since it was written.
+// The file is written only once the core accepted it. Returns whether it changed; a start
+// checks it regardless, since the core may have been replaced.
 function write_config(checked) {
     let values = settings();
     let path = common.option(values, "config_path", "");
     if (path == "")
         die("The sing-box configuration file path is not set in Settings");
 
-    // sing-box refuses to start without the directory of its cache file, and a
-    // reboot empties /tmp while the configuration stays as it was.
+    // sing-box needs its cache directory, and a reboot empties /tmp.
     let cache_dir = common.parent_dir(common.option(values, "cache_path", singbox_constants.TMP_SING_BOX_FOLDER + "/cache.db"));
     if (!common.ensure_dir(cache_dir))
         die("Failed to create " + cache_dir + " for the sing-box cache file");
@@ -152,16 +145,13 @@ function version() {
     return replace(value, /~/g, "-");
 }
 
-// The service's core, not whatever else runs the binary: the state service asks
-// it for its version on every restart, an install included.
+// The service's core only: the state service runs the binary for its version on every restart.
 function process_running() {
     return exec.ok([ "pgrep", "-f", "^/usr/bin/sing-box[[:space:]]+run([[:space:]]|$)" ]);
 }
 
-// Cloudflare's registration API is blocked on some networks. With a section
-// chosen for WARP profiles the request goes out through the running core's
-// inbound for them, and never directly instead; without one it is the router's
-// own request, routed as the router's own traffic is.
+// Cloudflare's registration API is blocked on some networks: with a section chosen the request
+// goes through the core's inbound for it, never directly; without one it is the router's own.
 function warp_profile() {
     let values = settings();
     let section = connections.download_via_proxy_enabled(values, "warp_profiles")

@@ -44,10 +44,8 @@ PROJECT_URL="https://github.com/ushan0v/forkop"
 BACKEND_DEPENDS_IPK="libc, ca-bundle, kmod-inet-diag, kmod-netlink-diag, kmod-tun, curl, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, kmod-nft-tproxy, bind-dig, nftables, kmod-nft-nat, ip-full, dropbearconvert"
 BACKEND_DEPENDS_APK="bind-dig ca-bundle curl dropbearconvert ip-full kmod-inet-diag kmod-netlink-diag kmod-nft-nat kmod-nft-tproxy kmod-tun libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci !https-dns-proxy !nextdns !luci-app-passwall !luci-app-passwall2"
 BACKEND_CONFLICTS_IPK="https-dns-proxy, nextdns, luci-app-passwall, luci-app-passwall2"
-# The app calls the ubus object the backend publishes, so it cannot sit on a
-# backend older than itself. OpenWrt DEPENDS in the feed Makefile cannot express
-# a version, which is why the page still keeps a fallback for the one thing it
-# cannot render without.
+# The app calls the backend's ubus object, so it needs a backend at least as new;
+# the feed Makefile's DEPENDS cannot express a version.
 APP_DEPENDS_IPK="libc, luci-base, forkop (>= ${RELEASE_VERSION})"
 APP_DEPENDS_APK="libc luci-base forkop>=${RELEASE_VERSION}"
 

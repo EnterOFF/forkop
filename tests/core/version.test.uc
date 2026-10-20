@@ -1,9 +1,6 @@
 let t = require("t");
 let version = require("core.version");
 
-// The validator and the Status tab compare the installed core with
-// SB_REQUIRED_VERSION through this, and a core of the Extended line carries its
-// own suffix after the upstream version.
 t.test("a version is at least the one it is compared with", () => {
     for (let pair in [
         [ "1.12.4", "1.12.4" ],

@@ -35,8 +35,6 @@ t.test("a key material command answers the page with success and its fields, or 
     t.eq([ bad.result, json(bad.stdout) ], [ 1, { success: false, message: "Failed to generate Reality key pair" } ]);
 });
 
-// The page tells the user when the switch did not move, so the command has to
-// answer either way instead of printing nothing.
 t.test("autostart answers the page whether the switch moved or not", () => {
     let lifecycle = require("service.lifecycle");
     let dir = stub.tmpdir();
@@ -52,8 +50,6 @@ t.test("autostart answers the page whether the switch moved or not", () => {
     t.eq([ refused.result, json(refused.stdout) ], [ 1, { success: false, message: "Could not enable autostart" } ]);
 });
 
-// A router whose log holds no Forkop line yet has nothing to show, which is an
-// answer and not a failure.
 t.test("the log command answers an empty log with nothing, successfully", () => {
     stub.commands([ [ () => true, { status: 0, stdout: "" } ] ]);
     let empty = stub.capture(() => cli.main([ "check_logs" ], "/lib"));

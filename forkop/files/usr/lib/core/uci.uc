@@ -99,7 +99,6 @@ function available() {
     return cursor() != null;
 }
 
-// Drops the loaded packages, so the next read sees what is committed now.
 function reset() {
     runtime_cursor = false;
     loaded_packages = {};

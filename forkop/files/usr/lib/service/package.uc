@@ -1,5 +1,4 @@
-// What the package scripts run on a live router: the backend's prerm and
-// postinst and the LuCI app's. The scripts skip an image build themselves.
+// The package scripts on a live router; they skip an image build themselves.
 
 let fs = require("fs");
 let exec = require("core.exec");
@@ -16,9 +15,7 @@ let paths = {
     firewall_input_include: "/usr/share/nftables.d/chain-pre/input/forkop.nft",
     rpcd_init: "/etc/init.d/rpcd",
     luci_index_cache: [ "/var/luci-indexcache*", "/tmp/luci-indexcache*" ],
-    // What releases up to 1.0.5 left behind: answers kept in files that are
-    // worked out on demand now, and the module and state directories of retired
-    // features, which the package manager empties of its own files and leaves.
+    // What releases up to 1.0.5 left behind: cached answers and the directories of retired features.
     obsolete: [
         "/var/run/forkop/system-info.json",
         "/tmp/forkop/system-info.json",
@@ -48,9 +45,8 @@ function remove(path) {
         exec.status([ "rm", "-rf", path ]);
 }
 
-// fw4 reads /usr/share/nftables.d only while it builds its ruleset, so the
-// input accept the package ships stays out of a running firewall until
-// something reloads it. A firewall that is not loaded picks it up when it starts.
+// fw4 reads /usr/share/nftables.d only while it builds its ruleset, so the shipped input accept
+// stays out of a running firewall until something reloads it.
 function load_firewall_input_include() {
     if (!exists(paths.firewall_input_include) || !exists(paths.firewall_init))
         return;
@@ -61,8 +57,7 @@ function load_firewall_input_include() {
         exec.log("warn", "Failed to reload the firewall; reload it by hand so that its input chain accepts Forkop's traffic");
 }
 
-// The state service holds the library in memory, so an install hands it the
-// new one. Its init script registers nothing where the LuCI page is missing.
+// The state service holds the library in memory, so an install restarts it.
 function restart_state_service() {
     if (!exists(paths.state_service_init))
         return;
@@ -70,10 +65,8 @@ function restart_state_service() {
     exec.ok([ paths.state_service_init, "restart" ]);
 }
 
-// An upgrade stops the service and postinst starts it again if it was running.
-// A removal takes autostart away first: while /etc/rc.d/S99forkop exists, a
-// WAN-up trigger can start the service in the middle of the removal. The
-// routing table name goes last, after the stop that needs it.
+// A removal takes autostart away first: while /etc/rc.d/S99forkop exists, a WAN-up trigger can
+// start the service mid-removal. The routing table name goes after the stop that needs it.
 function prerm(action) {
     let upgrade = action == "upgrade";
     fs.unlink(paths.was_running);
@@ -93,9 +86,8 @@ function prerm(action) {
     return 0;
 }
 
-// The firewall include is what lets an isolated zone reach the TPROXY inbound,
-// so it is loaded before a service that was running comes back. The version
-// goes to the log, which then says which release wrote the lines after it.
+// The firewall include lets an isolated zone reach the TPROXY inbound, so it loads before the
+// service comes back. The logged version tells which release wrote the lines after it.
 function postinst() {
     exec.log("info", "Installed Forkop " + constants.FORKOP_VERSION);
     bytecode.invalidate_validation_stamp();

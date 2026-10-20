@@ -1517,10 +1517,8 @@ apk_installed_version() {
         '
 }
 
-# apk exits nonzero for database problems that have nothing to do with the
-# requested transaction, for example locally installed packages that no longer
-# exist in any repository on FriendlyWrt. The transaction itself is committed in
-# that case, so the outcome is confirmed instead of trusted to the exit status.
+# apk can exit nonzero for unrelated database problems (on FriendlyWrt, installed packages no
+# repository has) after committing the transaction, so the outcome is checked instead.
 apk_local_files_installed() {
     for package_file in "$@"; do
         package_id="${package_file##*/}"

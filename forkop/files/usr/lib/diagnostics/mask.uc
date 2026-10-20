@@ -1,8 +1,5 @@
-// Redaction of everything Forkop shows back to the user: UCI configuration,
-// the generated sing-box configuration, DNS server URLs and the address a
-// proxy check reports. Diagnostics output is pasted into issue reports, so
-// every value that identifies a subscriber or a credential is hidden here
-// before it can be printed.
+// Diagnostics are pasted into issue reports, so every value identifying a subscriber or a
+// credential is masked here.
 
 let core_ip = require("core.ip");
 let core_url = require("core.url");
@@ -27,8 +24,7 @@ function mask_after_token(line, token) {
     return pos < 0 ? line : substr(line, 0, pos) + token + " 'MASKED'";
 }
 
-// Same, but only when the option name is followed by a separator, so that
-// "option port" does not also match "option portal".
+// Only before a separator, so "option port" does not match "option portal".
 function mask_after_token_space(line, token) {
     let pos = index(line, token);
     if (pos < 0)
@@ -50,9 +46,6 @@ function delete_token_space(line, token) {
     return space_pos < length(line) && is_space_char(substr(line, space_pos, 1));
 }
 
-// The options whose value can span several lines: what a section routes, JSON,
-// and the certificates and keys of an OpenVPN server and its clients and of a
-// TLS server.
 const MULTILINE_OPTIONS = [ "option destinations", "option outbound_json", "list outbound_jsons", "option endpoint_json", "option inbound_json",
     "option openvpn_certificate", "option openvpn_key", "option openvpn_tls_crypt_key",
     "option tls_certificate", "option tls_key", "option tls_self_signed_certificate", "option tls_self_signed_key" ];
@@ -130,8 +123,7 @@ function forkop_config_line(line) {
     return line;
 }
 
-// Splits configuration text into the lines a report prints. A file that ends
-// with a newline must not gain a trailing empty line.
+// A trailing newline adds no empty line.
 function config_lines(data) {
     data = as_string(data);
     let lines = split(data, "\n");
@@ -151,8 +143,6 @@ function forkop_config(data) {
     for (let line in config_lines(data)) {
         line = as_string(line);
 
-        // A masked option can span several lines; the continuation lines
-        // are dropped up to the closing quote instead of being printed raw.
         if (in_masked_multiline) {
             if (index(line, "'") >= 0)
                 in_masked_multiline = false;
@@ -231,8 +221,7 @@ const SING_BOX_MASKED_KEYS = {
     headers: true
 };
 
-// The path of a DNS over HTTPS server can carry the account: AdGuard's private
-// /dns-query/<id>, ControlD's /<id>. The endpoints every resolver shares stay.
+// A DoH path can carry the account: AdGuard's /dns-query/<id>, ControlD's /<id>.
 function doh_path(path) {
     path = as_string(path);
     if (path == "" || path == "/" || path == "/dns-query" || path == "/resolve")
@@ -251,8 +240,7 @@ function mask_sing_box_value(value) {
     return result;
 }
 
-// A subscription URL carries the subscriber's token, and a URL is only masked
-// where it is one: a rule set's or a latency test's is public.
+// A subscription URL carries the subscriber's token; rule-set and latency-test URLs are public.
 function sing_box_config(value) {
     let result = mask_sing_box_value(value);
     if (type(result) != "object")
@@ -282,8 +270,6 @@ function first_field(value, separator) {
 // over TLS or QUIC.
 const ACCOUNT_HOST_SUFFIXES = [ ".dns.nextdns.io", ".d.adguard-dns.com", ".dns.controld.com" ];
 
-// A private resolver's account id is a credential: the leftmost label of the
-// host, or the path of a DNS over HTTPS URL. A public resolver stays readable.
 function dns_server(value) {
     value = as_string(value);
     let scheme = core_url.scheme(value);
@@ -300,8 +286,7 @@ function dns_server(value) {
     return host == core_url.host(value) && masked_path == path ? value : prefix + host + suffix + masked_path;
 }
 
-// The first three hextets of an IPv6 address - the provider's allocation, not
-// the subscriber - however the address is written.
+// The first three hextets: the provider's allocation, not the subscriber.
 function masked_ipv6(address) {
     let bytes = iptoarr(address);
     if (bytes == null || length(bytes) != 16)
@@ -309,18 +294,14 @@ function masked_ipv6(address) {
     return sprintf("%x:%x:%x:XXXX:XXXX:XXXX:XXXX:XXXX", bytes[0] << 8 | bytes[1], bytes[2] << 8 | bytes[3], bytes[4] << 8 | bytes[5]);
 }
 
-// Only the last octet of a public IPv4 address, or the first three hextets of a
-// public IPv6 one, is kept: enough to tell two addresses apart, not to find
-// either. Loopback, LAN and FakeIP addresses say nothing about anybody.
+// Enough to tell two addresses apart, not to find either; local and FakeIP addresses stay.
 function address(value) {
     if (!core_ip.valid_public_ip(value))
         return value;
     return core_ip.valid_ipv4(value) ? "X.X.X." + split(value, ".")[3] : masked_ipv6(value);
 }
 
-// Where the configuration says a server is: the host names of the outbounds,
-// endpoints, providers and DNS servers it dials, and of the servers it runs. An
-// outbound made from a share link carries its server inside the link.
+// A share-link outbound carries its server inside the link.
 const HOST_KEYS = { server: true, server_name: true, address: true, host: true, hostname: true };
 
 function add_host(result, value) {
@@ -364,8 +345,7 @@ function hosts(config) {
     return sort(keys(result), (a, b) => length(b) - length(a));
 }
 
-// The given host names, wherever they stand - in a tag, a label or a message -
-// and their subdomains with them, but never the middle of a longer word.
+// Subdomains included, never the middle of a longer word.
 function names(value, host_names) {
     value = as_string(value);
     for (let host in host_names ?? [])
@@ -374,8 +354,6 @@ function names(value, host_names) {
     return value;
 }
 
-// Free text such as a log: the path and credentials of every URL, the given
-// host names, and public addresses other than the kept ones.
 function text(value, host_names, kept) {
     let mask_address = (token) => index(kept ?? [], token) >= 0 ? token : address(token);
     value = replace(as_string(value), /([a-z][a-z0-9+.-]*):\/\/([^\/?# \t\r\n'"<>]+)([^ \t\r\n'"<>]*)/g, (all, scheme, authority, rest) => {

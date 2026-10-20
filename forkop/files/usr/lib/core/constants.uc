@@ -1,5 +1,4 @@
-// Forkop's own names, paths and marks. What the generated sing-box
-// configuration binds and names lives in singbox/constants.uc.
+// Forkop's own names, paths and marks; the sing-box configuration's are in singbox/constants.uc.
 
 return {
     FORKOP_VERSION: "__COMPILED_VERSION_VARIABLE__",
@@ -11,10 +10,7 @@ return {
     FORKOP_RELEASE_REPO: "ushan0v/forkop",
     FORKOP_LUCI_VIEW_DIR: "/www/luci-static/resources/view/forkop",
     FORKOP_LUCI_I18N_DOMAIN: "forkop",
-    // The log lines the Logs tab shows, as a logread pattern: what Forkop and
-    // sing-box write, and what procd says about their processes. A tag is
-    // matched at the start of the message, so a LuCI login on a Forkop page or
-    // a cron run of a Forkop command stays out.
+    // Tags match at the start of a message, so a LuCI login on a Forkop page stays out.
     FORKOP_LOG_PATTERN: "^\\(forkop\\|sing-box\\)\\|^procd: .*\\(forkop\\|sing-box\\)",
 
     RT_TABLE_NAME: "forkop",
@@ -26,8 +22,7 @@ return {
     NFT_PAUSE_CHAIN_NAME: "capture_pause",
     NFT_FAKEIP_MARK: "0x04000000",
     NFT_OUTBOUND_MARK: "0x08000000",
-    // The hooks of the DNS capture, clients' and the router's own. A redirect of
-    // another program hooked earlier takes a query before Forkop sees it.
+    // A redirect hooked earlier would take a query before Forkop sees it.
     NFT_DNS_REDIRECT_PRIORITY: -101,
     NFT_SYSTEM_DNS_REDIRECT_PRIORITY: -100,
 

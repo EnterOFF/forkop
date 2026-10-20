@@ -1,6 +1,3 @@
-// Installed package versions, from apk or from the opkg status file, and the
-// version the sing-box-forkop core records about itself.
-
 let fs = require("fs");
 let exec = require("core.exec");
 
@@ -17,8 +14,7 @@ function apk_installed(name) {
     return apk_present() && exec.ok([ "apk", "info", "-e", name ]);
 }
 
-// The status of a stanza decides, by its last word: the file also lists packages
-// that are known but not installed, and "not-installed" ends in "installed".
+// The last word decides: "not-installed" also ends in "installed".
 function opkg_status_installed(status) {
     let words = split(trim(status), /[ \t]+/);
     return words[length(words) - 1] == "installed";
@@ -41,9 +37,8 @@ function opkg_status_version(text, name) {
     return "";
 }
 
-// The status file needs no lock, where `opkg list-installed` takes opkg's own
-// and made a concurrent install fail with "Could not lock /var/lock/opkg.lock".
-// The listing is only for a layout that keeps the status somewhere else.
+// The status file needs no lock; `opkg list-installed` takes opkg's and fails a concurrent
+// install. The listing is only for a layout that keeps the status elsewhere.
 function opkg_version(name) {
     let text = fs.readfile(paths.opkg_status);
     if (text != null)
@@ -93,16 +88,13 @@ function apk_version(name) {
         apk_list_version(name, exec.output([ "apk", "info", "-v", name ]));
 }
 
-// What the core package writes about itself, or "" when the file does not hold
-// a sing-box-forkop version.
 function recorded_sing_box_version() {
     let value = trim(fs.readfile(paths.sing_box_version) ?? "");
     return match(value, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) ||
         match(value, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) ? value : "";
 }
 
-// The recorded version as the release spells it, with "-" where a package
-// version carries "~".
+// As the release spells it, with "-" where the package version carries "~".
 function sing_box_version() {
     return replace(recorded_sing_box_version(), /~/g, "-");
 }

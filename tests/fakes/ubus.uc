@@ -1,6 +1,4 @@
-// An in-memory stand-in for the ucode ubus module. Calls are answered by the
-// handlers a test registers and recorded; published objects and subscribers are
-// kept so a test can invoke them itself.
+// In-memory ucode ubus module: calls go to the handlers a test registers and are recorded.
 
 let handlers = {};
 let calls = [];
@@ -59,7 +57,6 @@ function __on(object_method, reply) {
     handlers[object_method] = reply;
 }
 
-// Delivers a notification to every subscriber of the object.
 function __notify(object, notification_type, data) {
     for (let entry in subscribers)
         if (index(entry.objects, object) >= 0)
