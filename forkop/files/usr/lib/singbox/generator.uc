@@ -1357,8 +1357,12 @@ function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
 
         rule.action = "route";
         rule.server = section_dns_server(section);
-        if (rule.server == runtime_constants.FAKEIP_DNS_SERVER_TAG)
+        if (rule.server == runtime_constants.FAKEIP_DNS_SERVER_TAG) {
             rule.query_type = FAKEIP_QUERY_TYPES;
+            // A query has no destination port, and a FakeIP answer is in no subnet of a set.
+            if (rule.rule_set != null)
+                rule.rule_set_domain_only = true;
+        }
         rule.rewrite_ttl = rewrite_ttl;
         push_dns_matcher_rule(config, rule);
     }

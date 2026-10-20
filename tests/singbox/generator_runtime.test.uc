@@ -389,7 +389,7 @@ t.test("device-scoped sections keep FakeIP and their priority in DNS rules", () 
     let port_ruleset = q.ruleset_url(m, "https://example.com/bypass-port.srs");
     let ruleset_dns = q.dns_rule(m, (r) => r.server == "fakeip-server" && has(r.rule_set, port_ruleset.tag) && has(r.source_ip_cidr, "10.0.0.4/32"));
     t.ok(ruleset_dns != null, "rule-set and port bypass keeps FakeIP domain identity");
-    t.eq(ruleset_dns.rule_set_domain_only, null, "section DNS rules keep the stock rule-set semantics");
+    t.eq(ruleset_dns.rule_set_domain_only, true, "a rule-set domain limited to a port of its own gets FakeIP as well");
     t.eq(q.dns_rule(m, (r) => r.server == "dns-server" && has(r.domain_suffix, "example.org") && r.source_ip_cidr == null), null,
         "a filtered bypass does not change DNS for every device");
     t.ok(q.dns_rule(m, (r) => r.server == "fakeip-server" && has(r.domain_suffix, "example.org") && r.source_ip_cidr == null) != null,
@@ -527,6 +527,20 @@ t.test("a section's own destinations and its rule sets each select traffic on th
     t.ok(has(listed.rules[0].rule_set, "proxy-discord-community-ruleset") && has(listed.rules[0].inbound, "tproxy-in"));
     t.eq([ listed.rules[0].domain_suffix, listed.rules[0].ip_cidr ], [ null, null ], "a listed domain does not have to be an own one as well");
     t.ok(has(listed.rules[1].port, 443), "the section's ports still narrow the rule set");
+});
+
+t.test("a FakeIP answer reads only the domains of a rule set, a real answer the whole set", () => {
+    let d = build({ settings: settings(), section: [
+        { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], rule_set: [ "https://example.com/ports.srs" ] },
+        { ".name": "deny", enabled: "1", action: "block", community_lists: [ "discord" ] },
+        { ".name": "direct", enabled: "1", action: "bypass", rule_set: [ "https://example.com/direct.srs" ] } ] });
+    let proxied = q.dns_rule(d, (r) => has(r.rule_set, q.ruleset_url(d, "https://example.com/ports.srs").tag));
+    t.eq([ proxied.server, proxied.rule_set_domain_only ], [ "fakeip-server", true ]);
+    let denied = q.dns_rule(d, (r) => has(r.rule_set, "deny-discord-community-ruleset"));
+    t.eq([ denied.server, denied.rule_set_domain_only ], [ "fakeip-server", true ]);
+    let direct = q.dns_rule(d, (r) => has(r.rule_set, q.ruleset_url(d, "https://example.com/direct.srs").tag));
+    t.eq([ direct.server, direct.rule_set_domain_only ], [ "dns-server", null ],
+        "a bypass answer is checked against the set's subnets, which keeps a domain resolving into one direct");
 });
 
 t.test("ports on their own select traffic in one rule", () => {
