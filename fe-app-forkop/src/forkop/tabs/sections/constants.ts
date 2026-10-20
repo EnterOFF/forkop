@@ -9,9 +9,7 @@ export const ROUTING_ACTIONS = [
   'block',
 ];
 
-// Shown greyed out in the JSON endpoint editor: the smallest object the
-// validator and sing-box both accept, so the shape is read instead of
-// described. The tag becomes the name the tunnel is listed under.
+// The smallest object the validator and sing-box both accept; the tag becomes the tunnel's name.
 export const JSON_ENDPOINT_PLACEHOLDER = [
   '{',
   '  "type": "wireguard",',
@@ -32,11 +30,8 @@ export const CONNECTIONS_BLOCKED_INTERFACES = [
   'lan',
 ];
 
-// The servers a Connection section can reach. A URLTest or a Fallback is not one
-// of them: a group only arranges the servers of its own section, so it draws its
-// members from this same list. A section without any of them contributes no
-// outbound and no route, and the generator leaves it out of the runtime graph
-// entirely - so it is refused before it can be saved.
+// Groups arrange the section's own servers and draw members from these; a section with none of
+// them is left out of the runtime, so it is refused on save.
 export const CONNECTION_OUTBOUND_SOURCES = [
   'connection_link',
   'subscription_url',

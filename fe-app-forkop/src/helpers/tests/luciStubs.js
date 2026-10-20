@@ -1,29 +1,11 @@
-// The LuCI runtime a test needs, as stubs it can install.
-//
-// The tabs are TypeScript modules inside the bundle now, so a test imports the
-// function it is about directly. What it cannot import is LuCI: a module inside
-// the bundle takes uci, dom, document and E off the globals the "require"
-// prologue fills in, so a test that drives one has to answer as LuCI would.
-
 import { webcrypto } from 'node:crypto';
 
-// Installs a uci model as the global the bundle reads. A module inside the
-// bundle takes uci from LuCI rather than importing it, so a test that drives one
-// puts its model where the module looks.
 export function installUciStub(sections = {}) {
   const stub = createUciStub(sections);
   globalThis.uci = stub;
   return stub;
 }
 
-// The whole LuCI runtime a bundled module reaches for, installed as globals:
-// the same stubs a handwritten view is loaded against, only put where the bundle
-// looks instead of passed in. A module inside the bundle takes uci, dom,
-// document and E off LuCI rather than importing them, so a test that drives one
-// has to answer as LuCI would.
-//
-// The widgets are the mounted frames document.getElementById() finds, keyed by
-// the cbid each carries.
 export function installLuciStubs(sections = {}, widgets = {}) {
   const uci = createUciStub(sections);
 
@@ -34,8 +16,6 @@ export function installLuciStubs(sections = {}, widgets = {}) {
   return uci;
 }
 
-// A UCI model shaped like the one LuCI keeps in the browser: sections keyed by
-// name, each carrying .name and .type, with list options stored as arrays.
 function createUciStub(sections = {}) {
   const values = {};
 
@@ -110,9 +90,6 @@ function defaultStubs(uci, widgets) {
     uci,
     fs: { exec: () => Promise.resolve({ code: 0, stdout: '{}' }) },
     ui: {
-      // classList.add() rejects a token with a space in it, and LuCI spreads the
-      // class arguments straight into it, so a joined class list throws where the
-      // real dialog is opened and the button that opens it silently does nothing.
       showModal(_title, _children, ...classes) {
         classes.forEach((name) => {
           if (/\s/u.test(`${name}`)) {
@@ -126,14 +103,8 @@ function defaultStubs(uci, widgets) {
     dom: {
       append: noop,
       content: noop,
-      // LuCI walks up from the node it is given looking for the widget instance, so a
-      // mounted frame carries its own.
       findClassInstance: (node) => node?.instance || null,
     },
-    // Enough of cbi/form to let a tab declare its options for real. Every widget
-    // class is its own marker so a test can see which one an option was given, and
-    // the option itself is a plain recorder: the tabs only ever set properties on it
-    // and call value() and depends().
     form: FORM_CLASSES,
     rpc: { declare: () => () => Promise.resolve([]) },
     window: {
@@ -145,9 +116,6 @@ function defaultStubs(uci, widgets) {
       dispatchEvent: noop,
     },
     document: {
-      // A mounted widget, keyed by the id of the frame it renders. Every LuCI widget
-      // carries that id; only some also name the inner control widget.<cbid>, so
-      // looking for the control finds nothing for a checkbox.
       getElementById: (id) => widgets[id] || null,
       querySelector: () => null,
       head: { appendChild: noop },
@@ -160,10 +128,6 @@ function defaultStubs(uci, widgets) {
   };
 }
 
-// The cbi/form widget classes, by name. They carry no behaviour: a tab picks one
-// per option and the choice is what a test wants to see.
-// A LuCI widget base: a class with its own extend(), which the tabs subclass at
-// module scope. Nothing renders here, so the stub only has to stay extendable.
 function extendableWidget(name) {
   function Widget() {}
   Widget.widget = name;
@@ -194,8 +158,6 @@ const FORM_CLASSES = Object.fromEntries(
   ].map((name) => [name, extendableWidget(name)]),
 );
 
-// The ui widget bases a view subclasses. Only the names the views reach for are
-// listed; anything else stays absent so a new dependency is visible.
 const UI_CLASSES = Object.fromEntries(
   ['Dropdown', 'DynamicList', 'Textarea', 'Textfield'].map((name) => [
     name,
@@ -203,9 +165,6 @@ const UI_CLASSES = Object.fromEntries(
   ]),
 );
 
-// A section that records what a tab declares on it instead of rendering anything.
-// Returned options are plain objects, so a tab setting rmempty, a default or a
-// validate on one is simply read back off the record.
 export function createFormSectionStub() {
   const noop = () => {};
   const options = [];
@@ -213,9 +172,6 @@ export function createFormSectionStub() {
   const section = {
     options,
     option(widget, name, title, description) {
-      // Built on the widget's own prototype, so an option answers with whatever
-      // that widget class provides on top of what the tab sets here - the child
-      // item list gets most of its behaviour that way.
       const option = Object.assign(Object.create(widget?.prototype ?? null), {
         widget: widget && widget.widget ? widget.widget : 'unknown',
         name,
@@ -239,8 +195,6 @@ export function createFormSectionStub() {
       options.push(option);
       return option;
     },
-    // A tab is a heading over a group of options; nothing here renders one, and
-    // the options land in one list either way.
     tab: noop,
     taboption(_tab, ...args) {
       return section.option(...args);

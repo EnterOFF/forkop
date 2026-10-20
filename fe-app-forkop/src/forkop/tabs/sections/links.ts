@@ -25,8 +25,7 @@ export function validateConnectionLink(value: unknown) {
   return validation === true ? validateConnectionUriCore(link) : validation;
 }
 
-// The entries of the section's link list as its dialog holds them now, or the
-// stored links when the list is not on screen.
+// As the dialog holds them now, or the stored links when the list is not on screen.
 function listedLinkValues(sectionId: string, option: CBIOption): string[] {
   let values: unknown = null;
   try {
@@ -40,18 +39,15 @@ function listedLinkValues(sectionId: string, option: CBIOption): string[] {
     : getChildItemIds(sectionId, 'connection_link');
 }
 
-// The name one entry runs under, which its section stores. A link still in the
-// add field is no entry yet and holds no name.
+// A link still in the add field is no entry yet and holds no name.
 function listedLinkName(sectionId: string, value: string) {
   return isExistingChildItem(sectionId, value, 'connection_link')
     ? `${uci.get(FORKOP_UCI_PACKAGE, value, 'name') || ''}`.trim()
     : '';
 }
 
-// A link is named after the server it describes, with "／" for a "/", and one
-// that names none is "Node #N", numbered past the names the section holds. A
-// name another link, server or group of the section holds now gets "#1" and
-// further, so the same link added twice is two servers told apart by name.
+// Named after the server it describes ("／" for "/"), or "Node #N"; a name the section already
+// holds gets "#1" and up, so the same link added twice is two servers.
 export function nextLinkName(
   sectionId: string,
   option: CBIOption,

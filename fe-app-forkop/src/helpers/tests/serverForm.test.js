@@ -8,9 +8,6 @@ import {
 } from '../../forkop/tabs/servers/clientDialog';
 import { createServerContent } from '../../forkop/tabs/servers/form';
 
-// The whole tab is declared in one pass, so anything that throws here is a form
-// that does not open at all - and anything it declares wrongly is a field that is
-// there but never shown, or shown when it should not be.
 function build(server = {}) {
   const uci = installLuciStubs({
     srv: {
@@ -60,8 +57,6 @@ describe('server form', () => {
     expect(section.options.length).toBeGreaterThan(40);
   });
 
-  // Two options under one name is one option: the second declaration wins and the
-  // first is dead weight that still writes to the same key.
   it('declares every option once', () => {
     const { section } = build();
     const seen = new Map();
@@ -73,8 +68,6 @@ describe('server form', () => {
     expect([...seen].filter(([, count]) => count > 1)).toEqual([]);
   });
 
-  // A dependency on an option that is not declared is never satisfied, so the field
-  // simply never appears. LuCI says nothing about it.
   it('depends only on options the form declares', () => {
     const { section } = build();
     const declared = new Set(section.options.map((option) => option.name));
@@ -83,7 +76,6 @@ describe('server form', () => {
     for (const option of section.options) {
       for (const dependency of option.dependencies) {
         for (const key of Object.keys(dependency)) {
-          // A leading ! negates, and a dotted key addresses another section.
           const name = key.replace(/^!/, '');
           if (!name.includes('.') && !declared.has(name)) {
             dangling.push(`${option.name} depends on ${name}`);
@@ -95,8 +87,6 @@ describe('server form', () => {
     expect(dangling).toEqual([]);
   });
 
-  // The listener is what a client is pointed at, so its address and port are always
-  // asked for, and the widget for each is the one that can hold the answer.
   it('gives each option a widget that fits it', () => {
     const { section } = build();
     const byName = Object.fromEntries(
@@ -110,8 +100,6 @@ describe('server form', () => {
     expect(byName.inbound_json.widget).toBe('TextValue');
   });
 
-  // The camouflage site is asked for once: the handshake target follows it, so a
-  // second field could only be a way to disagree with the first.
   it('asks for the camouflage site once', () => {
     const { section } = build({ security: 'reality' });
     const names = section.options.map((option) => option.name);
@@ -121,8 +109,6 @@ describe('server form', () => {
     expect(names).not.toContain('reality_handshake_server_port');
   });
 
-  // A TLS server serves what the router issued it unless it is given one of the
-  // user's; NaiveProxy has no choice, since its clients refuse a self-signed one.
   it('asks for a certificate only where it is the user who supplies it', () => {
     const { section } = build();
     const shown = (name, values) =>
@@ -205,8 +191,6 @@ describe('server form', () => {
     expect(field.value).toMatch(/^user-[a-z0-9]{5}$/);
   });
 
-  // Turning on a client's own route leaves it on the rules the server follows, so
-  // enabling the switch does not silently reroute the client.
   it('starts an overridden client on the rules', () => {
     const { view } = build();
     const itemSection = createFormSectionStub();

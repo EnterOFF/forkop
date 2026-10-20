@@ -32,9 +32,8 @@ export function probeResult(
   return { failure: 'unavailable' };
 }
 
-// A section with a choice is tested on the node it uses now, with the budget of
-// one test; its own timeout is for sweeping the whole group. A section of one
-// outbound is tested on it with the section's timeout.
+// A section with a choice is tested on the node it uses, with one test's budget; a section of one
+// outbound with the section's timeout.
 function target(section: Section) {
   if (!section.withTagSelect) {
     return {

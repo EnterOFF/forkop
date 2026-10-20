@@ -14,8 +14,6 @@ import {
   validateCoreFeature,
 } from '../../../services/coreFeatures.service';
 
-// What Forkop downloads - rule sets on a schedule, the dashboards, WARP profiles
-// when a tunnel needs one - how often it looks, and through what.
 export function addUpdateOptions(section: CBISection) {
   let o = section.option(
     form.Flag,
@@ -88,9 +86,8 @@ export function addUpdateOptions(section: CBISection) {
   o.retain = true;
   configureDownloadSectionOption(o, 'download_lists_via_proxy_section');
 
-  // A WARP tunnel asks Cloudflare's API for its profile whenever it starts, and
-  // the tunnel dialog registers new ones there. The setting exists only in a
-  // core with WARP, and stays visible while it is on so it can be switched off.
+  // A WARP tunnel requests its profile on every start, and the dialog registers new ones. Shown only
+  // with a WARP-capable core, or while on, so it can be switched off.
   o = section.option(
     form.Flag,
     'warp_profiles_via_proxy',

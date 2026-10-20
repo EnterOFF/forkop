@@ -2,18 +2,8 @@
 export const SPIN_PERIOD_MS = 1000;
 
 /**
- * The `animation-delay` that puts a freshly built spinner where the one it
- * replaces had got to.
- *
- * A CSS animation is timed from the element it runs on, so every spinner starts
- * its turn at twelve o'clock. Nothing on this page renders in place - a store
- * update hands the widget's container a newly built subtree - so the spinner of a
- * running action is rebuilt for as long as the action lasts.
- *
- * A negative delay starts an animation part-way through, and the document's clock
- * is the one the browser times animations against. Deriving the delay from it
- * gives every spinner the same phase whenever it is built, so a replacement
- * appears at the angle its predecessor had reached.
+ * A rebuilt spinner would restart its turn; a negative delay taken from the document clock gives
+ * every spinner the same phase, so a replacement appears where its predecessor was.
  */
 export function spinPhaseDelayMs(now: number): number {
   return -(now % SPIN_PERIOD_MS);

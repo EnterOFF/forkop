@@ -1,7 +1,4 @@
-// A domain travels as ASCII: a label in another alphabet goes out as its
-// Punycode form (RFC 3492), "xn--" and the encoded letters, and that is what
-// the core reports for a connection. The browser has no way back to the
-// letters, so the decoding is done here.
+// The core reports a non-Latin label in its Punycode form (RFC 3492), which the browser cannot decode.
 
 const BASE = 36;
 const T_MIN = 1;
@@ -87,9 +84,8 @@ function decodeLabel(encoded: string): string | null {
   return output.length ? String.fromCodePoint(...output) : null;
 }
 
-// Latin letters mixed with letters of another script are how a look-alike of a
-// Latin name is spelled - a Cyrillic "а" in "аpple" - so such a label keeps its
-// ASCII form, the way browsers show it.
+// A label mixing Latin with another script spells a look-alike (a Cyrillic "а" in "аpple"), so it
+// keeps its ASCII form, as browsers do.
 function mixesLatin(label: string): boolean {
   return (
     /\p{Script=Latin}/u.test(label) && /(?!\p{Script=Latin})\p{L}/u.test(label)

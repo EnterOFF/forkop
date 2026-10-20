@@ -8,8 +8,6 @@ const PRIVATE_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 const PUBLIC_KEY = 'AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=';
 const SECOND_PUBLIC_KEY = 'AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI=';
 const PRESHARED_KEY = 'AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM=';
-// Standard base64 keys carry `/` and `+`, which a URL parser and a form-body
-// query parser respectively destroy.
 const SLASH_KEY = '//////////////////////////////////////////8=';
 const PLUS_KEY = '+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/s=';
 
@@ -155,8 +153,6 @@ AllowedIPs = 192.0.2.1, 2001:db8::1`);
     });
   });
 
-  // wg-quick and the WireGuard apps cut a line at its first #, and read a
-  // keepalive of off as none.
   it('reads a configuration the way wg-quick does', () => {
     const result = parseWireGuardConfig(`[Interface]
 PrivateKey = ${PRIVATE_KEY} # the laptop

@@ -2,11 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { makeDeviceOptionsExclusive } from '../conditions';
 
-// A rule can name the devices it applies to, and separately the devices whose
-// traffic it routes wholesale. A device in both lists is a contradiction the
-// generator cannot express, so each list drops what the other takes - live, while
-// the user is picking, rather than as a refusal on save.
-
 function deviceOption(values: string[]) {
   const widget = {
     values,
@@ -56,8 +51,6 @@ describe('two device lists that exclude each other', () => {
     expect(filtered.widget.values).toEqual([]);
   });
 
-  // Each list rewrites the other, so without a guard the first change would
-  // bounce between them.
   it('does not bounce the change back', () => {
     const { filtered, forced } = pair(['192.0.2.1/32'], ['192.0.2.1/32']);
 

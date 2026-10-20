@@ -26,9 +26,7 @@ import { addRoutingOptions } from './routing';
 export function createServerContent(section: CBISection) {
   injectServerStyles();
 
-  // Reading order: what the server is, who may connect, where their traffic goes,
-  // then how it is protected and carried. The cipher and the authentication switch
-  // come before the client list, because they decide what a client needs.
+  // The cipher and the authentication switch come before the client list: they decide what a client needs.
   addIdentityOptions(section);
   addTailscaleOptions(section);
   addJsonInboundOptions(section);

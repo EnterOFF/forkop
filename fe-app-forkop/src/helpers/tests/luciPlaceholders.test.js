@@ -1,8 +1,3 @@
-// The greyed-out examples in the Sections and Settings tabs are the only
-// documentation those fields have left, so each one is held against the very
-// validator the field runs on real input. A validator that grows stricter than
-// its own example fails here instead of in front of a user.
-
 import { describe, expect, it } from 'vitest';
 
 import { installLuciStubs, installUciStub } from './luciStubs';
@@ -112,8 +107,6 @@ describe('JSON placeholders', () => {
       }),
     ).toBe(true);
     expect(endpoint.tag.trim()).not.toBe('');
-    // The generator reads the endpoint tag as the name the tunnel is listed
-    // under, so an example without one would teach the wrong shape.
     expect(Buffer.from(endpoint.private_key, 'base64')).toHaveLength(32);
   });
 
@@ -128,8 +121,6 @@ describe('JSON placeholders', () => {
   it('offers a server-parameters patch the field does not refuse', () => {
     const patch = JSON.parse(section.OVERRIDE_PATCH_PLACEHOLDER);
 
-    // Every path with its own control above the field is rejected on save, so
-    // the example may not use one.
     expect(section.reservedOverridePatchPath(patch)).toBeUndefined();
   });
 });

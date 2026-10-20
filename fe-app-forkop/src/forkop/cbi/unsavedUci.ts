@@ -1,8 +1,7 @@
 import { FORKOP_UCI_PACKAGE } from '../../constants';
 
-// What uci holds for the Forkop package and has not pushed to the router: the
-// sections added, the options set and deleted, and the order a drag left the
-// rows in. uci.js keeps all of it in uci.state until the next save pushes it.
+// What uci.js holds in uci.state for the Forkop package until the next save pushes it: added
+// sections, set and deleted options, and the order a drag left the rows in.
 export interface UnsavedUci {
   values: unknown;
   creates: unknown;
@@ -34,8 +33,7 @@ export function captureUnsavedUci(): UnsavedUci {
 
 export function restoreUnsavedUci(unsaved: UnsavedUci) {
   const state = uci.state;
-  // A save pushes everything and reloads the package, after which there is
-  // nothing of the captured state left to go back to.
+  // A save pushed everything and reloaded the package, so nothing captured is left to restore.
   if (state.values[FORKOP_UCI_PACKAGE] !== unsaved.values) {
     return;
   }

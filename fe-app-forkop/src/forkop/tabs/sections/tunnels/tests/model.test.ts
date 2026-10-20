@@ -1,11 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ONE_SIDED_AMNEZIA_KEYS } from '../../../../../helpers/wireguard';
 
-// Traffic obfuscation on a WireGuard or WARP tunnel sends Amnezia's junk and
-// signature packets from this side only, so it may carry just the parameters a
-// plain peer never has to match; the header sizes and magic headers of an
-// AmneziaWG tunnel have to be the server's own.
-
 let model: typeof import('../model');
 beforeAll(async () => {
   vi.stubGlobal('_', (text: string) => text);

@@ -6,8 +6,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// The shapes luci-rpc and network.interface hand back on OpenWrt 24.10, taken
-// from a router with its addresses replaced.
 const hostHints = {
   '02:00:00:00:00:01': {
     ipaddrs: ['192.168.1.1'],
@@ -155,8 +153,6 @@ describe('the devices the picker offers', () => {
     expect(choices['192.168.1.54']).toBe('system');
   });
 
-  // A device that moved to another address stays a neighbour at the old one
-  // for a while, under the same hardware address and the same name.
   it('tells apart two addresses the router knows by one name', () => {
     const { choices } = buildLocalDevices(
       {
@@ -282,8 +278,6 @@ describe('the names monitoring puts to a source address', () => {
     );
   });
 
-  // A device reaches the proxy over IPv6 from its temporary addresses, which
-  // the router learns as neighbours of the device's hardware address.
   it('names a device by its IPv6 addresses too', () => {
     const { names } = buildLocalDevices(
       hostHints,

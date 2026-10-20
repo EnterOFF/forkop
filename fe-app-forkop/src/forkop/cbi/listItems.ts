@@ -1,13 +1,5 @@
-// The rendered entries of a dynamic list, reached through their DOM nodes.
-//
-// LuCI's DynamicList keeps each entry's real value in a hidden input inside the
-// entry and shows a label beside it, so the two can differ: a child item shows
-// the name the user gave it while the list stores the id of its section. Every
-// helper here works that pair, which is why they all start by finding the hidden
-// input and checking it belongs to the entry rather than to a nested one.
-
-// The hidden input holding an entry's stored value, or null when the node given
-// is not an entry.
+// LuCI's DynamicList keeps each entry's value in a hidden input and shows a label beside it, so
+// a child item shows its name while the list stores its section id.
 
 import { E } from '../../helpers/element';
 import { message } from '../../validators/messages';
@@ -54,8 +46,6 @@ export function dynamicListItemValues(dl: HTMLElement): string[] {
     .filter((value): value is string => value != null);
 }
 
-// The label a child item list shows for one entry: the name the item was given
-// rather than the id the widget stores under it.
 export function renderChildItemLabel(
   option: CBIOption,
   sectionId: string,
@@ -112,9 +102,7 @@ export function addDynamicListItem(
   return findDynamicListItemByValue(widget.node, normalized);
 }
 
-// The add button of a list that adds through a dialog rather than by typing: it
-// is rebuilt as a dropdown control so it lines up with the entries above it and
-// carries the caption the option asked for.
+// Rebuilt as a dropdown control so it lines up with the entries above it.
 export function updateButtonAddDynamicListLayout(
   dl: HTMLElement,
   label?: string,

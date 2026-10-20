@@ -1,15 +1,9 @@
-// Loads a LuCI view module the way the LuCI loader does, so a test can call it
-// instead of slicing function bodies out of the source text.
-//
-// A LuCI view starts with "require <class>" strings: they look like statements
-// but the loader reads them as directives and resolves each dependency before
-// evaluating the rest of the file. The file then ends in a
-// `return baseclass.extend({...})` that names its public surface.
+// Loads a LuCI view module the way the LuCI loader does: leading "require" strings are
+// directives, and the file ends in `return baseclass.extend({...})`.
 import fs from 'fs';
 import path from 'path';
 
-// LuCI installs a printf-like String.prototype.format that view code uses for
-// its messages.
+// luci.js installs String.prototype.format, which view code uses.
 if (!String.prototype.format) {
   String.prototype.format = function (...args) {
     let index = 0;
@@ -35,7 +29,6 @@ export function createLoader(viewDir, globals = {}) {
         deps.push([matched[1], matched[2]]);
         continue;
       }
-      // The directives are the leading string literals; stop at real code.
       if (trimmed && !/^"[^"]*";$/.test(trimmed)) break;
     }
 

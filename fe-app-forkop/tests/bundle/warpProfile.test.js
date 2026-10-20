@@ -1,7 +1,3 @@
-// The WARP profile button in the tunnel dialog, pressed through the shipped
-// bundle. A generation the router refused is in the log with its reason, and
-// the log raises that line as an alert, so the dialog raising one of its own
-// would say the same failure twice.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';

@@ -2,12 +2,9 @@ import { FORKOP_UCI_PACKAGE } from '../../constants';
 import { message } from '../../validators/messages';
 import { getUciSectionLabel, getUciSectionName } from './uci';
 
-// A dropdown hands back one of its own entries and nothing else. A stored section
-// name it has no entry for - the section was deleted or switched off - is therefore
-// replaced on save by whichever entry happens to come first, and traffic quietly
-// leaves through a section the user never chose. Keeping the stored name in the
-// list leaves the value where it is, and validateSectionChoice marks it until
-// another section is picked.
+// A dropdown hands back only its own entries, so a stored section it lacks (deleted or switched
+// off) would be replaced on save by the first entry. The stored name is kept as an entry, and
+// validateSectionChoice marks it.
 export function keepUnavailableSectionChoice(
   option: CBIOption,
   storedValue: unknown,
@@ -32,7 +29,6 @@ export function keepUnavailableSectionChoice(
   );
 }
 
-// The check of a field that names the section something goes through.
 export function validateSectionChoice(
   option: CBIOption,
   value: unknown,

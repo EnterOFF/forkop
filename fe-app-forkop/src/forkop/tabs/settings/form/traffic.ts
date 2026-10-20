@@ -6,8 +6,6 @@ import {
 import { getClashUIUrl } from '../../../../helpers/getClashApiUrl';
 import { required } from '../../../cbi/required';
 
-// The dashboard the router serves, and the two kinds of traffic that are
-// better off outside the proxy.
 export function addTrafficOptions(section: CBISection) {
   let o = section.option(
     form.Flag,
@@ -53,8 +51,8 @@ export function addTrafficOptions(section: CBISection) {
   );
   o.default = '0';
   o.rmempty = false;
-  // The API service is in the core only with its tag. Without it the setting is
-  // shown only while it is still on, so it can be switched off.
+  // The API service exists only with its tag; without it the setting shows only while on, so it can
+  // be switched off.
   o.checkDepends = function (sectionId: string) {
     return coreHas('api') || this.cfgvalue(sectionId) === '1';
   };

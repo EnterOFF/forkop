@@ -68,8 +68,6 @@ describe('the source of a Monitoring connection', () => {
     expect(source.search).toContain('203.0.113.9');
   });
 
-  // The core reports an OpenVPN client by the certificate the router issued it,
-  // which is named after the client's section.
   it('names a client of an OpenVPN server as the client was named', () => {
     const source = describe_(
       connection('openvpn-server/Office', '10.8.0.2', 'cfg0a1b2c'),
@@ -82,8 +80,6 @@ describe('the source of a Monitoring connection', () => {
     );
   });
 
-  // The core reports no user for a WireGuard client, and the addresses in its
-  // tunnel are the ones the router gave it.
   it('names a client of a WireGuard server by its tunnel address', () => {
     const source = describe_(connection('amneziawg/Home', 'fd00:8::2'));
     expect(sourceLabel(source.name, source.detail)).toBe('Phone · Home');
@@ -106,16 +102,12 @@ describe('the source of a Monitoring connection', () => {
     );
   });
 
-  // The Clash API reports the inbound as its type, a slash and its tag, and a
-  // server's tag is its name, which may hold a slash of its own.
   it('finds a server whose name holds a slash', () => {
     expect(label(connection('vless/Home/Work', '203.0.113.9', 'alice'))).toBe(
       'alice · Home/Work',
     );
   });
 
-  // A phone on the Wi-Fi that also runs a client of the router's server sends
-  // both kinds from one address; the filter used to call the phone the server.
   it('keeps a device apart from the server client on the same address', () => {
     const lan = describe_(connection('tproxy/tproxy-in', '192.168.1.121'));
     const client = describe_(

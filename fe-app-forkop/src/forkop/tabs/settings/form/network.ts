@@ -6,8 +6,6 @@ import {
   SYSTEM_DEVICE_VALUE,
 } from '../../../cbi/localDevices';
 
-// Which interfaces Forkop takes traffic from and sends it out of, and the
-// devices it leaves alone entirely.
 export function addNetworkOptions(section: CBISection) {
   const excludedDevicesOption = section.option(
     form.DynamicList,
@@ -48,31 +46,25 @@ export function addNetworkOptions(section: CBISection) {
   o.noinactive = false;
   o.multiple = true;
   o.filter = function (section_id: string, value: string) {
-    // Block specific interface names from being selectable
     const blocked = ['wan', 'phy0-ap0', 'phy1-ap0', 'pppoe-wan'];
     if (blocked.includes(value)) {
       return false;
     }
 
-    // Try to find the device object by its name
     // DeviceSelect fills its device list before it calls filter().
     const device = this.devices!.find(
       (dev: NetworkDevice) => dev.getName() === value,
     );
 
-    // If no device is found, allow the value
     if (!device) {
       return true;
     }
 
-    // Check the type of the device
     const type = device.getType();
 
-    // Consider any Wi-Fi / wireless / wlan device as invalid
     const isWireless =
       type === 'wifi' || type === 'wireless' || type.includes('wlan');
 
-    // Allow only non-wireless devices
     return !isWireless;
   };
 
@@ -95,20 +87,16 @@ export function addNetworkOptions(section: CBISection) {
   o.multiple = false;
   o.depends('enable_output_network_interface', '1');
   o.filter = function (section_id: string, value: string) {
-    // Blocked interface names that should never be selectable
     const blockedInterfaces = ['br-lan'];
 
-    // Reject immediately if the value matches any blocked interface
     if (blockedInterfaces.includes(value)) {
       return false;
     }
 
-    // Reject lan*
     if (value.startsWith('lan')) {
       return false;
     }
 
-    // Reject tun*, wg*, vpn*, awg*, oc*
     if (
       value.startsWith('tun') ||
       value.startsWith('wg') ||
@@ -119,21 +107,17 @@ export function addNetworkOptions(section: CBISection) {
       return false;
     }
 
-    // Try to find the device object with the given name
     // DeviceSelect fills its device list before it calls filter().
     const device = this.devices!.find(
       (dev: NetworkDevice) => dev.getName() === value,
     );
 
-    // If no device is found, allow the value
     if (!device) {
       return true;
     }
 
-    // Get the device type (e.g., "wifi", "ethernet", etc.)
     const type = device.getType();
 
-    // Reject wireless-related devices
     const isWireless =
       type === 'wifi' || type === 'wireless' || type.includes('wlan');
 
@@ -159,17 +143,14 @@ export function addNetworkOptions(section: CBISection) {
   o.retain = true;
   o.multiple = true;
   o.filter = function (section_id: string, value: string) {
-    // Reject if the value is in the blocked list ['lan', 'loopback']
     if (['lan', 'loopback'].includes(value)) {
       return false;
     }
 
-    // Reject if the value starts with '@' (means it's an alias/reference)
     if (value.startsWith('@')) {
       return false;
     }
 
-    // Otherwise allow it
     return true;
   };
 

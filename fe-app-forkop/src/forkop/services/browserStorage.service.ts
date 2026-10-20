@@ -1,6 +1,4 @@
-// The browser's stores, when there are any. A browser configured to block site
-// data throws on the property rather than answering null, and a page rendered
-// for a thumbnail has no window at all, so every reader goes through here.
+// A browser blocking site data throws on the property, and a thumbnail render has no window.
 function getStorage(name: 'sessionStorage' | 'localStorage'): Storage | null {
   if (typeof window === 'undefined') {
     return null;

@@ -15,15 +15,12 @@ ${LogsTab.styles}
 ${PartialStyles}
 
 
-/* The version beside the name. The theme draws h2 small in its lowest text
-   colour, which its dark variant makes nearly black on black. */
+/* The theme draws h2 small in its lowest text colour, nearly black on black in its dark variant. */
 #cbi-${FORKOP_CBI_PREFIX} > h2 > small {
     color: var(--text-color-medium, #888);
     font-weight: normal;
 }
 
-/* The service state after the version, muted like it; only the dot carries
-   the colour of the state, and it pulses while an operation runs. */
 .fkp_page-status {
     margin-left: 0.4em;
     white-space: nowrap;
@@ -112,9 +109,7 @@ ${PartialStyles}
     justify-content: center;
 }
 
-/* Rotate class helper. Each spinner is handed an animation-delay that places it
-   in this turn - see helpers/spinPhase.ts - so the period has to stay the one
-   that delay is a fraction of. */
+/* Spinners get an animation-delay that is a fraction of this period (helpers/spinPhase.ts). */
 .rotate {
     animation: spin ${SPIN_PERIOD_MS}ms linear infinite;
 }

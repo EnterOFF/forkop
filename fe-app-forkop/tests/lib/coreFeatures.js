@@ -1,7 +1,5 @@
-// What the router reports about an installed core, for the tests that build the
-// page against one. The base build's report is core_report_base in
-// tests/fixtures/page_contract.json, which tests/page/contract.test.uc holds to
-// singbox/features.uc; any other build is that report with tags changed.
+// The base build's report is core_report_base in tests/fixtures/page_contract.json; other
+// builds are that report with tags changed.
 import fs from 'fs';
 import path from 'path';
 
@@ -25,7 +23,6 @@ export function coreFeatures({ add = [], remove = [] } = {}) {
   return report;
 }
 
-// The links the router reads by the same cases, [link, features needed].
 export function linkFeatureCases() {
   return contract().link_features;
 }

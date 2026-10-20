@@ -155,9 +155,7 @@ function renderLoaderCircleIcon24() {
       "stroke-linecap": "round",
       "stroke-linejoin": "round",
       class: "lucide lucide-loader-circle rotate",
-      // The turn is the .rotate keyframes; this is where in the turn this
-      // particular spinner starts, so that one built to replace another picks up
-      // where it left off.
+      // Where in the .rotate turn this spinner starts, so a replacement picks up where its predecessor was.
       style: spinPhaseStyle()
     },
     [
@@ -1238,9 +1236,7 @@ function renderDefaultState({
         ]
       )
     ]),
-    // Everything below the title is what folds away: the subscription lines
-    // and every card. What stays is the title row, so the section is still
-    // there to unfold and its actions still work on it.
+    // Everything below the title folds away; the title row and its actions stay.
     ...collapsed ? [] : [
       textE("div", { class: "fkp_dashboard-page__outbound-grid" }, [
         ...metadataNodes,
@@ -1636,7 +1632,6 @@ function render() {
     },
     [
       textE("div", { class: "fkp_dashboard-page__content" }, [
-        // Widgets section
         textE("div", { class: "fkp_dashboard-page__widgets-section" }, [
           textE(
             "div",
@@ -1680,7 +1675,6 @@ function render() {
           )
         ]),
         textE("div", { id: "dashboard-sections-toolbar" }),
-        // All outbounds
         textE(
           "div",
           { id: "dashboard-sections-grid" },
@@ -2024,8 +2018,7 @@ var ForkopShellMethods = {
   checkServers: async () => diagnosticCheck(
     Forkop.AvailableMethods.CHECK_SERVERS
   ),
-  // The checks the page ran go along, so the router masks them by the same
-  // rules as the rest of the report.
+  // The router masks the checks by the same rules as the rest of the report.
   report: async (masked, checks) => diagnosticCheck(Forkop.AvailableMethods.REPORT, [
     masked ? "masked" : "raw",
     checks
@@ -2044,8 +2037,7 @@ var ForkopShellMethods = {
     "/usr/bin/forkop",
     { timeout: 1e4 }
   ),
-  // Through the CLI, not the init script: every init script command waits on
-  // procd's per-service lock, and the CLI writes the rc.d symlink at once.
+  // Through the CLI: init script commands wait on procd's per-service lock.
   enable: async () => callBaseMethod(Forkop.AvailableMethods.ENABLE),
   disable: async () => callBaseMethod(Forkop.AvailableMethods.DISABLE),
   showConfig: async (masked = true) => callBaseMethod(Forkop.AvailableMethods.SHOW_CONFIG, [
@@ -2055,9 +2047,8 @@ var ForkopShellMethods = {
     masked ? "masked" : "raw"
   ]),
   checkLogs,
-  // Working the versions out is a CLI run that asks the package manager and
-  // sing-box. The state service holds the answer for as long as the installed
-  // packages have not changed; the CLI is what answers when it is not running.
+  // The state service holds the versions until the installed packages change; the CLI answers
+  // when it is not running.
   getSystemInfo: async () => {
     const served = await callUbus({
       object: "forkop",
@@ -4662,8 +4653,7 @@ function createPollChain(run, nextDelay) {
       running = false;
       clearTimer();
     },
-    // Asks now instead of waiting out the delay. A request already on its way
-    // is left to finish; it schedules the next one itself.
+    // A request already on its way finishes and schedules the next one itself.
     now() {
       if (!active || running) {
         return;
@@ -5497,10 +5487,7 @@ function renderUrlTestInfoModal(info) {
               ].filter(Boolean).join(" ")
             },
             [
-              // The name and its latency share one cell so they can wrap
-              // against each other: a name with no room left for the
-              // latency drops it onto the next line instead of taking the
-              // copy action down with it.
+              // Name and latency share one cell, so they wrap against each other and the copy action stays put.
               textE(
                 "div",
                 {
@@ -5696,8 +5683,7 @@ function renderFallbackMemberRow(info, member, showLevel) {
       }
     },
     [
-      // Same cell for the name and its latency as a URLTest row, and for the
-      // same reason: the pair wraps against itself and the pin action stays put.
+      // One cell for the name and its latency, as in a URLTest row.
       textE("div", { class: "fkp_dashboard-page__urltest-details__row-body" }, [
         textE("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
           textE(
@@ -6243,9 +6229,8 @@ var styles3 = `
     max-width: 100% !important;
 }
 
-/* What makes the page fill the column: a DummyValue's value reaches the theme
-   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
-   the page would be as wide as its own content. */
+/* A DummyValue's value sits in an <output> inside the theme's flex row; this makes the page
+fill the column. */
 #cbi-${FORKOP_UCI_PACKAGE}-dashboard-_mount_node {
     display: block !important;
 }
@@ -6254,9 +6239,7 @@ var styles3 = `
     display: none;
 }
 
-/* The columns follow the width the page is given, not the window: a theme with
-   a sidebar leaves the page far less than the viewport, and four columns that
-   need 750px would run out of the card. */
+/* Columns follow the page's width, not the window's: a theme sidebar leaves far less. */
 .fkp_dashboard-page {
     width: 100%;
     container-type: inline-size;
@@ -6287,8 +6270,6 @@ var styles3 = `
     grid-gap: 10px;
 }
 
-/* Each widget sits in the placeholder it is rendered into, and the grid
-   stretches that placeholder to the height of the row, not the widget. */
 .fkp_dashboard-page__widgets-section__item {
     box-sizing: border-box;
     height: 100%;
@@ -6305,10 +6286,7 @@ var styles3 = `
     gap: 6px;
 }
 
-/* A section opens with a header band in the colour of its outline: with a
-   dozen sections of a dozen nodes each, the eye has to find where one section
-   starts before it can read any of it, and the outline alone, the same one
-   every card inside has, marked nothing. */
+/* A header band in the outline's colour marks where each section starts. */
 .fkp_dashboard-page__outbound-section {
     margin-top: 12px;
     border: 2px var(--background-color-low, lightgray) solid;
@@ -6399,9 +6377,6 @@ var styles3 = `
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
-/* A disclosure in front of the title, where every section has it at the same
-   place whatever its actions are: down while the cards show, right once they
-   are folded away. */
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse {
     width: 22px;
     height: 22px;
@@ -6421,8 +6396,6 @@ var styles3 = `
     transition: opacity 0.15s ease;
 }
 
-/* The whole header folds the section, so hovering anywhere on it lights the
-   chevron, in the header's own text colour rather than an accent. */
 .fkp_dashboard-page__outbound-section__title-section--foldable:hover .btn.fkp_dashboard-page__outbound-section__collapse,
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:focus-visible {
     opacity: 1;
@@ -6467,8 +6440,6 @@ var styles3 = `
     min-width: 0;
 }
 
-/* The tag and the title are the subscription's name, set apart by the same
-   0.4rem a node name keeps from its tag in the cards below. */
 .fkp_dashboard-page__subscription-meta__name {
     flex: 0 1 auto;
     display: flex;
@@ -6486,8 +6457,7 @@ var styles3 = `
     white-space: nowrap;
 }
 
-/* The tag carries its own right margin for when it is printed in front of a
-   node name. Here it is a flex item and the name's gap separates it. */
+/* The tag's own right margin is for node names; here the flex gap separates it. */
 .fkp_dashboard-page__subscription-meta__heading
     .fkp_dashboard-page__outbound-grid__item__subscription-tag {
     margin-right: 0;
@@ -6551,8 +6521,6 @@ var styles3 = `
     text-underline-offset: 3px;
 }
 
-/* The provider's own words, set off from the facts above them but no louder
-   than them: the bar across the card stays, in a fainter fill and stripe. */
 .fkp_dashboard-page__subscription-meta__announce {
     margin: 6px 0 0;
     border-left: 2px solid var(--primary-color-low, dodgerblue);
@@ -6834,11 +6802,7 @@ var styles3 = `
     scrollbar-gutter: auto;
 }
 
-/* A node: its name and latency on the left, the row's own action on the right.
-   The action keeps a column of its own so it stays on the row's first line
-   whatever the name does - placed after a full-width latency, auto-placement put
-   it on a third line of its own, and every one of a hundred rows was 86px tall
-   on a narrow window. */
+/* The action keeps its own column, so it stays on the row's first line however the name wraps. */
 .fkp_dashboard-page__urltest-details__row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 20px;
@@ -6892,11 +6856,8 @@ var styles3 = `
     line-height: 1.35;
 }
 
-/* The name and the latency it belongs to, side by side while both fit and
-   stacked when they stop fitting. Which rows need the break depends on how long
-   each name is, so the row decides for itself rather than every row breaking at
-   one width of the window: the latency keeps its own width beside the name, and
-   below that drops under it. Either way it is flush with the row's right edge. */
+/* Name and latency side by side while both fit, stacked when they do not; each row decides by
+its own name's length. */
 .fkp_dashboard-page__urltest-details__row-body {
     display: flex;
     flex-wrap: wrap;
@@ -7018,9 +6979,7 @@ var styles3 = `
     margin-top: 14px;
 }
 
-/* The parameter list is two columns of label and value, and there is no window
-   narrow enough for both that is also wide enough to read them. The node rows
-   need nothing here: each one wraps against its own content. */
+/* Too narrow for the two-column parameter list. */
 @media (max-width: 560px) {
     .fkp_dashboard-page__urltest-details__params {
         grid-template-columns: 1fr;
@@ -8247,9 +8206,8 @@ function renderDiagnosticAvailableActionsWidget() {
     stop: { ...controls.stop, onClick: handleStop },
     enable: { ...autostart.enable, onClick: handleEnable },
     disable: { ...autostart.disable, onClick: handleDisable },
-    // Read-only actions are never gated by service state or by another action:
-    // they answer questions, and the questions matter most when something is
-    // wrong. Each one still blocks its own double submit while it runs.
+    // Read-only actions are never gated by the service state or another action; each only blocks its
+    // own double submit.
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,
       visible: true,
@@ -8469,21 +8427,16 @@ var styles4 = `
     display: none;
 }
 
-/* The page takes the width of the content column, as the other tabs do. The
-   tab is one DummyValue, and the theme lays a .cbi-value out as a flex row, where
-   the page would be as wide as its content and would grow with whatever a check
-   reports. The layout follows that width rather than the window's. */
+/* The tab is one DummyValue inside the theme's flex row; this makes the page take the column's
+width. */
 #cbi-${FORKOP_UCI_PACKAGE}-diagnostic-_mount_node {
     display: block;
     container-type: inline-size;
 }
 
-/* The controls are as wide as their own buttons need, never narrower than the
-   longest system information row on one line - "Sing-box
-   1.13.18-extended-2.6.5-f100" is 264px with the card around it. The checks sit
-   beside them at a reading width, and a check value with nothing to break at
-   wraps inside that width: nothing a check reports widens the page or moves the
-   controls. */
+/* The controls take what their buttons need, never less than the longest system information
+row; the checks sit beside them at a reading width, so nothing a check reports moves the
+controls. */
 .fkp_diagnostic-page {
     display: grid;
     grid-template-columns: minmax(17rem, max-content) minmax(0, 38rem);
@@ -8515,10 +8468,7 @@ var styles4 = `
     margin-left: 0;
 }
 
-/* System information does not get a vote on how wide the column is: its values
-   arrive one at a time, and a column measured against them steps sideways once
-   per row while the page fills in. A definite zero width keeps the block out of
-   that measurement, and the percentage minimum fills the column it is given. */
+/* A definite zero width keeps the rows, which arrive one at a time, from resizing the column. */
 .fkp_diagnostic-page__controls__system-info {
     width: 0;
     min-width: 100%;
@@ -8538,8 +8488,7 @@ var styles4 = `
     grid-column-gap: 5px;
 }
 
-/* A version string carries no space to break at, so it may break anywhere and
-   wraps inside the controls column instead of widening it. */
+/* A version string has nowhere to break, so it may break anywhere. */
 .fkp_diagnostic-page__controls__system-info__row > div {
     min-width: 0;
     overflow-wrap: anywhere;
@@ -8551,7 +8500,6 @@ var styles4 = `
     grid-row-gap: 10px;
 }
 
-/* The run, and under it the report of what the run found. */
 .fkp_diagnostic-page__run_check_wrapper {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -8594,14 +8542,11 @@ var styles4 = `
     cursor: pointer;
 }
 
-/* The state icon and the chevron at the other end of the header share its
-   centre line; inline, the icon sat on a text baseline 2.5px above it. */
+/* The state icon and the chevron share the header's centre line. */
 .fkp_diagnostic_alert__icon {
     display: flex;
 }
 
-/* The fold of a check, at the end of its header: up while the details show,
-   down once they are folded away, in the header's own colour. */
 .fkp_diagnostic-page .btn.fkp_diagnostic_alert__toggle {
     width: 22px;
     height: 22px;
@@ -8656,7 +8601,6 @@ var styles4 = `
     display: block;
 }
 
-/* Under the title, past the state icon and its gap. */
 .fkp_diagnostic_alert__summary {
     margin: 10px 0 0 34px;
 }
@@ -8667,19 +8611,14 @@ var styles4 = `
     grid-column-gap: 10px;
 }
 
-/* A key and the value it labels, side by side while both fit and stacked when
-   they stop fitting. Whether a row needs the break depends on how long its own
-   key is, so each row decides for itself: the value keeps 8rem beside its key,
-   and below that drops under it with the full width of the row. */
+/* Key and value side by side while both fit, stacked otherwise; each row decides by its own key. */
 .fkp_diagnostic_alert__summary__item__body {
     display: flex;
     flex-wrap: wrap;
     column-gap: 10px;
 }
 
-/* Neither cell may be wider than what it was given. A key or a value with
-   nothing to break at - an address list, a version, a server name - would
-   otherwise be the width of the row it sits in. */
+/* An address list, a version or a server name has nowhere to break and would widen the row. */
 .fkp_diagnostic_alert__summary__item__key {
     min-width: 0;
     overflow-wrap: anywhere;
@@ -10424,11 +10363,8 @@ async function initController3() {
 
 // src/forkop/tabs/monitoring/styles.ts
 var styles5 = `
-/* The page takes the width of the content column, which it cannot do on its own.
-   The tab is one DummyValue, and LuCI hands its value to the theme inside an
-   <output>; the theme lays a .cbi-value out as a flex row, so that <output> is a
-   flex item as wide as its own content. A block mount node gives the page's
-   width: 100% something to resolve against. */
+/* The tab is one DummyValue inside the theme's flex row; a block mount node gives the page's
+width: 100% something to resolve against. */
 #cbi-${FORKOP_UCI_PACKAGE}-monitoring-_mount_node {
     display: block;
     margin: 16px 0 22px;
@@ -10439,8 +10375,7 @@ var styles5 = `
     display: none;
 }
 
-/* The layout follows the width the page is given, not the window: a theme with
-   a sidebar hands it a column far narrower than the viewport. */
+/* Follows the page's width, not the window's: a theme sidebar leaves far less. */
 .fkp_monitoring-page {
     --fkp-monitoring-row-action-size: 24px;
     --fkp-monitoring-divider-color: rgba(127, 127, 127, 0.22);
@@ -10473,11 +10408,8 @@ var styles5 = `
     margin-bottom: 12px;
 }
 
-/* The tabs are the theme's own, the way LuCI's software page switches its
-   lists; only the count beside each name is the page's. */
-/* The free end of the tab bar, so showing it moves nothing: the list stays
-   put under a selection being made in it. It is no tab, so the theme's tab
-   rules leave it alone, and it takes only what the tabs leave. */
+/* The free end of the tab bar, so showing it moves nothing; it is no tab, so the theme's tab
+rules leave it alone. */
 .fkp_monitoring-page__pause-note {
     flex: 1 1 0;
     min-width: 0;
@@ -10499,9 +10431,8 @@ var styles5 = `
     font-variant-numeric: tabular-nums;
 }
 
-/* A theme may put its own dropdown next to the select and hide the select, so
-   the columns are filled in order rather than assigned to named children, and
-   whatever fills one is held to it. */
+/* A theme may replace the select with its own dropdown, so columns fill in order rather than by
+named children. */
 .fkp_monitoring-page__filters {
     grid-area: filters;
     display: grid;
@@ -10577,11 +10508,8 @@ var styles5 = `
     min-width: 0;
 }
 
-/* Every row is a subgrid of the list, so a column is as wide as its widest
-   value or heading and what is left is shared out evenly, the way a table
-   shares it. Only the host, the source and the route give way when the width
-   runs short. A list whose connections can be closed has one more column for
-   the button. */
+/* Every row is a subgrid, so columns size like a table's; only host, source and route give way
+when the width runs short. */
 .fkp_monitoring-page__list {
     --fkp-monitoring-columns:
         minmax(8em, auto)
@@ -10762,9 +10690,7 @@ var styles5 = `
     }
 }
 
-/* Below this width every connection becomes a three-line card built from the
-   same cells: the host with the close action, the source with route and
-   protocol, the duration with the traffic counters. */
+/* Below this width every connection becomes a three-line card. */
 @container (max-width: 639px) {
     .fkp_monitoring-page__list {
         display: block;
@@ -11088,9 +11014,8 @@ var styles6 = `
     max-width: 100% !important;
 }
 
-/* What makes the page fill the column: a DummyValue's value reaches the theme
-   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
-   the page would be as wide as its own content. */
+/* A DummyValue's value sits in an <output> inside the theme's flex row; this makes the page
+fill the column. */
 #cbi-${FORKOP_UCI_PACKAGE}-logs-_mount_node {
     display: block !important;
     margin: 16px 0 22px;
@@ -11101,8 +11026,7 @@ var styles6 = `
     display: none;
 }
 
-/* The toolbar follows the width the page is given, not the window, and the
-   search field keeps the theme's own height, the one its buttons have. */
+/* The search field keeps the theme's height, the one its buttons have. */
 .fkp_logs-page {
     container-type: inline-size;
 }
@@ -11240,15 +11164,12 @@ ${LogsTab.styles}
 ${PartialStyles}
 
 
-/* The version beside the name. The theme draws h2 small in its lowest text
-   colour, which its dark variant makes nearly black on black. */
+/* The theme draws h2 small in its lowest text colour, nearly black on black in its dark variant. */
 #cbi-${FORKOP_UCI_PACKAGE} > h2 > small {
     color: var(--text-color-medium, #888);
     font-weight: normal;
 }
 
-/* The service state after the version, muted like it; only the dot carries
-   the colour of the state, and it pulses while an operation runs. */
 .fkp_page-status {
     margin-left: 0.4em;
     white-space: nowrap;
@@ -11337,9 +11258,7 @@ ${PartialStyles}
     justify-content: center;
 }
 
-/* Rotate class helper. Each spinner is handed an animation-delay that places it
-   in this turn - see helpers/spinPhase.ts - so the period has to stay the one
-   that delay is a fraction of. */
+/* Spinners get an animation-delay that is a fraction of this period (helpers/spinPhase.ts). */
 .rotate {
     animation: spin ${SPIN_PERIOD_MS}ms linear infinite;
 }
@@ -12430,15 +12349,9 @@ var ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
 var SettingsDynamicList = form.DynamicList.extend({
   // ------------------------------------------------ what one entry is called
   //
-  // The text an entry shows and is looked up by. A saved entry is a child
-  // section id and shows what that section stores under childValueOption; a
-  // draft has no section yet and is its own text, which its dialog may have
-  // changed - a rename moves the list value with it, so the value the dialog
-  // holds is where the draft's settings are.
-  //
-  // A list with no childValueOption stores nothing to show: its entry is the
-  // section id itself, and reading a staged name here would make two tunnels
-  // called the same thing look like one entry.
+  // A saved entry is a child section id and shows what that section stores under
+  // childValueOption; a draft is its own text, which its dialog may have renamed. A list without
+  // childValueOption shows the section id itself.
   inputValueForItem(ownerId, value) {
     if (!this.childType || !this.childValueOption) {
       return `${value || ""}`.trim();
@@ -12454,8 +12367,6 @@ var SettingsDynamicList = form.DynamicList.extend({
     const renamed = staged ? staged[this.childValueOption] : null;
     return renamed ? `${renamed}` : inputValue;
   },
-  // What an entry's dialog has taken but not written yet, handed to the child
-  // section the moment that section is created.
   stagedChildSettings(ownerId, value) {
     const staged = childPendingSettingsStore(this, ownerId)[this.inputValueForItem(ownerId, value)];
     return staged ? Object.assign({}, staged) : null;
@@ -12473,17 +12384,13 @@ var SettingsDynamicList = form.DynamicList.extend({
       stagedSettings: (itemValue) => this.stagedChildSettings(ownerId, itemValue)
     };
   },
-  // What a typed entry of a list whose entries are sections becomes the moment
-  // it is added: its section, created with the text and the defaults, and the
-  // list holds the id. Two entries may hold the same text that way, a link
-  // dialled through two different cascades say, each with a name of its own.
+  // The typed entry becomes its section at once and the list holds the id, so two entries may
+  // hold the same text.
   createTypedItem(section_id, inputValue) {
     const ownerId = this.childOwner(section_id);
     return createChildItem(ownerId, this.childItemOptions(ownerId), inputValue).value;
   },
-  // Every entry the user has started has something to configure. A list whose
-  // entry has to be well formed first - a subscription is an address before it
-  // is anything - says so for itself.
+  // A list whose entry must be well formed first, a subscription address, says so itself.
   hasItemSettings(ownerId, value) {
     return this.inputValueForItem(ownerId, value).length > 0;
   },
@@ -12563,9 +12470,8 @@ var SettingsDynamicList = form.DynamicList.extend({
     }
     return node;
   },
-  // A list whose entries are sections is written on every save, also when it
-  // holds what it loaded: an entry added and taken out again leaves the list as
-  // it was, and only the write deletes its section.
+  // Written on every save: an entry added and taken out again leaves the list as loaded, and
+  // only the write deletes its section.
   parse(section_id) {
     this.forcewrite = this.entriesAreSections === true;
     if (this.isActive(section_id) && typeof this.validateItemsOnSave === "function") {
@@ -13470,10 +13376,7 @@ function renderStackedJsonSettingsModal(title, map, onSave, options = {}) {
     };
     buttonRow.textContent = "";
     buttonRow.append(
-      // This dialog is stacked on another one, and leaving it puts that one back
-      // rather than closing anything: `close` above takes the nested map out and
-      // restores the parent's own buttons. "Close" said the opposite of what the
-      // button does.
+      // Leaving a stacked dialog puts the parent back rather than closing anything.
       textE(
         "button",
         {
@@ -13535,9 +13438,7 @@ function showChildItemSettingsModal(section_id, itemValue, option2, settings) {
   const defaults = typeof settings.defaults === "function" ? settings.defaults(inputValue, existing) : Object.assign({}, settings.defaults || {});
   const initialSettings = existing ? readChildSettings(value, settings.keys, defaults) : Object.assign(
     {},
-    // A pending item is stored under its display value, so an item that is
-    // still being added has nothing to restore and must use fresh defaults
-    // instead of the state a dismissed modal left behind.
+    // An item still being added has nothing to restore and takes fresh defaults.
     inputValue ? pendingChildSettings(option2, section_id, inputValue, defaults) : defaults
   );
   const data = {
@@ -17190,15 +17091,13 @@ function tunnelStorageSettings(settings) {
     tailscale_auth_key: `${settings.tailscale_auth_key || ""}`.trim(),
     tailscale_hostname: `${settings.tailscale_hostname || ""}`.trim(),
     tailscale_control_url: `${settings.tailscale_control_url || ""}`.trim(),
-    // Every other field of a kind the tunnel is not collapses to nothing here;
-    // these two have a default, so they need the same gate or a WireGuard
-    // tunnel ends up storing an option it never showed.
+    // These two have defaults, so they need the kind gate or a WireGuard tunnel stores options it
+    // never showed.
     tailscale_accept_routes: kind === "tailscale" ? `${settings.tailscale_accept_routes || "1"}` : "",
     accept_server_dns: SERVER_DNS_TUNNEL_KINDS.includes(kind) ? `${settings.accept_server_dns || "1"}` : "",
     tailscale_exit_node: `${settings.tailscale_exit_node || ""}`.trim(),
     tailscale_detour_section: `${settings.tailscale_detour_enabled || ""}` === "1" ? `${settings.tailscale_detour_section || ""}`.trim() : "",
-    // The dialog drops the section along with its switch, so a section it
-    // still holds is one the switch is on for.
+    // The dialog drops the section with its switch, so a section still held means the switch is on.
     detour_section: CASCADE_TUNNEL_KINDS.includes(kind) ? `${settings.detour_section || ""}`.trim() : "",
     endpoint_json: NATIVE_ENDPOINT_KINDS.includes(kind) ? JSON.stringify(tunnelEndpointFromSettings(settings)) : kind === "json" ? `${settings.endpoint_json || ""}`.trim() : ""
   };
@@ -17921,8 +17820,6 @@ function sharedServerFilterDescriptions() {
     includeRegexDescription: _(
       "Servers whose names match the regular expression"
     ),
-    // Both filter modes offer an Exclude by pattern row, and neither of them
-    // needs to name what the pattern removes the servers from.
     excludeRegexDescription: _(
       "Remove servers whose names match the regular expression"
     ),
@@ -21187,8 +21084,7 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
     {
       singleField: true,
       saveLabel: _("Import"),
-      // The configuration file goes into the field and is imported at once; the
-      // files it names can be selected with it or after it.
+      // The configuration is imported at once; the files it names can be selected with it or after it.
       secondaryAction: {
         label: _("From a file\u2026"),
         icon: renderFolderOpenIcon24,
@@ -23165,8 +23061,7 @@ function buildVmessLink(sectionId, client) {
     id: client.uuid,
     aid: "0",
     scy: "auto",
-    // The transport as the query already spells it, so the one place that maps a
-    // stored raw onto tcp stays one place.
+    // As the query spells it, so the raw-to-tcp mapping stays in one place.
     net: transportParams.type,
     type: "none",
     host: transportParams.host || "",
@@ -24043,21 +23938,11 @@ function injectDetailsStyles() {
       "style",
       { id: DETAILS_STYLE_ID },
       [
-        // The summary is the same dl/dt/dd the URLTest and Fallback details build, not
-        // a grid of spans dressed to look like one. Half of how those labels read comes
-        // from the theme through the tag - dl dt is bold at line-height 18px - so
-        // copying their class rules onto other elements could never match them.
-        // The width comes from the same place too: all three are opened without
-        // cbi-modal, which is what the theme widens to a settings form.
+        // The same dl/dt/dd as the URLTest and Fallback details: the theme styles the tags, not classes.
+        // All three open without cbi-modal, which the theme widens to a settings form.
         ".fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}",
-        // A profile is a short file name and three buttons, so its dialog is
-        // narrower than the 760px a link needs, though not as narrow as they are.
         "#modal_overlay > .modal.fkp-details-modal--profiles{width:fit-content}",
         ".fkp-details--profiles{width:min(480px,calc(100vw - 56px))}",
-        // The clients one under another, each its name over what it is given; the
-        // name and its icon set one client off from the next. A column of names
-        // beside the links put the Close button under the last name, where it
-        // read as one more of them.
         ".fkp-details__client{display:grid;gap:6px;min-inline-size:0;padding-block:8px}",
         ".fkp-details__client:first-child{padding-top:0}",
         ".fkp-details__client:last-child{padding-bottom:0}",
@@ -24066,27 +23951,17 @@ function injectDetailsStyles() {
         ".fkp-details__name > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         ".fkp-details__links{display:grid;gap:6px;min-inline-size:0}",
         ".fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:4px;align-items:stretch;min-inline-size:0}",
-        // A profile is a file, not a value to read or select: its name behind a file
-        // icon, in a tile the size and outline of the field a link has, filled so
-        // it does not read as one to type in.
         ".fkp-details__file{display:flex;align-items:center;gap:6px;box-sizing:border-box;min-inline-size:0;min-block-size:30px;padding:0 8px;border:1px solid var(--border-color-high,rgba(128,128,128,.4));border-radius:3px;background:var(--background-color-low,rgba(128,128,128,.08))}",
         ".fkp-details__file > svg{flex:none;color:var(--text-color-medium,#888)}",
         ".fkp-details__file > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
         ".fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
         ".fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
         ".fkp-details__empty{color:var(--text-color-medium,#666)}",
-        // The theme lays a modal button row out as space-between and gives the first
-        // button a margin-right of auto, so where a lone button lands is the theme's
-        // choice rather than this dialog's. These two rules make it the dialog's: at
-        // the left of the row, the same place as in the URLTest and Fallback details.
-        // A bare class loses to both of the theme's selectors, so the override
-        // extends the same ones.
+        // The theme lays a modal button row out space-between with an auto margin on the first button;
+        // these selectors match its specificity to put a lone button on the left.
         ".modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}",
         ".modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}",
-        // The dialog is as wide as the code, and everything under the code fits that
-        // width: 16rem, or three pixels a module for a code as large as a profile's.
-        // The white edge is the code's own quiet zone, the four modules the standard
-        // asks for and nothing more, with the 4px corners of every block on the page.
+        // The dialog is as wide as the code, with the standard four-module quiet zone.
         "#modal_overlay > .modal.fkp-qr-modal{width:fit-content}",
         ".fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(max(16rem,var(--fkp-qr-size,0px)),calc(100vw - 64px));padding-top:8px}",
         ".fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;background:#fff;border-radius:4px}",
@@ -24390,8 +24265,7 @@ function injectServerStyles() {
       "style",
       { id: STYLE_ID2 },
       [
-        // The generate button sits in the same grid the child item list uses, so it
-        // lines up with the input instead of floating next to it.
+        // In the child item list's grid, so the button lines up with the input.
         ".fkp-generate-row{--fkp-generate-gap:0.5em;--fkp-generate-size:2.5em;column-gap:var(--fkp-generate-gap);display:inline-grid;grid-template-columns:minmax(0,1fr) auto;max-inline-size:100%}",
         ".fkp-generate-row > :first-child{grid-column:1;min-inline-size:0}",
         ".fkp-generate-row > .fkp-generate{align-items:center;align-self:stretch;box-sizing:border-box;display:inline-flex;grid-column:2;inline-size:var(--fkp-generate-size) !important;justify-content:center;line-height:1;margin:0 !important;min-block-size:0;min-inline-size:0;padding:0 !important;float:none !important;user-select:none}",
@@ -26805,9 +26679,7 @@ function addMountedTab(map, type, title, tab) {
   mountTabOption(section2, type, tab);
 }
 var ForkopView = {
-  // The forms offer only what the installed core can run, so what it can do
-  // is read before they are built: one call the state service answers from
-  // memory.
+  // The forms offer only what the installed core can run, so its features load first.
   load() {
     return loadCoreFeatures().catch((error) => {
       console.warn("[CORE_FEATURES]", error);

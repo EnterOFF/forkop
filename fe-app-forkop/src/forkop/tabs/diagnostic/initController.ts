@@ -55,18 +55,12 @@ let diagnosticLifecycleRegistered = false;
 let diagnosticControllerInitialized = false;
 let diagnosticMounted = false;
 let diagnosticMountId = 0;
-// The check list has two owners. Idle, it is a placeholder naming the checks this
-// configuration calls for, and every capability read rebuilds it. From the
-// moment a run starts the list is the run's — its progress, and then its result —
-// until the page is left behind or a service action makes the result stale.
-// Everything else leaves it alone in between: a tab switch puts several
-// capability reads in flight at once, and none of them may rebuild the list
-// over what the run wrote into it.
+// Idle, the check list is a placeholder rebuilt by every capability read; from the start of a run
+// it belongs to the run until the page is left or a service action makes the result stale. A tab
+// switch starts several capability reads, and none may overwrite the run's list.
 let diagnosticsChecksOwnedByRun = false;
 const handledServiceActionJobs = new Set<string>();
-// What the reader folded or unfolded by hand, per check, until the next run
-// lays the list out again: a check with a problem opens, one that passed stays
-// a single line.
+// Folding chosen by hand, per check, until the next run lays the list out again.
 const checkFolding = new Map<string, boolean>();
 // What the service check of the run in flight found.
 let forkopRunningInRun = true;
@@ -110,9 +104,7 @@ function rebuildIdleDiagnosticsChecks(
   });
 }
 
-// Leaving the page and a service action that makes the result stale both end the
-// run's claim on the list. A run still filling it in keeps the claim: emptying the
-// list under a running pass leaves it writing checks into somebody else's list.
+// A run still filling the list keeps it.
 function releaseDiagnosticsChecks() {
   if (store.get().diagnosticsRunAction.loading) {
     return;
@@ -123,10 +115,8 @@ function releaseDiagnosticsChecks() {
   rebuildIdleDiagnosticsChecks();
 }
 
-// A click is reflected at once through the local overlay, and the runtime feed
-// is the single owner of everything after it: the running operation arrives as
-// `service.forkop.busy`, and the job's completion as its action entry flipping
-// to running=false. Nothing here polls for either.
+// A click shows at once through the local overlay; everything after comes from the runtime feed,
+// with nothing polled here.
 function setDiagnosticActionLoading(
   action: keyof StoreType['diagnosticsActions'],
   loading: boolean,
@@ -162,12 +152,8 @@ function getLocalPendingServiceOperation(
   return null;
 }
 
-// Runs on every runtime state notification for the life of the page: a finished
-// action is acknowledged once per job, wherever it was started, this page or
-// another; the feed keeps reporting a finished action until the acknowledgement
-// is collected. A failed one is not said here: every way a start, stop, restart
-// or reload fails is written to the log as an error with its reason, and a
-// logged error is already raised as an alert.
+// A finished action is acknowledged once per job, whichever page started it. Failures are not
+// reported here: each is logged as an error, which already raises an alert.
 function settleFinishedServiceActions(uiState: Forkop.UiState) {
   for (const action of uiState.actions.service || []) {
     if (!action.job_id || action.running) {
@@ -188,7 +174,6 @@ async function fetchSystemInfo() {
   rebuildIdleDiagnosticsChecks(await ensureSystemInfo());
 }
 
-// A fresh capability read rebuilds the check list unless a run owns it.
 function applyDiagnosticsCapabilities(
   nextSystemInfo: StoreType['diagnosticsSystemInfo'],
   resetChecks: boolean,
@@ -230,8 +215,7 @@ async function fetchDiagnosticsCapabilities({
       return;
     }
 
-    // Without the runtime feed the number of servers is unknown, and the
-    // servers check says for itself whether there is anything to check.
+    // Without the runtime feed the server count is unknown, and the servers check decides itself.
     const nextSystemInfo = {
       ...store.get().diagnosticsSystemInfo,
       capabilitiesLoaded: true,
@@ -317,11 +301,8 @@ function renderDiagnosticRunActionWidget() {
   });
 }
 
-// Starting the action is all the click does. The local overlay shows the
-// operation until the runtime reports the job, the runtime feed carries it from
-// there, and completion - success, failure, acknowledgement - is settled by the
-// feed listener. Only a start that never became a job is this handler's to
-// clean up, because in that case the feed has nothing to say.
+// Completion is settled by the feed listener; only a start that never became a job is cleaned
+// up here.
 async function handleServiceRuntimeAction(action: ServiceRuntimeAction) {
   setDiagnosticActionLoading(action, true);
 
@@ -352,10 +333,8 @@ async function handleStop() {
   await handleServiceRuntimeAction('stop');
 }
 
-// Autostart has no job and no local overlay standing in for it: which of the
-// two buttons is shown follows `service.forkop.enabled` and nothing else. So
-// the pressed button keeps its spinner until the new value has arrived, and a
-// switch that did not move is said out loud.
+// Autostart has no job: the shown button follows service.forkop.enabled, so the pressed one spins
+// until the new value arrives, and a switch that did not move is reported.
 async function handleAutostartAction(
   action: 'enable' | 'disable',
   request: () => Promise<{ success: boolean }>,
@@ -388,8 +367,7 @@ async function handleDisable() {
   );
 }
 
-// The backend masks what these show, and the values are asked for again only
-// when the toggle says to show them.
+// The backend masks these, and values are fetched again only when the toggle asks to show them.
 function diagnosticText(
   load: (
     masked: boolean,
@@ -406,8 +384,7 @@ function diagnosticText(
   };
 }
 
-// A diagnostic shown in a dialog. The backend masks what it shows, and a read
-// that fails is said rather than only logged.
+// The backend masks what it shows, and a failed read is reported, not only logged.
 async function showDiagnosticModal(
   action: 'showConfig' | 'showSingBoxConfig',
   title: string,
@@ -437,9 +414,8 @@ async function showDiagnosticModal(
   }
 }
 
-// The report is the checks of the finished run as the page shows them, and
-// what the router adds to them. Masked, the router hides the same values in the
-// checks as in the rest.
+// The finished run's checks plus what the router adds; masked, the router hides the same values
+// in the checks.
 async function buildReport(masked: boolean) {
   const run = store.get().diagnosticsRunAction.finished;
   const attachments = await ForkopShellMethods.report(
@@ -512,8 +488,7 @@ function renderDiagnosticAvailableActionsWidget() {
     busy: serviceState.data.forkopBusy,
     localPending: getLocalPendingServiceOperation(diagnosticsActions),
   });
-  // The widget starts out loading with an empty snapshot; until the first one
-  // arrives there is nothing to say about the service.
+  // Nothing is said about the service until the first snapshot arrives.
   const stateKnown = !serviceState.loading || serviceState.failed;
   const controls = getServiceControlsPresentation({
     running: forkopRunning,
@@ -535,9 +510,8 @@ function renderDiagnosticAvailableActionsWidget() {
     stop: { ...controls.stop, onClick: handleStop },
     enable: { ...autostart.enable, onClick: handleEnable },
     disable: { ...autostart.disable, onClick: handleDisable },
-    // Read-only actions are never gated by service state or by another action:
-    // they answer questions, and the questions matter most when something is
-    // wrong. Each one still blocks its own double submit while it runs.
+    // Read-only actions are never gated by the service state or another action; each only blocks its
+    // own double submit.
     showConfig: {
       loading: diagnosticsActions.showConfig.loading,
       visible: true,
@@ -567,8 +541,7 @@ function renderDiagnosticSystemInfoWidget() {
     diagnosticsSystemInfo.forkop_version,
   );
   const luciVersion = normalizeCompiledVersion(FORKOP_LUCI_APP_VERSION);
-  // The two packages ship together, so the page's own version is worth a row
-  // only when it is not the one the backend reports.
+  // The page's own version shows only when it differs from the backend's.
   const items = [
     { key: 'Forkop', value: forkopVersion },
     ...(diagnosticsSystemInfo.loaded && luciVersion !== forkopVersion
@@ -631,8 +604,7 @@ function setDiagnosticCheck(code: DIAGNOSTICS_CHECKS, result: CheckOutcome) {
   });
 }
 
-// Everything after the service check needs the runtime; with Forkop down they
-// would only repeat that it is down, each in its own words.
+// With Forkop down the runtime checks would only repeat that it is down.
 function getDiagnosticRunners(
   checkOptions: DiagnosticsCheckOptions,
 ): DiagnosticRunner[] {
@@ -658,11 +630,8 @@ function getDiagnosticRunners(
   }));
 }
 
-// One pass, one page session. The run outlives the tab that started it: a LuCI tab
-// switch unmounts the page while the loop below keeps writing checks into the
-// shared store, so coming back just re-renders where it got to. The guard is what
-// keeps that to a single pass — every other entry point, a second click or a
-// remount, has to find the run already in flight and leave it alone.
+// One pass per page session. The run outlives the tab: a LuCI tab switch unmounts the page while
+// the loop keeps writing into the shared store, so coming back re-renders its progress.
 async function runChecks() {
   if (store.get().diagnosticsRunAction.loading) {
     return;
@@ -730,19 +699,15 @@ async function loadInitialDiagnosticData() {
   }
 }
 
-// Whichever mount is current owns the listeners. Detaching says nothing about the
-// check list: that belongs to the page being left, and to the run that may still
-// be writing into it.
+// The current mount owns the listeners; the check list belongs to the page and its run.
 function detachDiagnosticPage() {
   diagnosticMounted = false;
   diagnosticMountId += 1;
 
-  // Remove old listener
   store.unsubscribe(onStoreUpdate);
 }
 
 async function onPageMount() {
-  // Cleanup before mount
   detachDiagnosticPage();
 
   diagnosticMounted = true;
@@ -758,19 +723,14 @@ async function onPageMount() {
     }
   }
 
-  // Add new listener
   store.subscribe(onStoreUpdate);
 
-  // Initial checks render
   renderDiagnosticsChecks();
 
-  // Initial run checks action render
   renderDiagnosticRunActionWidget();
 
-  // Initial available actions render
   renderDiagnosticAvailableActionsWidget();
 
-  // Initial system info render
   renderDiagnosticSystemInfoWidget();
 
   if (hasRuntimeSnapshot) {
@@ -832,9 +792,7 @@ export async function initController(): Promise<void> {
 
   diagnosticControllerInitialized = true;
 
-  // For the life of the page, not the tab: a service action keeps running when
-  // the user wanders off to another tab, and its acknowledgement and failure
-  // report belong to whoever sees the feed next, not to a mount.
+  // For the life of the page: an action keeps running when the user leaves the tab.
   subscribeRuntimeUiState(settleFinishedServiceActions);
 
   onMount('diagnostic-status').then(() => {

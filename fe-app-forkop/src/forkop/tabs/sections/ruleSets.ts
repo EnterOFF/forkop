@@ -29,8 +29,7 @@ function ruleSetIncludesSubnets(section_id: string, value: string) {
   );
 }
 
-// A rule set is a URL or a path, too long for a dialog title; its file name is
-// what tells one from another.
+// URLs and paths are too long for a dialog title; the file name tells them apart.
 function ruleSetFileName(reference: string) {
   const path = reference.trim().split(/[?#]/u, 1)[0].replace(/\/+$/u, '');
   return path.slice(path.lastIndexOf('/') + 1);
@@ -114,8 +113,7 @@ function isBuiltinRulesetValue(value: string) {
   return Object.prototype.hasOwnProperty.call(DOMAIN_LIST_OPTIONS, value);
 }
 
-// A remote list or a file on the router, in the binary or JSON format sing-box
-// reads: the backend refuses a YAML list by its extension.
+// The backend refuses a YAML list by its extension.
 export function validateCustomRulesetReference(value: string) {
   if (!value) {
     return true;

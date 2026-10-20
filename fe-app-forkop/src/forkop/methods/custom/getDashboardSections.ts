@@ -163,8 +163,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
       }));
     }
 
-    // In configuration order, which is the order of the providers; two of them
-    // may fetch the same address.
+    // In configuration order, the order of the providers; two may fetch the same address.
     const subscriptions = subscriptionUrlItems
       .filter((item) => item.url)
       .map((item) => ({
@@ -269,8 +268,7 @@ function isConnectionAction(action?: string) {
   );
 }
 
-// What a refresh of the lists downloads again: a built-in list, or a rule set
-// named by its URL. A rule set named by a path is read from the router's disk.
+// A rule set named by a path is read from the router's disk, so only URLs and built-in lists count.
 function hasRemoteLists(section: Forkop.ConfigSection) {
   return (
     section['.type'] === 'section' &&
@@ -312,9 +310,8 @@ function isUrlTestEnabled(section: Forkop.ConfigSection) {
   return getUrlTestIds(section).length > 0;
 }
 
-// The same sources the generator counts before it gives a section a selector and
-// its own place in the runtime graph. A URLTest or a Fallback is not one of them:
-// a group draws its members from this list, so it cannot stand in for it.
+// The sources the generator counts before it gives a section a selector; groups draw their
+// members from these, so they cannot stand in for them.
 function shouldUseProxyGroup(section: Forkop.ConfigSection) {
   return (
     getManualProxyLinks(section).length > 0 ||
@@ -508,9 +505,8 @@ function getUrlTestDisplayName(
   );
 }
 
-// What an option a group leaves unset means. config/connections.uc gives the
-// generated configuration the same values, and tests/fixtures/page_contract.json
-// holds both sides to them.
+// What an unset group option means; config/connections.uc gives the generated configuration the
+// same values, and tests/fixtures/page_contract.json holds both.
 export const URLTEST_DEFAULTS = {
   testing_url: DEFAULT_LATENCY_TEST_URL,
   expected_status: '*',
@@ -792,9 +788,7 @@ function buildFallbackInfo({
   const runtimeGroups = Array.isArray(entry?.value.groups)
     ? entry.value.groups
     : [];
-  // The Clash API reports the members of every level but not their names, and
-  // both sides order the levels the same way, so the name of each one comes
-  // from the configuration entry in the same position.
+  // The Clash API names no levels, and both sides order them alike, so names come by position.
   const levels = runtimeGroups
     .map((runtimeGroup, index): FallbackLevelConfig => {
       const metadata = configuredLevels[index];
@@ -879,9 +873,7 @@ function buildProxyGroupOutbounds(
   const proxyByCode = getProxyEntryByCode(proxies);
   const selector = proxyByCode.get(sectionDisplayName);
   const selectorCodes = selector?.value?.all ?? [];
-  // A group runs under its own name in the section, which no other server or
-  // group of the section holds. A configured group the runtime does not carry is
-  // dropped below: only what the Clash API reports is on the dashboard.
+  // Only groups the Clash API reports reach the dashboard.
   const urlTestConfigByCode = new Map(
     getUrlTestConfigs(section).map((config) => [config.code, config]),
   );

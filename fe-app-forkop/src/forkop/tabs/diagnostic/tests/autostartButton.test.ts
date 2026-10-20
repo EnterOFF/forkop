@@ -1,11 +1,3 @@
-// Enable and Disable autostart are one button that swaps places: which of the
-// two is shown follows `service.forkop.enabled`, and no local flag stands in
-// for it while the click is in flight. So the spinner has to outlast the read
-// that brings the new value back - stopping it first puts the button the user
-// just pressed back on the page, idle and unchanged, which reads as a click
-// that did nothing. That ordering only exists in the controller, so this drives
-// the real one over a stubbed page and records every frame the row renders.
-
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Forkop } from '../../../types';
@@ -34,8 +26,6 @@ const mocks = vi.hoisted(() => {
     enable: vi.fn(async () => ({ success: true, data: undefined })),
     disable: vi.fn(async () => ({ success: true, data: undefined })),
     renderStub: () => ({}),
-    // Only the two autostart controls matter, and only in the shape the user
-    // sees them: which one is on the row, and whether it is spinning.
     renderAvailableActions: (props: {
       enable: ActionProps;
       disable: ActionProps;
@@ -80,8 +70,6 @@ vi.mock('../../../../helpers/preserveScrollForPage', () => ({
   preserveScrollForPage: (renderFn: () => void) => renderFn(),
 }));
 
-// The real store, because the page and the handler share it; stubs for
-// everything that would otherwise reach the router.
 vi.mock('../../../services', async () => ({
   ...(await import('../../../services/store.service')),
   logger: { debug: () => {}, error: () => {}, info: () => {}, warn: () => {} },
@@ -117,8 +105,6 @@ function flush() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// The page has an answer about the service, so the row is offered at all, and
-// autostart stands where the caller says.
 function publishAutostart(enabled: number) {
   store.set({
     serviceState: {
@@ -197,8 +183,6 @@ describe('autostart button', () => {
     expect(mocks.showToast).not.toHaveBeenCalled();
   });
 
-  // The button stays where it was, which on its own reads as a click that did
-  // nothing.
   it('says so when the switch did not move', async () => {
     publishAutostart(0);
     await flush();

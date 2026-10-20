@@ -59,9 +59,7 @@ export function optionMapValue(
   return value == null ? '' : value;
 }
 
-// What another option of the same dialog holds now: its widget's value once it
-// is rendered, the stored one before that. A check reads this, so it sees a
-// switch the user has just turned on.
+// The widget's value once rendered, the stored one before, so a check sees a switch just turned on.
 export function currentOptionValue(
   option: CBIOption,
   section_id: string,
@@ -97,9 +95,7 @@ export function subscriptionUrlSettingsKeys() {
   ];
 }
 
-// A stored subscription that was a local file and became a URL: the dialog shows
-// the defaults of every fetch setting, and a default the user left alone is not
-// a change it would write by itself.
+// A local file that became a URL shows default fetch settings; defaults left alone are not written.
 export function applyRemoteSubscriptionUrlSettings(
   itemId: string,
   settings: ChildSettings,
@@ -117,11 +113,8 @@ export function cleanupRemoteSubscriptionUrlSettings(itemId: string) {
   );
 }
 
-// A value here is only sound for an option the dialog either shows or keeps: a
-// hidden field without retain is removed from the section when the dialog is
-// saved, so seeding one would make the stored item something its own dialog
-// never writes, and opening it and pressing Save without a change would delete
-// the value again.
+// Only options the dialog shows or retains may be seeded: a hidden field without retain is removed
+// on save.
 export function defaultSubscriptionUrlSettings(
   headers: string[] = [],
   tag: string = 'sub1',
@@ -143,11 +136,8 @@ export function defaultSubscriptionUrlSettings(
   return settings;
 }
 
-// The subscriptions a section has, as its dialog currently holds them: the
-// entries of the live list, so one the user added or took out counts before the
-// section is saved. A widget that is not on screen - a headless parse, a list
-// that has not rendered - answers with nothing, and the stored children are then
-// the whole truth.
+// The live list's entries, so additions and removals count before the section is saved; an
+// unrendered list answers nothing, and the stored children are used.
 export function listedSubscriptionValues(
   sectionId: string,
   option: CBIOption,
@@ -172,15 +162,13 @@ function liveListValues(option: CBIOption, sectionId: string) {
     : null;
 }
 
-// The tag one entry carries, which its section stores. An address still in the
-// add field is no entry yet and holds no tag.
+// An address still in the add field is no entry yet and holds no tag.
 export function listedSubscriptionTag(sectionId: string, value: string) {
   return isExistingChildItem(sectionId, value, 'subscription_url')
     ? `${uci.get(FORKOP_UCI_PACKAGE, value, 'tag') || ''}`.trim()
     : '';
 }
 
-// Every tag the section's subscriptions hold.
 export function configuredSubscriptionTags(
   sectionId: string,
   option: CBIOption,
@@ -193,9 +181,7 @@ export function configuredSubscriptionTags(
     .filter(Boolean);
 }
 
-// sub{N}, where N counts the subscriptions the section already names: a new one
-// is numbered after the last instead of filling the gap a removed one left, and
-// moves on while a sibling still holds that number.
+// sub{N} after the highest number named, never filling a gap a removed one left.
 export function nextSubscriptionTag(
   sectionId: string,
   option: CBIOption,
@@ -211,7 +197,6 @@ export function nextSubscriptionTag(
   return `sub${Date.now()}`;
 }
 
-// What the list shows for one subscription, which is its tag.
 export function subscriptionListItemLabel(sectionId: string, value: string) {
   return E(
     'span',

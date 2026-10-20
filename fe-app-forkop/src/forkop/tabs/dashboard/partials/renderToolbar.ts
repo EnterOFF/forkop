@@ -17,10 +17,8 @@ interface IRenderToolbarProps {
   updateLists?: IToolbarAction;
 }
 
-// What acts on every section at once. Lists and subscriptions are refreshed for
-// the whole router: a rule set two sections name is one download, and the lists
-// of the DNS, bypass and block sections have no card on this page to carry a
-// button of their own.
+// Lists and subscriptions refresh for the whole router: a rule set two sections name is one
+// download, and DNS, bypass and block sections have no card of their own.
 export function renderToolbar({
   testAll,
   updateSubscriptions,

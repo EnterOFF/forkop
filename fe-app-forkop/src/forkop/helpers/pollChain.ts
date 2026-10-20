@@ -1,10 +1,8 @@
 import { whenDocumentVisible } from '../../helpers/isDocumentVisible';
 
-// A poll that asks, waits for the answer, and only then schedules the next
-// request, after the delay nextDelay() gives at that moment. One chain runs at
-// most one request: a request that answers after the chain was stopped - or
-// stopped and started again - schedules nothing. A request due while the page
-// is hidden waits until it is shown.
+// Asks, waits for the answer, then schedules the next request after nextDelay(). At most one
+// request per chain: an answer arriving after a stop schedules nothing, and a request due while
+// the page is hidden waits until it is shown.
 export function createPollChain(
   run: () => Promise<unknown>,
   nextDelay: () => number,
@@ -65,8 +63,7 @@ export function createPollChain(
       clearTimer();
     },
 
-    // Asks now instead of waiting out the delay. A request already on its way
-    // is left to finish; it schedules the next one itself.
+    // A request already on its way finishes and schedules the next one itself.
     now() {
       if (!active || running) {
         return;

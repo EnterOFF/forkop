@@ -1,7 +1,4 @@
-// A client is the account a server accepts. sing-box takes a list of users on every
-// protocol served here, so each client is its own UCI section with its own name and
-// credentials. The list is edited with the same child item widget the Sections tab
-// uses for interfaces, URLTests and tunnels.
+// A client is an account the server accepts, its own UCI section with a name and credentials.
 
 import { message } from '../../../validators/messages';
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
@@ -62,10 +59,8 @@ export function routerClientNames() {
 
 const CLIENT_NAME_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'.split('');
 
-// A random name rather than a number: numbering starts over on every server, so
-// each one had its own client-1 and Monitoring could not tell them apart. The
-// name is a device, not a second label for the server, and it fits the account
-// names the login protocols accept.
+// Random rather than numbered, so clients of different servers stay apart in Monitoring; the name
+// fits the account names login protocols accept.
 export function nextClientName(taken: string[]) {
   const names = new Set(taken.map((name) => `${name}`.toLowerCase()));
   let name = '';
@@ -116,9 +111,7 @@ export function validateClientCredential(
   return true;
 }
 
-// Credential fields the protocol asks a client for. The password disappears when
-// authentication is switched off, because then nobody sends one, and the flow
-// disappears where the listener cannot carry it.
+// The password goes when authentication is off, the flow where the listener cannot carry it.
 export function visibleClientFields(sectionId: string) {
   const protocol = getProtocol(sectionId);
 
@@ -160,8 +153,7 @@ export function clientSettingsDefaults(
     return defaults;
   }
 
-  // Adding a client is an explicit action, so a fresh client starts with credentials
-  // it can actually connect with; nothing is generated behind the user's back.
+  // A fresh client starts with credentials it can connect with.
   defaults.name =
     `${inputValue || ''}`.trim() || generateClientName(sectionId, listOption);
   visibleClientFields(sectionId).forEach((field: string) => {
@@ -174,8 +166,7 @@ export function clientSettingsDefaults(
   return defaults;
 }
 
-// A name only has to be unique on its server, but a generated one skips every
-// name on the router, so a generated name always points at one client.
+// A generated name skips every name on the router, so it always points at one client.
 export function generateClientName(sectionId: string, listOption: CBIOption) {
   return nextClientName([
     ...listedClientNames(sectionId, listOption),
@@ -183,9 +174,7 @@ export function generateClientName(sectionId: string, listOption: CBIOption) {
   ]);
 }
 
-// The names the list shows right now. A removal that has not been saved yet gives
-// its name back and a draft that was taken out stops holding one, which reading
-// the stored sections and the staged drafts instead could not tell.
+// The names the list shows now: an unsaved removal gives its name back.
 export function listedClientNames(sectionId: string, listOption: CBIOption) {
   let current = null;
 
@@ -208,7 +197,6 @@ export function listedClientNames(sectionId: string, listOption: CBIOption) {
   );
 }
 
-// Everything that has to hold before a server with clients can be saved.
 export function validateClientsOnSave(
   sectionId: string,
   values: unknown,
@@ -284,11 +272,8 @@ export function pruneClientCredentials(sectionId: string) {
   });
 }
 
-// Emptying the client list goes through the option LuCI owns: the widget holds
-// child section ids, and what load() returned has to be forgotten as well, or the
-// save would compare the two, find them equal and skip the write. Nothing is
-// removed here - the option does that when the dialog is saved, so a dialog that
-// is dismissed leaves the stored clients alone.
+// Cleared through the LuCI-owned option, forgetting what load() returned too, or the save would
+// find them equal and skip the write; the clients go only when the dialog is saved.
 export function clearClientList(mapRef: CBIMap, sectionId: string) {
   const found = mapRef ? mapRef.lookupOption('clients', sectionId) : null;
   const listOption = found ? found[0] : null;

@@ -1,12 +1,3 @@
-// A LuCI view is one big function the browser evaluates, so a name that no
-// longer exists is not a load error - it throws the first time the line runs.
-// That is how a removed helper survived in two save handlers: every attempt to
-// save a section threw ReferenceError inside handleModalSave, which is a
-// synchronous throw, so the Save button spun forever and nothing said why.
-//
-// no-undef answers the question the browser answers too late: which identifiers
-// a file reads and never defines. The globals a view gets are its own - the
-// require prologue names them - plus the ones LuCI and the browser provide.
 import fs from 'fs';
 import path from 'path';
 
@@ -15,8 +6,6 @@ import { describe, expect, it } from 'vitest';
 
 import { VIEW_DIR } from '../lib/paths.js';
 
-// What a LuCI view may reach without declaring it: the page globals, the
-// translation helpers LuCI installs, and the element builder.
 const PROVIDED = [
   'window',
   'document',
@@ -87,13 +76,11 @@ const views = fs.readdirSync(VIEW_DIR).filter((name) => name.endsWith('.js'));
 describe.each(views)('%s', (name) => {
   it('reads no name nothing defines', () => {
     const source = fs.readFileSync(path.join(VIEW_DIR, name), 'utf8');
-    // The require prologue is what LuCI passes the factory as arguments.
     const injected = [...source.matchAll(REQUIRE_LINE)].map(
       (match) => match[2] || match[1],
     );
 
     const messages = new Linter().verify(
-      // A view is the body of a function, so its trailing return is wrapped away.
       `(function () {\n${source}\n});\n`,
       {
         languageOptions: {

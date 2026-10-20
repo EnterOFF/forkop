@@ -1,10 +1,6 @@
-// An OpenConnect client configuration turned into the openconnect endpoint of
-// the core. One comes in any of the forms the clients keep it in: the options of
-// the openconnect client as a command line or a --config file, a NetworkManager
-// connection, a Cisco AnyConnect XML profile, an anyconnect:// link, an
-// openfortivpn configuration, or the endpoint itself as sing-box JSON. The
-// certificates and keys they name as files are taken from the files handed
-// over with them.
+// Any form the clients keep it in: openconnect options as a command line or --config file, a
+// NetworkManager connection, an AnyConnect XML profile, an anyconnect:// link, an openfortivpn
+// configuration, or the endpoint as sing-box JSON. Files they name come from the files handed over.
 
 import { checkMaterial, splitCertificateAndKey } from './material';
 import type { MaterialKind } from './material';
@@ -70,9 +66,8 @@ function basename(path: string) {
   return path.split(/[\\/]/).pop()!.toLowerCase();
 }
 
-// The server as the core takes it: a host, a port when it is not 443, and the
-// path of a group URL. The core reaches it over HTTPS only and refuses a user,
-// a query and a fragment in it.
+// The core reaches the server over HTTPS only and refuses a user, a query and a fragment; the port
+// is kept when it is not 443, with a group URL's path.
 export function normalizeOpenConnectServer(
   value: unknown,
 ): { server: string } | { message: string } {
@@ -124,10 +119,8 @@ function server(value: unknown) {
 const HEX = /^[0-9a-f]+$/i;
 const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 
-// A server certificate fingerprint in a form the core checks, as openconnect
-// --servercert takes it: pin-sha256 and sha256: or sha1: of the public key, or
-// the SHA-1 of the whole certificate, each at least four characters of it. The
-// SHA-1 a browser shows has colons between the bytes.
+// As openconnect --servercert takes it: pin-sha256, sha256: or sha1: of the public key, or the
+// SHA-1 of the certificate, at least four characters; a browser's SHA-1 has colons.
 export function normalizeOpenConnectFingerprint(
   value: unknown,
 ): { fingerprint: string } | { message: string } {
@@ -189,9 +182,8 @@ export function isBase32Secret(value: unknown) {
   return body !== '' && /^[A-Z2-7]+$/i.test(body);
 }
 
-// A TOTP secret as the core reads it: base32, or an otpauth:// link for any
-// other algorithm. openconnect also reads a 0x hex secret, the raw bytes of an
-// unmarked one and an algorithm before it, all of which become one of these.
+// Base32, or an otpauth:// link for other algorithms; openconnect's 0x hex, raw and prefixed forms
+// become one of these.
 export function totpSecret(value: string) {
   let secret = value.trim();
   if (/^otpauth:\/\//i.test(secret)) return secret;
@@ -260,8 +252,7 @@ function draft(files: OpenConnectFiles): Draft {
   };
 }
 
-// The content of a file a configuration names, from the files handed over with
-// it. A key kept by the operating system or a token cannot reach the router.
+// A key kept by the operating system or a token cannot reach the router.
 function fileContent(state: Draft, reference: string) {
   if (/^(pkcs11|system):/i.test(reference)) {
     fail(_('The key is kept by the system or a token and cannot be exported'));
@@ -320,8 +311,7 @@ function pushTo(object: Record<string, unknown>, key: string, value: unknown) {
   object[key] = [...((object[key] as unknown[]) || []), value];
 }
 
-// What the openconnect client does for the desktop it runs on, or for its own
-// process. A router's tunnel has no use for these, so they are read and dropped.
+// Desktop and process options a router's tunnel has no use for: read and dropped.
 const IGNORED_OPTIONS = new Set([
   'authenticate',
   'background',
@@ -350,8 +340,7 @@ const IGNORED_OPTIONS = new Set([
   'version',
 ]);
 
-// Options that change the connection and have no counterpart in the core. The
-// import goes on without them and says so.
+// Connection options without a counterpart in the core: the import goes on and says so.
 const SKIPPED_OPTIONS = new Set([
   'csd-wrapper',
   'dtls-ciphers',
@@ -964,8 +953,7 @@ function readAnyConnectProfile(state: Draft, input: string) {
   state.endpoint.flavor = 'anyconnect';
 }
 
-// anyconnect://create and anyconnect://connect, the links Cisco Secure Client
-// takes. Only the server, the login and the group concern a router.
+// anyconnect://create and anyconnect://connect; only server, login and group concern a router.
 function readAnyConnectLink(state: Draft, input: string) {
   const match = /^anyconnect:(?:\/\/)?(\w+)\/?\??(.*)$/i.exec(input.trim());
   const action = `${match?.[1] || ''}`.toLowerCase();

@@ -89,8 +89,7 @@ export function addClientOptions(
   addClientRoutingOptions(sectionId, itemSection);
 }
 
-// Rules for a client are generated before the rule of its server, so an override
-// wins over the server wide mode without touching it.
+// Client rules come before the server's, so an override wins without touching the server mode.
 export function addClientRoutingOptions(
   sectionId: string,
   itemSection: CBISection,

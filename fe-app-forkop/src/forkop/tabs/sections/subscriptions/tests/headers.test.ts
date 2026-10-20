@@ -7,13 +7,6 @@ import {
   syncSubscriptionHeaderRows,
 } from '../headers';
 
-// The HTTP headers a subscription is fetched with are stored as one uci list of
-// "Name: value" lines and edited in a small grid of their own. The grid is a
-// JSONMap - a form over an in-memory object rather than over the configuration -
-// so the lines have to be turned into rows on the way in and back into lines on
-// the way out, and a row the user is still typing has to survive the reload that
-// adding another one causes.
-
 describe('subscriptionHeaderRows', () => {
   it('turns each line into a row, empty values included', () => {
     expect(

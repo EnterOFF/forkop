@@ -1,6 +1,4 @@
-// Every check follows what sing-box itself accepts, so a form that validates
-// produces a configuration the service can start with. A field is required here
-// only when the core has no default for it.
+// Every check follows what sing-box accepts; a field is required only when the core has no default.
 
 import { isRouterPath } from '../../../helpers/material';
 import { decodeBase64 } from '../../../helpers/pem';
@@ -75,8 +73,7 @@ export function validateOptionalHost(_sectionId: string, value: string) {
   return isEmptyValue(value) || isHost(value) ? true : message.invalidHost();
 }
 
-// The address is stored as it is typed and the core reads it as a bare IP, so
-// the brackets a URL puts around IPv6 are not taken off here.
+// Stored as typed and read by the core as a bare IP, so URL brackets are not stripped.
 export function validateListenAddress(_sectionId: string, value: string) {
   const address = `${value || ''}`.trim();
   if (!address) {
@@ -129,9 +126,7 @@ export function validateOptionalMasquerade(_sectionId: string, value: string) {
     : _('Only https://, http:// or file://');
 }
 
-// The inbound goes to sing-box as pasted, and sing-box judges what it holds.
-// Forkop names it after the server, so singbox/servers.uc overwrites whatever
-// tag the pasted object carries.
+// sing-box judges the pasted inbound; singbox/servers.uc overwrites its tag with the server name.
 export function validateInboundJson(_sectionId: string, value: string) {
   if (isEmptyValue(value)) {
     return message.required();
@@ -173,12 +168,8 @@ export function validateOptionalCidrOrIp(_sectionId: string, value: string) {
     : true;
 }
 
-// sing-box decodes every short ID as hex bytes, so an odd digit count is refused at
-// start-up and eight bytes is the hard limit. The form rejects exactly the same
-// values instead of letting the service die on apply.
-// One value. sing-box takes a list so a batch of clients can be revoked on its own,
-// but a share link carries exactly one, so a second value could not reach any client
-// through anything Forkop hands out. The core still gets a list of one.
+// sing-box decodes a short ID as hex bytes, eight at most. One value: sing-box takes a list, but a
+// share link carries one, so a second could reach no client.
 export function validateShortId(sectionId: string, value: string) {
   const required = validateRequiredText(sectionId, value);
   if (required !== true) {
@@ -222,8 +213,7 @@ export function validateShadowsocksPassword(sectionId: string, value: string) {
     return true;
   }
 
-  // Padded standard base64, the way the core decodes it: atob would also take
-  // a key without its padding, which the core refuses.
+  // Padded standard base64, as the core decodes it: atob also takes an unpadded key the core refuses.
   const decoded = decodeBase64(`${value}`.trim());
   return decoded != null && decoded.length === keyBytes
     ? true

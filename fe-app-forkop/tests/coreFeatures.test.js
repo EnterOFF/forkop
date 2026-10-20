@@ -1,6 +1,3 @@
-// What the page makes of the router's report about the installed core. The
-// report and the link cases are fixtures the backend tests hold to
-// singbox/features.uc, so the page and the router read a core the same way.
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures, linkFeatureCases } from './lib/coreFeatures.js';

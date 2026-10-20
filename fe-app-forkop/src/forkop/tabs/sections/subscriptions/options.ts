@@ -39,8 +39,7 @@ import {
 } from './model';
 import { showSubscriptionOverrideModal } from './overrides';
 
-// What only a subscription fetched over HTTP has: the dialog shows it while the
-// address field holds a URL, and a local file leaves it out.
+// Fetch settings show only while the address field holds a URL.
 const REMOTE_SOURCE = /^https?:\/\//;
 
 export function addSubscriptionUrlItemOptions(
@@ -207,9 +206,8 @@ export function showSubscriptionUrlSettingsModal(
     isRemoteSubscriptionSource(
       childItemInputValue(sectionId, value, 'subscription_url', 'url'),
     );
-  // A subscription fetched over HTTP keeps the headers it has, none included. Any
-  // other one is offered the default headers, which it carries only once its
-  // address becomes a URL. Without the defaults the dialog still opens.
+  // A remote subscription keeps its headers, none included; others are offered the defaults, carried
+  // only once the address becomes a URL. The dialog opens without them too.
   return loadDefaultSubscriptionHeaders()
     .catch(() => [] as string[])
     .then((headers: string[]) =>

@@ -19,9 +19,8 @@ export const styles = `
     max-width: 100% !important;
 }
 
-/* What makes the page fill the column: a DummyValue's value reaches the theme
-   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
-   the page would be as wide as its own content. */
+/* A DummyValue's value sits in an <output> inside the theme's flex row; this makes the page
+fill the column. */
 #cbi-${FORKOP_CBI_PREFIX}-dashboard-_mount_node {
     display: block !important;
 }
@@ -30,9 +29,7 @@ export const styles = `
     display: none;
 }
 
-/* The columns follow the width the page is given, not the window: a theme with
-   a sidebar leaves the page far less than the viewport, and four columns that
-   need 750px would run out of the card. */
+/* Columns follow the page's width, not the window's: a theme sidebar leaves far less. */
 .fkp_dashboard-page {
     width: 100%;
     container-type: inline-size;
@@ -63,8 +60,6 @@ export const styles = `
     grid-gap: 10px;
 }
 
-/* Each widget sits in the placeholder it is rendered into, and the grid
-   stretches that placeholder to the height of the row, not the widget. */
 .fkp_dashboard-page__widgets-section__item {
     box-sizing: border-box;
     height: 100%;
@@ -81,10 +76,7 @@ export const styles = `
     gap: 6px;
 }
 
-/* A section opens with a header band in the colour of its outline: with a
-   dozen sections of a dozen nodes each, the eye has to find where one section
-   starts before it can read any of it, and the outline alone, the same one
-   every card inside has, marked nothing. */
+/* A header band in the outline's colour marks where each section starts. */
 .fkp_dashboard-page__outbound-section {
     margin-top: 12px;
     border: 2px var(--background-color-low, lightgray) solid;
@@ -175,9 +167,6 @@ export const styles = `
     background: color-mix(in srgb, currentColor 14%, transparent) !important;
 }
 
-/* A disclosure in front of the title, where every section has it at the same
-   place whatever its actions are: down while the cards show, right once they
-   are folded away. */
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse {
     width: 22px;
     height: 22px;
@@ -197,8 +186,6 @@ export const styles = `
     transition: opacity 0.15s ease;
 }
 
-/* The whole header folds the section, so hovering anywhere on it lights the
-   chevron, in the header's own text colour rather than an accent. */
 .fkp_dashboard-page__outbound-section__title-section--foldable:hover .btn.fkp_dashboard-page__outbound-section__collapse,
 .fkp_dashboard-page .btn.fkp_dashboard-page__outbound-section__collapse:focus-visible {
     opacity: 1;
@@ -243,8 +230,6 @@ export const styles = `
     min-width: 0;
 }
 
-/* The tag and the title are the subscription's name, set apart by the same
-   0.4rem a node name keeps from its tag in the cards below. */
 .fkp_dashboard-page__subscription-meta__name {
     flex: 0 1 auto;
     display: flex;
@@ -262,8 +247,7 @@ export const styles = `
     white-space: nowrap;
 }
 
-/* The tag carries its own right margin for when it is printed in front of a
-   node name. Here it is a flex item and the name's gap separates it. */
+/* The tag's own right margin is for node names; here the flex gap separates it. */
 .fkp_dashboard-page__subscription-meta__heading
     .fkp_dashboard-page__outbound-grid__item__subscription-tag {
     margin-right: 0;
@@ -327,8 +311,6 @@ export const styles = `
     text-underline-offset: 3px;
 }
 
-/* The provider's own words, set off from the facts above them but no louder
-   than them: the bar across the card stays, in a fainter fill and stripe. */
 .fkp_dashboard-page__subscription-meta__announce {
     margin: 6px 0 0;
     border-left: 2px solid var(--primary-color-low, dodgerblue);
@@ -610,11 +592,7 @@ export const styles = `
     scrollbar-gutter: auto;
 }
 
-/* A node: its name and latency on the left, the row's own action on the right.
-   The action keeps a column of its own so it stays on the row's first line
-   whatever the name does - placed after a full-width latency, auto-placement put
-   it on a third line of its own, and every one of a hundred rows was 86px tall
-   on a narrow window. */
+/* The action keeps its own column, so it stays on the row's first line however the name wraps. */
 .fkp_dashboard-page__urltest-details__row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 20px;
@@ -668,11 +646,8 @@ export const styles = `
     line-height: 1.35;
 }
 
-/* The name and the latency it belongs to, side by side while both fit and
-   stacked when they stop fitting. Which rows need the break depends on how long
-   each name is, so the row decides for itself rather than every row breaking at
-   one width of the window: the latency keeps its own width beside the name, and
-   below that drops under it. Either way it is flush with the row's right edge. */
+/* Name and latency side by side while both fit, stacked when they do not; each row decides by
+its own name's length. */
 .fkp_dashboard-page__urltest-details__row-body {
     display: flex;
     flex-wrap: wrap;
@@ -794,9 +769,7 @@ export const styles = `
     margin-top: 14px;
 }
 
-/* The parameter list is two columns of label and value, and there is no window
-   narrow enough for both that is also wide enough to read them. The node rows
-   need nothing here: each one wraps against its own content. */
+/* Too narrow for the two-column parameter list. */
 @media (max-width: 560px) {
     .fkp_dashboard-page__urltest-details__params {
         grid-template-columns: 1fr;

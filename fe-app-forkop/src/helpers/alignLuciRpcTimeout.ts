@@ -1,7 +1,5 @@
-// LuCI aborts every RPC request after L.env.rpctimeout seconds (20 by default),
-// which silently caps the longer timeouts this app asks for. Diagnostic checks
-// on slow routers legitimately need more than that, so the transport ceiling is
-// raised to cover the requested timeout and the app timeout stays in charge.
+// LuCI aborts every RPC after L.env.rpctimeout seconds (20 by default), capping longer timeouts, so
+// the transport ceiling is raised to cover the requested timeout.
 const LUCI_RPC_TIMEOUT_DEFAULT_SECONDS = 20;
 const LUCI_RPC_TIMEOUT_HEADROOM_SECONDS = 5;
 

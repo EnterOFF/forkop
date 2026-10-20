@@ -22,9 +22,7 @@ export function missingConnectionOutbound(
   );
 }
 
-// A DNS section answers the queries for the domains it names, or every query of
-// the devices it takes whole; one with neither has nothing to answer, and the
-// backend refuses it.
+// A DNS section with no domain and no whole device has nothing to answer; the backend refuses it.
 export function missingDnsMatcher(modalMap: CBIMap, section_id: string) {
   if (modalOptionFormValue(modalMap, section_id, 'action') !== 'dns') {
     return false;
@@ -40,9 +38,7 @@ export function missingDnsMatcher(modalMap: CBIMap, section_id: string) {
   );
 }
 
-// A section another section may hand its traffic to: it exists, it is not the
-// one asking, it is enabled, and its action is one that carries traffic. The
-// same question for a DNS detour, an outbound detour and a download picker.
+// Exists, is not the asking section, is enabled and carries traffic.
 function isDetourTargetSection(
   section: UciSectionObject,
   currentSectionId: string,

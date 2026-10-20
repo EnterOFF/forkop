@@ -25,9 +25,6 @@ const CLIENT = {
   flow: '',
 };
 
-// What the router holds for an AmneziaWG server once applied: the parameters
-// its dialog starts from, and a key pair, a pre-shared key and an address in
-// each subnet for the client.
 const AMNEZIA = {
   amnezia_jc: '5',
   amnezia_jmin: '10',
@@ -78,9 +75,6 @@ function load(server = {}) {
 }
 
 describe('a WireGuard profile', () => {
-  // A code carries no character set of its own, and scanners guess one for
-  // anything past ASCII, so the profile is plain ASCII and the names go into
-  // the file name alone.
   it('is the configuration a WireGuard app imports, named for its interface', () => {
     load();
     const result = buildWireGuardProfile('home', CLIENT, material());
@@ -127,8 +121,6 @@ describe('a WireGuard profile', () => {
     });
   });
 
-  // wg-quick adds a route for every AllowedIPs entry, and ip refuses one with
-  // host bits set.
   it('routes only the routes and the tunnel subnets while not all traffic goes through it', () => {
     load({ tunnel_all_traffic: '0', tunnel_routes: ['192.168.1.0/24'] });
     expect(buildWireGuardProfile('home', CLIENT, material()).profile).toContain(
@@ -255,8 +247,6 @@ describe('an AmneziaWG profile', () => {
     expect(profile).not.toContain('HeaderProtectionKey');
   });
 
-  // The longest profile the dialog makes: every parameter, a signature packet
-  // in each of the five fields, both families and a long host.
   it('fits a QR code a phone reads', () => {
     load({
       protocol: 'amneziawg',

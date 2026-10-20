@@ -286,10 +286,8 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
       updateButtonAddDynamicListLayout(node, this.options.addButtonLabel);
     });
 
-    // LuCI marks the list itself invalid, and a theme either draws nothing
-    // around a list or rings its whole box. The list shows one control, drawn as
-    // a dropdown, so the mark is carried over to it, the theme's own rule for an
-    // invalid dropdown shows it, and the list's own ring is left out.
+    // The invalid mark goes onto the list's one control, drawn as a dropdown, so the theme's own
+    // invalid-dropdown rule shows it.
     const control = node.querySelector('.add-item > .fkp-button-add-control');
     const showValidity = (invalid: boolean) =>
       control?.classList.toggle('cbi-input-invalid', invalid);
@@ -341,15 +339,9 @@ const ButtonAddSettingsUIDynamicList = SettingsUIDynamicList.extend({
 export const SettingsDynamicList = form.DynamicList.extend({
   // ------------------------------------------------ what one entry is called
   //
-  // The text an entry shows and is looked up by. A saved entry is a child
-  // section id and shows what that section stores under childValueOption; a
-  // draft has no section yet and is its own text, which its dialog may have
-  // changed - a rename moves the list value with it, so the value the dialog
-  // holds is where the draft's settings are.
-  //
-  // A list with no childValueOption stores nothing to show: its entry is the
-  // section id itself, and reading a staged name here would make two tunnels
-  // called the same thing look like one entry.
+  // A saved entry is a child section id and shows what that section stores under
+  // childValueOption; a draft is its own text, which its dialog may have renamed. A list without
+  // childValueOption shows the section id itself.
   inputValueForItem(ownerId: string, value: unknown) {
     if (!this.childType || !this.childValueOption) {
       return `${value || ''}`.trim();
@@ -367,8 +359,6 @@ export const SettingsDynamicList = form.DynamicList.extend({
     return renamed ? `${renamed}` : inputValue;
   },
 
-  // What an entry's dialog has taken but not written yet, handed to the child
-  // section the moment that section is created.
   stagedChildSettings(ownerId: string, value: unknown) {
     const staged = childPendingSettingsStore(this, ownerId)[
       this.inputValueForItem(ownerId, value)
@@ -392,19 +382,15 @@ export const SettingsDynamicList = form.DynamicList.extend({
     };
   },
 
-  // What a typed entry of a list whose entries are sections becomes the moment
-  // it is added: its section, created with the text and the defaults, and the
-  // list holds the id. Two entries may hold the same text that way, a link
-  // dialled through two different cascades say, each with a name of its own.
+  // The typed entry becomes its section at once and the list holds the id, so two entries may
+  // hold the same text.
   createTypedItem(section_id: string, inputValue: string) {
     const ownerId = this.childOwner(section_id);
     return createChildItem(ownerId, this.childItemOptions!(ownerId), inputValue)
       .value;
   },
 
-  // Every entry the user has started has something to configure. A list whose
-  // entry has to be well formed first - a subscription is an address before it
-  // is anything - says so for itself.
+  // A list whose entry must be well formed first, a subscription address, says so itself.
   hasItemSettings(ownerId: string, value: unknown) {
     return this.inputValueForItem(ownerId, value).length > 0;
   },
@@ -516,9 +502,8 @@ export const SettingsDynamicList = form.DynamicList.extend({
     return node;
   },
 
-  // A list whose entries are sections is written on every save, also when it
-  // holds what it loaded: an entry added and taken out again leaves the list as
-  // it was, and only the write deletes its section.
+  // Written on every save: an entry added and taken out again leaves the list as loaded, and
+  // only the write deletes its section.
   parse(section_id: string) {
     this.forcewrite = this.entriesAreSections === true;
     if (
@@ -569,15 +554,9 @@ export const SettingsDynamicList = form.DynamicList.extend({
 
   remove(section_id: string) {
     if (this.childType) {
-      // LuCI removes an option the dialog hides, and for a child item list that
-      // would mean deleting the sections behind it. Only a list the user could
-      // see says anything about its items: a list the dialog hid - because the
-      // section is no longer a Connection, because the protocol has no accounts,
-      // because authentication was switched off - was cleared by nobody. What it
-      // holds cannot be typed again: an account password every device is
-      // configured with, a tunnel private key, a subscription URL. The runtime
-      // reads none of them in that state, and they are all there again when the
-      // field that hid them goes back.
+      // LuCI removes an option the dialog hides, which here would delete the sections behind it.
+      // Only a visible list says anything about its items; a hidden one keeps what cannot be typed
+      // again (passwords, keys, subscription URLs) for when its field shows again.
       if (this.isActive(section_id)) {
         cleanupRemovedChildItems(
           this.childOwner(section_id),

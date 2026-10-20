@@ -7,21 +7,16 @@ export const styles = `
     display: none;
 }
 
-/* The page takes the width of the content column, as the other tabs do. The
-   tab is one DummyValue, and the theme lays a .cbi-value out as a flex row, where
-   the page would be as wide as its content and would grow with whatever a check
-   reports. The layout follows that width rather than the window's. */
+/* The tab is one DummyValue inside the theme's flex row; this makes the page take the column's
+width. */
 #cbi-${FORKOP_CBI_PREFIX}-diagnostic-_mount_node {
     display: block;
     container-type: inline-size;
 }
 
-/* The controls are as wide as their own buttons need, never narrower than the
-   longest system information row on one line - "Sing-box
-   1.13.18-extended-2.6.5-f100" is 264px with the card around it. The checks sit
-   beside them at a reading width, and a check value with nothing to break at
-   wraps inside that width: nothing a check reports widens the page or moves the
-   controls. */
+/* The controls take what their buttons need, never less than the longest system information
+row; the checks sit beside them at a reading width, so nothing a check reports moves the
+controls. */
 .fkp_diagnostic-page {
     display: grid;
     grid-template-columns: minmax(17rem, max-content) minmax(0, 38rem);
@@ -53,10 +48,7 @@ export const styles = `
     margin-left: 0;
 }
 
-/* System information does not get a vote on how wide the column is: its values
-   arrive one at a time, and a column measured against them steps sideways once
-   per row while the page fills in. A definite zero width keeps the block out of
-   that measurement, and the percentage minimum fills the column it is given. */
+/* A definite zero width keeps the rows, which arrive one at a time, from resizing the column. */
 .fkp_diagnostic-page__controls__system-info {
     width: 0;
     min-width: 100%;
@@ -76,8 +68,7 @@ export const styles = `
     grid-column-gap: 5px;
 }
 
-/* A version string carries no space to break at, so it may break anywhere and
-   wraps inside the controls column instead of widening it. */
+/* A version string has nowhere to break, so it may break anywhere. */
 .fkp_diagnostic-page__controls__system-info__row > div {
     min-width: 0;
     overflow-wrap: anywhere;
@@ -89,7 +80,6 @@ export const styles = `
     grid-row-gap: 10px;
 }
 
-/* The run, and under it the report of what the run found. */
 .fkp_diagnostic-page__run_check_wrapper {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -132,14 +122,11 @@ export const styles = `
     cursor: pointer;
 }
 
-/* The state icon and the chevron at the other end of the header share its
-   centre line; inline, the icon sat on a text baseline 2.5px above it. */
+/* The state icon and the chevron share the header's centre line. */
 .fkp_diagnostic_alert__icon {
     display: flex;
 }
 
-/* The fold of a check, at the end of its header: up while the details show,
-   down once they are folded away, in the header's own colour. */
 .fkp_diagnostic-page .btn.fkp_diagnostic_alert__toggle {
     width: 22px;
     height: 22px;
@@ -194,7 +181,6 @@ export const styles = `
     display: block;
 }
 
-/* Under the title, past the state icon and its gap. */
 .fkp_diagnostic_alert__summary {
     margin: 10px 0 0 34px;
 }
@@ -205,19 +191,14 @@ export const styles = `
     grid-column-gap: 10px;
 }
 
-/* A key and the value it labels, side by side while both fit and stacked when
-   they stop fitting. Whether a row needs the break depends on how long its own
-   key is, so each row decides for itself: the value keeps 8rem beside its key,
-   and below that drops under it with the full width of the row. */
+/* Key and value side by side while both fit, stacked otherwise; each row decides by its own key. */
 .fkp_diagnostic_alert__summary__item__body {
     display: flex;
     flex-wrap: wrap;
     column-gap: 10px;
 }
 
-/* Neither cell may be wider than what it was given. A key or a value with
-   nothing to break at - an address list, a version, a server name - would
-   otherwise be the width of the row it sits in. */
+/* An address list, a version or a server name has nowhere to break and would widen the row. */
 .fkp_diagnostic_alert__summary__item__key {
     min-width: 0;
     overflow-wrap: anywhere;

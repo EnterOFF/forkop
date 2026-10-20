@@ -37,8 +37,6 @@ describe('closing the connections a filter found', () => {
     });
   });
 
-  // One request per connection, so a filter that found a hundred of them must
-  // not open a hundred requests to the router at once.
   it('has no more than four requests in flight', async () => {
     let inFlight = 0;
     let most = 0;

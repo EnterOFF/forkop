@@ -30,13 +30,10 @@ const outboundNameChoicesInflight = new Map();
 
 const outboundNameChoicesEmptyAt = new Map();
 
-// The runtime knows the server names of a subscription only after the core has
-// fetched it, so an empty answer is not a final one. Keeping it forever leaves
-// the group and dashboard filters without servers until the page is reloaded.
+// Server names of a subscription exist only once the core fetched it, so an empty answer expires.
 const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = 5000;
 
-// The fields of one dialog share a lookup, and the next dialog asks again: a
-// subscription that updated since then delivers other servers.
+// Each dialog asks again: a subscription that updated meanwhile delivers other servers.
 export function forgetOutboundNameChoices() {
   outboundNameChoicesCache.clear();
   outboundNameChoicesEmptyAt.clear();
@@ -237,9 +234,8 @@ export function configureLiveDynamicListChoices(
     let choiceSignature = JSON.stringify(
       choices.map((choice) => [choice.value, choice.label]),
     );
-    // form.DynamicList passes null when there are no choices, which permanently
-    // renders a plain input. An empty object keeps the stock combobox alive so
-    // later live choices can be added without reopening the modal.
+    // form.DynamicList renders a plain input for good when given null; an empty object keeps the
+    // combobox, so live choices can be added later.
     const widget = new ui.DynamicList(values, labels, {
       id: this.cbid(section_id),
       sort: this.keylist,
@@ -443,9 +439,7 @@ const GROUP_OUTBOUND_TYPES = [
   'block',
 ];
 
-// The names of a section's URLTest or Fallback groups as its form holds them now:
-// a group added but not saved yet is there, and one removed but not saved yet
-// is gone.
+// As the section form holds them now, unsaved additions and removals included.
 function currentGroupNames(
   section_id: string,
   optionName: string,
@@ -470,10 +464,8 @@ function currentGroupNames(
     .filter(Boolean);
 }
 
-// Every server and group the section builds, under the name it runs as, the way
-// the section form holds them now. Each runs as "<section>/<name>"; a member is
-// one a URLTest or a Fallback level can pick, and an interface keeps its own
-// name as its value.
+// Each runs as "<section>/<name>"; a member is one a URLTest or a Fallback level can pick, and an
+// interface keeps its own name as its value.
 export function sectionChildNames(section_id: string) {
   const result: Array<{
     kind: SectionChildKind;
@@ -552,8 +544,7 @@ export function sectionChildNames(section_id: string) {
   return result;
 }
 
-// The name a new group or tunnel of the section is offered, one none of its
-// servers and groups holds, since they all share the section's names.
+// Servers and groups share the section's names, so the offer avoids all of them.
 export function nextSectionChildName(section_id: string, prefix: string) {
   return nextNumberedName(
     prefix,
@@ -567,10 +558,8 @@ export function currentDraftOutboundNames(section_id: string) {
     .map((child) => child.name);
 }
 
-// A section's servers and groups are found by name, so a name belongs to one of
-// them and holds no "/", which separates it from the section in the name it runs
-// under. Two of one kind are the list's own check, unless the entry is named by
-// its own value.
+// "/" separates the name from the section in the name it runs under. Duplicates within one kind
+// are the list's own check, unless the entry is named by its value.
 export function validateSectionChildName(
   section_id: string,
   kind: SectionChildKind,
@@ -590,8 +579,6 @@ export function validateSectionChildName(
     : true;
 }
 
-// The name of an entry in one of the section's lists: one no other entry of the
-// list holds, and one no server or group of another kind holds.
 export function validateSectionChildListName(
   section_id: string,
   kind: SectionChildKind,
@@ -605,18 +592,14 @@ export function validateSectionChildListName(
     : unique;
 }
 
-// A Fallback level can hold a URLTest group, so the picker has to follow the
-// section form: a URLTest added but not saved yet is offered, and one removed
-// but not saved yet is gone right away.
+// Follows the section form, so unsaved URLTest additions and removals show at once.
 function currentUrlTestNameChoices(section_id: string) {
   return Array.from(
     new Set(currentGroupNames(section_id, 'urltest', 'urltest')),
   ).map((name) => ({ value: name, label: name }));
 }
 
-// Adding a URLTest is independent of how the level filters servers, so it sits
-// above the filter instead of inside it. A level that goes direct has no
-// members at all, which is the one mode where it does not belong.
+// A level that goes direct has no members, the one mode where this does not belong.
 export function addUrlTestMemberOption(
   itemSection: CBISection,
   parentSectionForItem: (itemId: string) => string,

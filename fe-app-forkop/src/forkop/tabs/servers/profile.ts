@@ -1,7 +1,4 @@
-// The profile a client of an OpenVPN or WireGuard server imports: everything it
-// needs inline, so the one file is all a client is handed. The certificates,
-// keys and addresses in it are the ones the router issued when the settings were
-// applied.
+// Everything inline, so one file is all a client is handed.
 
 import {
   AMNEZIA_KEYS,
@@ -87,9 +84,8 @@ export function buildOpenVPNProfile(
   };
 }
 
-// What a WireGuard app names the tunnel after the file it imports, and takes
-// only when it is at most 15 of these characters, the length of an interface
-// name: the server and the client, else the client alone.
+// WireGuard apps name the tunnel after the file and take only names of up to 15 such characters,
+// an interface name's length.
 function tunnelName(serverName: string, clientName: string, protocol: string) {
   const clean = (value: string) =>
     value.replace(/[^A-Za-z0-9_=+.-]+/g, '-').replace(/^-+|-+$/g, '');
@@ -101,11 +97,8 @@ function tunnelName(serverName: string, clientName: string, protocol: string) {
   return name || protocol;
 }
 
-// An AmneziaWG client carries every parameter of its server, in the order and
-// spelling of the Amnezia client's own profiles: the ones both ends match, and
-// the junk and signature packets it sends. Its MTU leaves room for the padding
-// on every packet over a mobile network, the MTU the Amnezia client gives its
-// phones, and its keepalive is a range, as AmneziaWG 3 writes it.
+// Every server parameter, in the order and spelling of the Amnezia client's own profiles. The MTU
+// leaves room for padding over mobile networks, and the keepalive is a range, as AmneziaWG 3 writes it.
 function amneziaLines(server: Record<string, unknown>) {
   return AMNEZIA_KEYS.filter((key: string) => {
     const value = text(server[`amnezia_${key}`]);

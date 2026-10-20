@@ -1,9 +1,3 @@
-// Which checks show their details is the controller's call, made again for
-// every run: a check with a problem opens, one that passed is a single line,
-// and what the reader folds by hand holds until the next run lays the list out
-// again. This drives the real controller over a stubbed page and reads what it
-// asks each check to draw.
-
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Forkop } from '../../../types';
@@ -88,7 +82,6 @@ function flush() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// The list a finished run leaves, one check in each state that matters.
 function publishResult() {
   const states: Record<string, IDiagnosticsChecksStoreItem['state']> = {
     SERVICE: 'success',

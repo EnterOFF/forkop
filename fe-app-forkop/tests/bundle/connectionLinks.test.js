@@ -1,7 +1,3 @@
-// The links a Connection section dials, driven through the shipped bundle. A
-// pasted link is a section of its own from the moment it is added, shown and
-// stored under a name rather than as the link itself, and its dialog is where
-// the name and the link are changed.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -20,9 +16,6 @@ beforeEach(() => {
   });
 });
 
-// The list as the section dialog renders it: what it loaded is what a save
-// compares the entries against. The URLTest list is loaded beside it, as the
-// dialog loads it, since a link may not take the name of a group.
 function linkList() {
   const map = new harness.form.Map('forkop');
   const grid = map.section(harness.form.GridSection, 'section');
@@ -35,9 +28,6 @@ function linkList() {
   return option('connection_link');
 }
 
-// What the widget does when the user adds a link: the link becomes its section,
-// the entry holding the section id is rendered with its label, then the list
-// changes.
 function paste(list, values, link) {
   const itemId = list.createTypedItem('sec', link);
   const label = list.renderListItemLabel('sec', itemId).textContent;
@@ -96,8 +86,6 @@ describe('a pasted link', () => {
     ]);
   });
 
-  // The same server dialled two ways - directly and through a cascade, say - is
-  // the same link added twice, and each is a server of its own.
   it('pasted twice is two servers told apart by name', async () => {
     const list = linkList();
     const values = [];
@@ -116,8 +104,6 @@ describe('a pasted link', () => {
     ]);
   });
 
-  // Every server and group of a section runs as "<section>/<name>", so a link
-  // takes a name none of them holds, and "/" would split that name.
   it('takes a name no server or group of the section holds, without a slash', () => {
     harness.uci.add('forkop', 'urltest', 'ut1');
     Object.assign(harness.store.get('ut1'), {
@@ -134,8 +120,6 @@ describe('a pasted link', () => {
     ]).toEqual(['Fastest #1', 'US／LA']);
   });
 
-  // A number tells two names apart, not two links: the stored copy of the link
-  // has another name by now, so the new one keeps the one the link carries.
   it('takes the name the link carries when the link already in the list was renamed', () => {
     const link = 'vless://a@a.example:443#test1';
     harness.uci.add('forkop', 'connection_link', 'link1');
@@ -152,7 +136,6 @@ describe('a pasted link', () => {
     expect(paste(list, values, link)).toBe('test1');
   });
 
-  // LuCI hands the text still in the add field to the save as one more entry.
   it('typed and saved without being added still gets a name of its own', async () => {
     const list = linkList();
     const values = [];
@@ -183,8 +166,6 @@ describe('a pasted link', () => {
     ]);
   });
 
-  // Taken out again, the list holds what it loaded, and its save still has to
-  // delete the section the link became.
   it('taken out again is gone after the save', async () => {
     harness.uci.add('forkop', 'connection_link', 'link1');
     Object.assign(harness.store.get('link1'), {
@@ -246,8 +227,6 @@ describe('a stored link', () => {
     ]);
   });
 
-  // The widget checks a field as it is typed in, so its check is what keeps a
-  // link the core cannot dial out of the dialog.
   it('refuses an empty link and one the core cannot dial', async () => {
     harness.bundle.setCoreFeatures(coreFeatures({ remove: ['with_quic'] }));
     const dialog = await harness.openDialog(linkList(), 'sec', 'link1');

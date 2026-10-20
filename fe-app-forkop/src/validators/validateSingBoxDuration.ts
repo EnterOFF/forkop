@@ -1,9 +1,6 @@
 import { message } from './messages';
 
-// A sing-box duration: one or more number-and-unit pairs, with at least one
-// non-zero digit, so "0s" and "" are refused and "1d", "12h" and "2m30s" are
-// not. sing-box parses the same shape, and a field that accepts anything else
-// produces a configuration the service refuses to start with.
+// Number-and-unit pairs with a non-zero amount, as sing-box parses them: "0s" would mean no timeout.
 export function isSingBoxDuration(value: string) {
   return /^(?=.*[1-9])([0-9]+(?:\.[0-9]+)?(?:ns|us|ms|s|m|h|d))+$/.test(value);
 }

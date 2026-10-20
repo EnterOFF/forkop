@@ -7,17 +7,11 @@ import {
 import { normalizeDynamicListItems } from './listValues';
 import { required } from './required';
 
-// A section id stays in the config for good, so it names the type it belongs to.
-// LuCI's createSID() is not that name: its "new" prefix marks a section the browser
-// has not saved yet, and handing it to add() as an explicit name writes that marker
-// to /etc/config/forkop forever. Every section gets an id, including the children
-// nothing points at, because an anonymous one can only be addressed as @type[index]:
-// libuci numbers those by position across the whole file, so the address of a client
-// moves when a client of another server is removed and a stored command then edits
-// the wrong section. The suffix is random rather than the lowest free number, because
-// a number given back after a delete would quietly rebind a stale pointer:
-// dns_detour_section and the other section references are not cleared when their
-// target is removed.
+// Section ids stay in the config for good, so they name their type; LuCI's createSID() "new"
+// prefix would be written to /etc/config/forkop forever. Anonymous sections are addressed by
+// position across the file, which shifts when another one is removed. The suffix is random, not
+// the lowest free number: references are not cleared when their target goes, and a reused
+// number would rebind them.
 const SECTION_ID_PREFIXES: Record<string, string> = {
   connection_link: 'link',
   fallback_group: 'group',
@@ -42,8 +36,8 @@ export function nextSectionId(typeName: string) {
       .toString(16)
       .padStart(6, '0')}`;
 
-    // A staged child reaches uci only when its parent is saved, so an id handed out
-    // earlier in the same dialog is not visible through uci.get() yet.
+    // A staged child reaches uci only when its parent is saved, so ids issued in this dialog are
+    // tracked here.
     if (!issuedSectionIds.has(id) && !uci.get(FORKOP_UCI_PACKAGE, id)) {
       issuedSectionIds.add(id);
       return id;
@@ -142,10 +136,8 @@ export function createChildItem(
 ) {
   const rawValue = `${inputValue || ''}`.trim();
 
-  // Only a stored child section id identifies an existing item. A display value
-  // is always a draft, even when an item that is still stored carries the same
-  // name, so removing an item and adding a new one with the same name keeps the
-  // freshly entered settings instead of resurrecting the removed section.
+  // Only a stored child section id is an existing item; a display value is always a draft, so a
+  // removed item added again under its name keeps the new settings.
   if (
     isExistingChildItem(
       section_id,
@@ -219,10 +211,7 @@ export function applyChildItemSettings(
       return;
     }
 
-    // Writing a value the section already holds still counts as a change in
-    // LuCI, so a dialog that rewrites its whole item - the tunnel one does, to
-    // drop the fields of the kind it no longer is - would report every option
-    // of that item as changed by a save that changed nothing.
+    // LuCI counts writing an unchanged value as a change, so unchanged values are skipped.
     if (settingValueEquals(uci.get(FORKOP_UCI_PACKAGE, itemId, key), value)) {
       return;
     }
@@ -282,9 +271,8 @@ export function materializeChildItems(
   return { itemIds, resolved };
 }
 
-// Replaces draft list values with the child section ids they were stored as, so
-// a repeated write of the same widget updates those sections instead of storing
-// duplicates and losing the staged settings.
+// Replaces drafts with the section ids they were stored as, so a repeated write updates those
+// sections instead of duplicating them.
 export function adoptMaterializedChildItems(
   option: CBIOption,
   section_id: string,
@@ -314,11 +302,7 @@ export function adoptMaterializedChildItems(
   });
 }
 
-// Every child section of one item, gone. A child item that has a list of its
-// own - a fallback group has its levels, a tunnel has its peers - hands this to
-// the cleanup below, because a section nothing points at is unreachable: it
-// would sit in the config for good and libuci would renumber the anonymous
-// sections around it.
+// A section nothing points at is unreachable, so an item's own children go with it.
 export function removeChildItemsOf(
   parentId: string,
   childType: string,
@@ -336,8 +320,7 @@ export function cleanupRemovedChildItems(
   typeName: string | undefined,
   keepValues: unknown,
   ownerOption?: string,
-  // What one item of this type owns, when it owns anything. Only the tab that
-  // declares the list knows that, so it is given rather than looked up here.
+  // Only the tab declaring the list knows what an item owns.
   removeNested?: (itemId: string) => void,
 ) {
   const keep = new Set(normalizeDynamicListItems(keepValues));
@@ -352,19 +335,14 @@ export function cleanupRemovedChildItems(
   );
 }
 
-// The name field of a child item dialog: a display name is required, and the
-// list the item belongs to may refuse a particular one - a name another item
-// already holds. The check is built rather than written out, because the list
-// hands its own refusal in when the dialog opens.
+// The list hands in its own refusal, a name another item holds, when the dialog opens.
 export function childItemNameCheck(dialog: {
   validateName?: ChildItemNameValidator;
 }) {
   return required((_itemId, value) => dialog.validateName?.(value) ?? true);
 }
 
-// A child item list whose order matters - fallback levels are tried in order,
-// tunnels are dialled in order - stores each item's position, because the uci
-// list the widget writes is ordered but the sections behind it are not.
+// The uci list is ordered but the sections behind it are not, so each item stores its position.
 export function orderChildItemsByPosition(
   _ownerId: string,
   itemIds: string[],

@@ -33,8 +33,8 @@ export function connectionUriDescription() {
   );
 }
 
-// A link the core would fail to start with: its protocol, or the uTLS hello a
-// fingerprint or Reality asks for, is not in the installed build.
+// A link the installed core would fail to start with: its protocol, or the uTLS hello a
+// fingerprint or Reality asks for, is not in the build.
 export function validateConnectionUriCore(link: string) {
   return validateCoreFeature(
     linkCoreFeatures(link).find((feature) => !coreHas(feature)) || '',
@@ -50,9 +50,7 @@ export function tunnelKindAvailable(kind: string) {
   return !feature || coreHas(feature);
 }
 
-// What a section asks of the core that the installed one lacks: a tunnel of a
-// kind it was built without, or a link it cannot dial. A subscription is not in
-// it, because the core skips a server it cannot build and starts anyway.
+// Subscriptions are not included: the core skips a server it cannot build and starts anyway.
 export function sectionMissingCoreFeatures(sectionId: string) {
   const missing = new Set<string>();
   (uci.sections(FORKOP_UCI_PACKAGE, 'tunnel') || [])
@@ -75,8 +73,7 @@ export function sectionMissingCoreFeatures(sectionId: string) {
   return [...missing];
 }
 
-// Server types a filter can name: the ones the installed core can build, and any
-// the filter already names, so a save keeps them.
+// Types the installed core can build, plus any the filter already names, so a save keeps them.
 export function coreFilterTypeChoices(
   choices: Array<{ value: string; label: string }>,
   selected: string[],

@@ -4,23 +4,12 @@ import { installUciStub } from '../../../../../helpers/tests/luciStubs';
 import { addSubscriptionUrlItemOptions } from '../options';
 import { configuredSubscriptionTags, nextSubscriptionTag } from '../model';
 
-// Every subscription of a section carries a tag, because the runtime turns it
-// into the provider name "<section>/<tag>" and sing-box refuses a configuration
-// holding two providers under one name. Nobody has to type it: a subscription is
-// a section the moment its link is added, and it is named then.
-//
-// The list the numbering counts is the one the user is looking at, not the stored
-// one: a subscription taken out of the list is deleted only when the section is
-// saved, so until then it must stop holding its number.
-
 const SECTION = 'section_probe';
 
-// The list option, as far as the tag rules are concerned: the entries it shows.
 function listOption(values: string[]) {
   return { formvalue: () => values } as unknown as CBIOption;
 }
 
-// A stored subscription of the probe section.
 function storedSubscription(
   sections: Record<string, Record<string, string>>,
   itemId: string,
@@ -52,8 +41,6 @@ describe('naming a subscription that is being added', () => {
     );
   });
 
-  // Numbering counts rather than looking for a hole, so a section whose
-  // subscriptions are sub2 and sub3 does not hand the new one the free sub1.
   it('does not fill a gap the numbering left', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub2');
@@ -65,9 +52,6 @@ describe('naming a subscription that is being added', () => {
     ).toBe('sub4');
   });
 
-  // The section is not saved yet, so the removed subscriptions are still stored.
-  // Their numbers are free all the same: the same save that writes the new one
-  // deletes them.
   it('takes the numbers of subscriptions removed from the list', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
@@ -89,8 +73,6 @@ describe('naming a subscription that is being added', () => {
     ).toBe('sub4');
   });
 
-  // LuCI hands the text still in the add field to the save as one more entry;
-  // it is no subscription yet and holds no number.
   it('does not count an address still in the add field', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
@@ -104,8 +86,6 @@ describe('naming a subscription that is being added', () => {
     ).toBe('sub2');
   });
 
-  // A list that has not rendered - a parse with no dialog on screen - answers
-  // with nothing, and the stored children are then the whole truth.
   it('counts the stored subscriptions when no list is on screen', () => {
     const sections: Record<string, Record<string, string>> = {};
     storedSubscription(sections, 'sub_first', 'sub1');
@@ -151,7 +131,6 @@ describe('the tags a section counts as taken', () => {
   });
 });
 
-// The dialog's own field, driven the way the modal drives it.
 function tagValidator(option: CBIOption, ownerId: string) {
   let validate: ((itemId: string, value: unknown) => true | string) | undefined;
   const section = {

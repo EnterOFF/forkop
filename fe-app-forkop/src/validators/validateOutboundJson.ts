@@ -1,9 +1,7 @@
 import { message } from './messages';
 import { Check } from './types';
 
-// The field hands sing-box an outbound as written: whatever sing-box accepts is
-// its business, and it says what it refuses in the log. Forkop itself needs only
-// the tag, which names the outbound in the section and in the routes.
+// sing-box judges the outbound and logs what it refuses; Forkop needs only the tag.
 export function validateOutboundJson(
   value: string,
   usedTags: string[] = [],

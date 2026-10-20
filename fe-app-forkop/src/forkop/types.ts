@@ -90,9 +90,7 @@ export namespace Forkop {
     link?: string;
     canCopyLink?: boolean;
     subscriptionTag?: string;
-    // Only a section that stands for a single outbound sets this: its card exists
-    // because the section does, so it says whether the runtime carries the
-    // outbound behind it. Every other card comes from the Clash API to begin with.
+    // Set only for a section standing for a single outbound: whether the runtime carries it.
     runtimeAvailable?: boolean;
     urlTestInfo?: UrlTestInfo;
     fallbackInfo?: FallbackInfo;
@@ -151,8 +149,7 @@ export namespace Forkop {
     sectionName: string;
     displayName: string;
     action?: ConfigSection['action'];
-    // Budget for testing this section's own outbound, one node at a time. A
-    // group sweep does not use it: that has one ceiling for every section.
+    // For testing this section's own outbound one node at a time; group sweeps share one ceiling.
     latencyTestTimeout?: string;
     proxyConfigType?: ProxyConfigType;
     subscriptionSourceCount?: number;
@@ -315,8 +312,6 @@ export namespace Forkop {
     | MethodSuccessResponse<T>
     | MethodFailureResponse;
 
-  // What `forkop check_service` found: whether Forkop runs and what on the
-  // router could keep it from working whatever its configuration says.
   export interface ServiceCheckResult {
     running: boolean;
     // Seconds the core has run, -1 when it does not.
@@ -385,8 +380,6 @@ export namespace Forkop {
     items: ServerCheckItem[];
   }
 
-  // What a diagnostic report carries beside the system facts: the checks the
-  // page sent, masked by the router's rules when asked, and what the router adds.
   export interface ReportAttachments {
     checks: string;
     log: string;
@@ -401,9 +394,7 @@ export namespace Forkop {
     IP: string;
   }
 
-  // `status` says what the service is, `busy` says what is being done to it.
-  // They are independent: applying settings leaves the service running, so the
-  // two never collapse into one string.
+  // `status` is what the service is, `busy` what is being done to it; an apply leaves it running.
   export type ServiceBusy = 'start' | 'stop' | 'restart' | 'apply';
 
   export interface GetStatus {
@@ -411,8 +402,7 @@ export namespace Forkop {
     enabled: number;
     status: string;
     busy?: ServiceBusy | null;
-    // How long the running operation has been going, in seconds; 0 when none
-    // is. Elapsed rather than a timestamp so no clock comparison is needed.
+    // Seconds the running operation has gone on, 0 when none; elapsed, so no clock comparison is needed.
   }
 
   export interface GetSingBoxStatus {
@@ -421,10 +411,8 @@ export namespace Forkop {
     status: string;
   }
 
-  // What the state service's `usage` reads about the core: the processor time it
-  // has used and its start, both in kernel ticks, the memory only it holds, and
-  // the moment of the reading on the router's monotonic clock, which counts
-  // from boot like the start does.
+  // Processor time and start in kernel ticks, anonymous memory, and the reading's moment on the
+  // router's monotonic clock, which counts from boot like the start.
   export type CoreUsage =
     | { running: false }
     | {

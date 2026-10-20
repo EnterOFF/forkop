@@ -1,6 +1,3 @@
-// The title every dialog under a section adds to the heading, driven through the
-// shipped bundle: the kind of item and its name, the way the section dialog
-// itself reads "Section: <name>".
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -78,7 +75,6 @@ function sectionList(name) {
   return grid.children.find((option) => option.option === name);
 }
 
-// The list of a dialog, for an item that lives inside another item.
 function dialogList(dialog, name) {
   return dialog.map.children[0].children.find(
     (option) => option.option === name,

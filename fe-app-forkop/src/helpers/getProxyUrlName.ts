@@ -1,7 +1,5 @@
-// The name a share link carries for its server, the way core/url.uc link_name()
-// reads it: a VMess link's own "ps" name, and otherwise everything after the
-// first "#", percent-decoded the way core/url.uc does. A pasted link starts out
-// under this name.
+// Read the way core/url.uc link_name() reads it: a VMess link's "ps", otherwise everything after
+// the first "#", percent-decoded alike.
 export function getProxyUrlName(url: string) {
   const link = `${url ?? ''}`;
   const scheme = link.includes('://')
@@ -45,8 +43,8 @@ function vmessName(source: string) {
   }
 }
 
-// A "%" that does not start two hex digits stays as it is, rather than losing
-// the whole name the way decodeURIComponent() would.
+// A "%" not followed by two hex digits stays, instead of losing the whole name as
+// decodeURIComponent() would.
 function percentDecode(value: string) {
   const bytes: number[] = [];
   const encoder = new TextEncoder();

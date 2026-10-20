@@ -47,9 +47,7 @@ function applyServiceState(uiState: Forkop.UiState) {
 }
 
 function applyActionState(actions: UiActionMap = {}) {
-  // The local overlay only covers the gap between a click and the runtime
-  // reporting the job; from the first report the operation is the runtime's,
-  // and `service.forkop.busy` is what shows it.
+  // The local overlay covers only the gap between a click and the runtime reporting the job.
   for (const state of actions.service || []) {
     if (isRunningAction(state) && state.action !== 'reload') {
       setLocalServiceAction(state.action, false);
@@ -71,10 +69,8 @@ export function applyUiStateToStore(uiState: Forkop.UiState) {
   applyActionState(uiState.actions);
 }
 
-// Both transports failed, so nothing is going to fill the state in. Saying so
-// is what lets the page distinguish "state unknown" from "state on its way" -
-// an empty store reads as a stopped, disabled service, and offering controls
-// for that would act on a state nobody has seen.
+// An empty store reads as a stopped, disabled service, so an unknown state is marked to keep the
+// page from offering controls for it.
 export function markUiStateUnavailable() {
   const serviceState = store.get().serviceState;
 

@@ -44,10 +44,6 @@ describe('ensureSystemInfo', () => {
     });
   });
 
-  // The page warms the versions in the background, so a tab that mounts while
-  // that request is still out must join it. Asking again would spend the whole
-  // multi-second collection a second time, which is exactly what the warming was
-  // meant to avoid.
   it('gives concurrent callers one shared request', async () => {
     const pending = deferred<ReturnType<typeof systemInfoResponse>>();
     mocks.getSystemInfo.mockReturnValue(pending.promise);

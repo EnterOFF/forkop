@@ -7,9 +7,7 @@ import type { UnsavedUci } from '../cbi/unsavedUci';
 import { E } from '../../helpers/element';
 import { nextNumberedName } from '../../helpers/nextNumberedName';
 
-// LuCI's own Add control asks for a name first. Both grids name a section
-// themselves - the id says what type it is and the label is a free-form name the
-// dialog shows - so the control here is the button alone.
+// LuCI's Add control asks for a name first; both grids name a section themselves.
 function renderSectionAdd(sectionRef: CBISection, extraClass?: string) {
   const el = E('div', { class: 'cbi-section-create' });
   const buttonTitle = sectionRef.titleFn('addbtntitle') || _('Add');
@@ -33,8 +31,7 @@ function renderSectionAdd(sectionRef: CBISection, extraClass?: string) {
   return el;
 }
 
-// A server and a section may not share a name, so a new row's label is numbered
-// past the labels of both.
+// A server and a section may not share a name, so the label is numbered past both.
 function nextLabel(sectionRef: CBISection, configName: string, prefix: string) {
   return nextNumberedName(
     prefix,
@@ -46,8 +43,6 @@ function nextLabel(sectionRef: CBISection, configName: string, prefix: string) {
   );
 }
 
-// A new row: the section is created under an id naming its type, and given a
-// label the user can change, because the id is not shown anywhere.
 export function addLabeledSection(sectionRef: CBISection) {
   const configName = sectionRef.uciconfig || sectionRef.map.config;
   const prefix = sectionRef.sectiontype === 'section' ? 'Section' : 'Server';
@@ -62,15 +57,12 @@ export function addLabeledSection(sectionRef: CBISection) {
   return sectionId;
 }
 
-// What the Sections and Servers grids have in common: they are the same table
-// twice, and the user moves between them by clicking a tab.
 export function configureGridSection(
   sectionRef: CBISection,
   type: string,
   title: string,
   addTitle: string,
-  // What the tab wants written into a section the moment Add is pressed, before
-  // its dialog opens - the Servers tab seeds a protocol there.
+  // Written into a new section before its dialog opens; the Servers tab seeds a protocol.
   onSectionAdded?: (sectionId: string) => void,
 ) {
   sectionRef.anonymous = false;
@@ -88,9 +80,8 @@ export function configureGridSection(
   sectionRef.renderSectionAdd = function (extraClass?: string) {
     return renderSectionAdd(sectionRef, extraClass);
   };
-  // A dialog that fails to open - its data did not load - is reported by LuCI,
-  // which leaves the section it was opened for where the next save of the page
-  // would write it out empty.
+  // LuCI reports a dialog that fails to open and leaves the new section for the next save to write
+  // out empty, so it is taken back.
   sectionRef.handleAdd = function () {
     const sectionId = addLabeledSection(this);
     const mapNode = this.getPreviousModalMap();
@@ -107,10 +98,8 @@ export function configureGridSection(
     });
   };
 
-  // A nested dialog writes its item into uci when it closes, ahead of the
-  // section dialog's own save, and a refused save leaves the options that passed.
-  // Dismissing the dialog puts uci back as it was when the dialog opened, so the
-  // next save anywhere on the page does not push what the user threw away.
+  // Nested dialogs write into uci as they close, and a refused save keeps the options that passed;
+  // dismissing the dialog restores uci as it was when it opened.
   let unsaved: UnsavedUci | null = null;
   sectionRef.renderMoreOptionsModal = function (
     section_id: string,
@@ -142,8 +131,6 @@ export function configureGridSection(
   };
 
   if (type === 'section') {
-    // The shared grid layer owns the word on the row action button, so the two
-    // tables spell it the same way.
     sectionRef.renderRowActions = function (section_id: string) {
       return form.TableSection.prototype.renderRowActions.call(
         this,

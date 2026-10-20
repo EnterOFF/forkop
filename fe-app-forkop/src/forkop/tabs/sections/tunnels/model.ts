@@ -37,9 +37,7 @@ import {
   generateAmneziaParameters,
 } from '../../../../helpers/wireguard';
 
-// Every field a WireGuard peer has, with what an empty one holds. The dialog
-// reads these keys back, and an imported peer carrying anything else is refused,
-// so all three views of the list are taken from this one.
+// Every field a WireGuard peer has; an imported peer carrying anything else is refused.
 export function defaultWireGuardPeerSettings() {
   return {
     address: '',
@@ -129,8 +127,7 @@ export function tunnelListItemLabel(sectionId: string, tunnelId: string) {
   );
 }
 
-// The kinds that dial their server through a cascade: a Tailscale tunnel reaches
-// its coordination server through a section of its own choosing, and a JSON
+// Tailscale reaches its coordination server through a section of its own choosing, and a JSON
 // endpoint names its own detour.
 export const CASCADE_TUNNEL_KINDS = [
   'wireguard',
@@ -254,8 +251,7 @@ function setsAmneziaParameter(key: string, value: unknown) {
   return amneziaParameter(key)?.kind === 'flag' ? text === '1' : text !== '';
 }
 
-// The two endpoints that take the one-sided class gate it behind the
-// obfuscation switch, so the fields stay out of a dialog that does not use them.
+// The endpoints taking the one-sided class gate it behind the obfuscation switch.
 export function oneSidedAmneziaEnabled(kind: string, settings: ChildSettings) {
   return (
     (kind === 'wireguard' || kind === 'warp') &&
@@ -263,9 +259,7 @@ export function oneSidedAmneziaEnabled(kind: string, settings: ChildSettings) {
   );
 }
 
-// What a field of the open dialog holds. The stored value is read as well as
-// the widget: a field that the switch keeps hidden has no widget to ask yet,
-// and formvalue answers null for it.
+// The stored value too: a field the switch hides has no widget yet, and formvalue answers null.
 function dialogValue(map: CBIMap, option: CBIOption) {
   return `${
     option.formvalue('settings') ??
@@ -274,9 +268,7 @@ function dialogValue(map: CBIMap, option: CBIOption) {
   }`.trim();
 }
 
-// Whether the dialog holds a parameter a WireGuard or WARP tunnel would send, so
-// a tunnel that stops being AmneziaWG keeps obfuscating only when it has
-// something to obfuscate with.
+// A tunnel that stops being AmneziaWG keeps obfuscating only when it has something to send.
 export function hasOneSidedAmneziaValues(
   map: CBIMap,
   amneziaOptions: Record<string, CBIOption>,
@@ -288,8 +280,7 @@ export function hasOneSidedAmneziaValues(
   );
 }
 
-// The generate button draws a fresh set and puts in every parameter the tunnel
-// sends, replacing what the fields held.
+// Draws a fresh set and replaces every parameter the tunnel sends.
 export function fillGeneratedOneSidedAmnezia(
   map: CBIMap,
   amneziaOptions: Record<string, CBIOption>,
@@ -327,9 +318,8 @@ export function tunnelStorageSettings(settings: ChildSettings) {
     tailscale_auth_key: `${settings.tailscale_auth_key || ''}`.trim(),
     tailscale_hostname: `${settings.tailscale_hostname || ''}`.trim(),
     tailscale_control_url: `${settings.tailscale_control_url || ''}`.trim(),
-    // Every other field of a kind the tunnel is not collapses to nothing here;
-    // these two have a default, so they need the same gate or a WireGuard
-    // tunnel ends up storing an option it never showed.
+    // These two have defaults, so they need the kind gate or a WireGuard tunnel stores options it
+    // never showed.
     tailscale_accept_routes:
       kind === 'tailscale' ? `${settings.tailscale_accept_routes || '1'}` : '',
     accept_server_dns: SERVER_DNS_TUNNEL_KINDS.includes(kind)
@@ -340,8 +330,7 @@ export function tunnelStorageSettings(settings: ChildSettings) {
       `${settings.tailscale_detour_enabled || ''}` === '1'
         ? `${settings.tailscale_detour_section || ''}`.trim()
         : '',
-    // The dialog drops the section along with its switch, so a section it
-    // still holds is one the switch is on for.
+    // The dialog drops the section with its switch, so a section still held means the switch is on.
     detour_section: CASCADE_TUNNEL_KINDS.includes(kind)
       ? `${settings.detour_section || ''}`.trim()
       : '',
@@ -371,10 +360,8 @@ export function createTunnelItem(
   if (uci.get(FORKOP_UCI_PACKAGE, itemId, 'section') !== sectionId) {
     uci.set(FORKOP_UCI_PACKAGE, itemId, 'section', sectionId);
   }
-  // The dialog owns every key of a tunnel, so the ones it did not fill are
-  // cleared - a tunnel that is no longer WireGuard must not keep WireGuard
-  // fields. Naming them all rather than unsetting them first leaves the values
-  // that did not change alone, so a save that changed nothing writes nothing.
+  // The dialog owns every key, so unfilled ones are cleared; naming them all leaves unchanged values
+  // alone, so a save that changed nothing writes nothing.
   const target: Record<string, unknown> = {};
   tunnelSettingsKeys().forEach((key: string) => {
     target[key] = Object.prototype.hasOwnProperty.call(settings, key)
@@ -602,8 +589,7 @@ export function applyImportedTunnelEndpoint(
   fields: ImportedTunnelFields,
   endpoint: Record<string, unknown>,
 ) {
-  // A configuration that sets a parameter both ends must agree on describes an
-  // AmneziaWG peer. One that sets only the one-sided ones is a WireGuard tunnel
+  // A parameter both ends must agree on means an AmneziaWG peer; only one-sided ones mean WireGuard
   // with obfuscation, which any server accepts.
   const importedAmnezia = (endpoint.amnezia || {}) as Record<string, unknown>;
   const amneziaKeys = Object.keys(importedAmnezia);

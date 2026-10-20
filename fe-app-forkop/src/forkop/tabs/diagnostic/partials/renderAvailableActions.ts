@@ -18,10 +18,8 @@ interface ActionProps {
   onClick: () => void;
 }
 
-// While an operation runs, its own button is the progress indicator, so it says
-// what is happening. An apply is not a restart: the service keeps running
-// through it, and calling it "restarting" reported an outage that never
-// happened.
+// While an operation runs its own button is the progress indicator; an apply keeps the service
+// running, so it is not called a restart.
 interface RestartActionProps extends ActionProps {
   mode: 'restart' | 'apply';
 }

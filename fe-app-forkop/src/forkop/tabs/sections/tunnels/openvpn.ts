@@ -1,7 +1,4 @@
-// What the OpenVPN tunnel dialog holds and the endpoint it stands for. The
-// tunnel is stored as the native openvpn-client endpoint; the dialog edits the
-// part of it a profile carries, and anything else a stored endpoint holds is
-// carried through.
+// Stored as the native openvpn-client endpoint; fields the dialog does not edit are carried through.
 
 import { OPENVPN_DEFAULT_PORT } from '../../../../helpers/parseOpenVPNConfig';
 import {
@@ -60,9 +57,7 @@ export const COMPRESSION_LABELS: Record<string, string> = {
   'lzo-adaptive': 'comp-lzo adaptive',
 };
 
-// Every top-level field and every TLS field the dialog writes. What a stored
-// endpoint holds beyond these - a migrated configuration may carry dial fields
-// or pull filters - is kept as it was.
+// Anything beyond these (dial fields or pull filters a migration left) is kept as it was.
 const MANAGED = [
   'type',
   'tag',
@@ -155,8 +150,7 @@ function list(value: unknown): string[] {
       : [text(value)];
 }
 
-// A PEM field of the endpoint, as the dialog shows it: the content, or the path
-// the core reads it from on the router.
+// The content, or the path the core reads it from on the router.
 function material(object: Record<string, unknown>, key: string) {
   const content = list(object[key]).join('\n').trim();
   return content || trimmed(object[`${key}_path`]);
@@ -191,8 +185,7 @@ function formatServer(server: unknown, port: unknown, network: string) {
   return `${scheme}${address}:${port ?? OPENVPN_DEFAULT_PORT}`;
 }
 
-// One entry of the server list: host and port, and tcp:// or udp:// before a
-// server that does not use the protocol the tunnel is set to.
+// Host and port, with tcp:// or udp:// before a server not on the tunnel's protocol.
 export function parseOpenVPNServer(value: unknown) {
   let rest = trimmed(value);
   let network = '';
@@ -488,8 +481,7 @@ export function validateAddress(value: unknown) {
     : message.prefixLength();
 }
 
-// What the dialog asks of a tunnel, each field marking itself there; a tunnel
-// whose dialog is closed is only told to be fixed.
+// Each field marks itself in the dialog; a closed tunnel is only told to be fixed.
 function openVPNSettingsComplete(settings: ChildSettings) {
   const servers = normalizeOptionValues(settings.openvpn_servers);
   if (

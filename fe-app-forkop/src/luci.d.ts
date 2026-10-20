@@ -1,13 +1,5 @@
-// The LuCI runtime, as far as this app reaches into it.
-//
-// None of these are imported: LuCI hands every module its dependencies through
-// the `"require ..."` prologue at the top of the bundle, so inside the bundle
-// they are plain globals. This file is what tells TypeScript they exist and
-// what shape they have.
-//
-// The surface is deliberately closed - only the members the app actually uses
-// are declared, so a new dependency on LuCI shows up as a type error instead of
-// silently working until a LuCI upgrade removes it.
+// The LuCI runtime as far as this app reaches into it: globals the bundle's "require" prologue
+// provides. Only members the app uses are declared, so a new dependency on LuCI is a type error.
 
 type HtmlTag = keyof HTMLElementTagNameMap;
 
@@ -55,10 +47,6 @@ type HtmlAttributes<T extends HtmlTag = 'div'> = Partial<
 
 declare global {
   // ---------------------------------------------------------------- uci model
-  //
-  // The browser-side copy of /etc/config. Reads are synchronous because the
-  // whole package is loaded once before a view renders; writes are staged until
-  // the page saves.
 
   interface UciSectionObject {
     '.name': string;
@@ -94,13 +82,8 @@ declare global {
   };
 
   // ------------------------------------------------------------------ cbi/form
-  //
-  // The declarative form machinery. A view builds a Map, gives it Sections, and
-  // gives each Section its Options; LuCI renders them, validates them and writes
-  // the result back into the uci model above.
 
-  // What section.option()/taboption() hands back. LuCI's own members come first;
-  // the ones Forkop attaches are merged in from src/forkop/cbi.d.ts.
+  // LuCI's own members; the ones Forkop attaches merge in from src/forkop/cbi/cbi.d.ts.
   interface CBIOption {
     readonly option: string;
     readonly section: CBISection;
@@ -158,9 +141,7 @@ declare global {
 
     // The id of the DOM node this option renders into, for the given section.
     cbid(sectionId: string): string;
-    // The stored value, and the one currently in the form.
-    // The stored value of the field. A DummyValue may answer with a node
-    // instead, which is what it then renders.
+    // The stored value; a DummyValue may answer with a node, which it then renders.
     cfgvalue(sectionId: string, value?: unknown): UciValue | Node | undefined;
     formvalue(sectionId: string): UciValue | undefined;
     // The rendered widget, absent until the option is on screen.
@@ -242,12 +223,8 @@ declare global {
     children: CBIOption[];
   }
 
-  // A Map is a whole form: it is bound to one uci package, or - as JSONMap - to
-  // a plain object, which is how the dialogs here edit values that are not in
-  // uci yet.
-  // Where a Map keeps the values it is editing. For a uci Map that is the uci
-  // model; for a JSONMap it is the plain object the dialog was opened on, and
-  // both answer the same four-argument shape.
+  // A Map is bound to a uci package, or as JSONMap to a plain object; both answer the same
+  // four-argument shape.
   interface CBIMapData {
     // Two arguments read a whole section, three read one of its options.
     get(config: string, section: string): UciSectionObject | null;
@@ -292,12 +269,8 @@ declare global {
     parent?: CBIMap;
   }
 
-  // Every LuCI class is built by extend() rather than by `class`, and the views
-  // subclass the widgets this way too.
-  // extend() carries ThisType so that inside a member `this` is the instance
-  // plus whatever the subclass added; without it every `this.` in an override is
-  // untyped. The prototype stays open because it is how an override reaches the
-  // method it replaced, and LuCI's own methods are not modelled here.
+  // LuCI classes are built by extend(). ThisType types `this` inside members; the prototype stays
+  // open, since that is how an override reaches the method it replaced.
   interface CBIWidgetClass {
     new (...args: unknown[]): CBIOption;
     extend<M extends object>(
@@ -336,9 +309,6 @@ declare global {
   };
 
   // -------------------------------------------------------------------- ui
-  //
-  // The widget layer under cbi/form: what a rendered option actually is, plus
-  // the modal and notification helpers a view calls directly.
 
   // What a ui widget was constructed with.
   interface CBIWidgetOptions {
@@ -362,8 +332,7 @@ declare global {
     render(): HTMLElement;
     // Dropdown-backed widgets carry the list the user picks from.
     choices?: Record<string, unknown>;
-    // What the widget was built with. Forkop adds to this - see
-    // src/forkop/cbi/cbi.d.ts.
+    // Forkop adds to this in src/forkop/cbi/cbi.d.ts.
     options: CBIWidgetOptions;
     clearChoices(reset?: boolean): void;
     addChoices(values: string[], labels: Record<string, unknown>): void;
@@ -428,9 +397,6 @@ declare global {
   };
 
   // --------------------------------------------------------------- baseclass
-  //
-  // What a LuCI module returns. The bundle's own return is written by the build,
-  // so this is only here for the modules that still call it directly.
   const baseclass: {
     extend<T extends object>(members: T): T;
   };

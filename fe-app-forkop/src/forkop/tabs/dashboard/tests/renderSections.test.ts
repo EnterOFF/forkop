@@ -19,8 +19,6 @@ function installElementFactory() {
           : [children as FakeNode | string],
   });
   (globalThis as unknown as { E: unknown }).E = fakeE;
-  // Every section header draws icons, and an icon is built through the
-  // document; a case run on its own has none unless it is given one here.
   if (typeof document === 'undefined') {
     vi.stubGlobal('document', {
       timeline: { currentTime: 0 },
@@ -622,8 +620,6 @@ describe('renderSections latency actions', () => {
     expect(sectionButton?.attrs.disabled).toBeUndefined();
   }, 15000);
 
-  // The group is on the dashboard because the Clash API reports it; it has no
-  // members because its filter or its provider left it without any.
   it('does not render latency or selection actions for an empty group', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
@@ -811,10 +807,6 @@ describe('renderSections subscription metadata', () => {
     expect(title?.children[0]).toBe('Subscription');
   });
 
-  // The assembled entry always carries which source it came from, so counting
-  // its keys says nothing about whether there is anything to show. What decides
-  // is content, and a tag is not content: it is already in front of every node
-  // name below.
   it('leaves out a block that would hold nothing but the tag', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
@@ -850,8 +842,6 @@ describe('renderSections subscription metadata', () => {
     ).toBeUndefined();
   });
 
-  // Traffic, an expiry, a support link or an announcement each make the block
-  // worth its border, tag or no tag.
   it('keeps a block that has something of its own to say', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');
@@ -975,8 +965,6 @@ describe('renderSections collapse action', () => {
     ).toBeUndefined();
   });
 
-  // In front of the title, every section has it at the same place: at the
-  // head of the actions it moved along with how many of them a section had.
   it('sits in front of the title once another section shares the page', async () => {
     const root = await render({ collapsible: true });
     const button = findCollapseButton(root);
@@ -1146,8 +1134,6 @@ describe('renderSections header', () => {
     ).toBeUndefined();
   });
 
-  // Every section has the button, so its label repeated down the page; an icon
-  // carries the name for a pointer and a screen reader instead.
   it('tests the section from an icon that carries its name', async () => {
     installElementFactory();
     const { renderSections } = await import('../partials/renderSections');

@@ -26,9 +26,7 @@ export function validateUrl(
   }
 }
 
-// The same check as a LuCI field asks it, for a URL the field cannot do without.
-// Every URL field in the app - a latency test target, a URLTest probe, a
-// Tailscale coordination server - runs exactly this.
+// The check every required URL field runs.
 export function validateUrlField(value: unknown) {
   const url = `${value || ''}`.trim();
   return url ? validateUrl(url) : message.required();

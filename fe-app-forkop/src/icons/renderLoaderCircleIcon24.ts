@@ -14,9 +14,7 @@ export function renderLoaderCircleIcon24() {
       'stroke-linecap': 'round',
       'stroke-linejoin': 'round',
       class: 'lucide lucide-loader-circle rotate',
-      // The turn is the .rotate keyframes; this is where in the turn this
-      // particular spinner starts, so that one built to replace another picks up
-      // where it left off.
+      // Where in the .rotate turn this spinner starts, so a replacement picks up where its predecessor was.
       style: spinPhaseStyle(),
     },
     [

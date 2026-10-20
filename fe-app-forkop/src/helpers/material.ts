@@ -1,5 +1,4 @@
-// The certificates and keys an OpenVPN profile or a TLS server carries, checked
-// the way the core reads them.
+// Checked the way the core reads them.
 
 import { decodeBase64, isCertificate, pemBlocks } from './pem';
 import type { PemBlock } from './pem';
@@ -22,8 +21,7 @@ export function isRouterPath(value: string) {
   return /^\/[^\n]*$/.test(value.trim());
 }
 
-// The certificates and the private key of a text that holds both, each as PEM
-// text of its own, or null when it holds only one of the two or several keys.
+// null when the text holds only one of the two, or several keys.
 export function splitCertificateAndKey(text: string) {
   const blocks = Array.from(
     `${text || ''}`.matchAll(

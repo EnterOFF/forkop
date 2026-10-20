@@ -5,8 +5,6 @@ import { describe, expect, it } from 'vitest';
 import { domainToUnicode } from '../domainToUnicode';
 
 describe('domainToUnicode', () => {
-  // Node's own IDNA decoder is the reference: the page has to read these the
-  // way any browser address bar would.
   it.each([
     'xn--d1abbgf6aiiy.xn--p1ai',
     'xn--e1afmkfd.xn--p1ai',

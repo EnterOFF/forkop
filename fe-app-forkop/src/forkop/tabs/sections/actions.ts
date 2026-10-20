@@ -36,8 +36,7 @@ export function getRuleActionDisplayValue(section_id: string) {
   return getActionOptionLabel(getRuleResolvedAction(section_id));
 }
 
-// The row says so when the installed core cannot run what the section holds,
-// which the router then refuses to start with.
+// Says when the installed core cannot run what the section holds.
 export function getRuleActionDisplayMarkup(section_id: string) {
   const label = escapeHtml(getRuleActionDisplayValue(section_id));
   const notes = sectionMissingCoreFeatures(section_id).map((feature) =>
@@ -46,10 +45,8 @@ export function getRuleActionDisplayMarkup(section_id: string) {
   return notes.length ? `${label} (${notes.join('; ')})` : label;
 }
 
-// currentAction is what the section is stored as, and a dropdown hands back one
-// of its own entries and nothing else: without its own action in the list a
-// section carrying a retired action would come back from a save as a Connection
-// with no servers, which is a configuration that will not build at all.
+// A dropdown hands back only its own entries, so the stored action is kept in the list; otherwise
+// a retired action would be saved as a Connection with no servers.
 export function populateActionOptionValues(
   option: CBIOption,
   currentAction?: unknown,

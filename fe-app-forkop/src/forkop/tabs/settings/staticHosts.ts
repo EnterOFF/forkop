@@ -6,8 +6,7 @@ import {
 } from '../../cbi/modal';
 import { E } from '../../../helpers/element';
 
-// Shown greyed out in the static records editor: one address per line, with as
-// many names for it as the hosts format allows, in both address families.
+// One address per line with its names, in both families.
 export const STATIC_HOSTS_PLACEHOLDER = [
   '192.168.1.10 nas.local',
   '10.0.0.5 printer.local printer',

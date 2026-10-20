@@ -2,10 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createPollChain } from '../pollChain';
 
-// A poll asks, waits for the answer, and only then decides when to ask again.
-// What has to hold is that there is never more than one of it running, whatever
-// the page does to it in the meantime, and that nobody is asked for while the
-// page is out of sight.
 let page: { visibilityState: string };
 const listeners = new Set<() => void>();
 
@@ -57,8 +53,6 @@ describe('a poll chain', () => {
     expect(run).toHaveBeenCalledTimes(2);
   });
 
-  // Stopped and started again while an answer is on its way: the answer must
-  // not start a second chain beside the new one.
   it('stays one chain across a stop and a start during a request', async () => {
     const { run, answer } = answered();
     const poll = createPollChain(run, () => 1000);
@@ -104,8 +98,6 @@ describe('a poll chain', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  // A request asked for out of turn replaces the wait, not the request on its
-  // way: that one schedules the next when it is done.
   it('asks at once when told to, unless a request is already out', async () => {
     const { run, answer } = answered();
     const poll = createPollChain(run, () => 1000);

@@ -34,11 +34,7 @@ type WireGuardConfigResult =
 
 type FieldValues = Record<string, string[]>;
 
-/**
- * Interface and peer fields collected from one of the supported sources. Field
- * names are canonical, so `PrivateKey`, `private_key` and `secretKey` all land
- * in the same slot and every source shares one normalization below.
- */
+/** Canonical field names: `PrivateKey`, `private_key` and `secretKey` share one slot. */
 type WireGuardSource = {
   iface: FieldValues;
   peers: FieldValues[];
@@ -62,18 +58,12 @@ const MAX_AMNEZIA_CONFIG_SIZE = 1024 * 1024;
 const DEFAULT_WIREGUARD_PORT = 51820;
 
 /**
- * Share-link schemes carrying a WireGuard peer. `wireguard://` is what 3x-ui,
- * v2rayN and NekoBox emit, `wg://` is the short form 3x-ui also accepts, and
- * `awg://` / `amneziawg://` are the AmneziaWG spellings: all four use the same
- * layout, so the obfuscation fields decide whether the tunnel is AmneziaWG.
+ * `wireguard://` (3x-ui, v2rayN, NekoBox), `wg://` and the AmneziaWG `awg://` and `amneziawg://`
+ * share one layout; the obfuscation fields decide whether the tunnel is AmneziaWG.
  */
 const LINK_SCHEMES = ['wireguard', 'wg', 'awg', 'amneziawg'];
 
-/**
- * A peer in a share link routes everything by default: no generator writes
- * AllowedIPs into the link, while every one of them writes `0.0.0.0/0, ::/0`
- * into the configuration file it hands out for the same peer.
- */
+/** No generator writes AllowedIPs into a link, while all write this into the file for the peer. */
 const LINK_ALLOWED_IPS = '0.0.0.0/0, ::/0';
 
 /** Canonical field name -> the spellings configurations and links use for it. */
@@ -126,11 +116,7 @@ function normalizePrefixes(values: string[]): string[] | null {
   return result;
 }
 
-/**
- * Reduces a field name to its canonical form: configuration files, panels and
- * link generators spell the same field as `AllowedIPs`, `allowed_ips` or
- * `allowed-ips`, so separators and case are dropped before the alias lookup.
- */
+/** Separators and case are dropped: `AllowedIPs`, `allowed_ips` and `allowed-ips` are one field. */
 function canonicalField(key: string): string {
   const compact = key
     .trim()
@@ -233,12 +219,8 @@ function decodeLinkComponent(value: string): string {
 }
 
 /**
- * Collects the fields of a `wireguard://` style share link, or returns null when
- * the input is not one. The link is split by hand rather than through `URL`:
- * the private key sits in the userinfo and its standard base64 may contain a
- * raw `/`, which a URL parser would take for the start of the path and drop the
- * key with it. `+` stays literal for the same reason — every key would lose a
- * byte if the query were read as a form body.
+ * Split by hand rather than through `URL`: the private key's base64 in the userinfo may hold a raw
+ * `/`, which a URL parser takes for the path, and `+` must stay literal.
  */
 function readShareLink(input: string): WireGuardSource | null {
   const link = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/(.*)$/su.exec(input);
@@ -286,18 +268,10 @@ function readShareLink(input: string): WireGuardSource | null {
 }
 
 /**
- * Rejects fields the core cannot execute. `reserved` carries the Cloudflare
- * WARP client id that the edge routes on.
- * No endpoint in the core carries that field, so a link that needs it cannot
- * be honoured. Forkop's own Cloudflare WARP tunnel reaches the service without
- * those bytes, which is what such a link should become.
- *
- * Fields that only weaken obfuscation or mean nothing to a userspace peer are
- * dropped on purpose and stay silent: `DNS`, `Table`, `FwMark`, `SaveConfig`
- * and the `PreUp`/`PostUp`/`PreDown`/`PostDown` hooks are wg-quick host
- * plumbing, `AdvancedSecurity` is a server-side per-peer switch,
- * `J1`-`J3`/`Itime` are the junk train AmneziaWG 1.5
- * dropped as redundant in favour of `I1`-`I5`.
+ * `reserved` carries the WARP client id the Cloudflare edge routes on, which no core endpoint
+ * carries; Forkop's own WARP tunnel is what such a link should become. wg-quick host plumbing
+ * (`DNS`, `Table`, `FwMark`, `SaveConfig`, the up and down hooks), the server-side
+ * `AdvancedSecurity` and AmneziaWG 1.5's `J1`-`J3`/`Itime` are dropped silently.
  */
 function rejectUnsupportedFields(source: WireGuardSource): string {
   for (const values of [source.iface, ...source.peers]) {
@@ -424,11 +398,7 @@ function buildEndpoint(source: WireGuardSource): WireGuardConfigResult {
   return { valid: true, endpoint };
 }
 
-/**
- * Parses a native WireGuard/AmneziaWG configuration file or a `wireguard://`
- * style share link. Both reach the same normalization, so a link and the
- * configuration file for the same peer import to the same endpoint.
- */
+/** A configuration file and a share link for the same peer import to the same endpoint. */
 export function parseWireGuardConfig(input: string): WireGuardConfigResult {
   const value = `${input || ''}`.trim();
   const link = readShareLink(value);
@@ -560,9 +530,8 @@ function importAmneziaProfile(profile: unknown): WireGuardConfigResult {
 }
 
 /**
- * Parses everything the import dialog accepts: a native configuration file, a
- * `wireguard://` style share link, an Amnezia `vpn://` link and the Amnezia
- * profile JSON that link carries, which the client also exports on its own.
+ * A configuration file, a `wireguard://` style link, an Amnezia `vpn://` link, or the Amnezia
+ * profile JSON such a link carries.
  */
 export async function parseWireGuardInput(
   input: string,

@@ -8,7 +8,6 @@ vi.mock('../../../methods', () => ({
 vi.mock('../../../../helpers/onMount', () => ({ onMount: async () => ({}) }));
 vi.mock('../../../../icons', () => ({ renderSearchIcon24: () => ({}) }));
 
-// Just the elements the controller reaches for, by id.
 function page() {
   const nodes: Record<string, Record<string, unknown>> = {};
   const node = (id: string) =>
@@ -40,8 +39,6 @@ beforeEach(() => {
   mocks.checkLogs.mockReset();
 });
 
-// The controller and the store come out of one module graph, so the test moves
-// between tabs the way the tab service does.
 async function openedOn(tab: string) {
   const { store } = await import('../../../services/store.service');
   store.set({ tabService: { current: tab, all: [] } });
@@ -55,8 +52,6 @@ async function switchTo(tab: string) {
 }
 
 describe('the Logs tab', () => {
-  // A router whose log holds no Forkop line yet has an empty log, and the pane
-  // has to say so rather than go on loading.
   it('says there are no logs once an empty log arrives', async () => {
     const node = page();
     mocks.checkLogs.mockResolvedValue({ success: true, data: '' });
@@ -80,8 +75,6 @@ describe('the Logs tab', () => {
     expect(node('logs-output').textContent).toBe('Failed to load logs');
   });
 
-  // With a search typed in, Copy and Download hand over only the lines it
-  // found, and their labels say so.
   it('names the buttons for what a search found', async () => {
     const node = page();
     mocks.checkLogs.mockResolvedValue({ success: true, data: 'one\ntwo' });
@@ -108,8 +101,6 @@ describe('the Logs tab', () => {
     expect(node('logs-download').textContent).toBe('Download');
   });
 
-  // Every other tab lays the Logs tab out at zero height rather than hiding it,
-  // so only the tab service can say it is not the one being looked at.
   it('reads nothing while another tab is shown, and reads once it is', async () => {
     vi.useFakeTimers();
     page();

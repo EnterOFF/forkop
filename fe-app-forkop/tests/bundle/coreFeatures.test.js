@@ -1,7 +1,3 @@
-// What the page offers is what the installed sing-box can run, read off the tags
-// the core was built with. A choice the core lacks is not offered, and one a
-// configuration already holds stays - marked, and refused on save by name - so
-// neither a save nor the router loses it without the user seeing why.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';

@@ -1,7 +1,5 @@
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
-// What the page says about itself goes to the browser console at the level it
-// was said at, with its arguments as they are, so an error keeps its stack.
 function write(level: LogLevel, args: unknown[]) {
   console[level](`[${level.toUpperCase()}]`, ...args);
 }

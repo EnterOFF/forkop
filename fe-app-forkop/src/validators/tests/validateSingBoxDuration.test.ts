@@ -6,8 +6,6 @@ import {
   validateRequiredSingBoxDuration,
 } from '../validateSingBoxDuration';
 
-// A sing-box duration has to hold a non-zero amount: "0s" parses as a duration
-// and means "no timeout", which turns a health check off instead of setting one.
 describe('isSingBoxDuration', () => {
   it.each(['1s', '0.5s', '2m30s', '1d', '12h', '250ms', '100us', '10ns'])(
     'accepts %s',

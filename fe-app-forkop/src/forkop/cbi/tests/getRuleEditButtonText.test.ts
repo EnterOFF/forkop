@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { getRuleEditButtonText } from '../grid';
 
-// A row action button has to stay short, and LuCI's own catalog translates
-// "Edit" at length. So the button asks for a msgid of Forkop's own and falls
-// back to the English word when the catalog returns the msgid unchanged.
-
 const globals = globalThis as unknown as Record<string, unknown>;
 const translate = globals._;
 

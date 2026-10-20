@@ -5,9 +5,8 @@ type UbusCallResult<T> =
   | { success: true; data: T }
   | { success: false; message: string; unavailable: boolean };
 
-// LuCI hands main.ts its rpc module as a parameter of the function the view is
-// wrapped in, not as a global, so the name has to be reached as it is written.
-// Declaring the call lazily keeps the module importable from tests.
+// LuCI hands main.ts its rpc module as a parameter of the view wrapper, not as a global; resolving
+// it lazily keeps this module importable from tests.
 function rpcModule() {
   const candidate = typeof rpc === 'undefined' ? undefined : rpc;
   return candidate as unknown as
@@ -22,10 +21,7 @@ function rpcModule() {
     | undefined;
 }
 
-// ubus reports a missing object or a denied ACL as a status code rather than a
-// transport failure, and both mean the same thing to a caller: this route is not
-// available, use the other one. A genuine error from a method that did run is a
-// different thing and must not be mistaken for it.
+// A missing object or a denied ACL comes back as a status code; both mean this route is unavailable.
 const UNAVAILABLE_STATUS = new Set([
   2, // invalid argument
   4, // method not found
@@ -43,12 +39,8 @@ function isUnavailable(error: unknown) {
   return /not found|permission denied|Object not found/i.test(message);
 }
 
-// A service being restarted - by a package upgrade, or by procd after a crash -
-// is missing for a second or two and then back. Treating that as "not installed"
-// would send the page down its fallback path for a gap that is about to close,
-// so a call that finds nothing there is retried briefly first. An object that is
-// genuinely absent costs three quick failures and no more, because the caller
-// remembers the answer.
+// A service restarted by an upgrade or by procd is missing for a second or two, so a call that
+// finds nothing is retried briefly before the caller falls back.
 const UNAVAILABLE_RETRIES = 2;
 const UNAVAILABLE_RETRY_MS = 700;
 
@@ -56,11 +48,8 @@ function wait(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// LuCI sends every call made within one animation frame as a single HTTP
-// request, and uhttpd runs the calls of such a batch one after another and
-// answers when the last is done. A call the service parks is sent on its own:
-// in a batch it holds every call beside it until it is released, and two parked
-// calls in one batch wait one after the other, past any timeout set for one.
+// LuCI batches the calls of one animation frame into one HTTP request, which uhttpd answers only
+// when the last call is done, so a parked call is sent on its own.
 export async function callUbus<T>(options: {
   object: string;
   method: string;

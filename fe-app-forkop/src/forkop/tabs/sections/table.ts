@@ -40,14 +40,11 @@ export function configureSectionSection(sectionRef: CBISection) {
     return renderMoreOptionsModal.call(this, section_id, ev);
   };
 
-  // A Connection section needs servers and a DNS section something to match, from
-  // whichever of several fields: a property of the section, not of any one of
-  // its fields, so the check runs here instead of in an option. Before the
-  // dialog writes anything: LuCI parses the options one by one, so a check that
-  // refuses halfway leaves the fields that already passed behind.
+  // Whether a section has servers or something to match spans several fields, so it is checked here,
+  // before the dialog writes anything: LuCI parses options one by one, and a refusal halfway leaves
+  // the passed fields behind.
   sectionRef.handleModalSave = function (modalMap: CBIMap, ev: Event) {
-    // On the modal map LuCI overwrites section() with the id of the section
-    // being edited, so this reads the id and not the method.
+    // On the modal map LuCI replaces section() with the edited section's id.
     const editedSectionId = modalMap?.section as unknown as string;
     const missing = missingConnectionOutbound(modalMap, editedSectionId)
       ? _(
@@ -64,8 +61,7 @@ export function configureSectionSection(sectionRef: CBISection) {
     return saveSectionModal(this, modalMap, ev);
   };
 
-  // The default headers only fill in the subscription dialog, which asks again
-  // when it opens; the table renders without them.
+  // The subscription dialog loads the default headers itself when it opens.
   sectionRef.load = function () {
     return Promise.all([
       loadDefaultSubscriptionHeaders().catch((error) => {

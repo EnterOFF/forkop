@@ -2,9 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { captureUnsavedUci, restoreUnsavedUci } from '../unsavedUci';
 
-// uci keeps everything not yet pushed to the router in uci.state: the sections
-// added, the options set and deleted, and the order a drag left the rows in. The
-// writes below are the ones uci.js makes for add, set, unset, remove and move.
 let state: {
   values: Record<string, Record<string, Record<string, unknown>>>;
   creates: Record<string, Record<string, Record<string, unknown>>>;
@@ -48,8 +45,6 @@ describe('what a dismissed dialog leaves in uci', () => {
     expect(state.deletes.forkop).toBeUndefined();
   });
 
-  // Rows dragged before the dialog opened are an unsaved change of their own,
-  // pushed by the page's Save; the dialog must not undo it.
   it('keeps the order the rows were dragged into before the dialog', () => {
     state.values.forkop.sec_a['.index'] = 1;
     state.values.forkop.sec_b['.index'] = 0;
@@ -74,8 +69,6 @@ describe('what a dismissed dialog leaves in uci', () => {
     expect(state.changes.network).toEqual({ lan: { proto: 'static' } });
   });
 
-  // A save in between pushed everything and reloaded the package; what was
-  // captured before it describes a state that no longer exists.
   it('is left alone once a save has reloaded the package', () => {
     const unsaved = captureUnsavedUci();
     state.values.forkop = {

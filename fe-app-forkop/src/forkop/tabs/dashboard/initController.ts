@@ -42,35 +42,20 @@ import { E } from '../../../helpers/element';
 
 const SECTIONS_REFRESH_INTERVAL_MS = 10000;
 const COLLAPSED_SECTIONS_STORAGE_KEY = 'forkop:dashboard-collapsed-sections:v1';
-// A latency test fills the router's own delay records in one at a time, and the
-// section refresh is how the page sees them: it is what turns a test of fifty
-// nodes from a button that sits still for half a minute into a list filling up
-// while it runs. The refresh keeps up with those writes for as long as a test is
-// running and returns to its ordinary pace afterwards. The duty ceiling below
-// still applies, so a transport that makes a refresh expensive spaces it out
-// instead of keeping the router busy on the page's behalf.
+// While a latency test runs the router fills its delay records one at a time, so the sections
+// refresh keeps up with it; the duty ceiling still applies.
 const SECTIONS_LATENCY_REFRESH_INTERVAL_MS = 2000;
-// A core that is down answers nothing for as long as the tab stays open, and a
-// controller that hangs rather than refuses costs the connect timeout of every
-// attempt. The refresh backs off while it keeps failing, like the widgets and
-// the connections table already do.
+// A core that is down never answers and a hanging controller costs a connect timeout per try, so
+// the refresh backs off while it keeps failing.
 const SECTIONS_REFRESH_BACKOFF_MAX_MS = 60000;
 const SECTIONS_REFRESH_DUTY_MAX_MS = 30000;
-// The three Clash API widgets are pushed by websockets whenever the browser can
-// open them. When it cannot - an HTTPS page, a controller the browser does not
-// reach - the same numbers are polled out of the /connections snapshot the CLI
-// transport can fetch. That snapshot is the whole connection list, which costs
-// the router about 0.13 ms and 6.5 KB of garbage per connection to build, and the
-// widgets read three numbers out of it, so the socket and the poll alike ask for
-// it every five seconds. The speed comes from /traffic every second.
+// The widgets come from websockets when the browser can open them, otherwise from the
+// /connections snapshot, which costs the router per connection to build.
 const WIDGETS_SNAPSHOT_INTERVAL_MS = 5000;
 const WIDGETS_POLL_BACKOFF_MAX_MS = 30000;
-// A connection snapshot the widgets read three numbers out of is not worth
-// crowding the router for, so an expensive one spaces the poll out further.
 const WIDGETS_POLL_DUTY_MAX_MS = 20000;
-// A socket to a port that silently drops packets neither connects nor fails for
-// as long as the browser's own connect timeout runs. Nothing arriving in this
-// long means the poll should fill the widgets rather than wait it out.
+// A socket to a port that drops packets neither connects nor fails until the browser's own
+// timeout, so after this the poll fills the widgets.
 const WIDGETS_SOCKET_GRACE_MS = 2000;
 let sectionsRefreshFailures = 0;
 let lastSectionsRefreshDurationMs = 0;
@@ -101,9 +86,7 @@ let activeDetailsModal: {
   unsubscribe: () => void;
 } | null = null;
 
-// What a reader folded away stays folded on the next visit: with many sections
-// folding is how the page is kept to the ones that matter, and it was undone
-// by every reload.
+// Folded sections stay folded across visits.
 function readCollapsedSections() {
   try {
     const stored = JSON.parse(
@@ -119,8 +102,7 @@ function readCollapsedSections() {
   }
 }
 
-// Only sections the page still shows are written back, so a removed or
-// renamed one does not stay in the store for good.
+// Only sections still shown are written back, so removed ones do not linger.
 function writeCollapsedSections() {
   const shown = new Set(
     store.get().sectionsWidget.data.map((section) => section.sectionName),
@@ -151,8 +133,6 @@ if (typeof window !== 'undefined') {
     pageUnloading = false;
   });
 }
-
-// Fetchers
 
 async function fetchDashboardSectionsOnce(mountId: number) {
   const prev = store.get().sectionsWidget;
@@ -274,10 +254,8 @@ function widgetsAreLive() {
   return trafficSocketLive && connectionsSocketLive;
 }
 
-// The traffic socket reports bytes per second; the snapshot carries only the
-// totals, so the rate is what they gained between two polls. A core that
-// restarted answers with counters that started over, which is a drop and not a
-// rate, and the first poll of a session has nothing to compare against at all.
+// The snapshot carries only totals, so the rate is what they gained between two polls; a core that
+// restarted resets its counters, and the first poll has nothing to compare.
 function polledBandwidth(uploadTotal: number, downloadTotal: number) {
   const at = Date.now();
   const previous = lastPolledTotals;
@@ -290,17 +268,14 @@ function polledBandwidth(uploadTotal: number, downloadTotal: number) {
 
   const seconds = (at - previous.at) / 1000;
 
-  // Whole bytes per second, like the socket sends: prettyBytes prints anything
-  // under a kilobyte verbatim, and a raw quotient would arrive with a tail of
-  // decimals behind it.
+  // Whole bytes per second, like the socket sends; prettyBytes prints small values verbatim.
   return {
     up: Math.round(Math.max(0, uploadTotal - previous.up) / seconds),
     down: Math.round(Math.max(0, downloadTotal - previous.down) / seconds),
   };
 }
 
-// A widget whose socket is delivering keeps what the socket said: the poll only
-// answers for the widgets that have nothing else to fill them.
+// A widget whose socket delivers keeps what the socket said.
 function applyWidgetsSnapshot(summary: Forkop.ClashConnectionsSummary) {
   const { uploadTotal, downloadTotal } = summary;
   const bandwidth = polledBandwidth(uploadTotal, downloadTotal);
@@ -391,8 +366,7 @@ async function pollWidgetsSnapshot(dataUpdatesId: number) {
   }
 }
 
-// A stopped core answers nothing for as long as the tab stays open, so the poll
-// slows down while it keeps failing instead of asking every few seconds forever.
+// A stopped core answers nothing, so the poll slows down while it keeps failing.
 function widgetsPollDelay() {
   if (widgetsPollFailures > 0) {
     return Math.min(
@@ -434,9 +408,7 @@ function stopWidgetsPolling() {
   }
 }
 
-// The load is what the core used between two readings, so the readings come
-// close enough together to follow it. Each is a ubus call to a process that is
-// already running and reads a few files under /proc.
+// The load is what the core used between two readings, so they come close together.
 const CORE_USAGE_INTERVAL_MS = 2000;
 const CORE_USAGE_BACKOFF_MAX_MS = 30000;
 // The age is counted on this browser's clock between readings.
@@ -458,9 +430,8 @@ function reportCoreUsageFailure() {
   });
 }
 
-// The start is placed on this browser's clock once per core process, from the
-// age the router measured; anchoring every reading anew would let the age shown
-// step back and forth by the time each answer spent on the way.
+// Anchored once per core process: re-anchoring on every reading would make the age step back and
+// forth by each answer's travel time.
 function applyCoreUsage(reading: CoreUsageReading) {
   if (lastCoreUsage?.started !== reading.started) {
     coreStartedAt = Date.now() - coreAgeSeconds(reading) * 1000;
@@ -637,10 +608,8 @@ function sectionsRefreshDelay() {
   );
 }
 
-// A test that starts right after a refresh would otherwise show nothing until
-// the ordinary interval comes round again. A refresh already on its way needs no
-// help: the chain asks for its next delay when it finishes, and by then the test
-// is running.
+// A test started right after a refresh would show nothing until the next interval; a refresh
+// already on its way asks for its next delay once the test is running.
 function restartSectionsRefresh() {
   if (!dashboardDataUpdatesStarted || sectionsRefreshPromise) {
     return;
@@ -677,11 +646,8 @@ function stopDashboardDataUpdates() {
   connectionsSocketUrl = '';
 }
 
-// The widgets and the sections come from the Clash API, so the tab asks it
-// directly rather than asking first whether the core is running: what answers is
-// what there is to show. A browser that cannot open a plaintext socket at all -
-// an HTTPS page cannot - polls the same numbers out of the connections snapshot
-// instead of leaving three widgets permanently unavailable.
+// The tab asks the Clash API directly rather than first asking whether the core runs. A browser
+// that cannot open a plaintext socket (an HTTPS page) polls the connections snapshot instead.
 function startDashboardDataUpdates() {
   if (dashboardDataUpdatesStarted || !dashboardMounted) {
     return;
@@ -704,8 +670,6 @@ function startDashboardDataUpdates() {
   sectionsRefresh.start(SECTIONS_REFRESH_INTERVAL_MS);
   coreUsagePoll.start(0);
 }
-
-// Handlers
 
 async function handleChooseOutbound(
   sectionName: string,
@@ -764,12 +728,8 @@ async function handleChooseOutbound(
   }
 }
 
-// The router's own delay records are what the dashboard reads, and a refresh is
-// on its way the moment a test finishes. This only carries the answer of the
-// test that just returned into the page a little sooner, and it leaves every
-// member the test did not report alone: a member the sweep never reached still
-// has the delay measured for it earlier, and one that failed loses it with the
-// next refresh, when the router has already forgotten it.
+// Carries the answer of the test that just returned into the page before the next refresh,
+// leaving every member it did not report alone.
 function applyLatencyResult(
   sectionName: string,
   latencies: Record<string, number>,
@@ -823,15 +783,8 @@ function applyLatencyResult(
   });
 }
 
-// Sweeping a group and testing one node are different questions with different
-// budgets, and only the second one is the section's to answer: a group sweep is
-// allowed the same ceiling everywhere, while a single node is asked for with the
-// section's own timeout - five seconds, or ten for a VPN interface.
-//
-// A result needs no message: the cards show the delays, and a node that failed
-// its test loses its delay with the next refresh. Only a controller that gave no
-// answer at all leaves the page as it was, so that is the failure reported, and
-// what the test answers to whoever runs several in a row.
+// A group sweep has the same ceiling everywhere; a single node uses the section's own timeout.
+// Results need no message: only a controller that gave no answer is reported.
 async function handleTestLatency(
   latencyType: 'group' | 'proxy',
   section: Forkop.OutboundGroup,
@@ -1083,10 +1036,7 @@ function renderUrlTestInfoModal(info?: Forkop.UrlTestInfo) {
                     .join(' '),
                 },
                 [
-                  // The name and its latency share one cell so they can wrap
-                  // against each other: a name with no room left for the
-                  // latency drops it onto the next line instead of taking the
-                  // copy action down with it.
+                  // Name and latency share one cell, so they wrap against each other and the copy action stays put.
                   E(
                     'div',
                     {
@@ -1169,8 +1119,7 @@ function handleShowUrlTestInfo(outbound: Forkop.Outbound) {
   );
 }
 
-// A level is worth naming on a node only when the chain has more than one:
-// with a single level every node would carry the same chip.
+// With a single level every node would carry the same chip.
 function hasSeveralLevels(info: Forkop.FallbackInfo) {
   return (
     new Set(info.outbounds.map((member) => member.levelId ?? member.levelName))
@@ -1252,8 +1201,7 @@ function renderFallbackMemberName(
   ];
 }
 
-// A dialog shows the group as the latest refresh of the sections has it, so it
-// is looked up again by its code on every redraw.
+// Looked up by code on every redraw, so a dialog shows the latest refresh.
 function findGroupInfo<K extends 'urlTestInfo' | 'fallbackInfo'>(
   kind: K,
   code: string,
@@ -1345,8 +1293,7 @@ function renderFallbackMemberRow(
       },
     },
     [
-      // Same cell for the name and its latency as a URLTest row, and for the
-      // same reason: the pair wraps against itself and the pin action stays put.
+      // One cell for the name and its latency, as in a URLTest row.
       E('div', { class: 'fkp_dashboard-page__urltest-details__row-body' }, [
         E('div', { class: 'fkp_dashboard-page__urltest-details__row-name' }, [
           E(
@@ -1497,11 +1444,8 @@ function closeDetailsModal() {
   activeDetailsModal = null;
 }
 
-// The URLTest and Fallback dialogs follow the sections refresh, so the delays
-// and the choice they show stay current while they are open. A redraw keeps
-// the node list where the reader scrolled it; it used to jump back to the top
-// every ten seconds. LuCI keeps a closed dialog in the page, so whether this
-// one is still showing is read from the overlay, not from the page.
+// The details dialogs follow the sections refresh and keep their scroll position. LuCI keeps a
+// closed dialog in the page, so whether it shows is read from the overlay.
 function refreshDetailsModal() {
   const modal = activeDetailsModal;
 
@@ -1577,9 +1521,8 @@ async function runToolbarAction(
   }
 }
 
-// One section after another, as many presses of their own buttons would: a
-// router sweeping every group at once dials them all together. A controller
-// that did not answer one will not answer the next, so that ends the run.
+// One section after another: sweeping every group at once would dial them all together. A
+// controller that did not answer one will not answer the next, so that ends the run.
 function handleTestAllSections() {
   return runToolbarAction('testAll', async () => {
     for (const section of store.get().sectionsWidget.data) {
@@ -1602,10 +1545,8 @@ function subscriptionProviderTags() {
   ];
 }
 
-// Both refresh endpoints answer 204 on success and 503 naming what failed, so
-// the outcome is reportable rather than guessed at. Anything less than every
-// target succeeding is reported as a failure: a partially refreshed set of
-// lists is not what the button promised.
+// Both endpoints answer 204 on success and 503 naming what failed; anything short of every target
+// succeeding is a failure.
 function handleUpdateLists() {
   return runToolbarAction('lists', async () => {
     const response = await CustomForkopMethods.updateClashApiRuleProviders();
@@ -1643,8 +1584,6 @@ function handleUpdateSubscriptions() {
     showToast(_('Failed to update subscriptions'), 'error');
   });
 }
-
-// // Renderer
 
 async function renderSectionsWidget() {
   logger.debug('[DASHBOARD]', 'renderSectionsWidget');
@@ -1831,8 +1770,7 @@ async function renderLoadWidget() {
     return;
   }
 
-  // The load takes two readings; a widget that has nothing to show until the
-  // second one waits for it rather than flashing a dash.
+  // The load needs two readings; until the second the widget waits rather than flash a dash.
   const loading = usage.loading || (!usage.failed && usage.data.cpu === null);
 
   container.replaceChildren(
@@ -1926,14 +1864,12 @@ async function onStoreUpdate(
 }
 
 async function onPageMount() {
-  // Cleanup before mount
   onPageUnmount();
 
   dashboardMounted = true;
   dashboardMountId += 1;
   resetClashApiTransport();
 
-  // Add new listener
   store.subscribe(onStoreUpdate);
   void renderSectionsWidget();
   void renderBandwidthWidget();
@@ -1955,9 +1891,7 @@ function onPageUnmount() {
     clearInterval(coreAgeTimer);
     coreAgeTimer = null;
   }
-  // Remove old listener
   store.unsubscribe(onStoreUpdate);
-  // Clear store
   store.reset([
     'bandwidthWidget',
     'trafficTotalWidget',

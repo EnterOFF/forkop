@@ -1,9 +1,3 @@
-// The interface is written in English and translated into Russian by the
-// catalogs under luci-app-forkop/po, which `yarn locales` regenerates from the
-// built bundle. Two things go wrong there quietly: a string with no entry falls
-// back to English in an otherwise Russian page, and an entry no source asks for
-// any more is dead weight nobody notices. Both directions are compared against
-// every _() call the sources make.
 import fs from 'fs';
 import path from 'path';
 
@@ -50,7 +44,6 @@ function sourceFiles(dir, out = []) {
   return out;
 }
 
-// Every string the interface asks the catalog for.
 function translatedStrings() {
   const used = new Set();
   const callRe = /_\(\s*(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)'|`([^`]*)`)/g;
@@ -88,8 +81,6 @@ describe('a catalog', () => {
     expect(untranslated).toEqual([]);
   });
 
-  // LuCI closes every one of its alerts with Dismiss; a Forkop entry for the
-  // key would change what all of them say.
   it('leaves Dismiss to LuCI', () => {
     expect(entries(po).has('Dismiss')).toBe(false);
   });

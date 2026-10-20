@@ -297,9 +297,8 @@ export function createSectionContent(section: CBISection) {
   };
   outboundNameSourceOptions.set('connection_link', links);
 
-  // Named rather than held in `o`, which every option of this form is assigned to
-  // in turn: the two callbacks below are handed this option and would otherwise
-  // close over the variable and reach whichever option was declared last.
+  // Named rather than held in `o`, which every option here is assigned to in turn: the callbacks
+  // below would otherwise close over the variable and reach the last option declared.
   const subscriptions = section.taboption(
     'settings',
     SettingsDynamicList,
@@ -449,8 +448,7 @@ export function createSectionContent(section: CBISection) {
   o.depends('action', 'connection');
   o.rmempty = true;
   o.modalonly = true;
-  // Kept for the same reason as the connection URIs above: hand-written outbound
-  // objects the section holds itself, which an action change must not discard.
+  // Kept when the action changes: hand-written outbound objects cannot be typed again.
   o.retain = true;
   o.addButtonLabel = _('+ Add JSON outbound');
   o.renderItemSettingsModal = showOutboundJsonSettingsModal;
@@ -569,10 +567,8 @@ export function createSectionContent(section: CBISection) {
   );
   dnsRuleSetOption.depends('action', 'dns');
   dnsRuleSetOption.modalonly = true;
-  // Both rule set fields read and write the same list, and this one is shown only
-  // for a DNS rule. Without retain LuCI would call its remove() on every other
-  // action - and that remove clears the list, the subnet flags and the per-rule
-  // set settings of a section this field is not even shown for.
+  // Both rule set fields edit one list and this one shows only for a DNS rule; without retain LuCI
+  // would call its remove() under every other action and clear the list and its settings.
   dnsRuleSetOption.retain = true;
   dnsRuleSetOption.load = function (section_id: string) {
     return getCustomRulesetReferences(section_id);

@@ -14,9 +14,8 @@ let loading = false;
 let rawLogs = '';
 let logsLoaded = false;
 
-// Whether the Logs tab is the one being looked at. The theme lays an inactive
-// tab out at zero height instead of hiding it, so the pane's own layout cannot
-// say; the tab service can.
+// The theme lays an inactive tab out at zero height instead of hiding it, so the tab service
+// says which tab is shown.
 function logsTabShown() {
   return (
     !document.hidden &&
@@ -36,8 +35,7 @@ function getVisibleLogs() {
   return filterLogText(rawLogs, getSearchQuery());
 }
 
-// Copy and Download hand over what the output shows, so with a search typed in
-// their labels say it is only what the search found.
+// With a search typed in, Copy and Download say they hand over only what it found.
 function renderActionButton(id: string, label: string, disabled: boolean) {
   const button = element<HTMLButtonElement>(id);
   button.textContent = label;

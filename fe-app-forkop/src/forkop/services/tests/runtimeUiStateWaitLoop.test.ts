@@ -46,8 +46,6 @@ function state(revision: number) {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('the state wait loop', () => {
-  // Hiding stops the loop, but a request already parked on the router stays
-  // parked; a show before it comes back has to leave the loop running on.
   it('keeps waiting after the tab is hidden and shown again before its request returns', async () => {
     const parked: ((value: unknown) => void)[] = [];
     mocks.callUbus.mockImplementation(({ method }: { method: string }) =>

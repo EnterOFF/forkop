@@ -1,7 +1,3 @@
-// The subscriptions of a Connection section, driven through the shipped bundle.
-// A pasted address is a subscription of its own from the moment it is added, the
-// list shows it by its tag, and its dialog is where the address is changed,
-// between a URL and a local file included.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -32,8 +28,6 @@ function subscriptionList() {
   return grid.children.find((option) => option.option === 'subscription_url');
 }
 
-// What the widget does when the user adds an address: the address becomes its
-// subscription, and the entry holding its id is rendered with its label.
 function paste(list, values, source) {
   const itemId = list.createTypedItem('sec', source);
   const label = list.renderListItemLabel('sec', itemId).textContent;
@@ -46,8 +40,6 @@ function storeSubscription(id, values) {
   Object.assign(harness.store.get(id), { section: 'sec', ...values });
 }
 
-// The list holds what the section dialog shows, which a check in the
-// subscription dialog reads; without a widget the stored entries stand in.
 async function openSubscription(id, listed) {
   const list = subscriptionList();
   if (listed) list.formvalue = () => listed;
@@ -86,10 +78,7 @@ describe('the subscription list', () => {
     expect(labels).toEqual(['sub1', 'sub2']);
   });
 
-  // The same account split by two filters, or fetched through two cascades, is
-  // the same address added twice, and each is a provider of its own.
   it('adds the same address twice as two subscriptions', async () => {
-    // The Sections table loads the default headers before any dialog opens.
     const map = new harness.form.Map('forkop');
     const grid = map.section(harness.form.GridSection, 'section');
     harness.bundle.configureSectionSection(grid);

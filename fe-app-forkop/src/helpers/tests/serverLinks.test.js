@@ -69,8 +69,6 @@ describe('VLESS links', () => {
     expect(new URL(url).hash).toBe('#phone');
   });
 
-  // REALITY clients refuse a link without a fingerprint, and a server that
-  // names none is shown the default in its dialog.
   it('carries the default fingerprint when the server names none', () => {
     const { link, client } = load(
       {
@@ -118,7 +116,6 @@ describe('VLESS links', () => {
       type: 'ws',
       path: '/ws',
       host: 'cdn.example.org',
-      // Forkop's own certificate is self-signed, so verification has to be off.
       insecure: '1',
     });
   });
@@ -162,8 +159,6 @@ describe('Trojan links', () => {
     expect(query(url)['grpc-service-name']).toBe('grpc-service');
   });
 
-  // No client format carries Trojan without TLS, so a server stored that way
-  // runs with TLS, and its link says so.
   it('serves a server stored without TLS over TLS', () => {
     const { link, client } = load(
       { protocol: 'trojan', security: 'none' },
@@ -200,7 +195,6 @@ describe('VMess links', () => {
       add: '203.0.113.9',
       port: '30000',
       id: UUID,
-      // sing-box has no MD5 authenticated VMess, so alterId is always zero.
       aid: '0',
       net: 'ws',
       path: '/ws',
@@ -309,14 +303,10 @@ describe('QUIC protocol links', () => {
       obfs: 'salamander',
       'obfs-password': 'obfs-password',
     });
-    // The speed limits of the server are not the bandwidth of a client, and the
-    // URI scheme of Hysteria 2 leaves bandwidth to each client on purpose.
     expect(query(url).up).toBeUndefined();
     expect(query(url).down).toBeUndefined();
   });
 
-  // The router writes the fingerprint when the settings are applied, after the
-  // page read its own copy of the configuration.
   it('pins the certificate the router issued with the fingerprint it wrote', async () => {
     load({ protocol: 'hysteria2', security: 'tls' });
     globalThis.rpc = {
@@ -402,9 +392,6 @@ describe('other protocol links', () => {
     );
   });
 
-  // A server on the certificate the router issued serves a self-signed one, so
-  // every link it hands out tells the client to accept it. NaiveProxy has no such
-  // certificate to accept: its server always takes the user's own.
   it('tells a client to accept the self-signed certificate', () => {
     for (const [protocol, insecure] of [
       ['trojan', '1'],
@@ -423,9 +410,6 @@ describe('other protocol links', () => {
     }
   });
 
-  // The mieru project has its own URL format and the core parses it, so a client
-  // of a mieru server gets a link like everybody else. The ports live in the query
-  // instead of the authority, and a profile name is required.
   it('builds a mieru link in the format the core parses', () => {
     const { link, client } = load(
       { protocol: 'mieru', mieru_transport: 'UDP' },
@@ -451,8 +435,6 @@ describe('other protocol links', () => {
     expect(link.buildClientLinks('srv', client)).toEqual([]);
   });
 
-  // A Mixed listener that asks for nothing still has an address, and both of its
-  // schemes carry it without an account.
   it('builds anonymous links for a listener without authentication', () => {
     const { link, client } = load({
       protocol: 'mixed',

@@ -88,8 +88,6 @@ describe('LogNotificationDeduper', () => {
     );
   });
 
-  // A page left open for days sees a new line for every error, and each one
-  // rewrites what is remembered; only the latest few hundred are kept.
   it('remembers only the latest lines it showed', () => {
     const storage = new MemoryStorage();
     const deduper = new LogNotificationDeduper(storage);

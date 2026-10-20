@@ -14,8 +14,6 @@ const globals = globalThis as unknown as {
 
 const previousDocument = globals.document;
 
-// svgEl() builds through document.createElementNS, and spinPhaseStyle() reads the
-// document clock; nothing else of a document is involved.
 function installDocument(currentTime: number) {
   globals.document = {
     timeline: { currentTime },
@@ -53,10 +51,6 @@ describe('the loader circle', () => {
     expect(svg.children[0].attrs.d).toBe('M21 12a9 9 0 1 1-6.219-8.56');
   });
 
-  // The turn belongs to the CSS animation alone. A second animation of the same
-  // transform - the SMIL animateTransform this icon used to carry - is timed from
-  // the SVG's own clock, which starts over with every rebuilt element and cannot
-  // be anchored by a delay.
   it('carries no animation of its own', () => {
     const svg = renderAt(0);
 
@@ -70,11 +64,7 @@ describe('the loader circle', () => {
     expect(renderAt(9100).attrs.style).toBe('animation-delay: -100ms');
   });
 
-  // The reported defect: two spinners a re-render apart used to start their turn
-  // at twelve o'clock whatever the first one had reached.
   it('lands on the same angle as one built a moment earlier', () => {
-    // Where in the turn the browser will put this spinner: when it starts it,
-    // plus how far in the delay says it already is.
     function phaseOf(svg: FakeElement, builtAt: number) {
       const delay = Number(
         /^animation-delay: (-?[\d.]+)ms$/.exec(svg.attrs.style)?.[1],

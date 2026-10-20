@@ -4,17 +4,9 @@ import { installUciStub } from '../../../../../helpers/tests/luciStubs';
 import { addSubscriptionUrlItemOptions } from '../options';
 import { validateSubscriptionUrlEntry } from '../model';
 
-// The dialog reads the stored value of a sibling option while it is building
-// itself, and a bundled module takes uci off LuCI rather than importing it.
 beforeEach(() => {
   installUciStub({});
 });
-
-// A subscription is either a URL the router fetches or a file on the router, and
-// the dialog is the same dialog for both. Everything about fetching - the update
-// schedule, the proxy to fetch through, the request headers - only makes sense
-// for a URL, so the dialog shows it while the address field holds one, and a
-// field the dialog hides is not stored.
 
 const REMOTE_ONLY = [
   'subscription_update_enabled',
@@ -27,7 +19,6 @@ const REMOTE_ONLY = [
 
 const ALWAYS = ['tag', 'url', 'server_filter_mode'];
 
-// Which options the dialog shows for an address, by what each one depends on.
 function shownFor(source: string) {
   const dependencies = new Map<string, Array<Record<string, unknown>>>();
   const section = {
@@ -94,8 +85,6 @@ describe('validateSubscriptionUrlEntry', () => {
     ).toBe(true);
   });
 
-  // A relative path is resolved against whatever directory the service happens
-  // to run in, which is not something the user can see or rely on.
   it('refuses a relative path, saying why', () => {
     expect(
       validateSubscriptionUrlEntry('settings', 'relative/subscription.txt'),

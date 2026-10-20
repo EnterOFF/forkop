@@ -1,7 +1,3 @@
-// The one text a section's domains and addresses are written in, as the two
-// fields that edit it read each entry. The router reads the same text with
-// config/rule.uc; tests/config/rule.test.uc holds the same entries there.
-
 import { describe, expect, it } from 'vitest';
 
 import { installUciStub } from './luciStubs';

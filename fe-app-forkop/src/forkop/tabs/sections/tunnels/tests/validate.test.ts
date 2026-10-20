@@ -113,8 +113,6 @@ describe('a JSON endpoint', () => {
     tunnel_type: 'json',
     endpoint_json: JSON.stringify(endpoint),
   });
-  // What the endpoint holds is sing-box's to judge, so a type this Forkop does
-  // not know is handed to the core, which says in its log what it refuses.
   it('takes any object that carries a tag', () => {
     expect(
       validate(json({ type: 'a-type-from-a-newer-core', tag: 'new' })),
@@ -129,9 +127,6 @@ describe('a JSON endpoint', () => {
   });
 });
 
-// sing-box's check passes both, and the whole service then fails to start on
-// the endpoint: the device refuses headers that overlap, a header it is not
-// given being the WireGuard type number it keeps.
 describe('AmneziaWG parameters that only fail together', () => {
   const settings = {
     tunnel_type: 'amneziawg',
@@ -176,9 +171,6 @@ describe('AmneziaWG parameters that only fail together', () => {
   );
 });
 
-// The fields refuse these as they are typed, each saying why; a tunnel the
-// dialog did not write is checked by the same rules the router applies and
-// only told to be fixed.
 describe('a stored tunnel the dialog did not write', () => {
   const wireguard = {
     tunnel_type: 'wireguard',
@@ -193,7 +185,6 @@ describe('a stored tunnel the dialog did not write', () => {
     warp_auth_token: 'token',
     warp_private_key: 'key',
   };
-  // A peer staged in the list the way the dialog leaves one before a save.
   const peers = {
     pendingChildSettings: {
       tunnel: {

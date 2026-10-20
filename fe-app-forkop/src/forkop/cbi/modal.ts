@@ -15,9 +15,8 @@ import { E } from '../../helpers/element';
 import { showToast } from '../../helpers/showToast';
 import { renderButton } from '../../partials';
 
-// LuCI keeps a dialog open when its save is refused and says nothing. A field
-// whose widget checks its own value is already marked, and its tab counts it;
-// any other refusal would go unseen, so its reason is shown.
+// LuCI keeps a refused dialog open and says nothing. A field whose widget checks itself is
+// already marked; any other refusal is shown.
 export function reportRefusedSave(error: unknown, dialog?: ParentNode | null) {
   if (dialog?.querySelector('.cbi-input-invalid')) {
     return;
@@ -26,8 +25,7 @@ export function reportRefusedSave(error: unknown, dialog?: ParentNode | null) {
   showToast(message.trim() || _('Settings not saved'), 'error');
 }
 
-// LuCI's own section dialog save, which saves with the error dialog off and
-// drops whatever refused it. Answers whether the dialog saved.
+// LuCI's section dialog save, with its error dialog off. Answers whether it saved.
 export function saveSectionModal(
   sectionRef: CBISection,
   modalMap: CBIMap | CBIModalMap,
@@ -83,8 +81,7 @@ function cleanFormSectionData(sectionData: unknown): ChildSettings {
   return result;
 }
 
-// A dialog that edits one text field: the modal heading already names it, so the
-// row drops its label and gives the whole width to the editor.
+// The modal heading names the single field, so the row drops its label.
 export const SINGLE_FIELD_MODAL_CLASS = 'fkp-single-field-modal';
 
 export function ensureSingleFieldModalStyles() {
@@ -193,10 +190,7 @@ export function renderStackedJsonSettingsModal(
 
     buttonRow.textContent = '';
     buttonRow.append(
-      // This dialog is stacked on another one, and leaving it puts that one back
-      // rather than closing anything: `close` above takes the nested map out and
-      // restores the parent's own buttons. "Close" said the opposite of what the
-      // button does.
+      // Leaving a stacked dialog puts the parent back rather than closing anything.
       E(
         'button',
         {
@@ -216,10 +210,7 @@ export function renderStackedJsonSettingsModal(
           options.saveLabel || _('Save'),
         );
         const action = options.secondaryAction;
-        // The theme spreads the items of the row apart, so two buttons meant to
-        // sit together on its right are one item of it. That item lines them up
-        // itself: on a line of text a button with an icon is aligned by the
-        // icon's baseline and stood 4px above the save button beside it.
+        // The theme spreads row items apart, so the two buttons are one item that aligns them itself.
         return action
           ? [
               E(
@@ -276,9 +267,7 @@ export function showChildItemSettingsModal(
     ? readChildSettings(value, settings.keys, defaults)
     : Object.assign(
         {},
-        // A pending item is stored under its display value, so an item that is
-        // still being added has nothing to restore and must use fresh defaults
-        // instead of the state a dismissed modal left behind.
+        // An item still being added has nothing to restore and takes fresh defaults.
         inputValue
           ? pendingChildSettings(option, section_id, inputValue, defaults)
           : defaults,
@@ -322,8 +311,7 @@ export function showChildItemSettingsModal(
       const store = childPendingSettingsStore(option, section_id);
       if (nextInputValue !== inputValue) {
         delete store[inputValue];
-        // A draft item is identified by its display value, so the list item has
-        // to follow the rename to keep pointing at its staged settings.
+        // A draft is identified by its display value, so the list item follows the rename.
         setDynamicListItemValue(settings.itemNode, nextInputValue);
       }
       store[nextInputValue] = nextSettings;

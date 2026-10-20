@@ -32,7 +32,6 @@ vi.mock('../../../../icons', () => ({
 
 type Child = FakeElement | string;
 
-// Just enough of an element for the tab to draw itself into and be read back.
 class FakeElement {
   tag: string;
   attrs: Record<string, unknown>;
@@ -225,8 +224,6 @@ async function openMonitoring() {
   await vi.advanceTimersByTimeAsync(0);
 }
 
-// The table is redrawn twice a second, which would take a selection away before
-// it could be copied, so the tab holds still while one is made in it.
 describe('the Monitoring pause', () => {
   it('holds new connections back while Auto refresh is off', async () => {
     answer('a');
@@ -246,8 +243,6 @@ describe('the Monitoring pause', () => {
     expect([rows().length, activeCount()]).toEqual([2, '2']);
   });
 
-  // The counters kept counting while the rows stood still, so the tab said 42
-  // connections over a table of 40, and nothing said the table had stopped.
   it('holds the whole tab while text in the list is selected and says so', async () => {
     answer('a');
     await openMonitoring();
@@ -314,8 +309,6 @@ describe('the Monitoring filters', () => {
     expect(byId('monitoring-close-all').textContent).toBe('Close all');
   });
 
-  // The sections in the order the Sections tab lists them, then whatever else
-  // the column shows.
   it('shows only the connections of the chosen route', async () => {
     mocks.getConfigSections.mockResolvedValue([
       { '.name': 'section_b', '.type': 'section', label: 'proxy' },

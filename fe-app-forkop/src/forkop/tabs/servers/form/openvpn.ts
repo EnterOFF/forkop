@@ -1,5 +1,4 @@
-// What an OpenVPN server is asked beyond its port and its tunnel: the protocol
-// it listens on. Certificates and keys are the router's to issue.
+// Certificates and keys are the router's to issue.
 
 import { widgetNode } from '../formValues';
 

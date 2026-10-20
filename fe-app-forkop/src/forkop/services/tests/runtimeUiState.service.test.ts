@@ -55,8 +55,6 @@ describe('runtime state transport', () => {
     resetRuntimeUiStateTransport();
   });
 
-  // The state service answers in milliseconds because it is already running;
-  // the CLI pays for a process start and the library resolution first.
   it('prefers the state service and never reaches for the CLI', async () => {
     const uiState = createUiState('running & enabled', 1);
     mocks.callUbus.mockResolvedValue({
@@ -74,10 +72,6 @@ describe('runtime state transport', () => {
     expect(mocks.executeShellCommand).not.toHaveBeenCalled();
   });
 
-  // The service recomputes when its watch notices a change, so what it last
-  // published is older than the action the page just performed. A forced read
-  // is the page saying it changed something, and it pays for the recompute; an
-  // ordinary poll has nothing to announce and takes the published answer.
   it('asks for a recomputed state only when the read is forced', async () => {
     mocks.callUbus.mockResolvedValue({
       success: true,
@@ -93,8 +87,6 @@ describe('runtime state transport', () => {
     expect(methods).toEqual(['state', 'refresh']);
   });
 
-  // An install that has not brought the service up yet, or an older one that
-  // does not have it at all, still has to render.
   it('falls back to the CLI when the state service is not there', async () => {
     mocks.callUbus.mockResolvedValue({
       success: false,
@@ -114,9 +106,6 @@ describe('runtime state transport', () => {
     expect(mocks.executeShellCommand).toHaveBeenCalledOnce();
   });
 
-  // Having found the service absent, it does not pay for the discovery again on
-  // every refresh - but an upgrade or a crash takes it away for seconds, so it
-  // is asked again after a while rather than never.
   it('asks again, after a while, for a service it has found missing', async () => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
     mocks.callUbus.mockResolvedValue({
@@ -146,7 +135,6 @@ describe('runtime state transport', () => {
     now.mockRestore();
   });
 
-  // A first answer that timed out is not a missing service either.
   it('comes back to the state service after a first call that timed out', async () => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(2_000_000);
     mocks.callUbus.mockResolvedValueOnce({
@@ -171,8 +159,6 @@ describe('runtime state transport', () => {
     now.mockRestore();
   });
 
-  // A service that is present but failing is a different thing from an absent
-  // one, and switching away from it would hide the problem behind a slow path.
   it('keeps using the state service when a call fails without being missing', async () => {
     mocks.callUbus.mockResolvedValueOnce({
       success: true,

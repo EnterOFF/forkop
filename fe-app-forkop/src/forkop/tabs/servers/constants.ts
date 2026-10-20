@@ -8,8 +8,7 @@ export const CLIENT_OWNER_OPTION = 'server';
 
 export const MAX_CLIENT_NAME_LENGTH = 64;
 
-// Ports Forkop's own sing-box instance binds. A server that takes one of them stops
-// the whole service instead of only failing itself.
+// Ports Forkop's own sing-box binds; a server taking one stops the whole service.
 export const RESERVED_PORTS = [
   ['53', _('Forkop DNS')],
   ['1602', _('Forkop transparent proxy')],
@@ -20,8 +19,7 @@ export const RESERVED_PORTS = [
   ['9090', _('sing-box Clash API')],
 ];
 
-// Sites the SNI and Reality pickers draw from: reachable worldwide, TLS 1.3 with
-// X25519 and HTTP/2, and not behind a CDN that rewrites the handshake.
+// Reachable worldwide, TLS 1.3 with X25519 and HTTP/2, not behind a CDN rewriting the handshake.
 export const CAMOUFLAGE_SITES = [
   'www.microsoft.com',
   'www.apple.com',
@@ -35,9 +33,8 @@ export const CAMOUFLAGE_SITES = [
   'www.wolframalpha.com',
 ];
 
-// The ciphers a Shadowsocks listener offers, best first. The 2022 methods take a
-// base64 key of an exact length; the older AEAD methods derive their key from any
-// password. The default matches what the panels hand out today.
+// Best first. 2022 methods take a base64 key of an exact length; older AEAD ones derive it from any
+// password. The default matches what panels hand out.
 export const SHADOWSOCKS_METHODS = [
   { id: '2022-blake3-aes-256-gcm', keyBytes: 32 },
   { id: '2022-blake3-aes-128-gcm', keyBytes: 16 },
@@ -56,12 +53,10 @@ export const TRANSPORTS = [
   ['xhttp', 'XHTTP'],
 ];
 
-// Listeners that leave the negotiated protocol to the configuration. The rest pin
-// it themselves, so the field would only be a way to break them.
+// Only these leave the negotiated protocol to the configuration; the rest pin it.
 export const ALPN_PROTOCOLS = ['vless', 'vmess', 'trojan', 'anytls'];
 
-// What a share link carries when the server names no fingerprint: REALITY
-// clients refuse a link without one.
+// REALITY clients refuse a link without a fingerprint.
 export const DEFAULT_CLIENT_FINGERPRINT = 'chrome';
 
 export const CLIENT_FINGERPRINTS = [
@@ -84,18 +79,15 @@ export const CLIENT_KEYS = [
   'routing_section',
 ];
 
-// The same modes the server has. Rules costs a clone of the shared rule set for
-// that account, but only when the server itself does not already clone it.
+// Rules clones the shared rule set for the account, only when its server does not already.
 export const CLIENT_ROUTING_MODES = [
   ['rules', _('Rules')],
   ['direct', _('Direct')],
   ['section', _('Section')],
 ];
 
-// A client list problem has no input of its own to mark, so the message goes under
-// the field the way LuCI reports an invalid value, and never into a dialog banner.
-// Credentials the protocol no longer uses are dropped when the protocol changes: a
-// stale password would keep showing up in diagnostics and in the config signature.
+// Credentials the protocol no longer uses are dropped when it changes, so they do not linger in
+// diagnostics or the config signature.
 export const CLIENT_ROUTING_KEYS = [
   'routing_override',
   'routing_mode',

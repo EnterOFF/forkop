@@ -55,14 +55,12 @@ export function addMixedOptions(section: CBISection) {
     'mixed_auth_enabled',
     _('Authentication'),
   );
-  // On by default: a listener that asks for nothing is an open proxy, and the port
-  // is opened in the firewall by default too.
+  // On by default: a listener asking for nothing is an open proxy on a port the firewall opens.
   o.default = '1';
   o.rmempty = false;
   o.modalonly = true;
   o.depends('protocol', 'mixed');
-  // An inbound with no users accepts everybody, so the accounts of a Mixed server
-  // are removed with the switch instead of lingering as credentials nobody sends.
+  // An inbound without users accepts everybody, so a Mixed server's accounts go with the switch.
   o.onchange = function (_ev, sectionId: string, value: unknown) {
     if (String(value) !== '1') {
       clearClientList(this.map, sectionId);
@@ -157,8 +155,7 @@ export function addTuicOptions(section: CBISection) {
 
 export function addProtocolOptions(section: CBISection) {
   let o = section.option(form.ListValue, 'naive_network', _('Network'));
-  // HTTP/3 is QUIC, which a core may be built without; a server already on it
-  // keeps the choice, marked, and the save refuses it by name.
+  // HTTP/3 needs QUIC, which a core may be built without; a server already on it keeps it, marked.
   o.load = function (sectionId: string) {
     const current = option(sectionId, 'naive_network') || 'tcp';
     this.keylist = [];

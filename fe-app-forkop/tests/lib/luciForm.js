@@ -1,11 +1,6 @@
-// A small stand-in for LuCI's form.js, enough to build a view's real option set
-// outside a browser and run a save over it.
-//
-// Reach for this when a test has to answer "what would this dialog write?"
-// rather than "does the source say X". The rules that decide it - when an option
-// is active, and what parse() does with an active or a hidden one - are copied
-// from /www/luci-static/resources/form.js and are the whole point of the file;
-// keep them in step with LuCI rather than making them convenient:
+// A stand-in for LuCI's form.js, enough to build a view's real options and run a save over them.
+// The parse() and depends() rules are copied from /www/luci-static/resources/form.js; keep them in
+// step with LuCI:
 //
 //   AbstractValue.parse   active and empty      -> remove when rmempty/optional
 //                         active and changed    -> write
@@ -14,29 +9,13 @@
 //                         active, otherwise     -> write
 //                         hidden                -> remove unless retain
 //   Map.isDependencySatisfied  the depends() evaluator, verbatim
-//
-// rmempty is true by default in LuCI, and every option starts hidden-free; both
-// matter, so neither is changed here.
-//
-// Usage:
-//     import { createHarness } from '../lib/luciForm.js';
-//     const h = createHarness();
-//     const view = h.bundle;                     // the shipped bundle
-//     h.uci.add('forkop', 'section', 'section_a');
-//     const map = new h.form.Map('forkop');
-//     view.createSectionContent(map.section(h.form.GridSection, 'section'));
-//     await h.openDialog(listOption, 'section_a', itemId);   // returns { save }
-//     await h.openDialogWith(() => button.onclick());   // one stacked on it
 import { webcrypto } from 'crypto';
 import { loadBundle } from './bundle.js';
 
 /* --------------------------------------------------------- class machinery */
 
-// LuCI's baseclass: Class.extend(props) subclasses, this.super(method, args)
-// walks up the chain. __init__ lives on the constructor here rather than on the
-// prototype, so it keeps its own walk; every other method is looked up the way
-// LuCI's Class.super does - start above the prototype whose frame is running,
-// and keep a per-method stack so a super inside a super goes one further up.
+// LuCI's baseclass: Class.extend(props) subclasses, this.super(method, args) walks up the chain
+// with a per-method stack, so a super inside a super goes one further up.
 function makeClass(name, init, parent) {
   function Ctor(...args) {
     const chain = [];
@@ -131,9 +110,6 @@ function isContained(x, y) {
 
 /* ------------------------------------------------------------------ the DOM */
 
-// Just enough of an element for the dialog plumbing: the stacked settings dialog
-// looks up the open modal, swaps its button row and hangs the rendered map next
-// to it.
 class FakeNode {
   constructor(tag, attrs) {
     this.tag = tag;
@@ -271,8 +247,6 @@ function buildForm(uciData) {
         this.ucioption ?? this.option,
       );
     },
-    // cfgvalue holds what load() answered, exactly as LuCI stores it during
-    // Map.load(); a custom load() therefore decides what parse() compares against.
     cfgvalue(sid, setValue) {
       if (arguments.length === 2) {
         this.data[sid] = setValue;
@@ -280,7 +254,6 @@ function buildForm(uciData) {
       }
       return this.data[sid];
     },
-    // No test touches a widget, so it still holds what render() put in it.
     widgetValue(sid) {
       const cval = this.cfgvalue(sid);
       return cval != null ? cval : this.default;
@@ -342,12 +315,8 @@ function buildForm(uciData) {
   });
 
   const Value = AbstractValue.extend({ __name__: 'CBI.Value' });
-  // A <select> can only hand back one of its own options. LuCI marks an option
-  // selected only when it matches the stored value, so a stored value that is not
-  // among the choices leaves nothing selected and the browser falls back to the
-  // first option - which is then what the save writes. It matters wherever the
-  // choices are decided at load time: by which providers are installed, or by
-  // which other sections exist.
+  // A <select> hands back only its own options: a stored value not among them leaves nothing
+  // selected, and the browser falls back to the first option, which the save then writes.
   const ListValue = Value.extend({
     __name__: 'CBI.ListValue',
     formvalue(sid) {
@@ -355,7 +324,6 @@ function buildForm(uciData) {
       const keys = (this.keylist || []).map((key) => `${key ?? ''}`);
       if (!keys.length) return value == null ? null : value;
       if (keys.includes(`${value ?? ''}`)) return `${value ?? ''}`;
-      // An empty choice, or an optional option, puts "-- please choose --" first.
       return this.optional || keys.includes('') ? '' : keys[0];
     },
   });
@@ -499,8 +467,6 @@ function buildForm(uciData) {
     section(Cls, ...args) {
       const section = new Cls(this, ...args);
       this.children.push(section);
-      // The tab order of the page, so a check can see which tabs it declared
-      // and in what order without walking the rendered tree.
       CBIMap.declaredSectionTypes.push(section.sectiontype);
       return section;
     },
@@ -584,11 +550,8 @@ function buildForm(uciData) {
 /* ----------------------------------------------------------------- harness */
 
 export function createHarness(packageName = 'forkop') {
-  // Whatever the page logged while it was being built.
   const messages = [];
 
-  // Every write the views make, in order, so a test can assert that a save
-  // touched nothing.
   const store = new Map();
   const operations = [];
   let anonymous = 0;
@@ -619,7 +582,6 @@ export function createHarness(packageName = 'forkop') {
     unset(pkg, sid, opt) {
       const section = store.get(sid);
       if (!section) return;
-      // LuCI only records a delete for an option the section actually has.
       if (Object.prototype.hasOwnProperty.call(section, opt)) {
         operations.push(`del ${sid}.${opt}`);
       }
@@ -629,15 +591,10 @@ export function createHarness(packageName = 'forkop') {
       const sid = name || `cfg${(anonymous += 1)}`;
       if (store.has(sid)) return null;
       store.set(sid, { '.name': sid, '.type': type });
-      // Recorded like any other write: a save that adds a child item the user did
-      // not ask for is the same kind of defect as one that deletes an option.
       operations.push(`add ${type} ${sid}`);
       return sid;
     },
     remove(pkg, sid) {
-      // And a save that takes a whole section away is the worst of them: the
-      // passwords of a server's accounts, the peers of a tunnel, the levels of a
-      // fallback group all live in sections of their own.
       if (store.has(sid))
         operations.push(`remove ${store.get(sid)['.type']} ${sid}`);
       store.delete(sid);
@@ -645,9 +602,6 @@ export function createHarness(packageName = 'forkop') {
     get_first() {
       return null;
     },
-    // Everything is already in the store, so loading a package is a no-op that
-    // still has to be awaitable: a view that preloads one before building its
-    // dialog would otherwise fail on the missing method.
     load() {
       return Promise.resolve();
     },
@@ -657,10 +611,7 @@ export function createHarness(packageName = 'forkop') {
     set: (...args) => uci.set(...args),
     unset: (...args) => uci.unset(...args),
     sections: (...args) => uci.sections(...args),
-    // LuCI's uci module keeps the loaded package under state.values, and a view
-    // may read it straight from there rather than through sections(): the
-    // Settings page builds its section dropdowns that way. Without it those
-    // dropdowns come up empty in a test and every value looks like it survives.
+    // Views may read the loaded package from state.values, as LuCI's uci module keeps it.
     get state() {
       const values = {};
       for (const [sid, section] of store) values[sid] = section;
@@ -683,10 +634,7 @@ export function createHarness(packageName = 'forkop') {
   };
 
   const documentStub = {
-    // The page starts its polling services on the way out of render(), and a
-    // hidden tab is how they are told to stand down. Answering "visible" here
-    // would leave a wait loop running against stubs for the rest of the test
-    // file, which no check is about and every check would have to survive.
+    // Hidden, so the polling services the page starts stand down instead of running against stubs.
     visibilityState: 'hidden',
     querySelector: (selector) =>
       selector === '#modal_overlay > .modal.cbi-modal' ? modal : null,
@@ -716,13 +664,8 @@ export function createHarness(packageName = 'forkop') {
     },
   };
 
-  // The alerts the page raised through LuCI, in order.
   const notifications = [];
 
-  // What a forkop command answers, by name; a test replaces one with the
-  // answer it is about. The default is the one command a page cannot get
-  // through without: the Reality identity a server dialog generates. Answering
-  // it keeps a test from reporting the dialog's own failure notice as its output.
   const commands = {
     generate_reality_keypair: () =>
       Promise.resolve({
@@ -735,10 +678,6 @@ export function createHarness(packageName = 'forkop') {
       }),
   };
 
-  // What the loader hands every module, main.js included. main.js is loaded
-  // with exactly these, so the constants, validators and helpers a view reads
-  // out of it are the shipped ones and anything it looks up in uci finds the
-  // model this harness is driving rather than a second one.
   const moduleGlobals = {
     form,
     ui: {
@@ -776,9 +715,6 @@ export function createHarness(packageName = 'forkop') {
     poll: { add() {}, remove() {} },
     dom: { content() {}, append() {} },
     rpc: { declare: () => () => Promise.resolve({}) },
-    // The page narrates what its services are doing, and a check here is about
-    // what it wrote rather than what it said. The lines are kept instead of
-    // printed, so a failure can still show them.
     console: {
       log: (...args) => messages.push(args.join(' ')),
       info: (...args) => messages.push(args.join(' ')),
@@ -789,10 +725,6 @@ export function createHarness(packageName = 'forkop') {
 
   const bundle = loadBundle(moduleGlobals);
 
-  // The bundle as a view sees it. Everything real comes straight from it; the
-  // few members listed here are the ones that would otherwise reach out of the
-  // process, and a save must not depend on what they answer. The catch-all
-  // keeps an unlisted name from throwing.
   const main = new Proxy(
     Object.assign({}, bundle, {
       store: {},
@@ -809,7 +741,6 @@ export function createHarness(packageName = 'forkop') {
     },
   );
 
-  // Every dialog the views open, so a test can reach a nested one.
   const dialogMaps = [];
   const OriginalJSONMap = form.JSONMap;
   form.JSONMap = OriginalJSONMap.extend({
@@ -819,14 +750,8 @@ export function createHarness(packageName = 'forkop') {
     },
   });
 
-  // Opens a child item's settings dialog and hands back its map plus the Save
-  // the dialog installed, so a test can press it the way the user does.
-  //
-  // save() answers whether the dialog closed. A dialog refuses a save by throwing
-  // out of its own onSave - a peer list that is empty, a name another item holds -
-  // and the stacked dialog swallows that to keep the modal open, so a refused save
-  // is indistinguishable from a clean one by what it wrote: both wrote nothing. A
-  // check that only counts writes passes on every dialog it never managed to save.
+  // Returns the dialog's map and its Save. save() answers whether the dialog closed: a refused save
+  // throws inside onSave, which the stacked dialog swallows, so by its writes alone it looks clean.
   async function openDialog(option, ownerId, itemValue, context = {}) {
     return openDialogWith(
       () =>
@@ -842,7 +767,6 @@ export function createHarness(packageName = 'forkop') {
     );
   }
 
-  // The buttons a dialog puts in the row, also those it groups in a span.
   const buttonsIn = (nodes) =>
     nodes.flatMap((node) =>
       node instanceof FakeNode
@@ -850,8 +774,6 @@ export function createHarness(packageName = 'forkop') {
         : [],
     );
 
-  // Opens any dialog, one stacked on an open dialog included, through what the
-  // page calls to open it: a button's onclick, say.
   async function openDialogWith(open, label = 'dialog') {
     const buttons = [];
     const originalAppend = buttonRow.append.bind(buttonRow);
@@ -870,10 +792,7 @@ export function createHarness(packageName = 'forkop') {
         `${node.attrs.class ?? ''}`.includes('cbi-button-positive'),
       ) ?? buttons[buttons.length - 1];
     if (!saveButton) throw new Error(`${label} did not open`);
-    // Each open dialog hangs its own title next to the heading and takes it away
-    // again when it closes, so the count says whether this one is still up.
     const openTitles = heading.childNodes.length;
-    // The heading carries each open dialog's title after the one it is stacked on.
     const title = heading.childNodes[heading.childNodes.length - 1];
     return {
       map: dialogMaps[first],
@@ -885,7 +804,6 @@ export function createHarness(packageName = 'forkop') {
     };
   }
 
-  // What the page told the user in a toast, in order.
   const toasts = () =>
     documentStub.body.childNodes
       .filter((node) => node.className === 'toast-container')

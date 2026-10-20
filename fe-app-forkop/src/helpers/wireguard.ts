@@ -1,9 +1,6 @@
-// What WireGuard and AmneziaWG mean the same thing by wherever the page meets
-// them: a key, and the AmneziaWG parameters, one row each - the key sing-box
-// reads, the name an awg-quick configuration gives it, how its value is written,
-// and whether a peer speaking plain WireGuard can ignore it. The tunnel dialog,
-// the configuration import and the server profiles all read this one table, and
-// singbox/amnezia.uc is held to it through tests/fixtures/page_contract.json.
+// WireGuard and AmneziaWG facts the page shares: a key, and the AmneziaWG parameters, one row
+// each. The tunnel dialog, the import and the server profiles read this table; singbox/amnezia.uc
+// is held to it through tests/fixtures/page_contract.json.
 import { message } from '../validators/messages';
 
 export type AmneziaKind =
@@ -18,11 +15,8 @@ export interface AmneziaParameter {
   key: string;
   conf: string;
   kind: AmneziaKind;
-  // Obfuscation one side adds on its own: junk and signature packets any peer
-  // drops as unknown UDP, content padding trimmed away with the rest of the
-  // plaintext, and local timings. The rest describes the wire both ends read,
-  // except DisableCookies, which only changes what a server under load answers
-  // and so does nothing for a tunnel.
+  // Added by one side alone: junk and signature packets, content padding and local timings. The
+  // rest both ends read, except DisableCookies, which does nothing for a tunnel.
   oneSided: boolean;
 }
 
@@ -96,8 +90,7 @@ function hexByte(value: number) {
   return value.toString(16).padStart(2, '0');
 }
 
-// A DNS query for an A record of an everyday name, with a new ID before every
-// handshake.
+// An A query for an everyday name, with a new ID before every handshake.
 function dnsQuerySignature() {
   const name = SIGNATURE_NAMES[randomInt(0, SIGNATURE_NAMES.length - 1)];
   const labels = name
@@ -111,21 +104,13 @@ function dnsQuerySignature() {
   return `<r 2><b 0x01000001000000000000${labels}0000010001>`;
 }
 
-// A fresh AmneziaWG 3.1 parameter set, drawn the way 3x-ui draws one for every
-// inbound, so that no two servers share the fingerprint a fixed set would give
-// them all. The paddings start at the 12 bytes header protection needs, and S1
-// and S2 never differ by the 56 bytes that would give the two handshake
-// packets one size. Each header comes from a quarter of its own above the
-// WireGuard message types and below what Amnezia's Windows client accepts.
-// The timings stay around WireGuard's own, every rekey 30 seconds before the
-// earliest rejection, and the content padding stays within 64 bytes, as the
-// junk on a full data packet has to.
+// A fresh AmneziaWG 3.1 set drawn the way 3x-ui draws one, so no two servers share a
+// fingerprint. Paddings start at the 12 bytes header protection needs, and S1 and S2 never differ
+// by 56 bytes, which would give both handshake packets one size. Each header comes from its own
+// quarter above the WireGuard message types and below what Amnezia's Windows client accepts.
 //
-// I1 alone is not 3x-ui's random packet. Behind a filtering ISP a WireGuard
-// handshake to WARP passed only after junk led by a packet that reads as a
-// known protocol, as Amnezia's own DNS packet does; behind random bytes, or
-// with either half missing, it never did. So I1 is a DNS query, its name
-// drawn from everyday ones.
+// I1 is a DNS query: behind a filtering ISP a handshake to WARP passed only after junk led by a
+// packet reading as a known protocol.
 export function generateAmneziaParameters(): Record<string, string> {
   const jmin = randomInt(40, 89);
   const s1 = randomInt(15, 150);
@@ -224,10 +209,8 @@ export function validateWireGuardKey(value: string): boolean {
 }
 
 /**
- * AmneziaWG I1-I5 hold a Custom Protocol Signature: a chain of `<tag value>`
- * packets such as `<b 0xdeadbeef><c><r 4>`. The core refuses an unknown tag and
- * silently sends nothing for a signature without any tag, so a plain hex blob
- * is rejected here instead of turning into obfuscation that never happens.
+ * A chain of `<tag value>` packets such as `<b 0xdeadbeef><c><r 4>`. The core refuses an unknown
+ * tag and silently sends nothing for a signature without tags, so a plain hex blob is refused here.
  */
 export function validateAmneziaSignature(value: string): boolean {
   let rest = value.trim();
@@ -250,8 +233,7 @@ export function validateAmneziaSignature(value: string): boolean {
   return tags > 0;
 }
 
-// Whether a value of the parameter, as the dialog and UCI hold it, is one the
-// core accepts; an empty value leaves the parameter out and always is.
+// An empty value leaves the parameter out and is always accepted.
 export function validateAmneziaValue(key: string, value: unknown) {
   const text = `${value ?? ''}`.trim();
   const entry = amneziaParameter(key);
@@ -283,12 +265,9 @@ function rangeBounds(value: string) {
   return [parts[0], parts[parts.length - 1]];
 }
 
-// What the parameters have to hold together, beyond each value. The device
-// refuses padding too short to carry the header protection nonce (the all-zero
-// key turns protection off) and headers that overlap, a header it is not given
-// being the WireGuard type number it keeps; sing-box's check passes both and
-// the whole service fails to start. A junk minimum above the maximum is a size
-// stock AmneziaWG cannot draw.
+// The device refuses padding too short for the header protection nonce and overlapping headers
+// (an unset header keeps its WireGuard type number); sing-box check passes both and the service
+// fails to start. Stock AmneziaWG cannot draw a junk size whose minimum exceeds its maximum.
 export function validateAmneziaSet(values: Record<string, unknown>) {
   const text = (key: string) => `${values[key] ?? ''}`.trim();
 

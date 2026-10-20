@@ -1,9 +1,6 @@
-// LuCI's E() takes a lone string child as markup and hands it to innerHTML,
-// while the same string inside an array becomes text. The strings the tabs put
-// on the page are values - a node name from a subscription, a log line, a
-// domain a client asked for - so here a lone string is text too.
-//
-// The name E is left free in this module, so the call below reaches LuCI's.
+// LuCI's E() puts a lone string child in as markup; the tabs' strings are values (node names, log
+// lines, domains), so here a lone string is text. The name E stays free so the call below reaches
+// LuCI's.
 function element(...args: unknown[]) {
   if (
     args.length >= 3 &&

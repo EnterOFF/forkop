@@ -6,10 +6,6 @@ vi.mock('../../cbi/childItems', () => ({
 
 import { addLabeledSection } from '../gridSection';
 
-// Add creates the row before its dialog opens, so the row needs a name at once.
-// The id says which type the section is - it is never shown - and the label is the
-// free-form name the dialog offers, numbered one past the highest number taken.
-
 function grid(
   sectiontype: string,
   stored: Record<string, { type: string; label?: string }>,
@@ -59,8 +55,6 @@ describe.each([
   });
 });
 
-// Counting the rows offered the name of a row that was already there once one
-// before it had been removed, and the dialog then refused its own suggestion.
 describe('the number of a new row', () => {
   it('is one past the highest one taken, not one past the count', () => {
     const { sectionRef, written } = grid('server', {

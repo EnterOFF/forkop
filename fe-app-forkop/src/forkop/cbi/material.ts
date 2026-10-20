@@ -1,7 +1,3 @@
-// A certificate or key field: the PEM text in a textarea that grows only
-// downwards, and beside it the button that loads it from a file - the form most
-// of these come in.
-
 import { E } from '../../helpers/element';
 import { checkMaterial, splitCertificateAndKey } from '../../helpers/material';
 import type { MaterialKind } from '../../helpers/material';
@@ -67,8 +63,7 @@ export function readMaterialFile(bytes: Uint8Array) {
   return `-----BEGIN CERTIFICATE-----\n${body}\n-----END CERTIFICATE-----`;
 }
 
-// Opens the file dialog of a file input that is never put on the page: a theme
-// styles every file input it finds, and a detached one opens all the same.
+// A detached file input still opens, and no theme restyles it.
 export function pickFiles(multiple: boolean, onPick: (files: File[]) => void) {
   const picker = E('input', { type: 'file' }) as HTMLInputElement;
   picker.multiple = multiple;
@@ -78,7 +73,6 @@ export function pickFiles(multiple: boolean, onPick: (files: File[]) => void) {
   picker.click();
 }
 
-// The value of another field of the same dialog as it stands.
 function formValueOf(option: CBIOption, sectionId: string): FormValue {
   return (name: string) => {
     const found = option.map.lookupOption(name, sectionId);
@@ -96,9 +90,7 @@ function setFieldValue(widget: CBIWidget | null, value: string) {
     ?.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-// What a loaded file puts into the field it was loaded into and into the
-// field paired with it: a file that holds a certificate and its key fills
-// both, anything else only its own.
+// A file holding a certificate and its key fills both fields.
 export function loadedMaterial(
   text: string,
   kind: MaterialKind,
@@ -111,9 +103,6 @@ export function loadedMaterial(
     : { own: both.certificate, pair: both.key };
 }
 
-// A certificate field and a key field can be a pair: a file or a paste that
-// holds both, put into either of them, fills one with the certificate and the
-// other with the key.
 export function configureMaterialOption(
   option: CBIOption,
   kind: MaterialKind | ((value: FormValue) => MaterialKind),
@@ -123,7 +112,6 @@ export function configureMaterialOption(
   option.rows = 4;
   option.wrap = 'off';
   option.rmempty = true;
-  // No spell checking, and the four rows are also the least it shrinks to.
   configureTextareaOption(option);
   option.validate = function (sectionId: string, value: unknown) {
     const values = formValueOf(this, sectionId);
@@ -189,8 +177,7 @@ export function configureMaterialOption(
           );
       });
     });
-    // Pasted text that holds both halves goes where a loaded file would; any
-    // other paste is the browser's own.
+    // A paste holding both halves is split like a loaded file.
     frame.querySelector('textarea')?.addEventListener('paste', (ev) => {
       const text = ev.clipboardData?.getData('text') ?? '';
       if (!pair || !splitCertificateAndKey(text)) return;

@@ -1,10 +1,8 @@
 export const FORKOP_UCI_PACKAGE = 'forkop';
 export const FORKOP_LUCI_APP_VERSION = '__COMPILED_VERSION_VARIABLE__';
 export const FAKEIP_CHECK_DOMAIN = 'fakeip.podkop.fyi';
-// Tags sing-box already uses for Forkop's own inbounds, outbounds and DNS
-// servers. A section or server display name becomes a tag verbatim, so these
-// names are refused by both dialogs, and by the runtime check, which reads
-// singbox/constants.uc. The contract test holds this against that table.
+// Tags sing-box already uses for Forkop's own objects; a display name becomes a tag verbatim,
+// so these are refused. The contract test holds this to singbox/constants.uc.
 export const RESERVED_RUNTIME_TAGS = new Set([
   'dns-server',
   'fakeip-server',
@@ -25,9 +23,7 @@ export const RESERVED_RUNTIME_TAGS = new Set([
   'direct-out',
 ]);
 
-// The actions whose section can carry another section's traffic: what a DNS
-// detour, an outbound detour, a download-through picker and a Tailscale
-// coordination detour may be pointed at.
+// Actions whose section can carry another section's traffic.
 export const DETOUR_TARGET_ACTIONS = ['connection', 'proxy', 'outbound', 'vpn'];
 
 export const TAILSCALE_CONTROL_URL = 'https://controlplane.tailscale.com';
@@ -70,4 +66,4 @@ export const DOMAIN_LIST_OPTIONS = {
   cloudfront: 'CloudFront ASN',
 };
 
-export const COMMAND_TIMEOUT = 10000; // 10 seconds
+export const COMMAND_TIMEOUT = 10000;

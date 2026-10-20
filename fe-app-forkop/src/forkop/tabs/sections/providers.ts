@@ -1,6 +1,4 @@
-// The protocols a subscription can deliver, mirroring
-// FILTERABLE_PROVIDER_TYPES in the backend. sing-box builds provider nodes from
-// outbounds only, so endpoint protocols never appear here.
+// Mirrors FILTERABLE_PROVIDER_TYPES in the backend: providers build nodes from outbounds only.
 export function providerTypeChoices() {
   return [
     ['vless', 'VLESS'],
@@ -25,8 +23,7 @@ export function providerTypeChoices() {
   ].map(([value, label]) => ({ value, label }));
 }
 
-// A group also holds the servers a section configures itself, which is the only
-// way a tunnel or a network interface becomes a member.
+// Groups also hold a section's own servers, the only way tunnels and interfaces become members.
 export function groupTypeChoices() {
   return [
     ...providerTypeChoices(),

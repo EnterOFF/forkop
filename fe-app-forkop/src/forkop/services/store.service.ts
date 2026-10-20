@@ -145,9 +145,8 @@ export interface StoreType {
     failed: boolean;
     data: { connections: number };
   };
-  // The core's load and age from the state service. The load needs two
-  // readings, so it is null after the first; the start is a moment on this
-  // browser's clock, which the age counts from between readings.
+  // The load needs two readings, so it is null after the first; the start is a moment on this
+  // browser's clock.
   coreUsageWidget: {
     loading: boolean;
     failed: boolean;

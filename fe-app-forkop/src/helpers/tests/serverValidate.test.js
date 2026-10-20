@@ -37,14 +37,10 @@ describe('Reality short ID validation', () => {
     expect(validate.validateShortId('srv', 'a'.repeat(16))).toBe(true);
   });
 
-  // sing-box decodes the value as hex bytes, so an odd digit count makes the
-  // service refuse to start instead of only rejecting the client.
   it('rejects an odd number of hex digits', () => {
     expect(validate.validateShortId('srv', 'abc')).toMatch(/even number/);
   });
 
-  // One value only: a share link carries exactly one, so a second could not reach
-  // any client through anything Forkop hands out.
   it('rejects more than eight bytes, non-hex input and a list', () => {
     expect(validate.validateShortId('srv', 'a'.repeat(18))).toMatch(/up to 16/);
     expect(validate.validateShortId('srv', 'zz')).toMatch(/even number/);
@@ -70,7 +66,6 @@ describe('listen port validation', () => {
 
     expect(validate.validateListenPort('second', '30000')).toMatch(/Home/);
     expect(validate.validateListenPort('second', '30001')).toBe(true);
-    // Editing the server that owns the port must not report a conflict with itself.
     expect(validate.validateListenPort('first', '30000')).toBe(true);
   });
 
@@ -116,8 +111,6 @@ describe('raw inbound JSON validation', () => {
     ).toBe(true);
   });
 
-  // The contents are sing-box's to judge: a type this Forkop does not know, a
-  // missing type or an odd port reach the core, which says what it refuses.
   it.each([
     '{"type":"a-type-from-a-newer-core"}',
     '{"listen_port":0}',
@@ -136,9 +129,6 @@ describe('raw inbound JSON validation', () => {
   });
 });
 
-// The address is stored as typed and the core parses it as a bare IP address,
-// so the brackets a URL puts around IPv6 are refused rather than accepted here
-// and refused on apply.
 describe('listen address validation', () => {
   const { validate } = load();
 
@@ -174,7 +164,6 @@ describe('Shadowsocks key validation', () => {
     expect(
       validate.validateShadowsocksPassword('srv', 'plain-password'),
     ).toMatch(/16 bytes/);
-    // The core decodes a key as padded standard base64, which atob forgives.
     expect(
       validate.validateShadowsocksPassword('srv', key16.replace(/=+$/, '')),
     ).toMatch(/16 bytes/);

@@ -1,6 +1,4 @@
-// While the dialog is open a changed value is not stored yet, so the widget wins.
-// Every field that depends on the protocol, on the cipher or on the authentication
-// switch has to follow the selection immediately instead of after a save.
+// While the dialog is open the widget holds the unsaved value, so dependent fields read it first.
 
 import { FORKOP_UCI_PACKAGE } from '../../../constants';
 
@@ -21,13 +19,9 @@ export function optionList(sectionId: string, name: string) {
   return asList(uci.get(FORKOP_UCI_PACKAGE, sectionId, name));
 }
 
-// The widget of an option, found the way LuCI finds it itself: by the id of the
-// frame it renders, which every widget carries. The inner control is only named
-// widget.<cbid> by some of them - a checkbox puts that in data-widget-id and gives
-// its input a random id - so looking for the control found nothing for a flag and
-// every reader silently fell back to the stored value. The open dialog is searched
-// first, because the table behind it renders the editable columns under the same
-// ids.
+// Found by the frame id every widget carries, as LuCI does: only some widgets put widget.<cbid> on
+// the inner control. The open dialog is searched first, since the table renders editable columns
+// under the same ids.
 export function widgetNode(
   sectionId: string,
   name: string,
@@ -39,8 +33,6 @@ export function widgetNode(
     document.getElementById(id)) as HTMLElement | null;
 }
 
-// The rendered widget of a field, when the dialog holding it is open. A widget
-// answers what the user has typed; the stored value has not caught up yet.
 function liveElement(sectionId: string, name: string): CBIWidget | null {
   const node = widgetNode(sectionId, name);
   const element = node

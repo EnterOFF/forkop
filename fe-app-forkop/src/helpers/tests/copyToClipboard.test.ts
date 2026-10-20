@@ -6,7 +6,6 @@ vi.mock('../showToast', () => ({ showToast: mocks.showToast }));
 
 import { copyToClipboard } from '../copyToClipboard';
 
-// A browser that refuses the copy says so by returning false, not by throwing.
 function browser(copies: boolean) {
   vi.stubGlobal('document', {
     createElement: () => ({ value: '', select() {} }),

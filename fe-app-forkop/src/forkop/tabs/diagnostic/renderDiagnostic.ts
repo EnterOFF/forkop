@@ -1,6 +1,4 @@
-// The controls come first in the markup: stacked into one column on a narrow
-// screen, the whole list of checks would otherwise stand between the page and
-// the buttons that act on it.
+// The controls come first, so on a narrow screen the check list does not stand above them.
 
 import { E } from '../../../helpers/element';
 export function render() {

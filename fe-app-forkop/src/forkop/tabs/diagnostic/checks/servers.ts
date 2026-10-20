@@ -39,14 +39,12 @@ function listenerItems(server: Forkop.ServerCheckItem) {
   return [];
 }
 
-// A server is for the internet when its listener faces WAN and its port is
-// open, or meant to be. One that listens on the LAN alone, or whose port was
-// left shut - as a migrated LAN proxy is - is kept to the LAN on purpose.
+// For the internet: the listener faces WAN and its port is open or meant to be. A LAN-only
+// server, such as a migrated LAN proxy, is kept to the LAN on purpose.
 function facesInternet(server: Forkop.ServerCheckItem) {
   return server.exposed && (server.open_firewall || server.firewall_open);
 }
 
-// Whether clients can find the server by the address their links carry.
 function publicHostItems(server: Forkop.ServerCheckItem, wan: string) {
   const key = server.label;
   const host = server.public_host;
@@ -89,8 +87,7 @@ function publicHostItems(server: Forkop.ServerCheckItem, wan: string) {
   return [];
 }
 
-// Behind the provider's NAT no port of the router can be opened, so this is
-// said once for the router rather than for each server.
+// Behind the provider's NAT no port can be opened, so this is said once for the router.
 function cgnatItems(data: Forkop.ServersCheckResult) {
   if (!data.behind_cgnat || !data.items.some(facesInternet)) {
     return [];

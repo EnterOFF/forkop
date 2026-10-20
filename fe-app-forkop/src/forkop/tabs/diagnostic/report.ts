@@ -11,8 +11,7 @@ const MARKS: Record<IDiagnosticsChecksStoreItem['state'], string> = {
   loading: '…',
 };
 
-// The checks as the page shows them, a group to a line and its findings under
-// it, for a report read where the page is not.
+// The checks as the page shows them: a group per line, its findings under it.
 export function checksText(checks: IDiagnosticsChecksStoreItem[]) {
   const lines: string[] = [];
 
@@ -48,9 +47,7 @@ export interface ReportInput {
   service?: Forkop.ServiceCheckResult;
 }
 
-// Everything someone helping needs in one text: what runs where, what the
-// checks found, the recent log, both configurations and the capture as the
-// kernel holds it. The checks come back from the router masked like the rest.
+// The router masks the checks like the rest of the report.
 export function reportText(
   input: ReportInput,
   attachments: Forkop.ReportAttachments,

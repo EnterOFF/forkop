@@ -20,29 +20,14 @@ type DirectClashApiOutcome =
 
 const CLASH_API_FETCH_TIMEOUT_MS = 5000;
 const CLASH_API_MUTATION_TIMEOUT_MS = 15000;
-// How long a group test may hold the page. It is a ceiling and not a wait: the
-// router answers as soon as the last member is done, so a section whose nodes
-// answer is over in a couple of seconds whatever its size, and this only bounds
-// the case where a section is too large or too dead to finish. One too large
-// even for this is covered by pressing again, since the router sweeps the
-// members it tested least recently first.
+// A ceiling, not a wait: the router answers once the last member is done, and members tested
+// least recently go first, so pressing again continues a sweep that ran out.
 const GROUP_LATENCY_TIMEOUT_MS = '40000';
-// A sweep can answer later than its own budget: a test already dialing when the
-// budget runs out is only given up on when its own five seconds are over, and
-// not every dial notices a cancelled deadline before then. Measured on a section
-// of 133 members, a three second budget answered in 8.6 s. The browser therefore
-// waits a whole extra test on top of the budget before it gives up on the
-// answer, or it would abandon a sweep the router was about to report.
+// A test already dialing when the budget runs out ends only after its own five seconds, so the
+// browser waits one extra test beyond the budget.
 const GROUP_LATENCY_SWEEP_OVERSHOOT_MS = 5000;
-// A browser that cannot reach the controller pays for every doomed attempt: a
-// refused port costs a round trip, a dropped one costs the whole timeout. One
-// attempt proves the path is not there, and the rest go straight to the CLI
-// transport until a probe says otherwise.
-//
-// Nothing the page is waiting for ever pays for that discovery. The probe runs
-// beside the request that decided to skip the direct path, so a controller that
-// stays unreachable never costs the page a timeout again, and one that comes
-// back is noticed within the probe interval rather than at the next reload.
+// After one failed direct attempt requests go to the CLI transport, and a probe beside them
+// notices within this interval when the controller is reachable again.
 const DIRECT_CLASH_API_PROBE_INTERVAL_MS = 30000;
 const DIRECT_CLASH_API_PROBE_TIMEOUT_MS = 2000;
 let clashApiConfigSections: Forkop.ConfigSection[] = [];
@@ -77,16 +62,13 @@ function suspendDirectClashApi() {
   directClashApiProbeAt = Date.now() + DIRECT_CLASH_API_PROBE_INTERVAL_MS;
 }
 
-// Opening a tab is the moment a user is most likely to have just started the
-// core, so the next request probes instead of waiting out the interval. It
-// costs nothing to be wrong: no request waits for the probe.
+// Opening a tab is when the core was most likely just started, so the next request probes.
 export function resetClashApiTransport() {
   directClashApiProbeAt = 0;
 }
 
 function clashApiError(status: number, body: string) {
-  // The Clash API reports failures as {"message": "..."}. Show that text rather
-  // than the raw JSON, since this string is what the user ends up reading.
+  // The Clash API reports failures as {"message": "..."}; that text is what the user reads.
   if (body) {
     try {
       const payload = JSON.parse(body);
@@ -95,7 +77,7 @@ function clashApiError(status: number, body: string) {
         return payload.message;
       }
     } catch {
-      // Not a JSON error payload, so the body is already the message.
+      // Not JSON, so the body is the message.
     }
   }
 
@@ -201,9 +183,7 @@ async function fetchClashApiThroughCli<T>(
   );
 }
 
-// Any answer at all proves the controller is reachable, including the one it
-// gives a request without the right secret: what is being asked is whether the
-// browser can open the connection, not whether it is allowed through.
+// Any answer proves the controller is reachable, even one refusing the secret.
 function probeDirectClashApi() {
   if (directClashApiProbe) {
     return directClashApiProbe;
@@ -242,11 +222,8 @@ async function requestClashApi<T>(
   path: string,
   init?: RequestInit,
   timeout?: number,
-  // A request the router goes on working on after the browser has stopped
-  // waiting must not be sent again. Anything that is not a plain read is such a
-  // request, and so is a latency test: the sweep it started outlives the
-  // connection that asked for it, and a second one would compete with the first
-  // for the same ten test slots and spoil both sets of measurements.
+  // Not retried after a timeout: the router keeps working on anything but a plain read, and a
+  // second latency sweep would compete with the first for the same ten test slots.
   options?: { keepsRunningAfterTimeout?: boolean; summary?: boolean },
 ): Promise<Forkop.MethodResponse<T>> {
   const method = (init?.method || 'GET').toUpperCase();
@@ -282,10 +259,7 @@ async function requestClashApi<T>(
         : response;
     }
 
-    // A controller that never answered and one that answered too late are the
-    // same failure to a caller: both spent their whole budget before the CLI
-    // transport got its turn, and repeating that for every request is what the
-    // suspension is for.
+    // A late answer and no answer spent the same budget before the CLI got its turn.
     suspendDirectClashApi();
 
     if (keepsRunning) {
@@ -391,13 +365,10 @@ export async function updateClashApiProxyProviders(providerTags: string[]) {
   );
 }
 
-// Refreshing rule-sets downloads files, so it needs the ceiling the router-side
-// transport allows rather than the mutation one.
+// Refreshing rule sets downloads files, so it takes the router-side transport's ceiling.
 const CLASH_API_RULE_SET_UPDATE_TIMEOUT_MS = 60000;
 
-// The bulk endpoint refreshes every remote rule-set the runtime holds, those of
-// the DNS, bypass and block sections the dashboard does not show included, five
-// downloads at a time.
+// Refreshes every remote rule set the runtime holds, including sections the dashboard hides.
 export function updateClashApiRuleProviders() {
   return requestClashApi<undefined>(
     '/providers/rules',
@@ -440,11 +411,8 @@ function summarizeConnections(
   };
 }
 
-// The Dashboard widgets want three numbers out of a snapshot that carries every
-// open connection. A browser that reaches the controller can read them out of
-// the whole thing for the cost of one local request; one that cannot would drag
-// that snapshot across ubus first, where rpcd refuses a reply past about 256KB,
-// so the router is asked for the three numbers instead.
+// The full snapshot through ubus could exceed rpcd's limit of about 256 KB, so without a direct
+// path the router is asked for the three numbers.
 export async function getClashApiConnectionsSummary(): Promise<
   Forkop.MethodResponse<Forkop.ClashConnectionsSummary>
 > {

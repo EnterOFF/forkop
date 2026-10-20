@@ -2,8 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTabLifecycle } from '../tabLifecycle';
 
-// A tab's live updates run while it is in view and stop once it has been out of
-// view for the grace period; a look away shorter than that leaves them running.
 let shown = false;
 let start: ReturnType<typeof vi.fn>;
 let stop: ReturnType<typeof vi.fn>;

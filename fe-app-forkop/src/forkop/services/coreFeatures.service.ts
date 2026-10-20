@@ -8,17 +8,11 @@ import {
 
 type CoreTypeKind = 'outbound' | 'inbound' | 'endpoint';
 
-// What the installed sing-box can do, as the router reads it off the tags the
-// core was built with; singbox/features.uc owns the table. The page learns it
-// before it builds its forms, and every choice a build may lack asks here.
-//
-// Until the router has answered, and when there is no core to ask, everything
-// counts as available: the page then hides nothing, and the router still refuses
-// what the core cannot run.
+// What the installed sing-box can do, as singbox/features.uc reads it. Until the router answers,
+// and without a core, everything counts as available: the router still refuses what it cannot run.
 let report: Forkop.CoreFeatures | null = null;
 
-// The runtime feed carries the report in every answer from the state service and
-// none from the CLI, whose answer then leaves the last one in place.
+// Answers from the state service carry the report; the CLI's leave the last one in place.
 export function setCoreFeatures(value: Forkop.CoreFeatures | null | undefined) {
   if (value === undefined) {
     return;
@@ -34,8 +28,7 @@ export function coreFeatureTags(feature: string) {
   return report?.features[feature]?.tags || [];
 }
 
-// The feature a sing-box type needs, by the kind of object it is. A group member
-// is an outbound or an endpoint, so both are looked at unless a kind is named.
+// A group member is an outbound or an endpoint, so both are checked unless a kind is named.
 export function coreFeatureOfType(
   type: string,
   kinds: CoreTypeKind[] = ['outbound', 'endpoint'],
@@ -121,9 +114,8 @@ function vmessPayload(link: string) {
   }
 }
 
-// Whether sing-box reads the link into a uTLS hello: a fingerprint on a TLS link,
-// or Reality, which always sends one. singbox/features.uc reads links the same
-// way, after the core's own link parser.
+// A fingerprint on a TLS link, or Reality, which always sends one; singbox/features.uc reads
+// links the same way.
 function linkUsesUtls(type: string, link: string) {
   if (type === 'vmess') {
     const payload = vmessPayload(link);
@@ -165,8 +157,7 @@ export function linkCoreFeatures(link: string) {
   return features;
 }
 
-// Read once, before the page builds its forms. The state service answers from
-// memory; the CLI, which asks the core itself, is what answers without it.
+// The state service answers from memory; the CLI, which runs the core, answers without it.
 export async function loadCoreFeatures() {
   const served = await callUbus<Forkop.UiState>({
     object: FORKOP_SERVICE_OBJECT,

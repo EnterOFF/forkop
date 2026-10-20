@@ -1,6 +1,3 @@
-// The cascade of a single link, subscription or tunnel, driven through the
-// shipped bundle: a switch in the item's own dialog and the section it goes
-// through, stored on that item alone.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -117,8 +114,6 @@ describe.each(ITEMS)('the cascade of %s', (_label, type, listName, values) => {
   });
 });
 
-// A pasted link is a section from the moment it is added, and its dialog writes
-// what it took into that section: the switch must not be in it.
 it('a pasted link keeps its cascade once the section is saved', async () => {
   const links = list('connection_link');
   const link = 'vless://u@a.example:443#A';

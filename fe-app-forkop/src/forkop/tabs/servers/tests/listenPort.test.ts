@@ -49,8 +49,6 @@ describe('the listen port of a server', () => {
     expect(listenTransports('vless', '')).toEqual(['tcp']);
   });
 
-  // The native sing-box API binds its own TCP port while it is switched on,
-  // which config/validator.uc refuses for a server the same way.
   it('may not take the port of the native API while it is on', () => {
     expect(validateListenPort('vless', '9091')).toContain('Port taken by');
     expect(validateListenPort('hysteria', '9091')).toBe(true);

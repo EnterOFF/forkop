@@ -17,7 +17,6 @@ const CLIENT = {
   flow: '',
 };
 
-// What prepare leaves in the configuration the router holds.
 const MATERIAL = {
   office: { openvpn_certificate: CA, openvpn_tls_crypt_key: STATIC_KEY },
   laptop: { openvpn_certificate: CLIENT_CERT, openvpn_key: CLIENT_KEY },

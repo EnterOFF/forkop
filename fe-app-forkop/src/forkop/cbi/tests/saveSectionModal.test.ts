@@ -10,8 +10,6 @@ vi.mock('../../../helpers/showToast', () => ({
 
 import { saveSectionModal } from '../modal';
 
-// The dialog map, the page map it was opened from, and the section whose dialog
-// it is, each recording what LuCI's save would have asked of it.
 function dialog(save: () => Promise<void>, markedField: unknown = null) {
   const calls: string[] = [];
   const record = (call: string) => {
@@ -67,8 +65,6 @@ describe('saving a section dialog', () => {
     expect(toasts).toEqual([]);
   });
 
-  // LuCI's own save throws the reason away and leaves the dialog open with
-  // nothing said.
   it('stays open on a refusal and says why', async () => {
     const { calls, modalMap, sectionRef } = dialog(() =>
       Promise.reject(new TypeError('Option "Port" must not be empty.')),

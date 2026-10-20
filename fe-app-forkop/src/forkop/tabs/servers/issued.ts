@@ -1,6 +1,4 @@
-// What the router issues a server when the settings are applied: certificates,
-// keys and fingerprints. They are read from what the router holds rather than
-// from the page's copy of the configuration, which the apply may have overtaken.
+// Read from the router, not the page's copy of the configuration, which an apply may have overtaken.
 
 let callUciValues: ((config: string) => Promise<unknown>) | null = null;
 

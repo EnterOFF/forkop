@@ -4,7 +4,7 @@ import path from 'path';
 
 export default defineConfig({
     entry: ['src/main.ts'],
-    format: ['esm'], // пусть tsup генерит export {...}
+    format: ['esm'],
     outDir: '../luci-app-forkop/htdocs/luci-static/resources/view/forkop',
     outExtension: () => ({ js: '.js' }),
     dts: false,

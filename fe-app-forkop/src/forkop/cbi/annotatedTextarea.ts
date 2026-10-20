@@ -84,8 +84,7 @@ function applyTextareaInputAttributes(textarea: HTMLTextAreaElement) {
     return Math.ceil(rows * lineHeight + verticalPadding + verticalBorder);
   };
 
-  // The least height is the one its rows give it, measured while it shows and
-  // before a drag sets a height of its own; until then the rows are estimated.
+  // The least height is what its rows give it, measured before a drag sets one; estimated until then.
   const applyMinHeight = () => {
     if (textarea.hasAttribute('data-fkp-default-min-height')) {
       return true;
@@ -369,7 +368,6 @@ export function configureTextareaOption(
     option_index: string,
     cfgvalue: unknown,
   ) {
-    // Every option this wraps renders its field synchronously.
     const node = originalRenderWidget.call(
       this,
       section_id,

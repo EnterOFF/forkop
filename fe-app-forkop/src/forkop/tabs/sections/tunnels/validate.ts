@@ -28,10 +28,8 @@ import {
   wireGuardPeerDisplayNameFromObject,
 } from './model';
 
-// The checks here judge a tunnel or a peer whose dialog is closed. Inside the
-// dialog every field marks itself and says what is wrong with it; outside, the
-// entry is only told to be fixed, and a rule that spans several fields is the
-// one thing said in full.
+// These judge a tunnel or peer whose dialog is closed: the entry is only told to be fixed, and a
+// rule spanning several fields is said in full.
 
 export function validateWireGuardPrefix(value: unknown) {
   const address = typeof value === 'string' ? value.trim() : '';

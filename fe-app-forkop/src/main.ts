@@ -11,13 +11,10 @@
 
 import './helpers/structuredClonePolyfill';
 
-// The page. view/forkop/forkop.js hands this to view.extend() and does nothing
-// else.
+// view/forkop/forkop.js hands this to view.extend().
 export { ForkopView } from './forkop/entry';
 
-// What each tab declares of the page. ForkopView is built out of exactly these,
-// and the checks that drive the shipped bundle build one tab at a time through
-// them rather than rendering the whole page.
+// The tab builders, which the bundle checks use to build one tab at a time.
 export {
   configureSectionSection,
   createSectionContent,
@@ -27,6 +24,5 @@ export {
   createServerContent,
 } from './forkop/tabs/servers';
 export { createSettingsContent } from './forkop/tabs/settings';
-// What the installed core can do, which ForkopView reads before it builds the
-// tabs; a check that builds one tab tells it the same way.
+// A check building one tab sets the core features the way ForkopView reads them.
 export { setCoreFeatures } from './forkop/services/coreFeatures.service';

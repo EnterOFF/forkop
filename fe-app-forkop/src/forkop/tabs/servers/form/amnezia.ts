@@ -1,7 +1,5 @@
-// Every AmneziaWG parameter of a server, named as its configuration names it,
-// empty until the generate button above them fills them in. The server runs
-// with them and hands them all to its clients in their profiles; the signature
-// packets are only the clients' to send.
+// Every AmneziaWG parameter of a server, empty until the generate button fills them. Clients get
+// them all in their profiles; the signature packets are only theirs to send.
 
 import {
   AMNEZIA_PARAMETERS,

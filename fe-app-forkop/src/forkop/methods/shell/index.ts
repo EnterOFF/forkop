@@ -5,21 +5,17 @@ import { executeShellCommand } from '../../../helpers/executeShellCommand';
 
 const UI_ACTION_RPC_TIMEOUT_MS = 15000;
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
-// The service answers from memory; this ceiling only covers the case where it
-// is still working the first answer out.
+// Covers only the state service still computing its first answer.
 const SYSTEM_INFO_UBUS_TIMEOUT_MS = 5000;
-// The router-side Clash transport lets curl run for a minute, and LuCI aborts
-// every RPC after twenty seconds unless something raises that ceiling.
+// The router-side Clash transport lets curl run for a minute; LuCI aborts an RPC after twenty
+// seconds unless the timeout is raised.
 const CLASH_API_TRANSPORT_TIMEOUT_MS = 65000;
-// Diagnostic checks inspect the whole runtime: nftables chains, sing-box, DNS
-// probes. On slow routers a single check takes far longer than an ordinary RPC,
-// and cutting it short reports a healthy runtime as unreachable.
+// A check on a slow router takes far longer than an ordinary RPC.
 const DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1000;
 
 let checkLogsRequest: Promise<Forkop.MethodResponse<string>> | null = null;
 
-// The log is text, and a router whose log holds no Forkop line yet answers with
-// none: an empty answer is an empty log, not a failed read.
+// A log with no Forkop line yet is empty, not a failed read.
 function checkLogs() {
   if (!checkLogsRequest) {
     checkLogsRequest = executeShellCommand({
@@ -107,8 +103,7 @@ export const ForkopShellMethods = {
     diagnosticCheck<Forkop.ServersCheckResult>(
       Forkop.AvailableMethods.CHECK_SERVERS,
     ),
-  // The checks the page ran go along, so the router masks them by the same
-  // rules as the rest of the report.
+  // The router masks the checks by the same rules as the rest of the report.
   report: async (masked: boolean, checks: string) =>
     diagnosticCheck<Forkop.ReportAttachments>(Forkop.AvailableMethods.REPORT, [
       masked ? 'masked' : 'raw',
@@ -133,8 +128,7 @@ export const ForkopShellMethods = {
       '/usr/bin/forkop',
       { timeout: 10000 },
     ),
-  // Through the CLI, not the init script: every init script command waits on
-  // procd's per-service lock, and the CLI writes the rc.d symlink at once.
+  // Through the CLI: init script commands wait on procd's per-service lock.
   enable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.ENABLE),
   disable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.DISABLE),
   showConfig: async (masked = true) =>
@@ -146,9 +140,8 @@ export const ForkopShellMethods = {
       masked ? 'masked' : 'raw',
     ]),
   checkLogs,
-  // Working the versions out is a CLI run that asks the package manager and
-  // sing-box. The state service holds the answer for as long as the installed
-  // packages have not changed; the CLI is what answers when it is not running.
+  // The state service holds the versions until the installed packages change; the CLI answers
+  // when it is not running.
   getSystemInfo: async () => {
     const served = await callUbus<{
       available?: boolean;

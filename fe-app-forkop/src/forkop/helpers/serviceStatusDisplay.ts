@@ -14,12 +14,8 @@ const BUSY_LABELS: Record<Forkop.ServiceBusy, () => string> = {
   apply: () => _('applying...'),
 };
 
-// Running and stopped are not the only two things a service can be, and while an
-// operation is in flight they are the wrong question. Applying settings cycles
-// the sing-box runtime, so the readiness predicate is briefly false through no
-// fault of anyone's - reporting "stopped" for those few seconds is alarming and
-// not actionable, and reporting "running" would be made up. What is true, and
-// what the user wants to know, is that an operation is under way.
+// While an operation runs, readiness is briefly false by design, so the operation is reported
+// instead of running or stopped.
 export function getServiceStatusDisplay({
   running,
   busy,

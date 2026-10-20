@@ -1,8 +1,5 @@
-// Byte mode at error correction level L: one segment, the smallest version that fits
-// the link, and mask 0 - the checkerboard - written into the format bits so any
-// decoder undoes it. Choosing among the eight masks by penalty score would only make
-// a code marginally easier to read, and a link is base64 and URL text, which the
-// checkerboard already breaks up.
+// Byte mode at level L, the smallest version that fits, and mask 0 written into the format bits;
+// scoring all eight masks gains little for base64 and URL text.
 
 const QR_EC_CODEWORDS_PER_BLOCK_LOW = [
   -1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28,
@@ -323,8 +320,7 @@ function qrMakeMatrix(version: number, dataCodewords: number[]) {
   return modules;
 }
 
-// The code as an SVG, and how many modules wide it is with its quiet zone: the
-// four the standard asks for, which decoders need around a large code.
+// The SVG and its width in modules, with the standard four-module quiet zone.
 export function qrCode(text: string) {
   const bytes = qrEncodeText(text);
   let version = 1;

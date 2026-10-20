@@ -1,11 +1,3 @@
-// The diagnostics run is the one part of the Status tab that outlives its page:
-// LuCI unmounts the tab on every switch while the pass keeps writing checks into
-// the shared store, and coming back re-renders whatever it got to. That contract
-// only exists at the controller, so this drives the real one over a stubbed page
-// and asks the two questions no smaller unit can answer: does a remount start a
-// second pass over the same checks, and does anything it sets off clear the list
-// the first pass is still filling in.
-
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Forkop } from '../../../types';
@@ -21,8 +13,6 @@ const mocks = vi.hoisted(() => {
 
   return {
     runnerCalls,
-    // Every check stops on the router until the test lets it finish, which is
-    // where a tab switch lands in the reported case.
     createCheckRunner: (code: string) => async () => {
       runnerCalls.push(code);
 
@@ -69,8 +59,6 @@ vi.mock('../../../../helpers/preserveScrollForPage', () => ({
   preserveScrollForPage: (renderFn: () => void) => renderFn(),
 }));
 
-// The real store, because the run and the page share it; stubs for everything
-// that would otherwise reach the router.
 vi.mock('../../../services', async () => ({
   ...(await import('../../../services/store.service')),
   logger: { debug: () => {}, error: () => {}, info: () => {}, warn: () => {} },
@@ -156,8 +144,6 @@ describe('diagnostic run lifecycle', () => {
     await flush();
   });
 
-  // One page session for the whole file, the way the browser has it: each case
-  // starts by leaving the Status tab, which is what hands the check list back.
   beforeEach(async () => {
     mocks.reset();
     await showTab('dashboard');
@@ -170,8 +156,6 @@ describe('diagnostic run lifecycle', () => {
 
     expect(mocks.runnerCalls).toEqual(['SERVICE']);
 
-    // Leaving and coming back while a check is still on the router: the pass
-    // belongs to the page session, not to the mounted page.
     for (let switches = 0; switches < 3; switches += 1) {
       await showTab('dashboard');
       await showTab('diagnostic');
@@ -205,14 +189,11 @@ describe('diagnostic run lifecycle', () => {
 
     expect(mocks.runnerCalls).toEqual(CHECK_ORDER);
 
-    // Coming back reads the installed providers again, and that read must not
-    // rebuild the list on top of the result waiting on it.
     await showTab('diagnostic');
 
     expect(getCheckState('SECTIONS')).toBe('success');
     expect(mocks.runnerCalls).toEqual(CHECK_ORDER);
 
-    // The result belonged to that visit; leaving hands the list back.
     await showTab('dashboard');
 
     expect(getCheckStates()).toBe('skipped,skipped,skipped,skipped');

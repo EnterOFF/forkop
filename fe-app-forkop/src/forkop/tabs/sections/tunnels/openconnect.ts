@@ -1,7 +1,4 @@
-// What the OpenConnect tunnel dialog holds and the endpoint it stands for. The
-// tunnel is stored as the native openconnect endpoint; the dialog edits the
-// part of it a router can use, and anything else a stored endpoint holds is
-// carried through.
+// Stored as the native openconnect endpoint; fields the dialog does not edit are carried through.
 
 import {
   isBase32Secret,
@@ -17,9 +14,7 @@ type Tls = Record<string, unknown>;
 
 export const TOKEN_MODES = ['totp', 'stoken', 'oidc'];
 
-// Every top-level field and every TLS field the dialog writes. What a stored
-// endpoint holds beyond these - a mobile identity, a host check, an MCA
-// certificate - is kept as it was.
+// Anything beyond these (a mobile identity, a host check, an MCA certificate) is kept as it was.
 const MANAGED = [
   'type',
   'tag',
@@ -105,8 +100,7 @@ function flag(value: unknown) {
   return value === true ? '1' : '0';
 }
 
-// A PEM field of the endpoint, as the dialog shows it: the content, or the path
-// the core reads it from on the router.
+// The content, or the path the core reads it from on the router.
 function material(object: Record<string, unknown>, key: string) {
   const content = list(object[key]).join('\n').trim();
   return content || trimmed(object[`${key}_path`]);
@@ -279,8 +273,7 @@ function mergePreserved(endpoint: Endpoint, settings: ChildSettings) {
   return result;
 }
 
-// A TOTP secret is stored the way the core reads it: base32 without the spaces
-// an authenticator shows it with.
+// Base32 without the spaces an authenticator shows, as the core reads it.
 function tokenSecret(mode: string, value: unknown) {
   const secret = trimmed(value);
   return mode === 'totp' && !/^otpauth:\/\//i.test(secret)
@@ -432,9 +425,8 @@ export function validateFormEntry(value: unknown) {
     : _('Format: FORM:NAME=VALUE');
 }
 
-// What the dialog asks of each field, each marking itself there; a tunnel
-// whose dialog is closed is only told to be fixed. How the router signs in is
-// a choice among several fields, so it is the one rule said in full.
+// Each field marks itself in the dialog; a closed tunnel is only told to be fixed. How the router
+// signs in spans several fields, so that rule is said in full.
 export function validateOpenConnectSettings(settings: ChildSettings) {
   const mode = trimmed(settings.openconnect_token_mode);
   const certificate = settings.openconnect_certificate_enabled === '1';

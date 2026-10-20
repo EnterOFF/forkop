@@ -1,16 +1,3 @@
-// Opening a dialog and pressing Save without touching anything must leave the
-// configuration exactly as it was.
-//
-// LuCI drops a hidden option when a form is saved, and it keeps whatever load()
-// returned as an option's stored value. Between those two rules a dialog can
-// quietly rewrite what it was showing: a default written when an item was created
-// for a field the dialog then hides is deleted on the first save, and a value the
-// dialog invents while rendering is written on a save the user did not ask for.
-// Either way the page reports a change nobody made, and Save & Apply restarts the
-// service for it.
-//
-// So every form is driven twice here: fill it in, save, then open and save again
-// and expect nothing at all.
 import fs from 'fs';
 
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -24,8 +11,6 @@ beforeEach(() => {
   harness = createHarness();
 });
 
-// A value a child item's list accepts, so the probe item looks like one the user
-// added rather than an empty section.
 const SAMPLE_VALUE = {
   subscription_url: 'https://example.com/sub',
   section_interface: 'lan1',
@@ -36,8 +21,6 @@ const SAMPLE_VALUE = {
   tunnel_peer: 'peer1',
   server_client: 'client1',
 };
-// The peer list names its child type through materializeTunnelPeers instead of
-// carrying it on the option.
 const TYPE_BY_OPTION = { peer_ids: 'tunnel_peer' };
 
 async function parseEveryOption(section, sid) {
@@ -48,11 +31,8 @@ async function parseEveryOption(section, sid) {
   }
 }
 
-/* ------------------------------------------------- every child item dialog */
-
 let probeCounter = 0;
 
-// What createChildItem() stores for a freshly added item, by the same rules.
 function createItem(ownerId, option, typeName) {
   probeCounter += 1;
   const itemId = `${typeName}_probe_${probeCounter}`;
@@ -110,8 +90,6 @@ async function checkDialog(problems, ownerId, option) {
   }
   harness.operations.length = 0;
 
-  // Lists nested in the dialog - fallback levels, WireGuard peers - are the same
-  // kind of item and get the same question.
   for (const child of dialog.map.children.flatMap(
     (section) => section.children,
   )) {
@@ -144,7 +122,6 @@ describe('a child item dialog', () => {
     const server = serverMap.section(harness.form.GridSection, 'server');
     view.createServerContent(server);
 
-    // A silent scrape is not a passing test.
     const found = [...connection.children, ...server.children]
       .filter(
         (option) =>
@@ -173,14 +150,6 @@ describe('a child item dialog', () => {
   });
 });
 
-/* ------------------------------------------------ every field a form shows */
-
-// The values come from the form itself: fill every field, save, then open and
-// save again and expect nothing. Only the field that picks the state - the action
-// of a section, the protocol of a server - is held back, so each state is reached
-// once. Everything else is filled and LuCI decides which of them are shown; a
-// field it hides writes nothing in either pass, so the two passes see the same
-// form.
 function probeFormValue(option) {
   const cls = option.__name__ || '';
   const choices = (option.keylist || []).filter((key) => `${key ?? ''}` !== '');
@@ -213,7 +182,6 @@ function buildSection(action) {
   const map = new harness.form.Map('forkop');
   const grid = map.section(harness.form.GridSection, 'section');
   view.configureSectionSection(grid);
-  // The table's load() skips the modal-only options; the dialog loads them all.
   delete grid.load;
   view.createSectionContent(grid);
   return { section: grid, sid: 'probe' };
@@ -260,7 +228,6 @@ async function roundTrip(build, state, selector) {
   section.cfgsections = () => [sid];
   await section.load();
 
-  // Fill in every field, the way a user filling the whole dialog would.
   const filled = [];
   for (const option of section.children) {
     if (option.option === selector || option.option === 'enabled') continue;
@@ -274,16 +241,12 @@ async function roundTrip(build, state, selector) {
   await parseEveryOption(section, sid);
   section.children.forEach((option) => delete option.formvalue);
 
-  // Now the configuration is one this form produced. Opening it and saving it
-  // again must write nothing at all.
   await section.load();
   harness.operations.length = 0;
   await parseEveryOption(section, sid);
   return { filled, operations: harness.operations.slice() };
 }
 
-// Every action and every protocol the dropdowns offer, discovered from the form
-// so a new one is asked the question too.
 const choicesOf = async (build, seed, name) => {
   const scratch = createHarness();
   const previous = harness;
@@ -334,10 +297,6 @@ describe.each([
   );
 });
 
-/* ------------------------------------------------------- the shipped config */
-
-// The shipped configuration is written by the package, not by the form, so it is
-// the other place a stored value can name an option the page hides.
 it('the Settings page writes nothing when the shipped config is saved', async () => {
   let current = null;
   const source = fs.readFileSync(
@@ -378,10 +337,6 @@ it('the Settings page writes nothing when the shipped config is saved', async ()
   expect(harness.operations.join(', ')).toBe('');
 });
 
-/* --------------------------------------------------------- the hidden values */
-
-// The tag names the subscription's provider and marks its nodes on the
-// dashboard, so every subscription's dialog shows it.
 describe('a subscription tag', () => {
   let list;
   const findOption = (dialog, name) =>
@@ -404,9 +359,6 @@ describe('a subscription tag', () => {
       harness.uci.set('forkop', itemId, 'url', `https://example.com/${index}`);
       harness.uci.set('forkop', itemId, 'tag', `sub${index + 1}`);
     });
-    // The dialog is only reachable from the rendered list, and the tag rules read
-    // that list rather than the config: an entry the user has taken out is still
-    // stored until the section is saved.
     list.cfgvalue('section_probe', ['sub_first', 'sub_second']);
   });
 
@@ -426,7 +378,6 @@ describe('a subscription tag', () => {
     expect(harness.uci.get('forkop', 'sub_second', 'tag')).toBe('sub2');
   });
 
-  // The way validate_subscription_tags() refuses it in the backend.
   it('is refused when another subscription already uses it', async () => {
     const dialog = await harness.openDialog(
       list,
@@ -440,8 +391,6 @@ describe('a subscription tag', () => {
   });
 });
 
-// Two fields present the same rule set list, one for DNS rules and one for
-// everything else, so the hidden one must not clear what the shown one holds.
 describe.each(['connection', 'proxy', 'bypass', 'block', 'dns'])(
   'saving a %s section',
   (action) => {
@@ -484,9 +433,6 @@ describe.each(['connection', 'proxy', 'bypass', 'block', 'dns'])(
   },
 );
 
-// The tunnel dialog owns every field of its item and clears the ones the kind no
-// longer has, which must not turn a save that changed nothing into a rewrite of
-// the whole tunnel.
 describe('a tunnel dialog', () => {
   it('writes nothing when it is saved unchanged', async () => {
     harness.uci.add('forkop', 'section', 'section_probe');
@@ -532,8 +478,6 @@ describe('a tunnel dialog', () => {
   });
 });
 
-// A value behind a switch is kept while the switch is off: turning the switch
-// back on should find the secret or the interval the user had, not a blank.
 describe('a value behind a switch that is off', () => {
   it('survives a save of the Settings page', async () => {
     harness.uci.add('forkop', 'settings', 'settings');
@@ -562,10 +506,6 @@ describe('a value behind a switch that is off', () => {
   });
 });
 
-/* ------------------------------------------------- what the backend reads back */
-
-// The backend reads these as a plain number and silently falls back to its
-// default for anything else, so the field has to refuse what would be dropped.
 describe('a number the backend reads as digits only', () => {
   function settingsOption(name) {
     harness.uci.add('forkop', 'settings', 'settings');

@@ -27,19 +27,16 @@ export function addClientListOption(section: CBISection) {
       ? o.depends({ protocol, mixed_auth_enabled: '1' })
       : o.depends('protocol', protocol),
   );
-  // Without this the list shows the child section id of every stored client: the
-  // widget item carries the id as its value and falls back to it for the label.
+  // Otherwise the list shows each client's section id, which the widget falls back to.
   o.renderListItemLabel = function (sectionId: string, value: unknown) {
     return this.inputValueForItem!(sectionId, value);
   };
   o.renderItemSettingsModal = showClientSettingsModal;
-  // Credentials the protocol stopped using are dropped once the list is written, so
-  // switching protocol never leaves a stale password behind.
+  // Credentials the protocol stopped using are dropped once the list is written.
   o.afterMaterializeChildItems = function (sectionId: string) {
     pruneClientCredentials(sectionId);
   };
-  // An empty list is reported by the option's own check, the way the Sections tab
-  // asks for at least one server group; the per client checks run on save.
+  // The per-client checks run on save.
   o.validate = requiredList();
   o.validateItemsOnSave = function (sectionId: string, values: unknown) {
     return validateClientsOnSave(sectionId, values, this);

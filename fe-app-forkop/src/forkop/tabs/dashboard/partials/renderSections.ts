@@ -37,8 +37,7 @@ interface IRenderSectionsProps {
   latencyFetching: boolean;
   latencyFetchingTargets?: Set<string>;
   sortByLatency?: boolean;
-  // Folding away the one section a page shows leaves nothing to look at, so the
-  // control appears only once there is another section to scroll past.
+  // Only once there is another section to scroll past.
   collapsible?: boolean;
   collapsed?: boolean;
 }
@@ -153,11 +152,7 @@ function renderSubscriptionMetadata(
     renderMetadataAction(_('More details'), metadata.announceUrl),
   ].filter(Boolean) as HTMLElement[];
 
-  // The tag is not something the block says: every node below already carries
-  // it in front of its name. So a block with nothing else in it is a bordered
-  // box repeating the list under it, and is left out entirely - which is what a
-  // panel that publishes no metadata, and a subscription with the metadata
-  // switched off, both come to.
+  // Every node below already carries the tag, so a block holding nothing else is left out.
   if (!title && !rows.length && !actions.length && !metadata.announce) {
     return undefined;
   }
@@ -275,8 +270,7 @@ function renderDefaultState({
     const canCopyLink =
       Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
     const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
-    // A group with no members cannot dial, so there is nothing to measure and
-    // nothing to select: the Clash API reports it, empty, until one appears.
+    // A group with no members cannot dial: there is nothing to measure or select.
     const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
     const canChooseOutbound =
       section.withTagSelect &&
@@ -500,9 +494,7 @@ function renderDefaultState({
       )
     : undefined;
 
-  // The node the choice landed on is what a reader looks for in a section, and
-  // the one thing a folded section still has to say about itself. A section of
-  // one node shows it on its only card.
+  // The node the choice landed on, the one thing a folded section still shows.
   const selected =
     section.withTagSelect && (collapsed || section.outbounds.length > 1)
       ? section.outbounds.find((outbound) => outbound.selected)
@@ -526,9 +518,7 @@ function renderDefaultState({
       ])
     : undefined;
 
-  // The whole header is the fold's target, not only the chevron in it: the
-  // buttons on it keep their clicks to themselves, and a click that ends a
-  // text selection was not meant for it.
+  // The whole header folds; its buttons keep their clicks, and a click ending a text selection is ignored.
   const headerFold = collapsible
     ? {
         class:
@@ -581,9 +571,7 @@ function renderDefaultState({
         ],
       ),
     ]),
-    // Everything below the title is what folds away: the subscription lines
-    // and every card. What stays is the title row, so the section is still
-    // there to unfold and its actions still work on it.
+    // Everything below the title folds away; the title row and its actions stay.
     ...(collapsed
       ? []
       : [
@@ -595,8 +583,7 @@ function renderDefaultState({
   ]);
 }
 
-// The grid is drawn before any section is known and again whenever the load
-// fails, so the empty shape both of those need lives next to the renderer.
+// Drawn before any section is known and whenever the load fails.
 export function renderSectionsPlaceholder(state: {
   loading: boolean;
   failed: boolean;

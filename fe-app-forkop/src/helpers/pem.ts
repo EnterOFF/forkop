@@ -1,5 +1,3 @@
-// PEM text, and whether a block of it is an X.509 certificate at all.
-
 export interface PemBlock {
   label: string;
   // The base64 body without the armour lines and without RFC 1421 headers.

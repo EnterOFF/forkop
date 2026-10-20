@@ -5,10 +5,8 @@ function compactMonitoringText(value: string): string {
     .replace(/\s+/g, '');
 }
 
-// A value too wide for its cell is cut off with an ellipsis, and selecting what
-// shows of it copies all of it: a selection that starts where the value does
-// and covers about as much of it as fits in the cell counts as the whole value.
-// Anything less copies what was selected.
+// A selection starting where the value does and covering about what fits in the cell copies the
+// whole value, which an ellipsis cuts off; anything less copies the selection.
 export function shouldCopyFullMonitoringValue(
   element: HTMLElement,
   selectedText: string,

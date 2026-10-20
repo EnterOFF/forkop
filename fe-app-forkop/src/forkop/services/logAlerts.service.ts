@@ -10,9 +10,7 @@ function isOpen(node: HTMLElement) {
   return node.isConnected && !node.classList.contains('fade-out');
 }
 
-// The alerts the log feed raised. An error reports a step of the action it was
-// logged in, so the next action to begin closes them: it either succeeds or
-// raises its own.
+// An error reports a step of its action, so the next action to begin closes the alerts.
 export class LogAlerts {
   private readonly show: (notification: ForkopLogNotification) => HTMLElement;
   private readonly deduper: LogNotificationDeduper;

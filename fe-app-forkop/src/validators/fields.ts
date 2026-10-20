@@ -2,9 +2,7 @@ import { message } from './messages';
 import { asciiHostname, validAsciiDomain } from './validateDomain';
 import { isIPv4, isIPv6 } from './validateIp';
 
-// Field checks for the values LuCI's own datatypes would check, said in the
-// page's words: an empty value is left to the field, which says whether it
-// may be empty.
+// LuCI datatype checks in the page's words; an empty value is left to the field.
 
 export function wholeNumberField(min: number, max = Infinity) {
   return (_sectionId: string, value: unknown) => {

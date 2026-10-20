@@ -1,7 +1,3 @@
-// What a Connection section and a server filter have to name before they can be
-// saved. Both checks read the dialog through LuCI's option lookup, so the test
-// hands the same shape back: a map that answers with the value a widget holds.
-
 import { describe, expect, it } from 'vitest';
 
 import { installUciStub } from './luciStubs';
@@ -49,8 +45,6 @@ describe('connection section outbounds', () => {
     }
   });
 
-  // A group takes its members from the sources of its own section, so it can
-  // never stand in for one: the generator drops such a section entirely.
   it('does not count a URLTest or a Fallback as a source', () => {
     const { missingConnectionOutbound } = load();
     const map = modalMap({
@@ -106,8 +100,6 @@ describe('server filter selection', () => {
     const selections = [
       { include_outbounds: ['Germany'] },
       { include_regex: 'Germany|Finland' },
-      // Only a Fallback level offers this one, and a level that includes a
-      // URLTest has that group as its member.
       { include_groups: ['Fastest'] },
     ];
 

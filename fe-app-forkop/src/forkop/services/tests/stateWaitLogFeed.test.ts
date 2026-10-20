@@ -42,8 +42,6 @@ function state(revision: number) {
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('the state wait and the log feed', () => {
-  // A browser keeps six connections to the router and every other request of
-  // every tab waits behind the ones held open, so a page holds one, for both.
   it('share one parked request, which hands the new lines to the feed', async () => {
     const parked: ((value: unknown) => void)[] = [];
     mocks.callUbus.mockImplementation(({ method }: { method: string }) => {

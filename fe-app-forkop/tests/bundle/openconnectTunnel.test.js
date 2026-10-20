@@ -1,7 +1,3 @@
-// The OpenConnect tunnel, driven through the shipped bundle. A configuration
-// imported into a new tunnel turns the dialog into an OpenConnect one with its
-// fields filled, and what the dialog saves is the native endpoint the router
-// hands the core.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -39,7 +35,6 @@ async function openTunnel(itemValue, context = {}) {
   const fields = dialog.map.children[0];
   const value = (name) =>
     dialog.map.data.get(dialog.map.config, 'settings', name);
-  // What the widgets hold once the import has set them.
   const followWidgets = () =>
     fields.children.forEach((field) => {
       field.formvalue = (sid) =>

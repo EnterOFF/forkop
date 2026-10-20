@@ -1,6 +1,5 @@
-// Who a connection came from: the router itself, a device on the network, or a
-// client of one of the servers. The cell, the device filter and the search all
-// read the same description, so the filter offers exactly what the column shows.
+// The cell, the device filter and the search read the same description, so the filter offers
+// exactly what the column shows.
 
 export interface SourceConnection {
   metadata?: {
@@ -16,9 +15,8 @@ export interface SourceNames {
   devices: Record<string, string>;
   // Inbound tags of the servers.
   servers: Set<string>;
-  // Per server tag, the user the core reports to the name of the client, where
-  // the two differ: an OpenVPN client is reported by its certificate. A server
-  // whose core reports no user names its clients by their source address.
+  // Per server tag, the reported user to the client's name where they differ (an OpenVPN client
+  // is reported by its certificate); without users, clients are named by their source address.
   clients: Record<string, Record<string, string>>;
 }
 
@@ -28,8 +26,7 @@ export interface ConnectionSource {
   // The device filter value.
   key: string;
   kind: SourceKind;
-  // The main text, and what is shown beside it muted. An address is always the
-  // muted part, even when nothing names the device.
+  // The main text, and the muted detail beside it; an address is always the detail.
   name: string;
   detail: string;
   server: string;
@@ -86,9 +83,8 @@ export function describeSource(
   }
 
   if (names.servers.has(tag)) {
-    // An inbound with several accounts reports the one that authenticated. One
-    // without accounts has nothing but the address to tell its clients apart,
-    // and a WireGuard server gives each client addresses of its own.
+    // An inbound with accounts reports the one that authenticated; one without has only the
+    // address, and a WireGuard server gives each client addresses of its own.
     const user = text(connection.metadata?.user);
     const byAddress = user ? '' : text(names.clients[tag]?.[ip]);
     const name = text(names.clients[tag]?.[user]) || user || byAddress || tag;

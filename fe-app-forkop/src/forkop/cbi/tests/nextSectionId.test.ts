@@ -2,18 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { nextSectionId } from '../childItems';
 
-// An anonymous uci section can only be addressed as @type[index], which libuci
-// numbers by position across the whole file - so every section a dialog creates
-// is given a name of its own. The name is a per-type prefix and six hex digits,
-// and it has to be free: free in the stored configuration, and free among the
-// ids this dialog has already handed out but not yet saved.
-
 const stored = new Set<string>();
 const globals = globalThis as unknown as Record<string, unknown>;
 let previousUci: unknown;
 
-// The suffix comes from Math.random(), so the candidates a call gets to try are
-// queued as the hex digits they have to produce.
 const queued: number[] = [];
 function queue(...digits: string[]) {
   digits.forEach((value) => queued.push(parseInt(value, 16) / 0x1000000));
@@ -40,8 +32,6 @@ afterEach(() => {
 });
 
 describe('nextSectionId', () => {
-  // Every type the dialogs create, and the prefix its ids carry. A prefix that
-  // changes renames every section the dialogs will create from then on.
   it.each([
     ['fallback_group', 'group'],
     ['fallback_level', 'level'],
@@ -74,8 +64,6 @@ describe('nextSectionId', () => {
     expect(nextSectionId('server')).toBe('server_0bbbbb');
   });
 
-  // A staged child reaches uci only when its parent is saved, so uci.get()
-  // cannot see an id handed out earlier in the same dialog.
   it('skips a name it has already handed out in this dialog', () => {
     queue('0ccccc');
     expect(nextSectionId('tunnel_peer')).toBe('peer_0ccccc');

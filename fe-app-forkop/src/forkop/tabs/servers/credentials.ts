@@ -30,8 +30,7 @@ export function randomItem<T>(items: T[]): T {
   return items[randomBytes(1)[0] % items.length];
 }
 
-// Text, so the string is UTF-8 encoded first: btoa() only takes code points below
-// 256 and a label may hold anything.
+// btoa() takes only code points below 256, so text is UTF-8 encoded first.
 export function base64Encode(value: string) {
   return btoa(unescape(encodeURIComponent(value)));
 }
@@ -40,9 +39,7 @@ export function base64UrlEncode(value: string) {
   return toBase64Url(base64Encode(value));
 }
 
-// Raw bytes, so they are encoded as they are. Running them through the text path
-// would UTF-8 expand every byte above 0x7f and turn a 18 byte secret into a
-// password of an unpredictable length.
+// Raw bytes as they are: the text path would expand every byte above 0x7f.
 function base64EncodeBytes(bytes: ArrayLike<number>) {
   return btoa(bytesToString(bytes));
 }
@@ -72,14 +69,12 @@ function generateUuid() {
   ].join('-');
 }
 
-// 18 bytes, so the base64url form is exactly 24 characters with no padding, and
-// every character is safe in a URI userinfo field.
+// 18 bytes: exactly 24 base64url characters, no padding, safe in a URI userinfo.
 export function generatePassword() {
   return toBase64Url(base64EncodeBytes(randomBytes(18)));
 }
 
-// Shadowsocks 2022 keys are standard base64 of exactly the byte count the cipher
-// takes, so they are generated from the key length instead of a printable password.
+// Standard base64 of exactly the cipher's key length.
 export function generatePresharedKey(byteLength: number) {
   return base64EncodeBytes(randomBytes(byteLength));
 }
@@ -104,7 +99,6 @@ export function encodeQuery(params: Record<string, string>) {
     .join('&');
 }
 
-// The credential a client field expects for the current protocol.
 export function generateCredential(
   sectionId: string,
   protocol: string,

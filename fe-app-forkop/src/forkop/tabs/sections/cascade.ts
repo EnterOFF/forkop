@@ -5,10 +5,8 @@ import {
 import { refreshOutboundDetourSectionOptionValues } from './references';
 import { currentOptionValue, optionMapValue } from './subscriptions/model';
 
-// The cascade of one link, subscription or tunnel: the section whose servers it
-// is dialled through. Only that section is stored, so the switch reads it and
-// writes nothing, and turning the switch off hides the section, which LuCI then
-// removes from what the dialog saves.
+// Only the section is stored, so the switch reads it and writes nothing; switching it off hides
+// the section option, which LuCI then removes on save.
 export function addCascadeOptions(
   itemSection: CBISection,
   parentSectionForItem: (itemId: string) => string,

@@ -11,9 +11,8 @@ interface RenderModalOptions {
   showMaskValuesToggle?: boolean;
 }
 
-// A text in a dialog, to read from its start, copy or save. With a masking
-// toggle the last flip wins: a slow answer to an earlier one never replaces
-// it, and a flip whose text could not be read is undone.
+// The last flip of the masking toggle wins: a slow answer to an earlier one never replaces it, and
+// a flip whose text could not be read is undone.
 export function renderModal(
   text: string,
   name: string,

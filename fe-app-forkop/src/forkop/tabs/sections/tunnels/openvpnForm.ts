@@ -1,7 +1,5 @@
-// The fields of the OpenVPN tunnel dialog, in the order a profile is read: where
-// the server is, how the tunnel proves who it is, and how the control channel
-// is wrapped. The tuning of the connection follows behind one switch, and the
-// static key mode only when asked for.
+// In the order a profile is read: server, identity, control channel wrapping; tuning follows
+// behind one switch, the static key mode only when asked for.
 
 import { OPENVPN_DEFAULT_DATA_CIPHERS } from '../../../../helpers/parseOpenVPNConfig';
 import type { OpenVPNImportResult } from '../../../../helpers/parseOpenVPNConfig';
@@ -608,8 +606,7 @@ export function applyImportedOpenVPN(
 ) {
   const settings = openVPNInitialSettings(result.endpoint);
   settings.openvpn_login = result.login ? '1' : '0';
-  // The advanced switch goes first: the fields behind it take their values
-  // only while it shows them.
+  // The advanced switch first: the fields behind it take values only while shown.
   setModalOptionValue(map, options.openvpn_advanced, settings.openvpn_advanced);
   setModalOptionValue(map, options.openvpn_mode, settings.openvpn_mode);
   setModalOptionValue(map, options.openvpn_login, settings.openvpn_login);

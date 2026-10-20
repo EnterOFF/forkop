@@ -1,9 +1,3 @@
-// A service action that ran and failed wrote its reason to the log as an error,
-// and the page raises every logged error as an alert of its own. So the
-// diagnostic tab says nothing about such a failure; it speaks only for an
-// action that never became a job, where the log has nothing to say. This
-// drives the real controller over a stubbed page and feeds it runtime states.
-
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Forkop } from '../../../types';

@@ -1,8 +1,3 @@
-// The page carries its own copy of a few backend tables and rules, because a
-// dialog cannot ask ucode while it validates. tests/fixtures/page_contract.json
-// is what both copies are held to, along with the core report the page is
-// built from: this file checks the page against it, tests/page/contract.test.uc
-// the backend.
 import fs from 'fs';
 import path from 'path';
 
@@ -85,8 +80,6 @@ describe('the tables the page carries', () => {
     expect(FALLBACK_DEFAULTS).toEqual(contract.fallback_defaults);
   });
 
-  // The state service releases a parked request at its ceiling, so a reply
-  // sent right then must not be raced by the page giving up on it.
   it('wait for a parked request longer than the state service holds it', () => {
     expect(FORKOP_WAIT_TIMEOUT_MS).toBeGreaterThan(contract.state_wait_ms);
   });
@@ -96,11 +89,6 @@ describe('the tables the page carries', () => {
   });
 });
 
-/* ------------------------------------------------------- password fields */
-
-// Diagnostics print the whole configuration, and users paste it into issue
-// reports, so whatever the page shows as a password has to be stored in an
-// option the diagnostics mask.
 describe('a password field', () => {
   let harness;
 
@@ -114,8 +102,6 @@ describe('a password field', () => {
       .map((option) => option.option);
   }
 
-  // Every child item dialog below a list option, the way the page opens them,
-  // down to the peers of a tunnel.
   async function dialogPasswordFields(ownerId, option, found) {
     const typeName =
       option.childType || (option.option === 'peer_ids' ? 'tunnel_peer' : '');
@@ -189,7 +175,6 @@ describe('a password field', () => {
         expect(stored, field).toBe(field);
         continue;
       }
-      // A field behind a switch is stored only while the switch shows it.
       const kinds = {
         wireguard: {},
         amneziawg: {},

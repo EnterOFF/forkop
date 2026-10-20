@@ -1,10 +1,5 @@
-// The local device picker: a dynamic list whose dropdown offers the devices the
-// router knows about, by name where a device has one.
-//
-// The choices are expensive - host hints, DHCP leases, the interface dump and
-// the static hosts, four calls - so they are fetched once per page and only when
-// something actually needs them: either a stored value already names a device, or
-// the user opened the dropdown.
+// The device choices take four calls (host hints, leases, interfaces, static hosts), so they are
+// fetched once per page, and only when a stored value names a device or the dropdown opens.
 
 import { validateIP } from '../../validators/validateIp';
 import { normalizeOptionValues } from './listValues';
@@ -25,14 +20,11 @@ const callNetworkInterfaceDump = rpc.declare({
   expect: { interface: [] },
 });
 
-// The router itself, as an entry in the device list.
 export const SYSTEM_DEVICE_VALUE = '@system';
 
 export interface LocalDevices {
-  // The picker's entries, value to label, and the order it offers them in.
   choices: Record<string, string>;
   order: string[];
-  // Address to the name the router knows the device by, IPv6 included.
   names: Record<string, string>;
 }
 
@@ -83,8 +75,6 @@ function addRouterIp(routerIps: Record<string, boolean>, ip: unknown): void {
   routerIps[normalizedIp] = true;
 }
 
-// The router's own addresses, which are offered as System rather than as
-// separate entries.
 function buildRouterIpMap(networkInterfaces: unknown): Record<string, boolean> {
   const routerIps: Record<string, boolean> = {};
 
@@ -121,10 +111,8 @@ function buildRouterIpMap(networkInterfaces: unknown): Record<string, boolean> {
   return routerIps;
 }
 
-// A lease or a static host places a device on the local network whether or not
-// it has a name, so the picker offers those addresses bare too. A host hint
-// without a name is left out: the neighbours it comes from include the
-// upstream gateway.
+// A lease or a static host places a device on the LAN even without a name; a nameless host hint
+// is left out, since the neighbours include the upstream gateway.
 export function buildLocalDevices(
   hostHints: unknown,
   dhcpLeases: unknown,
@@ -132,7 +120,6 @@ export function buildLocalDevices(
   staticHosts: unknown,
 ): LocalDevices {
   const names: Record<string, string> = {};
-  // Address to the hardware address it was leased to, when that is known.
   const offered: Record<string, string> = {};
   const routerIps = buildRouterIpMap(networkInterfaces);
 
@@ -206,8 +193,7 @@ export function buildLocalDevices(
   const choices: Record<string, string> = {
     [SYSTEM_DEVICE_VALUE]: _('System'),
   };
-  // A name shown by more than one entry, the router's included, gets the
-  // address beside it, or the entries could not be told apart.
+  // A name shown by several entries gets the address beside it.
   const nameCounts: Record<string, number> = {};
   [choices[SYSTEM_DEVICE_VALUE], ...named.map((ip) => names[ip])].forEach(
     (name) => {
@@ -266,8 +252,6 @@ export function loadLocalDevices(): Promise<LocalDevices> {
   return localDevicesPromise;
 }
 
-// True when at least one stored value is something the device list can put a
-// name to, which is the only reason to fetch the host hints.
 function namesALocalDevice(values: unknown): boolean {
   return normalizeOptionValues(values).some(
     (value) => value === SYSTEM_DEVICE_VALUE || validateIP(value) === true,

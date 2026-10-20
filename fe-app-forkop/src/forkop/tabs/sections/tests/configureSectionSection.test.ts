@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// What removing a section takes with it, and what refuses to save one, are the
-// two things this wrapper adds to the LuCI grid. Both are recorded rather than
-// performed: the cleanup by the arguments it was called with, the save by
-// whether it ran at all and what the user was told.
 const cleanupCalls: unknown[][] = [];
 let outboundMissing = false;
 let matcherMissing = false;
@@ -50,8 +46,6 @@ vi.mock('../references', () => ({
 
 import { configureSectionSection } from '../table';
 
-// A section is deleted from a row; that is a method LuCI already put on the
-// grid, so the wrapper has to call through to it.
 const removeCalls: Array<{ args: unknown[]; self: unknown }> = [];
 const removeResult = {};
 
@@ -72,8 +66,6 @@ function configured() {
       return Promise.resolve();
     },
     handleRemove(...args: unknown[]) {
-      // Recorded as a property rather than a local: the wrapper has to call the
-      // grid its own method, on the grid.
       removeCalls.push({ args, self: this });
       return removeResult;
     },
@@ -122,9 +114,6 @@ describe('deleting a section', () => {
   });
 });
 
-// LuCI parses the options one by one, so a check that refuses halfway leaves the
-// fields that already passed behind. A section the runtime graph would drop is
-// refused before the dialog writes anything, and the user is told why.
 describe('saving a section the runtime graph would drop', () => {
   it('writes nothing and says why', () => {
     const sectionRef = configured();
@@ -140,8 +129,6 @@ describe('saving a section the runtime graph would drop', () => {
     ]);
   });
 
-  // The backend refuses a DNS section that names no domain and takes no device
-  // whole: it would answer nothing.
   it('refuses a DNS section with nothing to answer', () => {
     const sectionRef = configured();
     matcherMissing = true;

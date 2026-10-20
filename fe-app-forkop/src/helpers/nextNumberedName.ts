@@ -1,7 +1,4 @@
-// The name a new entry is offered: "<prefix> #N", N one past the highest number
-// a taken name under that prefix carries. A count of the entries would offer a
-// name still in use once an earlier entry had been removed, and the dialog would
-// refuse its own suggestion.
+// One past the highest number taken, not the count, which would offer a name still in use.
 export function nextNumberedName(prefix: string, taken: string[]) {
   const marker = `${prefix} #`;
   const highest = Math.max(

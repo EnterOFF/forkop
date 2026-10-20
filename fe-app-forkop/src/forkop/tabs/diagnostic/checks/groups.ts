@@ -1,6 +1,4 @@
-// The checks of the Status tab, in the order traffic depends on them: the
-// service, the resolvers, the capture, the sections it leads to, and the
-// router's own servers.
+// In the order traffic depends on them.
 export enum DIAGNOSTICS_CHECKS {
   SERVICE = 'SERVICE',
   DNS = 'DNS',

@@ -12,8 +12,7 @@ export function subscriptionOverrideKeys() {
   ];
 }
 
-// Shown greyed out in the JSON field of the server parameters dialog: a scalar
-// and a nested object, so the shape of a merge is read instead of described.
+// A scalar and a nested object, so the shape of a merge is shown.
 export const OVERRIDE_PATCH_PLACEHOLDER = [
   '{',
   '  "packet_encoding": "xudp",',
@@ -43,17 +42,14 @@ export function reservedOverridePatchPath(document: unknown) {
   });
 }
 
-// A rename rule carries spaces, so a value that arrives as a single string is
-// one rule: splitting it the way a word list is split would shatter it.
+// A rename rule carries spaces, so a single string is one rule.
 function subscriptionRenameLines(value: unknown) {
   const lines = Array.isArray(value) ? value : value ? [value] : [];
   return lines.map((line) => `${line ?? ''}`.trim()).filter(Boolean);
 }
 
-// Go reads a group reference as far as the letters, digits and underscores
-// behind it go, so $1x asks for a group named "1x" and leaves nothing in its
-// place. ${1} ends the number instead. $$ is a literal dollar sign and never
-// starts a reference.
+// Go reads a group reference as far as letters, digits and underscores go: $1x names group "1x".
+// ${1} ends the number, and $$ is a literal dollar sign.
 function validateRenameReplacement(replacement: string) {
   return /\$[0-9]+[A-Za-z_]/.test(`${replacement}`.replace(/\$\$/g, ''))
     ? _('Before a letter, write ${1} instead of $1')

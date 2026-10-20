@@ -19,14 +19,8 @@ import {
 import { ensureSystemInfo } from './systemInfo.service';
 import { E } from '../../helpers/element';
 
-// Collecting the installed versions takes seconds - opkg is asked about every
-// package and the core binary about itself. Warming them once per page lets the
-// Status tab open with the numbers already there, and a page that never visits
-// it only spends the work in the background.
-//
-// On a delay rather than at once: it is several subprocesses on a router that
-// may have one slow core, and the first runtime-state poll - the status the user
-// is actually looking at - should not have to queue behind them.
+// Collecting the versions takes seconds, so they are warmed once per page, after a delay that
+// lets the first state poll go first.
 const SYSTEM_INFO_PREFETCH_DELAY_MS = 2000;
 
 function showLogNotification(notification: ForkopLogNotification) {

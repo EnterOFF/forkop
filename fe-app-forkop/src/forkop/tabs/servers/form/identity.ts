@@ -47,11 +47,7 @@ import {
 } from '../validators';
 
 export function addIdentityOptions(section: CBISection) {
-  // Both declared columns come from the Sections tab, which is the same grid
-  // one tab over: a name, a switch, one column naming what the row is, and the
-  // row actions. A width of its own here moved every column on the page when
-  // the user switched tabs, because whatever these two do not take goes to the
-  // name column beside them.
+  // The declared column widths come from the shared grid, so the columns line up across the tabs.
   let o = section.option(form.Flag, 'enabled', _('Enable'));
   o.default = '1';
   o.rmempty = false;
@@ -97,8 +93,7 @@ export function addIdentityOptions(section: CBISection) {
   };
 
   o = section.option(form.ListValue, 'protocol', _('Protocol'));
-  // A protocol the installed core lacks is offered only to the server that
-  // already has it, marked, so a save neither loses it nor passes it.
+  // A protocol the installed core lacks is offered only to a server already using it, marked.
   o.load = function (sectionId: string) {
     const current = option(sectionId, 'protocol') || DEFAULT_PROTOCOL;
     this.keylist = [];
@@ -127,8 +122,7 @@ export function addIdentityOptions(section: CBISection) {
   };
   o.onchange = function (_ev, sectionId: string, value: unknown) {
     syncSecurityChoices(sectionId, value, true);
-    // A client of the previous protocol holds credentials the new one cannot use,
-    // and a half converted account only fails on save. The list starts over.
+    // The previous protocol's credentials are useless to the new one, so the list starts over.
     clearClientList(this.map, sectionId);
   };
 }
@@ -225,9 +219,7 @@ export function addTailscaleOptions(section: CBISection) {
   };
 }
 
-// Shown greyed out in the JSON inbound editor: the smallest inbound
-// validateInboundJson accepts. The tag is left out because Forkop writes the
-// server name over it.
+// The smallest inbound validateInboundJson accepts; no tag, as Forkop writes the name over it.
 export const JSON_INBOUND_PLACEHOLDER = [
   '{',
   '  "type": "mixed",',
@@ -289,9 +281,8 @@ export function addListenerOptions(section: CBISection) {
       : loadDefaultPublicHost().then((host: string) => host || '');
   });
 
-  // Without this the listener answers only on the LAN: the WAN zone of an OpenWrt
-  // firewall rejects everything it was not told to accept, so a server made to be
-  // dialled from outside would silently never be reached.
+  // The OpenWrt WAN zone rejects what it was not told to accept, so a server dialled from outside
+  // needs this.
   o = section.option(
     form.Flag,
     'open_firewall',

@@ -25,7 +25,6 @@ describe('canUseDirectClashApi', () => {
   });
 });
 
-// The secret is free text, and the controller reads it back out of the query.
 describe('getClashSocketUrl', () => {
   it('carries the secret as one query value', () => {
     vi.stubGlobal('window', {

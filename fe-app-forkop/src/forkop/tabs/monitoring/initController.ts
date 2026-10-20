@@ -78,14 +78,10 @@ function normalizeConnectionsPayload(value: unknown): ClashConnectionsPayload {
 const RENDER_INTERVAL_MS = 500;
 const CONNECTIONS_RPC_POLL_INTERVAL_MS = 1500;
 const CONNECTIONS_RPC_POLL_BACKOFF_MAX_MS = 30000;
-// The floor the poll may be spaced out to when each answer is expensive. A table
-// that refreshes this slowly is a poor live view, but it is the honest one for a
-// router that cannot answer faster.
+// The slowest the poll may get when each answer is expensive.
 const CONNECTIONS_POLL_DUTY_MAX_MS = 15000;
-// A socket to a port that silently drops packets neither connects nor fails for
-// as long as the browser's own connect timeout runs, and the tab would sit on
-// "Loading connections..." for all of it. Nothing arriving in this long means the
-// poll should cover the wait, whatever the socket ends up doing.
+// A socket to a port that drops packets neither connects nor fails until the browser's own
+// timeout, so after this the poll covers the wait.
 const CONNECTIONS_SOCKET_GRACE_MS = 2000;
 const CLOSED_CONNECTION_LIMIT = 300;
 const ALL_FILTER_VALUE = '';
@@ -180,9 +176,8 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
       }
     });
 
-  // The certificate the router issues an OpenVPN client is named after the
-  // client's section, and the core reports the client by it. The core reports
-  // no user for a WireGuard client, whose tunnel addresses are its own.
+  // The core reports an OpenVPN client by its certificate, named after the client's section, and
+  // no user for a WireGuard client, which its tunnel addresses identify.
   sections
     .filter((section) => section['.type'] === 'server_client')
     .forEach((section) => {
@@ -679,8 +674,7 @@ function isTextSelectionInsideList(): boolean {
   );
 }
 
-// Redrawing the list takes a selection in it away, so a redraw that is not
-// the user's own waits for the selection to go.
+// A redraw takes a selection away, so one the user did not ask for waits until it is gone.
 function renderConnections(options: { force?: boolean } = {}) {
   const container = document.getElementById('monitoring-connections');
   if (!container) {
@@ -730,9 +724,8 @@ function renderConnections(options: { force?: boolean } = {}) {
   );
 }
 
-// One pause with two causes: the Auto refresh switch, and text selected in the
-// list. Either holds the whole tab, the counters and the durations included,
-// so what it shows is one moment rather than a still table under live numbers.
+// The Auto refresh switch and a text selection pause the whole tab, counters and durations
+// included, so it shows one moment.
 function updatePause(change: { user?: boolean; selection?: boolean }) {
   const user = change.user ?? monitoringPaused;
   const selection = change.selection ?? selectionHeld;
@@ -773,8 +766,7 @@ function holdForSelection() {
   updatePause({ selection: isTextSelectionInsideList() });
 }
 
-// Switching the tab, the device or the search replaces the list the selection
-// was made in, so it is drawn at once and the selection goes with the old one.
+// Switching tab, device or search replaces the list, so it is drawn at once.
 function redrawForAction() {
   renderControls();
   renderConnections({ force: true });
@@ -1099,9 +1091,7 @@ async function pollConnectionsSnapshot() {
   }
 }
 
-// A stopped core answers nothing for as long as the tab stays open, so the poll
-// slows down while it keeps failing instead of asking every second and a half
-// forever. The first answer puts it back to the interval its own cost allows.
+// A stopped core answers nothing, so the poll slows down while it keeps failing.
 function connectionsPollDelay() {
   if (consecutivePollFailures > 0) {
     return Math.min(
@@ -1176,12 +1166,8 @@ async function connectToConnectionsSocket(updatesId: number) {
         return;
       }
 
-      // The socket manager retries on its own with a growing delay, so the
-      // poll only covers the gap until one of those attempts connects. Dropping
-      // the subscription here would pin the tab to the slow transport for as
-      // long as it stays open, and a core that restarts closes this socket
-      // every time. What the table already shows stays on screen: a reconnect
-      // is not a reason to empty it.
+      // The socket manager retries with a growing delay, so the poll only covers the gap; what the
+      // table shows stays.
       startConnectionsPolling();
     },
   );
@@ -1238,9 +1224,7 @@ function resetMonitoringState() {
   }
 }
 
-// The connections come from the Clash API, so the tab asks it directly instead of
-// asking first whether the core is running: an answer is the only thing that says
-// there is something to show.
+// Asks the Clash API directly: an answer is what says there is something to show.
 function onPageMount() {
   onPageUnmount();
 

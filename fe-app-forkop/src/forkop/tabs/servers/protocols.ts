@@ -290,9 +290,7 @@ export function securityLabel(security: string) {
   return _('None');
 }
 
-// The security a server actually runs with: a stored mode the protocol no longer
-// offers falls back to its first choice instead of generating a configuration
-// sing-box refuses.
+// A stored mode the protocol no longer offers falls back to its first choice.
 export function getEffectiveSecurity(sectionId: string) {
   const allowed = securitiesFor(getProtocol(sectionId));
   const security = liveOption(sectionId, 'security');
@@ -321,11 +319,8 @@ export function getServerName(sectionId: string) {
   return option(sectionId, 'label') || sectionId;
 }
 
-// XTLS Vision splices the payload inside the TLS record the listener already owns,
-// so it needs the raw TLS stream: a transport wraps it, and a multiplexed client
-// drops the flow on its own, after which the listener refuses the account with a
-// flow mismatch. Offering it outside those bounds only produces accounts that
-// cannot connect.
+// XTLS Vision needs the raw TLS stream: a transport wraps it, and a multiplexed client drops the
+// flow, after which the listener refuses the account.
 export function supportsVisionFlow(sectionId: string) {
   if (getProtocol(sectionId) !== 'vless') {
     return false;
@@ -355,9 +350,7 @@ export function getShadowsocksMethod(sectionId: string) {
   );
 }
 
-// Where the certificate of a TLS server comes from, as singbox/servers.uc reads
-// it: a NaiveProxy client trusts nothing but what a browser would, so that server
-// always takes the user's own.
+// A NaiveProxy client trusts only what a browser would, so that server always takes the user's own.
 export function certificateSource(sectionId: string) {
   return getProtocol(sectionId) === 'naive' ||
     liveOption(sectionId, 'tls_certificate_source') === 'custom'

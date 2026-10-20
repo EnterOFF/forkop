@@ -1,8 +1,7 @@
 import { Forkop } from '../../types';
 
-// The Clash API closes one connection per request or all of them at once, and
-// only the second one also resets the core's network. What a filter found is
-// closed one by one, a few requests at a time rather than all of them at once.
+// Closing all connections at once also resets the core's network, so a filter's connections are
+// closed one by one, a few requests at a time.
 const PARALLEL_CLOSES = 4;
 
 export async function closeConnections(

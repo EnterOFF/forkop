@@ -42,8 +42,6 @@ describe('socket service', () => {
     vi.unstubAllGlobals();
   });
 
-  // The console is readable by anything that can script the page, and a support
-  // screenshot of it should not carry the controller secret.
   it('never writes the token it connects with', async () => {
     vi.useFakeTimers();
     const lines: string[] = [];
@@ -85,8 +83,6 @@ describe('socket service', () => {
     expect(FakeWebSocket.instances).toHaveLength(2);
   });
 
-  // A dashboard left open on a stopped core would otherwise retry once a second
-  // for as long as it stays open.
   it('waits longer after every failed reconnect', async () => {
     vi.useFakeTimers();
 

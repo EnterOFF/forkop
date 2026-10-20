@@ -24,8 +24,7 @@ export function finding(
   return { state, key, value };
 }
 
-// A group takes the state of its worst finding, and its header says how bad
-// that is; the findings themselves are listed under it.
+// A group takes the state of its worst finding.
 export function summarize(
   items: IDiagnosticsChecksItem[],
 ): Pick<IDiagnosticsChecksStoreItem, 'state' | 'description'> {

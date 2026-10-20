@@ -12,8 +12,6 @@ import { validateRequiredSingBoxDuration } from '../../../../validators/validate
 import { required } from '../../../cbi/required';
 import { wholeNumberField } from '../../../../validators/fields';
 
-// What resolves a domain: the servers, how they are asked, how long an answer
-// is kept, and who answers for a domain no rule matched.
 export function addDnsOptions(section: CBISection) {
   const dnsOption = section.option(
     form.DynamicList,

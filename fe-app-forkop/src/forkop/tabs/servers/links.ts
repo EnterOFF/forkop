@@ -1,6 +1,4 @@
-// The field names and encodings follow the link parser in the Forkop core
-// (parser/link), so a link produced here is a link the core reads back and clients
-// that follow the same conventions understand.
+// Field names and encodings follow the core's link parser (parser/link), so the core reads these back.
 
 import { DEFAULT_CLIENT_FINGERPRINT } from './constants';
 import {
@@ -167,8 +165,7 @@ function buildVmessLink(sectionId: string, client: ServerClient) {
     id: client.uuid,
     aid: '0',
     scy: 'auto',
-    // The transport as the query already spells it, so the one place that maps a
-    // stored raw onto tcp stays one place.
+    // As the query spells it, so the raw-to-tcp mapping stays in one place.
     net: transportParams.type,
     type: 'none',
     host: transportParams.host || '',
@@ -188,8 +185,7 @@ function buildVmessLink(sectionId: string, client: ServerClient) {
 
 function buildShadowsocksLink(sectionId: string, client: ServerClient) {
   const method = getShadowsocksMethod(sectionId);
-  // A 2022 server holds one pre-shared key and every client adds its own, so the
-  // client password is the two keys joined the way the ciphers expect them.
+  // A 2022 client password is the server key and the client key joined.
   const password = isShadowsocks2022(method)
     ? `${option(sectionId, 'shadowsocks_psk')}:${client.password}`
     : client.password;
@@ -312,9 +308,8 @@ export function hasRequiredCredentials(
     });
 }
 
-// The Mieru link is the format of the Mieru project: the port and its transport
-// live in the query rather than in the authority, and a profile name is required,
-// which the server name stands in for.
+// The Mieru project's format: port and transport in the query, and a required profile name, for
+// which the server name stands in.
 function buildMieruLink(sectionId: string, client: ServerClient) {
   const label = clientLabel(sectionId, client);
   const query = encodeQuery({
@@ -333,8 +328,7 @@ function buildMieruLink(sectionId: string, client: ServerClient) {
   ].join('');
 }
 
-// Every link a client can be handed, as title and link pairs. Most protocols
-// produce one; the Mixed listener produces one per scheme it answers.
+// Most protocols produce one; a Mixed listener one per scheme it answers.
 export function buildClientLinks(
   sectionId: string,
   client: ServerClient,
@@ -381,8 +375,7 @@ export function buildClientLinks(
   }
 }
 
-// Hysteria2 clients pin the certificate instead of trusting it, so a link carries
-// the fingerprint of the certificate the router issued the server.
+// Hysteria2 clients pin the certificate, so a link carries the issued certificate's fingerprint.
 export function loadLinkContext(sectionId: string): Promise<ShareLinkContext> {
   if (
     getProtocol(sectionId) !== 'hysteria2' ||

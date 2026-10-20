@@ -1,10 +1,6 @@
-// A field that cannot be left empty.
-//
-// LuCI checks every field when a dialog opens, so a field whose check refuses an
-// empty value is marked before anything is typed - which is how every required
-// field shows itself. LuCI also refuses an empty field of rmempty = false on its
-// own, in its own words and before the field's check runs; a required field
-// therefore keeps rmempty as it is and is refused here instead, in the page's.
+// LuCI checks every field when a dialog opens, so a check refusing an empty value marks a
+// required field at once. rmempty = false would make LuCI refuse it in its own words first, so
+// it is left alone.
 
 import { message } from '../../validators/messages';
 import { normalizeDynamicListItems } from './listValues';
@@ -19,9 +15,7 @@ function isBlank(value: unknown) {
   return `${value ?? ''}`.trim() === '';
 }
 
-// What a list holds right now: the widget while the dialog is open, and the
-// stored value when it is not mounted - a check that ran before the widget
-// existed would otherwise read an empty list and refuse a list that is full.
+// The widget while the dialog is open, the stored value when it is not mounted.
 export function optionListValues(option: CBIOption, sectionId: string) {
   const formValue = option.formvalue(sectionId);
   return normalizeDynamicListItems(
@@ -38,9 +32,7 @@ export function required(check?: FieldCheck): FieldCheck {
   };
 }
 
-// LuCI checks a list entry by entry and then the empty add field at the end, so
-// the empty field stands for the whole list and is refused only when the list
-// holds nothing.
+// LuCI checks a list entry by entry and then the empty add field, which stands for the whole list.
 export function requiredList(check?: FieldCheck): FieldCheck {
   return function (sectionId, value) {
     if (isBlank(value)) {

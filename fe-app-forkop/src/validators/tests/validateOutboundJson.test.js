@@ -14,8 +14,6 @@ describe('validateOutboundJson', () => {
     expect(result).toBe(true);
   });
 
-  // What an outbound holds is sing-box's to judge, so a type Forkop has never
-  // heard of, a missing server or a group without members all reach the core.
   it.each([
     '{"type":"a-type-from-a-newer-core","tag":"new"}',
     '{"type":"SOCKS","tag":"proxy"}',

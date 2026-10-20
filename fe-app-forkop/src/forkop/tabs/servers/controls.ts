@@ -27,8 +27,7 @@ export function injectServerStyles() {
       'style',
       { id: STYLE_ID },
       [
-        // The generate button sits in the same grid the child item list uses, so it
-        // lines up with the input instead of floating next to it.
+        // In the child item list's grid, so the button lines up with the input.
         '.fkp-generate-row{--fkp-generate-gap:0.5em;--fkp-generate-size:2.5em;column-gap:var(--fkp-generate-gap);display:inline-grid;grid-template-columns:minmax(0,1fr) auto;max-inline-size:100%}',
         '.fkp-generate-row > :first-child{grid-column:1;min-inline-size:0}',
         '.fkp-generate-row > .fkp-generate{align-items:center;align-self:stretch;box-sizing:border-box;display:inline-flex;grid-column:2;inline-size:var(--fkp-generate-size) !important;justify-content:center;line-height:1;margin:0 !important;min-block-size:0;min-inline-size:0;padding:0 !important;float:none !important;user-select:none}',
@@ -60,8 +59,6 @@ function controlOf(node: HTMLElement | null): HTMLElement | null {
     : null;
 }
 
-// The control every generate button is: the same square icon button beside the
-// field, disabled with the rest of a read-only dialog.
 function renderGenerateButton(label: string, readonly: unknown) {
   return E(
     'button',
@@ -76,8 +73,7 @@ function renderGenerateButton(label: string, readonly: unknown) {
   );
 }
 
-// Fills a field with a freshly generated value when its button is pressed; a field
-// no loader fills in stays empty until then, and the validator asks for it.
+// A field no loader fills stays empty until its button is pressed, and the validator asks for it.
 export function addGenerateButton(
   optionRef: CBIOption,
   generate: (sectionId: string, current?: unknown) => string | null | undefined,
@@ -116,8 +112,7 @@ export function addGenerateButton(
       }
       if (element) {
         element.setValue(next);
-        // A field keeps the invalid mark until it is checked again, so a generated
-        // value is validated the same way a typed one is.
+        // Validated like a typed value, so the invalid mark clears.
         if (typeof element.triggerValidation === 'function') {
           element.triggerValidation();
         }
@@ -125,8 +120,7 @@ export function addGenerateButton(
       controlOf(node)?.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-    // A list grows row by row, so its button keeps the height of one row the way the
-    // child item list does. A single control simply stretches to its own height.
+    // A list's button keeps the height of one row, as the child item list does.
     const rows = !!node.querySelector?.('.add-item');
     const row = E(
       'div',
@@ -175,10 +169,8 @@ function getSelectWidget(
     : null;
 }
 
-// The security modes depend on the protocol and LuCI cannot express that with
-// depends(), so the choices are rebuilt whenever the protocol changes.
-// The protocol change handler runs before the new value reaches the form, so the
-// protocol is handed over instead of being read back.
+// LuCI's depends() cannot tie the security modes to the protocol, so the choices are rebuilt on
+// every change; the handler runs before the form sees the new value, so it is handed over.
 export function syncSecurityChoices(
   sectionId: string,
   protocol?: unknown,
@@ -186,16 +178,15 @@ export function syncSecurityChoices(
 ) {
   const select = getSelectWidget(sectionId, 'security');
   const stored = select ? select.value : option(sectionId, 'security');
-  // A mode the installed core lacks stays only for the server that has it, so
-  // the save refuses it by name instead of switching it.
+  // A mode the installed core lacks stays only for the server that has it, so its save is refused
+  // by name.
   const allowed = securitiesFor(protocol || getProtocol(sectionId)).filter(
     (security: string) => {
       const feature = securityCoreFeature(security);
       return !feature || coreHas(feature) || (!reset && security === stored);
     },
   );
-  // A protocol change starts from that protocol's own best mode. Carrying the
-  // previous value over would leave VLESS on None just because None is allowed.
+  // A protocol change starts from that protocol's best mode.
   const next = !reset && allowed.includes(stored) ? stored : allowed[0];
 
   if (!select) {
@@ -221,8 +212,7 @@ export function syncSecurityChoices(
   select.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-// A camouflage host is picked once per dialog, so the SNI keeps the domain the
-// dialog offered rather than rolling another one every time it is loaded.
+// Picked once per dialog, so the SNI keeps the offered domain across loads.
 const camouflageChoice = new Map<string, string>();
 
 export function camouflageSite(sectionId: string, reroll?: boolean) {
@@ -232,9 +222,8 @@ export function camouflageSite(sectionId: string, reroll?: boolean) {
   return camouflageChoice.get(sectionId);
 }
 
-// Puts a value into another field of the open dialog. The widget wins over the
-// stored value while the dialog is open, so the value goes there and is checked
-// right away; without a mounted widget the write goes to the configuration.
+// The widget wins over the stored value while the dialog is open; without one the write goes to
+// the configuration.
 export function applyFieldValue(
   sectionId: string,
   name: string,
@@ -255,8 +244,7 @@ export function applyFieldValue(
   controlOf(node)?.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-// One key pair per dialog: the two fields are loaded separately but have to hold
-// halves of the same pair.
+// Both fields load separately but must hold halves of one pair.
 const pendingKeypairs = new Map();
 
 export function realityKeypair(sectionId: string) {
@@ -297,8 +285,6 @@ function generateRealityKeypair(_sectionId: string) {
     });
 }
 
-// A button beside a field that asks the router for something and fills the
-// answer in, disabled while the request runs.
 function addIssueButton(
   optionRef: CBIOption,
   label: string,
@@ -341,8 +327,7 @@ function addIssueButton(
   };
 }
 
-// Both halves of the pair are written at once, so the button sits on the private
-// key and fills the public one in beside it.
+// Writes both halves: the button sits on the private key and fills in the public one.
 export function addRealityKeypairButton(optionRef: CBIOption) {
   addIssueButton(optionRef, _('Generate a key pair'), (sectionId: string) =>
     generateRealityKeypair(sectionId).then((pair) => {
@@ -357,10 +342,8 @@ export function addRealityKeypairButton(optionRef: CBIOption) {
   );
 }
 
-// A value the dialog fills in by itself. LuCI keeps whatever load() returned as
-// the stored value of an option, so an untouched autofilled field compares equal
-// on save and would never reach the configuration; forcewrite makes the save
-// write it.
+// LuCI compares an untouched field with what load() returned and skips it on save; forcewrite
+// makes an autofilled value reach the configuration.
 export function autofill(option: CBIOption, loader: CBIOption['load']) {
   option.forcewrite = true;
   option.load = loader;

@@ -139,10 +139,7 @@ function interfaceSettingsKeys() {
   ];
 }
 
-// Everything the resolver dialog hides behind the Domain Resolver flag is left
-// out: those options carry their default in the form and mean the same by their
-// absence in the configuration, and seeding one would only be deleted again the
-// first time the dialog is saved.
+// Options hidden behind the Domain Resolver flag mean the same by their absence, so none is seeded.
 export function defaultInterfaceSettings(displayName: string = '') {
   return {
     display_name: displayName,
@@ -188,8 +185,7 @@ function addInterfaceItemOptions(
       'Several servers give automatic failover. The protocol is set by a prefix: %s',
     ).format(dnsServerPrefixes()),
   );
-  // No address is proposed: a resolver that silently defaults to a public server
-  // is a DNS choice made for the user.
+  // No address is proposed: a default public resolver would be a DNS choice made for the user.
   dnsServerOption.depends('domain_resolver_enabled', '1');
   configureDnsServerList(dnsServerOption, {
     appliesTo: (option, itemId) =>

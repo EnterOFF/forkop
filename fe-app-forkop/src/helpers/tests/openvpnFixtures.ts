@@ -1,7 +1,3 @@
-// Throwaway test material: an RSA CA and a client certificate it signed, the
-// client key in the formats profiles carry it in, a static key, and a
-// self-signed P-256 certificate as sing-box generates one.
-
 export const CA = `-----BEGIN CERTIFICATE-----
 MIIDIzCCAgugAwIBAgIUHLbAJa6DPhJH7NczHivEjFWsC5kwDQYJKoZIhvcNAQEL
 BQAwGTEXMBUGA1UEAwwORm9ya29wIFRlc3QgQ0EwHhcNMjYwOTI5MDQzNDEwWhcN

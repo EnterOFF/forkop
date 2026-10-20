@@ -1,13 +1,9 @@
-// Reading and writing Forkop's own uci package, in the shapes the forms use.
-//
-// LuCI stores a list option as a bare string when it holds one value and as an
-// array when it holds several, and hands back either; every helper here takes
-// both and answers in one shape, so a caller never has to ask which it got.
+// LuCI hands a list option back as a bare string for one value and an array for several; these
+// helpers take both and answer in one shape.
 
 import { FORKOP_UCI_PACKAGE } from '../../constants';
 import { normalizeDynamicListItems, normalizeOptionValues } from './listValues';
 
-// A list as a textarea shows it: one value per line.
 export function valuesToText(values: unknown): string {
   if (!values) {
     return '';
@@ -24,7 +20,6 @@ export function getUciSectionName(section: UciSectionObject | null): string {
   return section && section['.name'] ? section['.name'] : '';
 }
 
-// The name the user gave a section, falling back to its id when it has none.
 export function getUciSectionLabel(section: UciSectionObject | null): string {
   return (section && (section.label as string)) || getUciSectionName(section);
 }
@@ -49,9 +44,7 @@ export function stringArraysEqual(left: unknown, right: unknown): boolean {
   );
 }
 
-// Writes a list option, or removes it when nothing is left. An unchanged list is
-// not written at all: LuCI counts any set() as a change, and a save that rewrites
-// what was already there shows up as a change the user did not make.
+// An unchanged list is not written: LuCI counts any set() as a change.
 export function writeListOption(
   section_id: string,
   key: string,

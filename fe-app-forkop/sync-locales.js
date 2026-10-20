@@ -1,8 +1,5 @@
-// Regenerates the LuCI translation catalogs from the `_()` calls in the sources.
-//
-// The catalogs live only in luci-app-forkop/po, which is what the package
-// build reads. Existing translations are carried over by msgid; a new string
-// lands untranslated and a removed one disappears.
+// Regenerates the catalogs in luci-app-forkop/po from the `_()` calls in the bundle, keeping
+// translations by msgid.
 
 import { execSync } from 'child_process';
 import fs from 'fs/promises';

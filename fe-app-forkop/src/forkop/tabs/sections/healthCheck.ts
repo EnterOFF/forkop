@@ -1,10 +1,4 @@
-// What a URLTest group and a Fallback group ask about the same health check.
-//
-// The two dialogs differ in what they measure - a URLTest picks the fastest
-// server, a Fallback the first one that answers - so the URL they fetch and how
-// often they fetch it are each dialog's own. What counts as an answer, when the
-// checks stop, and what happens to open connections when the choice changes are
-// the same question in both, and were written out twice.
+// The health check options a URLTest and a Fallback group share.
 
 import {
   singBoxDurationSeconds,
@@ -12,8 +6,7 @@ import {
 } from '../../../validators/validateSingBoxDuration';
 import { currentOptionValue } from './subscriptions/model';
 
-// What the backend takes: HTTP status codes from 100 to 599 and ranges of them
-// in order, at most 28 in all.
+// Status codes 100-599 and ordered ranges of them, at most 28 in all, as the backend takes them.
 export function validateExpectedStatus(value: unknown) {
   const normalized = `${value || ''}`.trim();
   if (!normalized || normalized === '*') {
@@ -42,8 +35,6 @@ export function validateExpectedStatus(value: unknown) {
   return valid ? true : _('Format: *, 204, 200-299');
 }
 
-// Which replies count as the server having answered. Sits directly under the
-// URL each dialog checks, because it is about that request.
 export function addExpectedStatusOption(itemSection: CBISection) {
   const o = itemSection.option(
     form.Value,
@@ -59,14 +50,8 @@ export function addExpectedStatusOption(itemSection: CBISection) {
   };
 }
 
-// The last three rows of both dialogs: when an unused group stops checking, what
-// happens to connections already open when the chosen server changes, and
-// whether the servers behind the group are listed on the dashboard.
-//
-// Only the idle timeout differs - a URLTest measures latency and can afford to
-// wait longer than a Fallback, which is deciding whether anything answers. A
-// timeout shorter than the check interval would stop the checks before the
-// next one is due, which the backend refuses.
+// Only the idle timeout differs: a URLTest can wait longer than a Fallback. A timeout shorter
+// than the check interval would stop the checks before the next one, which the backend refuses.
 export function addGroupHealthCheckTailOptions(
   itemSection: CBISection,
   idleTimeoutDefault: string,

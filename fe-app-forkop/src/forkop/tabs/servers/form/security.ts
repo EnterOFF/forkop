@@ -98,9 +98,8 @@ export function addSecurityOptions(section: CBISection) {
     _('Pick a domain'),
   );
 
-  // Only where the listener leaves the choice open. Hysteria2 negotiates h3 and
-  // NaiveProxy h2 on their own - both replace an empty list and fight a filled one -
-  // and a TUIC client never looks at it.
+  // Hysteria2 negotiates h3 and NaiveProxy h2 themselves and fight a filled list; TUIC clients
+  // ignore it.
   o = section.option(form.MultiValue, 'tls_alpn', _('ALPN'));
   ['h3', 'h2', 'http/1.1'].forEach((value: string) => o.value(value, value));
   o.create = false;
@@ -113,8 +112,7 @@ export function addSecurityOptions(section: CBISection) {
   );
   onReality(o);
 
-  // NaiveProxy has no choice to offer: its clients refuse a self-signed
-  // certificate, so its dialog goes straight to the certificate fields.
+  // NaiveProxy clients refuse a self-signed certificate, so its dialog goes straight to the fields.
   const onOwnCertificate = (o: CBIOption) => {
     streamProtocols.forEach((protocol: string) =>
       o.depends({

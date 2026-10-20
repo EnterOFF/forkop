@@ -1,9 +1,3 @@
-// A field that must not stay empty says so in the page's words, and LuCI marks
-// it the moment its dialog opens: LuCI runs every field's check on opening, so
-// the check that refuses an empty value is the mark. A text field that left
-// the refusal to LuCI instead (rmempty = false) was marked in LuCI's words,
-// "Expecting: non-empty value", while a list beside it said nothing until
-// something was typed - the two dialogs the user compared.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';
@@ -147,15 +141,12 @@ describe('a field that must not stay empty', () => {
     const field = option(forms[form], name);
     const id =
       form === 'sections' ? 'sec' : form === 'servers' ? 'srv' : 'settings';
-    // A list holds its entries elsewhere; the empty add field is what LuCI
-    // checks last, and it stands for the whole list once the list is empty.
     field.formvalue = () => [];
 
     expect(field.validate(id, '')).toBe('Required');
   });
 });
 
-// LuCI's own datatypes gave way to the page's checks; what they took, those take.
 describe('a value LuCI used to check', () => {
   it('lets a tunnel pick its own local port, and a peer not', async () => {
     const { tunnel, peer } = await everyForm();

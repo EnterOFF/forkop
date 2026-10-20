@@ -1,6 +1,5 @@
-// The fields of the OpenConnect tunnel dialog in the order a sign-in goes: which
-// server and protocol, how the router signs in, and how it knows the server.
-// What only some servers need follows behind one switch.
+// In the order a sign-in goes: server and protocol, how the router signs in, how it knows the
+// server; what only some servers need follows behind one switch.
 
 import type { OpenConnectImportResult } from '../../../../helpers/parseOpenConnectConfig';
 import { isEncryptedKey } from '../../../../helpers/material';
@@ -530,8 +529,7 @@ export function applyImportedOpenConnect(
   result: Extract<OpenConnectImportResult, { valid: true }>,
 ) {
   const settings = openConnectInitialSettings(result.endpoint);
-  // The switches go first: the fields behind them take their values only while
-  // they show them.
+  // Switches first: the fields behind them take values only while shown.
   for (const name of [
     'openconnect_advanced',
     'openconnect_certificate_enabled',

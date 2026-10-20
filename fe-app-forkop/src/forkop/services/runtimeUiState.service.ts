@@ -21,8 +21,7 @@ import type { LogReply } from './forkopLogFeed.service';
 const RUNTIME_UI_STATE_REFRESH_MIN_INTERVAL_MS = 500;
 const RUNTIME_UI_STATE_IDLE_POLL_INTERVAL_MS = 10000;
 const RUNTIME_UI_STATE_ACTIVE_POLL_INTERVAL_MS = 1000;
-// A state service found missing is asked again after this long: an upgrade or
-// a crash takes it away for seconds, not for the life of the page.
+// An upgrade or a crash removes the state service for seconds, not for the life of the page.
 const STATE_SERVICE_RETRY_MS = 30000;
 
 type RuntimeUiStateListener = (uiState: Forkop.UiState) => void;
@@ -52,11 +51,8 @@ function hasRunningAction(uiState: Forkop.UiState) {
   );
 }
 
-// What the page actually renders. A read that returns something different is a
-// transition in progress, and transitions arrive in bursts, so the next one is
-// scheduled at the active interval even once the action itself has finished.
-// Only the polling transport needs this; the state service reports a change the
-// moment it happens.
+// Only the polling transport needs this: transitions come in bursts, so a changed read keeps the
+// active interval for the next one.
 function stateSignature(uiState: Forkop.UiState) {
   const forkop = uiState.service.forkop;
   return [
@@ -68,9 +64,7 @@ function stateSignature(uiState: Forkop.UiState) {
   ].join('|');
 }
 
-// A click is known here before the runtime has a job to report it, and waiting
-// for the next idle poll to notice was most of the lag between pressing a button
-// and the page reacting.
+// A click is known here before the runtime reports a job for it.
 function hasLocalPendingAction() {
   return getLocalActionOverlay().serviceActions.size > 0;
 }
@@ -121,14 +115,8 @@ function adoptUbusState(value: UbusState) {
   return uiState;
 }
 
-// The state service answers in a few milliseconds because it is already
-// running. The CLI is what answers when it is not installed yet, or not up.
-//
-// `state` hands back what the service published last. It recomputes when its
-// watch notices a change, which is twice a second at best, so a page that has
-// just changed something itself would be answered with the state from before
-// its own action - an autostart symlink it removed a moment ago is still there.
-// `refresh` is the same answer computed on the spot, and costs the recompute.
+// `state` is what the service published last, recomputed at most twice a second, so a page that
+// just changed something asks for `refresh`, computed on the spot.
 function useCli(reason: string) {
   transport = 'cli';
   stateServiceRetryAt = Date.now() + STATE_SERVICE_RETRY_MS;
@@ -160,8 +148,7 @@ async function readState(
 
   const response = await ForkopShellMethods.getUiState();
   if (!response.success) {
-    // The CLI was the last transport left; the page is told the state is
-    // unknown rather than left waiting for an answer that is not coming.
+    // The CLI was the last transport left, so the state is reported unknown.
     markUiStateUnavailable();
     return undefined;
   }
@@ -170,9 +157,7 @@ async function readState(
   return response.data;
 }
 
-// `force` is the caller saying it has a reason to read now: it skips the
-// throttle that keeps ordinary polls apart, and it asks the state service for a
-// fresh computation rather than for whatever it published last.
+// `force` skips the poll throttle and asks the state service for a fresh computation.
 export async function refreshRuntimeUiState({
   force = false,
 }: { force?: boolean } = {}): Promise<Forkop.UiState | undefined> {
@@ -236,13 +221,8 @@ function scheduleRuntimeUiStatePoll(delay = getNextPollDelay()) {
   }, delay);
 }
 
-// One request parked on the router for as long as nothing changes, answered the
-// moment something does. An idle page costs one open request instead of a
-// refresh every ten seconds, and a change reaches the browser in the time it
-// takes to serialise it rather than on the next tick. The log feed's lines come
-// back on the same request: a browser keeps six connections to a host, and a
-// second parked request per page made three open pages enough to hold every
-// other request of every LuCI tab behind them.
+// One request parked until something changes, carrying the log lines too: a browser keeps six
+// connections to a host, and two parked requests per page let three pages stall LuCI.
 async function runWaitLoop() {
   if (waitLoopRunning) {
     return;
@@ -299,8 +279,7 @@ function startTransportLoop() {
 
   if (transport === 'ubus') {
     clearPollTimer();
-    // A loop hidden a moment ago may still be waiting on its request, and has to
-    // carry on once it comes back rather than stop.
+    // A loop hidden a moment ago may still be waiting on its request and carries on.
     waitLoopStop = false;
     void runWaitLoop();
     return;
@@ -309,9 +288,7 @@ function startTransportLoop() {
   scheduleRuntimeUiStatePoll();
 }
 
-// Called when the page starts or finishes an action of its own: whatever the
-// feed was waiting on no longer matches what is happening, so the state is read
-// again straight away.
+// The page started or finished an action of its own, so the state is read again at once.
 export function refreshRuntimeUiStateNow() {
   clearPollTimer();
 

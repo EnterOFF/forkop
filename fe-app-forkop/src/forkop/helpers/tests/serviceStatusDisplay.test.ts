@@ -18,9 +18,6 @@ describe('service status display', () => {
     });
   });
 
-  // Applying settings cycles the sing-box runtime, so readiness is briefly
-  // false. Reporting a stopped service for those seconds is alarming and not
-  // actionable; what is true is that an operation is under way.
   it('reports the operation instead of a readiness that is momentarily meaningless', () => {
     expect(getServiceStatusDisplay({ running: false, busy: 'apply' })).toEqual({
       label: 'applying...',

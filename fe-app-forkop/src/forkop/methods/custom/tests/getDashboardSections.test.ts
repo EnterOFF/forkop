@@ -86,7 +86,6 @@ function child(
   };
 }
 
-// The links of the main section, each under the name the page stored for it.
 function links(entries: Array<[string, string]>) {
   return entries.map(([name, uri], index) =>
     child('connection_link', `link${index + 1}`, {
@@ -150,10 +149,6 @@ async function primeClashApi() {
   mocks.clashApi.mockResolvedValue(clashApiJson(200, { connections: [] }));
 }
 
-// The transport keeps what it learned about the controller in module state, and
-// a suspension it entered is only ever lifted by a probe reaching the
-// controller. Each case starts from a transport that has just been reached,
-// rather than from whatever the previous one left behind.
 async function useReachableClashApi() {
   mocks.canUseDirectClashApi.mockReturnValue(true);
   vi.stubGlobal(
@@ -306,8 +301,6 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  // The same account split two ways is two subscriptions of one address, and
-  // each is its own provider with its own tag and its own metadata switch.
   it('shows two subscriptions of one address under their own tags', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section(),
@@ -402,8 +395,6 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  // The runtime names the one URLTest of an older section "Fastest" in every
-  // language, so the page must look for that name and not its translation.
   it('finds the URLTest of an older section under a translated page', async () => {
     vi.stubGlobal('_', (text: string) =>
       text === 'Fastest' ? 'Самый быстрый' : text,
@@ -432,8 +423,6 @@ describe('getDashboardSections', () => {
     expect(result.data[0].outbounds[0]).toMatchObject({
       code: 'Office/Fastest',
       type: 'URLTest',
-      // What the section configures for its group, which only reaches the
-      // Dashboard once the group is found.
       urlTestInfo: {
         selectedName: 'Node A',
         url: 'https://www.gstatic.com/generate_204',
@@ -444,8 +433,6 @@ describe('getDashboardSections', () => {
 
   it('hydrates readable URLTest and Fallback groups from UCI and Clash API', async () => {
     mocks.getConfigSections.mockResolvedValue([
-      // A group arranges the servers of its own section, so a section that has
-      // groups always has a source for them as well.
       section(),
       child('subscription_url', 'office', {
         url: 'https://office.example/sub',
@@ -524,8 +511,6 @@ describe('getDashboardSections', () => {
         interval: '45s',
         tolerance: 25,
         expectedStatus: '204/200-299',
-        // Not set in this fixture, so the dashboard has to report the same
-        // default the generated sing-box configuration carries.
         interruptExistConnections: false,
       },
     });
@@ -559,9 +544,6 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  // A group whose filter matched nothing never reaches the generated configuration,
-  // and one the section still carries after a failed reload is not running either.
-  // The dashboard shows what the Clash API reports and nothing besides.
   it('leaves out a configured group the runtime does not carry', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section(),
@@ -771,10 +753,6 @@ describe('getDashboardSections', () => {
     expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
-  // A section's lists are downloaded again by the one refresh of the toolbar,
-  // and it is offered only when something would be downloaded: a built-in list
-  // or a rule set named by its URL, in any section the runtime has, the ones
-  // the dashboard shows no card for included. A path is a file on the router.
   it('knows whether any enabled section names a list to download', async () => {
     setClashProxies({
       Office: proxy('Selector', { all: ['Office/Node'] }),
@@ -960,9 +938,6 @@ describe('getDashboardSections', () => {
     expect(mocks.clashApi).toHaveBeenCalledWith('GET', '/connections', '');
   });
 
-  // The sweep a latency test starts keeps running on the router after the
-  // browser stops waiting for it, so asking again through the CLI transport
-  // would leave two sweeps competing for the same ten test slots.
   it('does not repeat a latency test that ran out of time', async () => {
     await primeClashApi();
 
@@ -979,9 +954,6 @@ describe('getDashboardSections', () => {
     expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
-  // A node that fails its test is an answer: the controller ran the test and
-  // says so with a status. A controller that never answers leaves none, and that
-  // is the one failure the page has to report, since nothing else shows it.
   it('tells a failed delay test from a controller that did not answer', async () => {
     await primeClashApi();
 
@@ -1019,8 +991,6 @@ describe('getDashboardSections', () => {
     expect(mocks.clashApi).toHaveBeenCalledTimes(2);
   });
 
-  // A dropped port answers nothing at all, so every request pays its whole
-  // timeout before the CLI transport gets its turn. One is enough to learn that.
   it('stops asking the controller directly once a direct request runs out of time', async () => {
     await primeClashApi();
 
@@ -1039,9 +1009,6 @@ describe('getDashboardSections', () => {
     expect(mocks.clashApi).toHaveBeenCalledTimes(2);
   });
 
-  // Discovering that the controller is still unreachable is the probe's cost to
-  // pay, never the page's: a request that has already given up on the direct
-  // path must not wait for another attempt at it.
   it('probes beside the request instead of making it wait', async () => {
     await primeClashApi();
 
@@ -1084,8 +1051,6 @@ describe('getDashboardSections', () => {
     resetClashApiTransport();
     await getClashApiConnections();
 
-    // The probe answers beside the request that started it, so the direct path
-    // comes back on one of the requests after that one, not on it.
     await vi.waitFor(async () => {
       mocks.clashApi.mockClear();
       await expect(getClashApiConnections()).resolves.toEqual({
@@ -1101,8 +1066,6 @@ describe('getDashboardSections', () => {
     );
   });
 
-  // A controller that answers 401 is a controller the browser can reach, which
-  // is the only thing the probe is asking about.
   it('treats an unauthorised probe answer as a reachable controller', async () => {
     await primeClashApi();
 
@@ -1134,8 +1097,6 @@ describe('getDashboardSections', () => {
     );
   });
 
-  // A browser that reaches the controller reads the three numbers out of the
-  // whole snapshot: nothing crosses ubus, so nothing has to be narrowed first.
   it('summarises the snapshot the browser fetched itself', async () => {
     await primeClashApi();
 
@@ -1165,8 +1126,6 @@ describe('getDashboardSections', () => {
     expect(mocks.clashSummary).not.toHaveBeenCalled();
   });
 
-  // Through the CLI transport the snapshot would cross ubus, which refuses a
-  // reply past about 256KB, so the router is asked for the numbers instead.
   it('asks the router to narrow the snapshot it cannot fetch itself', async () => {
     await primeClashApi();
 
@@ -1190,9 +1149,6 @@ describe('getDashboardSections', () => {
     expect(mocks.clashApi).not.toHaveBeenCalled();
   });
 
-  // A sweep budget must never reach a single node test: the router parses that
-  // timeout as a sixteen bit number and refuses anything larger outright, so a
-  // section that carried one number for both broke its own per node test.
   it('leaves a proxy section without a single node test budget of its own', async () => {
     const nodes = Array.from({ length: 30 }, (_, index): [string, string] => [
       `Node${index}`,

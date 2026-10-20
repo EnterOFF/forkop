@@ -1,7 +1,5 @@
-// An OpenVPN client profile (.ovpn or .conf) turned into the openvpn-client
-// endpoint of the core. The profile is read the way OpenVPN reads it: one
-// directive per line, quoted arguments, inline <blocks>, and files it names
-// taken from the files handed over with it.
+// Read the way OpenVPN reads a profile: one directive per line, quoted arguments, inline <blocks>,
+// and named files taken from the files handed over.
 
 import { checkMaterial } from './material';
 import type { MaterialKind } from './material';
@@ -34,10 +32,8 @@ export const OPENVPN_DEFAULT_DATA_CIPHERS = [
   'CHACHA20-POLY1305',
 ];
 
-// What a profile carries for the operating system of a desktop client or for
-// the OpenVPN process itself: scripts, logging, privileges, the local socket,
-// retries, routes and resolvers. A tunnel of the router is none of that - its
-// sections decide what goes through it - so these are read and dropped.
+// Desktop and process directives (scripts, logging, privileges, local socket, retries, routes,
+// resolvers); the router's sections decide what goes through, so these are read and dropped.
 const IGNORED = new Set([
   'auth-nocache',
   'block-ipv6',
@@ -132,8 +128,7 @@ const IGNORED = new Set([
   'writepid',
 ]);
 
-// Directives that change the connection and have no counterpart in the core,
-// or none a router can use. The import goes on without them and says so.
+// No counterpart in the core, or none a router can use: the import goes on and says so.
 const SKIPPED = new Set([
   'auth-retry',
   'crl-verify',

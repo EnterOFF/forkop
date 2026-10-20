@@ -2,11 +2,8 @@
 import { FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX } from '../../../constants';
 
 export const styles = `
-/* The page takes the width of the content column, which it cannot do on its own.
-   The tab is one DummyValue, and LuCI hands its value to the theme inside an
-   <output>; the theme lays a .cbi-value out as a flex row, so that <output> is a
-   flex item as wide as its own content. A block mount node gives the page's
-   width: 100% something to resolve against. */
+/* The tab is one DummyValue inside the theme's flex row; a block mount node gives the page's
+width: 100% something to resolve against. */
 #cbi-${FORKOP_CBI_PREFIX}-monitoring-_mount_node {
     display: block;
     margin: 16px 0 22px;
@@ -17,8 +14,7 @@ export const styles = `
     display: none;
 }
 
-/* The layout follows the width the page is given, not the window: a theme with
-   a sidebar hands it a column far narrower than the viewport. */
+/* Follows the page's width, not the window's: a theme sidebar leaves far less. */
 .fkp_monitoring-page {
     --fkp-monitoring-row-action-size: 24px;
     --fkp-monitoring-divider-color: rgba(127, 127, 127, 0.22);
@@ -51,11 +47,8 @@ export const styles = `
     margin-bottom: 12px;
 }
 
-/* The tabs are the theme's own, the way LuCI's software page switches its
-   lists; only the count beside each name is the page's. */
-/* The free end of the tab bar, so showing it moves nothing: the list stays
-   put under a selection being made in it. It is no tab, so the theme's tab
-   rules leave it alone, and it takes only what the tabs leave. */
+/* The free end of the tab bar, so showing it moves nothing; it is no tab, so the theme's tab
+rules leave it alone. */
 .fkp_monitoring-page__pause-note {
     flex: 1 1 0;
     min-width: 0;
@@ -77,9 +70,8 @@ export const styles = `
     font-variant-numeric: tabular-nums;
 }
 
-/* A theme may put its own dropdown next to the select and hide the select, so
-   the columns are filled in order rather than assigned to named children, and
-   whatever fills one is held to it. */
+/* A theme may replace the select with its own dropdown, so columns fill in order rather than by
+named children. */
 .fkp_monitoring-page__filters {
     grid-area: filters;
     display: grid;
@@ -155,11 +147,8 @@ export const styles = `
     min-width: 0;
 }
 
-/* Every row is a subgrid of the list, so a column is as wide as its widest
-   value or heading and what is left is shared out evenly, the way a table
-   shares it. Only the host, the source and the route give way when the width
-   runs short. A list whose connections can be closed has one more column for
-   the button. */
+/* Every row is a subgrid, so columns size like a table's; only host, source and route give way
+when the width runs short. */
 .fkp_monitoring-page__list {
     --fkp-monitoring-columns:
         minmax(8em, auto)
@@ -340,9 +329,7 @@ export const styles = `
     }
 }
 
-/* Below this width every connection becomes a three-line card built from the
-   same cells: the host with the close action, the source with route and
-   protocol, the duration with the traffic counters. */
+/* Below this width every connection becomes a three-line card. */
 @container (max-width: 639px) {
     .fkp_monitoring-page__list {
         display: block;

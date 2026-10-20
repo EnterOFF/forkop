@@ -3,9 +3,8 @@ import { E } from '../../../../helpers/element';
 import { store } from '../../../services/store.service';
 import type { StoreType } from '../../../services/store.service';
 
-// With Request WARP through a section on, the profile request leaves through an
-// inbound of the running core, so it cannot be made while the core is down. A
-// state the page has not read yet blocks nothing: the router still answers.
+// With WARP requests through a section, the request leaves through the running core's inbound, so
+// it cannot go while the core is down; a state not read yet blocks nothing.
 export function warpGenerateBlockReason(
   viaSection: boolean,
   service: StoreType['serviceState'],
@@ -30,9 +29,8 @@ export function showWarpGenerateBlock(
   hint.style.display = reason ? '' : 'none';
 }
 
-// LuCI renders the button once, when the dialog opens; the service can start or
-// stop while it is open. The reason also stands under the button, since a
-// browser may show no tooltip over a disabled one.
+// LuCI renders the button once, and the service may start or stop meanwhile; the reason also
+// stands under it, since a disabled button may show no tooltip.
 export function keepWarpGenerateButtonCurrent(option: CBIOption) {
   const renderWidget = option.renderWidget;
   option.renderWidget = function (

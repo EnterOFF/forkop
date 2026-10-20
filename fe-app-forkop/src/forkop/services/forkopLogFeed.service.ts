@@ -5,24 +5,20 @@ import {
   FORKOP_SERVICE_OBJECT,
 } from './forkopWaitTransport';
 
-// The state service reads the tail of the log once for every tab and hands out
-// lines by cursor. They ride on the page's one parked request for the state, so
-// a new line arrives when it is written and nothing crosses the wire when there
-// is none.
+// The state service reads the log tail once for every tab and hands out lines by cursor, on the
+// page's one parked request.
 export type LogReply = { cursor?: number; lines?: string[] };
 
 let started = false;
 let cursor: number | undefined;
 let onLine: (line: string) => void = () => {};
 
-// The cursor the feed has read up to. Undefined until the feed knows where the
-// log stands, and until then the state wait asks for no lines.
+// Undefined until the feed knows where the log stands; until then the wait asks for no lines.
 export function getForkopLogCursor() {
   return cursor;
 }
 
-// The feed lives as long as the page does. A page that takes over from the one
-// LuCI just reloaded goes on from that page's cursor.
+// A page taking over from the one LuCI just reloaded continues from its cursor.
 export function startForkopLogFeed(
   onNewLog: (line: string) => void,
   resumeFrom = 0,
@@ -38,10 +34,7 @@ export function startForkopLogFeed(
   }
 }
 
-// Asked by the state wait before it parks, until it has an answer. The feed
-// starts from where the log stands: the lines already in the buffer are
-// history, and announcing them would notify about everything that happened
-// before the page was opened.
+// The feed starts where the log stands: lines already in the buffer are history.
 export async function placeForkopLogFeed() {
   if (!started || cursor !== undefined) {
     return;

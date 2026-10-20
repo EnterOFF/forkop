@@ -23,8 +23,6 @@ describe('getProxyUrlName', () => {
     expect(getProxyUrlName('trojan://secret@example.com')).toBe('');
   });
 
-  // What core/url.uc fragment() and singbox/generator.uc connection_link_name()
-  // answer for the same links, so a node keeps its name on the page.
   it.each([
     ['vmess://uuid@host:443?type=tcp#My%20Node', 'My Node'],
     ['vless://id@h#a#b', 'a#b'],

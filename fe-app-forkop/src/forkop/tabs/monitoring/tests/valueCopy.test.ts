@@ -2,9 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { shouldCopyFullMonitoringValue } from '../valueCopy';
 
-// A value too wide for its cell is cut off with an ellipsis, so selecting what
-// shows of it has to copy all of it - and a selection of part of a value that
-// shows in full copies only what was selected.
 function cell(text: string, visibleShare: number) {
   return {
     scrollWidth: 1000,

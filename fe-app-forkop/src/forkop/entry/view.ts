@@ -21,8 +21,7 @@ import { configureGridSection } from './gridSection';
 import { mountPageStatus } from './pageStatus';
 import { pageTitle } from './pageTitle';
 
-// A tab that renders itself rather than declaring CBI options: one anonymous
-// section holding the node its controller is bound to.
+// A tab that renders itself: one anonymous section holding the node its controller binds to.
 function addMountedTab(
   map: CBIMap,
   type: string,
@@ -38,12 +37,8 @@ function addMountedTab(
   mountTabOption(section, type, tab);
 }
 
-// The whole page: one uci map with a tab per section type. This is what
-// view/forkop/forkop.js hands to LuCI.
 export const ForkopView = {
-  // The forms offer only what the installed core can run, so what it can do
-  // is read before they are built: one call the state service answers from
-  // memory.
+  // The forms offer only what the installed core can run, so its features load first.
   load() {
     return loadCoreFeatures().catch((error) => {
       console.warn('[CORE_FEATURES]', error);

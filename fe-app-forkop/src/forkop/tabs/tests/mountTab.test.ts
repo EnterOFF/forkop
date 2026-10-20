@@ -1,12 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountTab, resetMountedTabs } from '../mountTab';
 
-// The suite runs without a DOM, so a node stands in as a plain object. What the
-// fix is made of is the identity of that object: LuCI empties the form and asks
-// every option for its value again on every save, and a tab that answered with a
-// freshly rendered tree left its controller bound to elements no longer on the
-// page while the page showed the placeholder the new tree was rendered with.
-// Returning the same node is what keeps the two the same thing.
 function fakeNode(text: string) {
   return { textContent: text } as unknown as HTMLElement;
 }
@@ -57,8 +51,6 @@ describe('mountTab', () => {
     expect(render).toHaveBeenCalledTimes(1);
   });
 
-  // The controllers are async: what fails after the first await is a rejected
-  // promise, not a throw, and it has to be reported all the same.
   it('reports a controller that fails after it started', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
 

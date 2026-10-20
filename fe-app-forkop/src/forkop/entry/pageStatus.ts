@@ -3,9 +3,7 @@ import { store } from '../services/store.service';
 import type { StoreType } from '../services/store.service';
 import { PAGE_STATUS_ID } from './pageTitle';
 
-// What the heading says about the service, on every tab: a dot in the colour of
-// the state and the state in words. A state the page has not read yet, or could
-// not read at all, is left unsaid rather than guessed.
+// A state the page has not read, or could not read, is left unsaid.
 export function renderPageStatus(
   node: HTMLElement,
   state: StoreType['serviceState'],

@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The list widget is the DOM, and what it does to a row is not what this is
-// about: adoption is asked for by value and recorded here as a pair.
 const adopted: Array<[string, string]> = [];
 vi.mock('../listItems', () => ({
   findDynamicListItemByValue: (node: { items: string[] }, value: string) =>
@@ -18,14 +16,6 @@ import {
   getChildItemIds,
   materializeChildItems,
 } from '../childItems';
-
-// Which uci section a list entry means.
-//
-// A child list shows names and stores section ids, and until the parent dialog is
-// saved an entry may be neither: a draft held in memory under the text the user
-// typed. Getting the identity wrong loses data both ways - a draft written twice
-// duplicates the section, and a name that happens to match a section still stored
-// resurrects the settings the user just deleted.
 
 const LEVEL_OPTIONS = {
   typeName: 'fallback_level',

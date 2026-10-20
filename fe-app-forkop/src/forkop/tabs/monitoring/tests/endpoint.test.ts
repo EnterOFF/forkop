@@ -10,7 +10,6 @@ describe('the host a Monitoring row shows', () => {
     expect(formatEndpoint('fddb:33d1::1', '80')).toBe('fddb:33d1::1');
   });
 
-  // The core reports the name as it went out, in Punycode.
   it('spells an international domain in its own letters', () => {
     expect(formatEndpoint('xn--d1abbgf6aiiy.xn--p1ai', 443)).toBe(
       'президент.рф',

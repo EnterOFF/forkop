@@ -13,8 +13,6 @@ function reading(started: number, clockMs: number, cpuTicks: number) {
 }
 
 describe('the core load', () => {
-  // One second of processor time over two seconds on a two-core router is a
-  // quarter of the router.
   it('is the processor time used between two readings, as a share of every core', () => {
     expect(cpuShare(reading(100, 10_000, 500), reading(100, 12_000, 600))).toBe(
       25,
@@ -40,8 +38,6 @@ describe('the core load', () => {
   });
 });
 
-// Measured on the reference router: the core started at tick 190694980, and the
-// monotonic clock read 1907690.95 s.
 it('the core age counts from its start on the clock of the reading', () => {
   expect(coreAgeSeconds(reading(190694980, 1_907_690_950, 281))).toBeCloseTo(
     741.15,

@@ -62,8 +62,6 @@ describe('OpenVPN material', () => {
   });
 });
 
-// openssl req -x509 -keyout x.pem -out x.pem, HAProxy and sing-box generate
-// tls-keypair all put the key and the certificate into one file.
 describe('a file with a certificate and its key', () => {
   it('splits into the certificates and the one key', () => {
     expect(

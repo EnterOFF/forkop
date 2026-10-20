@@ -1,7 +1,3 @@
-// What a VPN server that hands its clients addresses of its own is asked: the
-// subnet those addresses come from, and whether all of the clients' traffic
-// goes through it or only the routes it names.
-
 import { message } from '../../../../validators/messages';
 import { FORKOP_UCI_PACKAGE } from '../../../../constants';
 import { autofill } from '../controls';
@@ -11,8 +7,7 @@ import { protocolsWith } from '../protocols';
 
 const DEFAULT_SUBNET = '10.8.0.1/24';
 
-// A new server takes the first 10.8.N.1/24 no other server hands out, so two
-// servers never give their clients the same addresses.
+// The first 10.8.N.1/24 no other server hands out.
 export function freeTunnelSubnet(sectionId: string) {
   const taken = new Set(
     (uci.sections(FORKOP_UCI_PACKAGE, 'server') || [])
@@ -43,8 +38,6 @@ function addressBytes(address: string) {
   return isIpv4(address) ? address.split('.').map(Number) : ipv6Bytes(address);
 }
 
-// The subnet a server address with a prefix lies in, written as a route: the
-// address of the subnet itself and the prefix.
 export function subnetOf(value: string) {
   const [address, prefix] = `${value}`.trim().split('/');
   const bits = Number(prefix);
@@ -63,8 +56,6 @@ export function subnetOf(value: string) {
   return `${new URL(`http://[${hextets.join(':')}]/`).hostname.slice(1, -1)}/${bits}`;
 }
 
-// Whether an address, with or without a prefix, lies in the subnet of a server
-// address with a prefix.
 export function subnetContains(subnet: string, address: string) {
   const host = `${address}`.trim().split('/')[0];
   const bits = `${subnet}`.trim().split('/')[1];
@@ -75,8 +66,7 @@ export function subnetContains(subnet: string, address: string) {
   );
 }
 
-// The host bits of a subnet: none set is the subnet itself, and in IPv4 all of
-// them set is its broadcast address; neither can be the address of the server.
+// The subnet address, and in IPv4 the broadcast address, cannot be the server's.
 function namesHostAddress(address: string, bits: number) {
   const bytes = addressBytes(address);
   let any = false;

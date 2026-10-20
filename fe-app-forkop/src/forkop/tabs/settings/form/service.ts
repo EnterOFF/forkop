@@ -1,7 +1,5 @@
 import { validateSingBoxPath } from '../validators';
 
-// Where sing-box keeps its files, how loudly it logs, and whether the clock
-// is allowed past the tunnel.
 export function addServiceOptions(section: CBISection) {
   let o = section.option(form.Value, 'config_path', _('Config File Path'));
   o.value('/etc/sing-box/config.json', 'Flash (/etc/sing-box/config.json)');

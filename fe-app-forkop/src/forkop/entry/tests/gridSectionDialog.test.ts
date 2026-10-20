@@ -5,9 +5,6 @@ vi.mock('../../cbi/grid', () => ({ getRuleEditButtonText: () => 'Edit' }));
 
 import { configureGridSection } from '../gridSection';
 
-// A section dialog's nested dialogs write into uci as they close, before the
-// dialog itself is saved. What the grid adds to LuCI's dialog is that closing it
-// without saving takes those writes back, and closing it by saving keeps them.
 const calls: unknown[][] = [];
 let state: {
   values: Record<string, Record<string, Record<string, unknown>>>;
@@ -58,7 +55,6 @@ function grid(map: object = {}) {
   };
 }
 
-// The sections of the page's map, as LuCI's map data holds them.
 function mapData() {
   const sections: Record<string, Record<string, unknown>> = {};
   return {
@@ -89,7 +85,6 @@ function opening(result: Promise<void>) {
   prototype.renderMoreOptionsModal = () => result;
 }
 
-// What a tunnel dialog leaves behind when it is saved inside a section dialog.
 function nestedDialogWrites() {
   state.creates.forkop = { tun_1: { '.type': 'tunnel', section: 'sec' } };
   state.changes.forkop = { sec: { tunnels: ['tun_1'] } };
@@ -124,8 +119,6 @@ describe('a section dialog', () => {
     expect(map.addedSection).toBe('x');
   });
 
-  // LuCI reports a dialog that could not load what it shows and leaves the
-  // section it was opened for, empty, for the next save of the page to write.
   it('that fails to open takes the section Add created back', async () => {
     const failure = new Error('XHR request timed out');
     opening(Promise.reject(failure));

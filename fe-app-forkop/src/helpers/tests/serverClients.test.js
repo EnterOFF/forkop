@@ -47,8 +47,6 @@ function client(id, owner, values = {}) {
 }
 
 describe('server client names', () => {
-  // A client is a device, not a second label for the server, and the name travels
-  // through clients and URIs that only keep ASCII.
   it('names a client user- and five random characters', () => {
     const { clients } = load({ srv: { protocol: 'trojan' } });
     const names = Array.from({ length: 20 }, () => clients.nextClientName([]));
@@ -65,8 +63,6 @@ describe('server client names', () => {
     );
   });
 
-  // Every server used to start its own client-1, and Monitoring showed the same
-  // name for clients of different servers.
   it('skips a name any server on the router already has', () => {
     load({
       srv: { protocol: 'trojan' },
@@ -100,8 +96,6 @@ describe('server client names', () => {
     );
   });
 
-  // The stored sections still hold the client the list no longer shows, so the
-  // names have to come from the widget while the dialog is open.
   it('reads the names from the list as it stands', () => {
     const { clients } = load({
       srv: { protocol: 'trojan' },
@@ -167,8 +161,6 @@ describe('server client sections', () => {
     ]);
   });
 
-  // sing-box lists the users an inbound accepts and has no field to disable one, so
-  // every client of a server is an account that can connect.
   it('reports every client of a server', () => {
     const { clients } = load({
       srv: { protocol: 'trojan' },

@@ -43,9 +43,7 @@ function renderCheckSummary(items: IRenderCheckSectionProps['items']) {
       iconWrap.appendChild(icon());
     }
 
-    // The key and its value share one cell beside the icon, so they can wrap
-    // against each other: a key too long to leave the value room drops it onto
-    // the next line instead of squeezing it into what is left.
+    // Key and value share one cell, so a long key wraps the value onto the next line.
     return E(
       'div',
       {
@@ -72,10 +70,7 @@ function renderCheckSummary(items: IRenderCheckSectionProps['items']) {
   return E('div', { class: 'fkp_diagnostic_alert__summary' }, renderedItems);
 }
 
-// A check is its header - state, name, verdict - and the list of what it
-// looked at under it. The list folds away when there is one to fold: a check
-// that passed is one line until asked for its details, so the ones that did
-// not stand out.
+// A check that passed is one line until asked for its details.
 export function renderCheckSection(
   props: IRenderCheckSectionProps,
   { expanded = true, onToggle }: IRenderCheckSectionOptions = {},

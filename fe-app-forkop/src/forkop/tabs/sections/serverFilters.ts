@@ -16,9 +16,7 @@ import { groupTypeChoices, providerTypeChoices } from './providers';
 import { optionMapValue } from './subscriptions/model';
 import { validateRegex } from './validators';
 
-// How one server filter is set up. The same three fields - a mode, a list of
-// servers and a pattern - appear on a subscription, a URLTest and a fallback
-// group, and only the wording and where the choices come from differ.
+// A mode, a server list and a pattern, shared by subscriptions, URLTests and Fallback groups.
 interface ServerFilterOptions {
   modes?: Array<{ value: string; label: string }>;
   modeLabel?: string;
@@ -79,16 +77,12 @@ export function syncServerFilterFields(
   });
 }
 
-// The three server filter blocks - a Fallback server group, a URLTest group and a
-// subscription - ask the same questions. Only the lines that name what the servers
-// end up in differ, so the rest is written once and every block spreads it.
+// Shared by the three filter blocks; only the lines naming where the servers end up differ.
 function sharedServerFilterDescriptions() {
   return {
     includeRegexDescription: _(
       'Servers whose names match the regular expression',
     ),
-    // Both filter modes offer an Exclude by pattern row, and neither of them
-    // needs to name what the pattern removes the servers from.
     excludeRegexDescription: _(
       'Remove servers whose names match the regular expression',
     ),
@@ -118,12 +112,9 @@ export function subscriptionServerFilterDescriptions() {
   });
 }
 
-// "Only selected" keeps the servers the filter names, so a filter that names none
-// keeps none: the generated group carries an include pattern that matches nothing.
-// Without a provider the group is then dropped from the configuration, and with one
-// it stays and is permanently empty, so neither is what the mode was chosen for. A
-// Fallback level also counts the URLTest it includes, which is offered above the
-// filter and is a member like any server.
+// "Only selected" naming no server keeps none: the group's include pattern matches nothing, so it
+// is dropped without a provider and stays empty with one. A Fallback level counts the URLTest it
+// includes as a member.
 export function missingFilterSelectionMessage(
   modeOption: CBIOption,
   itemId: string,

@@ -10,7 +10,6 @@ export function render() {
     },
     [
       E('div', { class: 'fkp_dashboard-page__content' }, [
-        // Widgets section
         E('div', { class: 'fkp_dashboard-page__widgets-section' }, [
           E(
             'div',
@@ -54,7 +53,6 @@ export function render() {
           ),
         ]),
         E('div', { id: 'dashboard-sections-toolbar' }),
-        // All outbounds
         E(
           'div',
           { id: 'dashboard-sections-grid' },

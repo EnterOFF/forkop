@@ -20,15 +20,6 @@ import {
   validateSectionChildName,
 } from '../outboundNames';
 
-// The names a group or a dashboard filter may be given.
-//
-// They come from two places. The running core knows the servers a subscription
-// actually delivered, and answers over the Clash API; the dialog knows what the
-// user has typed into the section but not saved yet. Both have to be offered, and
-// neither may be invented: a name the list does not offer is a filter that
-// matches nothing, and a filter value rewritten behind the user's back is a
-// selection they did not make.
-
 const PROVIDER_TAG = 'Main/sub1';
 const PAYLOAD = {
   providers: {
@@ -36,7 +27,6 @@ const PAYLOAD = {
       proxies: [
         { name: `${PROVIDER_TAG}/Main US`, type: 'VLESS' },
         { name: `${PROVIDER_TAG}/Main DE`, type: 'AnyTLS' },
-        // A group the core built out of the provider is not a server.
         { name: `${PROVIDER_TAG}/Main Auto`, type: 'URLTest' },
       ],
     },
@@ -48,7 +38,6 @@ const PAYLOAD = {
   },
 };
 
-// What the Clash API request answers with once it got through.
 const clashAnswer = (value: unknown) => ({ success: true, data: value });
 
 function answerWith(next: Promise<unknown>) {
@@ -65,8 +54,6 @@ afterEach(() => {
   vi.useRealTimers();
   outboundNameSourceOptions.clear();
 });
-
-/* ------------------------------------------------- what the core answers */
 
 describe('nativeProviderOutboundNames', () => {
   it('takes the servers of the named providers, without their prefix', () => {
@@ -97,8 +84,6 @@ describe('loadNativeProviderOutboundNames', () => {
     expect(mocks.providers).toHaveBeenCalledTimes(1);
   });
 
-  // A stopped core is a request that goes unanswered, not a reason to offer the
-  // user a shorter list than the one they configured.
   it('fails open when the core is unavailable', async () => {
     answerWith(
       Promise.resolve({ success: false, error: 'sing-box is unavailable' }),
@@ -114,8 +99,6 @@ describe('loadNativeProviderOutboundNames', () => {
     expect(mocks.providers).not.toHaveBeenCalled();
   });
 });
-
-/* ------------------------------------------------------------- the cache */
 
 describe('the choices of a section', () => {
   function sectionWithSubscription(sectionId: string) {
@@ -139,8 +122,6 @@ describe('the choices of a section', () => {
     ]);
   });
 
-  // The core knows a subscription only after it has been fetched, so an empty
-  // answer must not be cached until the page is reloaded.
   it('are looked up again after an empty answer goes stale', async () => {
     sectionWithSubscription('empty_first');
     vi.useFakeTimers();
@@ -151,7 +132,6 @@ describe('the choices of a section', () => {
       loadSectionOutboundNameChoices('empty_first'),
     ).resolves.toEqual([]);
 
-    // Still fresh: the empty answer stands.
     answerWith(Promise.resolve(clashAnswer(PAYLOAD)));
     await expect(
       loadSectionOutboundNameChoices('empty_first'),
@@ -163,7 +143,6 @@ describe('the choices of a section', () => {
     ).resolves.toEqual(['Main DE', 'Main US']);
   });
 
-  // A subscription that updated since the last dialog delivers other servers.
   it('are looked up again for the next dialog', async () => {
     sectionWithSubscription('updated');
     await loadSectionOutboundNameChoices('updated');
@@ -188,10 +167,7 @@ describe('the choices of a section', () => {
   });
 });
 
-/* ---------------------------------------------------- what the dialog holds */
-
 describe('the draft names of a section', () => {
-  // Every source the section holds, in a state where each one contributes.
   function sectionWithDrafts(values: Record<string, string[]>) {
     installLuciStubs({
       main: { '.type': 'section', label: 'Main' },
@@ -223,7 +199,6 @@ describe('the draft names of a section', () => {
       formvalue: () => values.tunnels || [],
     });
 
-    // A staged interface: its dialog was filled in but the section not saved.
     childPendingSettingsStore(
       interfaceOption as unknown as CBIOption,
       'main',
@@ -233,8 +208,6 @@ describe('the draft names of a section', () => {
   }
 
   const SOURCES = {
-    // A link is a section the moment it is added, so a link in the list is
-    // one; text still in the add field is named after the link it holds.
     connection_link: ['saved_link', 'vless://example.test#Draft%20URL'],
     interfaces: ['saved_interface', 'new_interface'],
     outbound_jsons: [
@@ -272,8 +245,6 @@ describe('the draft names of a section', () => {
 });
 
 describe('a name in a section', () => {
-  // A link, an interface, a JSON outbound and a URLTest, as the section form
-  // lists them. Each runs as "Main/<name>".
   function section() {
     installLuciStubs({
       main: { '.type': 'section', label: 'Main' },
@@ -319,8 +290,6 @@ describe('a name in a section', () => {
     );
   });
 
-  // A list tells its own entries apart. An interface list does not, so an
-  // interface is told apart from the others by its own name.
   it('leaves two of one list to the list, and knows an interface by its own name', () => {
     section();
 
@@ -368,8 +337,6 @@ describe('the name offered to a new group or tunnel', () => {
     outboundNameSourceOptions.set('fallback_group', listed([]));
   }
 
-  // "URLTest #1" was removed and "URLTest #2" kept its number: a count of the
-  // groups offered "URLTest #2" again, and the dialog refused it as taken.
   it('is one past the highest number taken, not one past the count', () => {
     section({ second: 'URLTest #2' }, 'Germany');
 
@@ -396,16 +363,12 @@ describe('outboundNameChoiceItems', () => {
     ]);
   });
 
-  // A value the user typed is theirs to keep, but it is not something to offer
-  // anybody else as a choice.
   it('promotes no selected custom value into the offered choices', () => {
     expect(outboundNameChoiceItems([], null)).toEqual([]);
   });
 });
 
 describe('currentLiveDynamicListValues', () => {
-  // A DynamicList that was rebuilt leaves its old node behind in the document,
-  // and reading the stale one answers with values the user has already deleted.
   it('reads the tracked widget rather than the one the document still has', () => {
     const node = {
       isConnected: true,

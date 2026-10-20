@@ -1,13 +1,6 @@
-// The values of a list, from either shape LuCI hands them in.
-//
-// There are two of these because a scalar means two different things. A widget
-// hands back one entry the user typed, and that entry may hold spaces - a
-// display name does; so normalizeDynamicListItems keeps it whole. uci hands back
-// a bare string for a list option that holds a single value, and a value written
-// before the option was a list is space separated inside that one string; so
-// normalizeOptionValues splits it. Reading a widget with the uci one would cut a
-// name in half, and reading uci with the widget one would keep a whole legacy
-// line as a single entry.
+// A widget hands back one typed entry that may hold spaces (a display name), so
+// normalizeDynamicListItems keeps it whole; uci hands a single-value list as a bare string,
+// space-separated if written before the option was a list, so normalizeOptionValues splits it.
 
 export function normalizeDynamicListItems(value: unknown): string[] {
   if (!value) {

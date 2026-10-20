@@ -1,13 +1,10 @@
 import { getSessionStorage } from './browserStorage.service';
 
-// LuCI reloads the page a moment after it applied a change, so the alerts an
-// apply raised and the lines written while the next page loads would be lost
-// with the old page. The page leaving hands both to the next one: the alerts
-// still open, and the log cursor to go on reading from.
+// LuCI reloads the page right after an apply, so the leaving page hands the next one its open
+// alerts and its log cursor.
 const HANDOFF_STORAGE_KEY = 'forkop:log-notification-handoff:v1';
 
-// An apply reloads the page within seconds. A handoff older than this was left
-// by a page the user navigated away from, and its lines are history.
+// Older than this, the handoff came from a page the user left, and its lines are history.
 const HANDOFF_MAX_AGE_MS = 30000;
 
 export type LogNotificationHandoff = { cursor: number; lines: string[] };
@@ -33,7 +30,7 @@ export function dropLogNotificationHandoff(
   try {
     storage?.removeItem(HANDOFF_STORAGE_KEY);
   } catch {
-    // Nothing was stored.
+    // Storage is blocked, so nothing was stored.
   }
 }
 

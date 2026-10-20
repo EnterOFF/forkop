@@ -4,14 +4,12 @@ import { logger } from './logger.service';
 type Listener = (data: any) => void;
 type ErrorListener = (error: Event | string) => void;
 
-// A refused connection comes back immediately, and the Clash API is unreachable for
-// as long as the core is down, so retrying at a fixed second would go on forever at
-// full speed. The delay grows per failed attempt and resets once one connects.
+// A refused connection returns at once and the core may stay down, so the delay grows per failed
+// attempt and resets once one connects.
 const RECONNECT_DELAY_MS = 1000;
 const RECONNECT_DELAY_MAX_MS = 30000;
 
-// A socket is keyed by its whole URL, and the Clash API ones carry the
-// controller secret in the query, which stays out of the console.
+// Clash API socket URLs carry the controller secret, which stays out of the console.
 function shown(url: string) {
   return url.split('?')[0];
 }

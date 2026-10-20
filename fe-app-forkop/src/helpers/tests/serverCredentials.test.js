@@ -32,10 +32,6 @@ describe('generated server credentials', () => {
     ({ spec, uci } = load({ srv: { protocol: 'vless' } }));
   });
 
-  // A password is 18 random bytes in base64url, so it is always 24 characters and
-  // every one of them survives a URI userinfo field. Encoding the bytes as text
-  // first would expand everything above 0x7f into two UTF-8 bytes and produce a
-  // password of an unpredictable length.
   it('encodes a password as the base64url of its bytes', () => {
     for (let attempt = 0; attempt < 200; attempt += 1) {
       const password = spec.generatePassword();
@@ -62,9 +58,6 @@ describe('generated server credentials', () => {
 });
 
 describe('XTLS Vision availability', () => {
-  // Vision splices inside the TLS record the listener owns. A transport wraps that
-  // record, and a multiplexed client drops the flow before it authenticates, after
-  // which the listener refuses the account with a flow mismatch.
   const cases = [
     [{ protocol: 'vless', security: 'reality', transport: 'tcp' }, true],
     [{ protocol: 'vless', security: 'tls', transport: 'tcp' }, true],

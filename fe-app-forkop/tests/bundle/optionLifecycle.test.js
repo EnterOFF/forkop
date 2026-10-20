@@ -1,11 +1,3 @@
-// What a dialog writes, and what it takes away, driven through the shipped
-// bundle's own option set.
-//
-// Everything a child item holds is something the user cannot type again: an
-// account password every device is configured with, a tunnel private key, a
-// subscription URL. So the rule has two halves - a list the dialog hides was
-// not cleared by anybody and its items must stay; a list the user can see still
-// owns its items - and both are exercised here as a save, not as a grep.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { createHarness } from '../lib/luciForm.js';
@@ -44,8 +36,6 @@ function sectionGrid(providers = ALL_PROVIDERS) {
   view.configureSectionSection(grid, {
     loadActionProvidersAvailability: () => Promise.resolve(providers),
   });
-  // configureSectionSection installs the table's load(), which skips the
-  // modal-only options; the dialog under test loads all of them.
   delete grid.load;
   view.createSectionContent(grid);
   return grid;
@@ -59,9 +49,6 @@ function serverGrid() {
   return grid;
 }
 
-// Saving a LuCI modal parses one option at a time, so a rejection halfway leaves
-// what the earlier options wrote. Rejections are swallowed for that reason: what
-// matters is what reached the configuration, not that the save was refused.
 async function parseEveryOption(grid, sid) {
   grid.cfgsections = () => [sid];
   await grid.load();
@@ -85,8 +72,6 @@ function itemsOfType(type) {
     .map((item) => item['.name'])
     .sort();
 }
-
-/* ------------------------------------------------------------------ fixtures */
 
 const CONNECTION_SECTION = [
   'section',
@@ -250,11 +235,7 @@ const SERVER_ACCOUNT = [
   { server: 'srv', name: 'client-1', password: 'Ux-2LP-vrTXCc1wxJt5QUUvK' },
 ];
 
-/* ----------------------------------------------- a list nobody could see */
-
 describe('a list the dialog hides keeps its items', () => {
-  // The dropdown holds the new action while the stored one is still the old:
-  // the action option reads uci in cfgvalue(), so the widget is what decides.
   it.each(['bypass', 'block', 'dns', 'zapret'])(
     'changing a Connection section to %s keeps everything under it',
     async (action) => {
@@ -270,8 +251,6 @@ describe('a list the dialog hides keeps its items', () => {
       }
 
       expect(survivingChildren()).toEqual(EVERY_CHILD);
-      // The one source a section holds itself, next to the five it holds as
-      // child sections: hand-written outbound objects.
       expect(harness.uci.get('forkop', 'sec', 'outbound_jsons')).toBeTruthy();
     },
   );
@@ -296,11 +275,6 @@ describe('a list the dialog hides keeps its items', () => {
   });
 });
 
-/* ------------------------------------------- one text in two fields */
-
-// A section's domains and addresses are one text. A routing section edits it in
-// one field and a DNS section, which matches domains only, in another, so the
-// field that is hidden has to leave the text to the one that is shown.
 describe('the destinations of a section', () => {
   const FIELDS = [
     [
@@ -360,11 +334,6 @@ describe('the destinations of a section', () => {
   });
 });
 
-/* ------------------------------ a subscription is named when it is added */
-
-// A subscription becomes a provider named "<section>/<tag>" in the running
-// configuration, so it needs a tag. Nobody has to type one: a subscription is a
-// section of its own the moment its link is added, and it is named then.
 describe('a subscription is named when its link is added', () => {
   const LINKS = ['https://a.example/sub', 'https://b.example/sub'];
 
@@ -421,8 +390,6 @@ describe('a subscription is named when its link is added', () => {
     expect(storedTags().sort()).toEqual(['sub1', 'sub2']);
   });
 
-  // LuCI hands the text still in the add field to the save as one more entry,
-  // which the save names after the subscriptions in the list.
   it('names a link typed and saved without being added', async () => {
     const { grid, list, values, add } = await subscriptionList([
       CONNECTION_SECTION,
@@ -435,9 +402,6 @@ describe('a subscription is named when its link is added', () => {
     expect(storedTags()).toEqual(['sub1', 'sub2']);
   });
 
-  // sing-box refuses a configuration holding two providers under one name, so the
-  // whole section fails to start: the tag the dialog shows is the one its
-  // siblings avoid.
   it('does not name two subscriptions the same', async () => {
     const { grid, list, add } = await subscriptionList([CONNECTION_SECTION]);
     add(LINKS[0]);
@@ -454,8 +418,6 @@ describe('a subscription is named when its link is added', () => {
     expect(storedTags().sort()).toEqual(['sub1', 'sub2']);
   });
 });
-
-/* --------------------------------- a list the user can see owns its items */
 
 describe('a list the user can see owns its items', () => {
   it('clearing the tunnel list removes the tunnel and its peer, and nothing else', async () => {
@@ -499,9 +461,6 @@ describe('a list the user can see owns its items', () => {
     expect(itemsOfType('tunnel')).toEqual(['tun1']);
   });
 
-  // A tunnel's dialog and a fallback group's write their item when they save, so
-  // one added and taken out again leaves the list holding what it loaded, and
-  // LuCI skips the write of a list that did not change.
   it('a tunnel or a fallback added and taken out again is gone after the save', async () => {
     addSections(connectionChildren());
     const grid = sectionGrid();
@@ -531,11 +490,6 @@ describe('a list the user can see owns its items', () => {
     expect(itemsOfType('fallback_group')).toEqual(['grp1']);
   });
 
-  // uci.js records every set of a stored section as a change, the value it
-  // already holds included, and the page then reports changes nobody made. The
-  // lists above are written on every save, so their write must leave alone an
-  // item that already holds what it would set. LuCI's own flag on the section
-  // itself writes on every save as well, and is no item.
   it('a save that changes nothing sets nothing on an item', async () => {
     addSections(connectionChildren());
     const grid = sectionGrid();
@@ -557,8 +511,6 @@ describe('a list the user can see owns its items', () => {
     expect(sets).toEqual([]);
   });
 });
-
-/* ------------------------------- removing an owner takes its children */
 
 describe('removing an owner takes its children', () => {
   it('deleting a server takes its accounts', async () => {
@@ -588,13 +540,6 @@ describe('removing an owner takes its children', () => {
   });
 });
 
-/* -------------------------------------- a value the dropdown cannot show */
-
-// A <select> hands back one of its own entries and nothing else, so a stored
-// name the list has no entry for is replaced by whichever entry comes first.
-// Every option below names another section, and every one of them can outlive
-// its target: the target can be deleted, switched off, or belong to a DPI
-// provider that is not installed.
 const LIVE_SECTION = [
   'section',
   'live',
@@ -859,8 +804,6 @@ describe.each([
   });
 });
 
-// A DNS detour may point at a DPI section, and the list of DPI sections shrinks
-// when the provider is gone.
 it('a DNS detour survives a target whose provider is not installed', async () => {
   addSections([
     [
@@ -894,10 +837,6 @@ it('a DNS detour survives a target whose provider is not installed', async () =>
   expect(harness.uci.get('forkop', 'sec', 'dns_detour_section')).toBe('target');
 });
 
-// The provider a DPI section needs can be missing - uninstalled, or an answer
-// that did not arrive - and the action list is built from what is installed. The
-// section still works: the configuration check leaves a rule whose provider is
-// absent alone. Its action must survive a save that never showed the choice.
 describe.each([
   ['zapret', 'nfqws_opt', '--dpi-desync=fake'],
   ['zapret2', 'nfqws2_opt', '--dpi-desync=fake'],
@@ -932,13 +871,6 @@ describe.each([
   },
 );
 
-/* ---------------------------------------- what a creation default writes */
-
-// A default written when an item is added has to be an option something reads.
-// user_agent was moved into the ordinary headers and a migration deletes it, and
-// show_subscription_name went when the tag started being shown always, so writing
-// either again gives every new subscription a dead option that nothing will ever
-// clear.
 it('adding a subscription writes no option nothing reads', async () => {
   addSections([CONNECTION_SECTION]);
   const grid = sectionGrid();
@@ -960,10 +892,6 @@ it('adding a subscription writes no option nothing reads', async () => {
   expect(added.show_subscription_name).toBeUndefined();
 });
 
-/* ------------------------------------------------------ a refused save says why */
-
-// LuCI keeps a dialog open when its save is refused and says nothing, so the
-// reason has to reach the user some other way.
 describe('a nested dialog that refuses to save', () => {
   it('says why', async () => {
     addSections([
@@ -995,10 +923,6 @@ describe('a nested dialog that refuses to save', () => {
   });
 });
 
-/* ------------------------------------------- a check reads the dialog it is in */
-
-// A check that depends on a switch has to see the switch as the dialog shows it:
-// the one turned on a moment ago, not the one stored when the dialog opened.
 describe('a check behind a switch turned on in the same dialog', () => {
   function dialogOption(dialog, name) {
     return dialog.map.children[0].children.find(

@@ -1,8 +1,6 @@
 import { message } from './messages';
 
-// Tailscale reduces the host name to a DNS label, so anything it would rewrite is
-// refused here instead of quietly registering a differently named machine. Both
-// the Tailscale server and a Tailscale tunnel register a device under this name.
+// Tailscale reduces the host name to a DNS label, so anything it would rewrite is refused.
 export function validateTailscaleHostname(value: unknown) {
   const hostname = `${value || ''}`.trim();
 

@@ -2,14 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { configureDnsQueryMode } from '../dnsServers';
 
-// Parallel or sequential is a question only worth asking once there is a second
-// server to fall back to, and it has to appear the moment the user types that
-// second one - not after a save. LuCI's depends() can only compare an option to a
-// literal value, and "holds more than one entry" is not a value, so the option
-// depends on a sentinel and answers the real question in checkDepends. This
-// drives checkDepends the way LuCI does: it re-checks the whole map whenever any
-// widget changes, and a DynamicList raises that on every edit.
-
 type Values = string[] | string | null;
 
 function harness(
@@ -88,8 +80,6 @@ describe.each([
   });
 });
 
-// Without retain LuCI removes the option every time the mode is hidden, which
-// would drop a stored choice the moment a second server is taken away.
 it('keeps its stored value while it is hidden', () => {
   const modeOption = {
     map: { lookupOption: () => null },

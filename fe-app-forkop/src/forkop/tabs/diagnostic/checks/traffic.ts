@@ -3,9 +3,7 @@ import type { IDiagnosticsChecksItem } from '../../../services';
 import type { Forkop } from '../../../types';
 import { CheckOutcome, finding, outcome, unanswered } from './present';
 
-// What this browser's own request to the check address came back with: the
-// endpoint says whether the connection reached it through Forkop, or nothing
-// came back at all.
+// Whether this browser's request reached the check address through Forkop, or null for no answer.
 export type BrowserCheck = { fakeip: boolean } | null;
 
 function routerItem(router: Forkop.TrafficCheckResult['router']) {
@@ -67,8 +65,7 @@ export function presentTraffic(
   ];
 }
 
-// The router's side and this browser's go out at once: neither waits on the
-// other, and each can take seconds when something is wrong.
+// The router's side and the browser's run at once; each can take seconds when something is wrong.
 export async function runTrafficCheck(): Promise<CheckOutcome> {
   const [response, browser] = await Promise.all([
     ForkopShellMethods.checkTraffic(),

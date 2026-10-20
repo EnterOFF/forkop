@@ -2,15 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import { nextNumberedName } from '../nextNumberedName';
 
-// A new entry is offered "<prefix> #N" so the user does not have to invent a
-// name to get one, and the dialog has to accept the name it offers.
-
 describe('nextNumberedName', () => {
   it('starts at one among entries the user named', () => {
     expect(nextNumberedName('URLTest', ['test', 'Fastest'])).toBe('URLTest #1');
   });
 
-  // With 1, 2, 3, 5 and 6 left, a count of the entries offered "#6" again.
   it('is one past the highest number taken, not one past the count', () => {
     expect(
       nextNumberedName('Server', [

@@ -1,7 +1,6 @@
 import { Forkop } from '../../types';
 
-// What a section's own latency test measures: the selector sweeping its
-// members, or the one outbound of a section that has no choice to make.
+// The selector sweeping its members, or the one outbound of a section without a choice.
 export function sectionLatencyTarget(
   section: Forkop.OutboundGroup,
 ): { type: 'group' | 'proxy'; tag: string } | undefined {

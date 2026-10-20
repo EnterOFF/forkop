@@ -130,21 +130,11 @@ function injectDetailsStyles() {
       'style',
       { id: DETAILS_STYLE_ID },
       [
-        // The summary is the same dl/dt/dd the URLTest and Fallback details build, not
-        // a grid of spans dressed to look like one. Half of how those labels read comes
-        // from the theme through the tag - dl dt is bold at line-height 18px - so
-        // copying their class rules onto other elements could never match them.
-        // The width comes from the same place too: all three are opened without
-        // cbi-modal, which is what the theme widens to a settings form.
+        // The same dl/dt/dd as the URLTest and Fallback details: the theme styles the tags, not classes.
+        // All three open without cbi-modal, which the theme widens to a settings form.
         '.fkp-details{box-sizing:border-box;width:min(760px,calc(100vw - 56px));max-width:100%;padding-top:10px}',
-        // A profile is a short file name and three buttons, so its dialog is
-        // narrower than the 760px a link needs, though not as narrow as they are.
         '#modal_overlay > .modal.fkp-details-modal--profiles{width:fit-content}',
         '.fkp-details--profiles{width:min(480px,calc(100vw - 56px))}',
-        // The clients one under another, each its name over what it is given; the
-        // name and its icon set one client off from the next. A column of names
-        // beside the links put the Close button under the last name, where it
-        // read as one more of them.
         '.fkp-details__client{display:grid;gap:6px;min-inline-size:0;padding-block:8px}',
         '.fkp-details__client:first-child{padding-top:0}',
         '.fkp-details__client:last-child{padding-bottom:0}',
@@ -153,27 +143,17 @@ function injectDetailsStyles() {
         '.fkp-details__name > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.fkp-details__links{display:grid;gap:6px;min-inline-size:0}',
         '.fkp-details__link{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-flow:column;grid-auto-columns:auto;gap:4px;align-items:stretch;min-inline-size:0}',
-        // A profile is a file, not a value to read or select: its name behind a file
-        // icon, in a tile the size and outline of the field a link has, filled so
-        // it does not read as one to type in.
         '.fkp-details__file{display:flex;align-items:center;gap:6px;box-sizing:border-box;min-inline-size:0;min-block-size:30px;padding:0 8px;border:1px solid var(--border-color-high,rgba(128,128,128,.4));border-radius:3px;background:var(--background-color-low,rgba(128,128,128,.08))}',
         '.fkp-details__file > svg{flex:none;color:var(--text-color-medium,#888)}',
         '.fkp-details__file > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}',
         '.fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}',
         '.fkp-details__empty{color:var(--text-color-medium,#666)}',
-        // The theme lays a modal button row out as space-between and gives the first
-        // button a margin-right of auto, so where a lone button lands is the theme's
-        // choice rather than this dialog's. These two rules make it the dialog's: at
-        // the left of the row, the same place as in the URLTest and Fallback details.
-        // A bare class loses to both of the theme's selectors, so the override
-        // extends the same ones.
+        // The theme lays a modal button row out space-between with an auto margin on the first button;
+        // these selectors match its specificity to put a lone button on the left.
         '.modal > .button-row.fkp-details-actions{justify-content:flex-start;gap:0.5em}',
         '.modal > .button-row.fkp-details-actions > button:first-of-type{margin-right:0}',
-        // The dialog is as wide as the code, and everything under the code fits that
-        // width: 16rem, or three pixels a module for a code as large as a profile's.
-        // The white edge is the code's own quiet zone, the four modules the standard
-        // asks for and nothing more, with the 4px corners of every block on the page.
+        // The dialog is as wide as the code, with the standard four-module quiet zone.
         '#modal_overlay > .modal.fkp-qr-modal{width:fit-content}',
         '.fkp-qr{display:grid;justify-items:center;gap:12px;inline-size:min(max(16rem,var(--fkp-qr-size,0px)),calc(100vw - 64px));padding-top:8px}',
         '.fkp-qr__code{display:block;box-sizing:border-box;inline-size:100%;block-size:auto;aspect-ratio:1;background:#fff;border-radius:4px}',
@@ -186,8 +166,6 @@ function injectDetailsStyles() {
   );
 }
 
-// A copy control stays a copy control: the toast says what happened, and swapping
-// the icon for a tick is not something the rest of the app does.
 function renderCopyButton(value: string, label = _('Copy')) {
   const button = E(
     'button',
@@ -231,9 +209,6 @@ interface LinkCaption {
   details: string;
 }
 
-// The code is shown when it is asked for, at a size a phone can read, with what it
-// belongs to under it and what it carries in a row that copies it: the link, or
-// the profile with its download.
 export function showQrModal(caption: LinkCaption, code: string, row?: Node) {
   injectDetailsStyles();
 
@@ -280,9 +255,7 @@ function renderQrButton(caption: LinkCaption, code: string, row?: () => Node) {
   );
 }
 
-// What a code belongs to: the account when there is one, then the server it is on
-// and the scheme when the listener answers more than one. A listener that has no
-// account is named by the server, and its scheme is what tells its links apart.
+// The account when there is one, then the server, and the scheme when the listener answers several.
 export function linkCaption(
   sectionId: string,
   client: ServerClient,
@@ -314,10 +287,8 @@ function renderLinkRow(value: string, qrCaption?: LinkCaption) {
   ]);
 }
 
-// The profile of a client: its file, saved by one button and copied as text by
-// the other. The WireGuard and AmneziaWG apps also scan one
-// from a code; an OpenVPN profile fits none a phone can read, and no OpenVPN
-// client imports one from a code anyway.
+// WireGuard and AmneziaWG apps also scan a profile from a code; an OpenVPN profile fits no code a
+// phone reads, and no OpenVPN client imports one that way.
 function renderProfileRow(
   profile: string,
   name: string,
@@ -355,9 +326,7 @@ function renderProfileRow(
   ]);
 }
 
-// One client: its name, and what it is handed. A listener that asks for nothing
-// has no account to name, and repeating the name of the server there would say
-// nothing, so it has none.
+// A listener that asks for nothing has no account to name.
 function renderClientRow(name: string, body: Node[]) {
   return E('div', { class: 'fkp-details__client' }, [
     ...(name
@@ -481,8 +450,6 @@ function onlyLink(
     : null;
 }
 
-// The dialog hands out what a client is given and nothing else: an account, its
-// link, and the buttons to copy or scan it.
 export function renderDetailsContent(
   sectionId: string,
   clients: ServerClient[],
@@ -502,8 +469,6 @@ export function renderDetailsContent(
       ),
     );
   } else {
-    // No heading over the accounts: each one is announced by its own name, and a
-    // listener without accounts has nothing to announce.
     children.push(
       E(
         'div',
@@ -530,8 +495,7 @@ export function showServerDetailsModal(
 ) {
   injectDetailsStyles();
 
-  // A profile holds what the router issued, so the dialog waits for it rather
-  // than open on a list that says every certificate is missing.
+  // A profile holds what the router issued, so the dialog waits for it.
   if (usesProfile(getProtocol(sectionId))) {
     return loadIssuedMaterial().then((issued) => {
       ui.showModal(
@@ -545,12 +509,10 @@ export function showServerDetailsModal(
     });
   }
 
-  // Everything but the certificate fingerprint is already known, so the dialog
-  // opens filled in and the Hysteria2 links gain their pin a moment later.
+  // Opens filled in; the Hysteria2 links gain their pin when the fingerprint arrives.
   const initialContext = { tlsCertificateSha256: '' };
 
-  // A server that hands out one link has nothing to choose from, so the code for
-  // it is what opens.
+  // A server with one link opens straight to its code.
   const only = onlyLink(sectionId, clients, initialContext);
   if (only) {
     const code = showQrModal(only.caption, only.link);

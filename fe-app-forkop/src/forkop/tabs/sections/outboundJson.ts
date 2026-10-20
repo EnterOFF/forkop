@@ -36,9 +36,7 @@ export function outboundJsonListItemLabel(value: unknown) {
   );
 }
 
-// Shown greyed out in the JSON outbound editor: the smallest object
-// validateOutboundJson accepts for a server type, whose tag becomes the name
-// the outbound is listed and routed under.
+// The smallest object validateOutboundJson accepts for a server type; the tag becomes its name.
 export const JSON_OUTBOUND_PLACEHOLDER = [
   '{',
   '  "type": "socks",',

@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { validateSingBoxFilePath } from '../validateSingBoxFilePath';
 
-// The first four entries are the choices the two Settings fields offer, so a
-// validator that grows stricter than its own suggestions fails here instead of
-// in front of a user.
 const validPaths = [
   ['Config on flash', '/etc/sing-box/config.json', 'config.json'],
   ['Config in RAM', '/tmp/sing-box/config.json', 'config.json'],

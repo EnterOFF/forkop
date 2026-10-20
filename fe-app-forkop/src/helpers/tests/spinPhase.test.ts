@@ -17,8 +17,6 @@ function withTimelineTime<T>(currentTime: unknown, run: () => T): T {
   }
 }
 
-// The whole point of the delay: two spinners built at different moments have to
-// be at the same angle, or the one that replaces the other jumps.
 describe('the phase a spinner is built at', () => {
   it.each([
     [0, 1],
@@ -33,7 +31,6 @@ describe('the phase a spinner is built at', () => {
     expect((atLater - atEarlier) % SPIN_PERIOD_MS).toBe(0);
   });
 
-  // A positive delay would hold the spinner still until it elapsed.
   it('never delays the start of the turn', () => {
     for (const now of [0, 1, 250, 999, 1000, 12345.6]) {
       expect(spinPhaseDelayMs(now)).toBeLessThanOrEqual(0);
@@ -49,9 +46,6 @@ describe('the declaration put on a spinner', () => {
     );
   });
 
-  // `document.timeline.currentTime` is nullable, and older engines hand back a
-  // CSSNumericValue rather than a number. Both share the document's time origin
-  // with performance.now(), so the fallback keeps the same phase.
   it.each([[null], [undefined], [{ value: 2750, unit: 'ms' }]])(
     'falls back to performance.now() when the clock reads %s',
     (currentTime) => {

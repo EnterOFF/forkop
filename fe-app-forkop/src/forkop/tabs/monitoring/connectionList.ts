@@ -15,12 +15,9 @@ export interface ConnectionListItem {
   closing: boolean;
 }
 
-// The list is built from divs with the table roles rather than from <table>.
-// A theme may claim any <table> with a header row as its own data table:
-// footstrap does, and lays it out as its own cards with !important declarations
-// that no rule outside its cascade layers can override, on top of the cards
-// this page draws itself.
-// A list of connections that can no longer be closed has no column for it.
+// Divs with table roles rather than a <table>: footstrap claims any <table> with a header row and
+// restyles it with !important rules nothing outside its cascade layers can override. Closed
+// connections get no close column.
 function renderList(rows: HTMLElement[], closable: boolean) {
   return E(
     'div',
@@ -92,8 +89,7 @@ function renderValue(text: string, className = '') {
   );
 }
 
-// The muted colour is what sets the name apart from what it belongs to. A
-// tooltip has no colour, so it keeps the separator the device filter shows.
+// The muted colour sets the name apart; a tooltip has none, so it keeps the filter's separator.
 function renderSource(name: string, detail: string) {
   const shown = [name, detail].filter(Boolean).join(' ') || '-';
   const muted = (text: string) =>

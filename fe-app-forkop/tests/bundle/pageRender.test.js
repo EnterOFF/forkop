@@ -1,20 +1,7 @@
-// Renders the whole Forkop page out of the shipped bundle and asserts that it
-// declares every tab and writes nothing.
-//
-// Every other check builds one tab at a time. The page is one entry -
-// view/forkop/forkop.js hands ForkopView to view.extend() - so a page that
-// throws on the way up takes every tab with it, and nothing else exercises that
-// path.
-//
-// A plain page load must not write: LuCI keeps whatever load() returned as an
-// option's stored value, so a value the page invents while rendering compares
-// unequal on the next save and reaches the config without anyone asking.
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { createHarness } from '../lib/luciForm.js';
 
-// One section per action, a server with an account, a tunnel with a peer, and
-// the settings section: enough that every tab has something to render.
 const SNAPSHOT = {
   settings: {
     '.type': 'settings',
@@ -137,8 +124,6 @@ const SNAPSHOT = {
   },
 };
 
-// Every tab the page is made of, by the section type it hangs off. A tab that
-// stops being declared disappears from the interface without any error.
 const EXPECTED_TABS = [
   'section',
   'server',

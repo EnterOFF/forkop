@@ -1,11 +1,6 @@
 // The shapes the Servers tab passes around.
-//
-// A server is one sing-box inbound; the accounts that may use it are its
-// clients, stored as child sections. Both travel through the dialog, the share
-// links and the connection details as plain objects, and this is what they are.
 
 declare global {
-  // One account of a server, read out of its uci section.
   type ServerClient = {
     id: string;
     name: string;
@@ -14,22 +9,17 @@ declare global {
     flow: string;
   };
 
-  // What a share link needs beyond the server's own configuration: the
-  // fingerprint of a self-signed certificate, so the client can pin it.
   interface ShareLinkContext {
     tlsCertificateSha256?: string;
     // What the router issued, which a profile takes its certificates and keys from.
     issued?: Record<string, Record<string, unknown>>;
   }
 
-  // One share link, as the connection dialog lists it.
   interface ShareLink {
     scheme: string;
     url: string;
   }
 
-  // One entry of the protocol table: what the inbound is called, what it can
-  // carry, and which fields the dialog shows for it.
   interface ServerProtocol {
     id: string;
     label: string;

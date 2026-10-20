@@ -120,16 +120,13 @@ export function pendingChildSettings(
   const itemValue = `${value || ''}`.trim();
   const store = childPendingSettingsStore(option, section_id);
 
-  // What the list has already decided for the entry wins; the defaults fill in
-  // the rest, because a list may stage part of an entry - a subscription is
-  // named the moment its link is added - before any dialog is opened.
+  // What the list already staged wins; the defaults fill in the rest.
   store[itemValue] = Object.assign({}, defaults || {}, store[itemValue]);
 
   return store[itemValue];
 }
 
-// The drafts a list shares with another one live as long as the page does, so a
-// dialog closing takes the drafts it staged with it.
+// Shared drafts live as long as the page, so a closing dialog clears what it staged.
 export function clearSharedChildPendingSettings() {
   sharedChildPendingSettings.clear();
 }

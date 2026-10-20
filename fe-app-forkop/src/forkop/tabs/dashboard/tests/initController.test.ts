@@ -29,9 +29,6 @@ vi.mock('../coreUsage', async (importOriginal) => ({
   readCoreUsage: mocks.readCoreUsage,
 }));
 
-// The dashboard's live widgets come from two Clash API sockets. They run while
-// the tab is in view and close once it has been out of view for ten seconds,
-// whether another tab of the page took its place or the page itself was hidden.
 let visibilityState = 'visible';
 const visibilityListeners = new Set<() => void>();
 
@@ -82,8 +79,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// The controller and the store come out of one module graph, so the test moves
-// between tabs the way the tab service does.
 async function openDashboard() {
   const { store } = await import('../../../services/store.service');
   store.set({ tabService: { current: 'dashboard', all: [] } });
@@ -176,9 +171,6 @@ function reading(started: number, clockMs: number, cpuTicks: number) {
 }
 
 describe('the core widgets', () => {
-  // The router measures the age; the page places the start on its own clock
-  // once per core process, so the age it counts on does not step back and
-  // forth by the time each answer spent on the way.
   it('count the age from one start per core and the load between two readings of it', async () => {
     mocks.readCoreUsage
       .mockResolvedValueOnce(reading(100000, 1_060_000, 500))

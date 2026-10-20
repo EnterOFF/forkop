@@ -10,10 +10,6 @@ vi.mock('../../../../helpers/executeShellCommand', () => ({
 
 import { ForkopShellMethods } from '..';
 
-// The router-side transport lets curl run for a minute. LuCI aborts every RPC
-// after twenty seconds unless something raises that ceiling, and asking for no
-// timeout at all left the default in place: a rule-set refresh the router was
-// still running came back as a failure.
 describe('ForkopShellMethods.clashApi', () => {
   beforeEach(() => {
     mocks.executeShellCommand.mockReset();

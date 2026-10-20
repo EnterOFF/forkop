@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { configureTextareaOption } from '../annotatedTextarea';
 
-// A textarea without layout: the height it shows is set by the test, the way
-// the browser gives it from its rows, or from a drag of its handle.
 function textarea() {
   const attributes = new Map<string, string>();
   const listeners = new Map<string, () => void>();

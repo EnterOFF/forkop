@@ -13,9 +13,8 @@ export const styles = `
     max-width: 100% !important;
 }
 
-/* What makes the page fill the column: a DummyValue's value reaches the theme
-   inside an <output>, and the theme lays a .cbi-value out as a flex row, where
-   the page would be as wide as its own content. */
+/* A DummyValue's value sits in an <output> inside the theme's flex row; this makes the page
+fill the column. */
 #cbi-${FORKOP_CBI_PREFIX}-logs-_mount_node {
     display: block !important;
     margin: 16px 0 22px;
@@ -26,8 +25,7 @@ export const styles = `
     display: none;
 }
 
-/* The toolbar follows the width the page is given, not the window, and the
-   search field keeps the theme's own height, the one its buttons have. */
+/* The search field keeps the theme's height, the one its buttons have. */
 .fkp_logs-page {
     container-type: inline-size;
 }

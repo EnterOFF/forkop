@@ -30,9 +30,7 @@ let systemPortsPromise: Promise<SystemPort[]> | null = null;
 
 let systemPortsCache: SystemPort[] | null = null;
 
-// Ports another Forkop server, another Forkop inbound or a router service already
-// listens on, keyed by transport and port. sing-box refuses to start on a taken
-// port, and the runtime check in Diagnostics only reports it after the fact.
+// sing-box refuses to start on a taken port, and the runtime check reports it only after the fact.
 export function occupiedPorts(currentSectionId: string) {
   const owners = new Map<string, string>();
 
@@ -75,8 +73,7 @@ export function occupiedPorts(currentSectionId: string) {
   return owners;
 }
 
-// Ports taken by services outside Forkop's own configuration, read once per page so
-// the port check can name uhttpd or dropbear instead of only failing on apply.
+// Read once per page, so the port check can name uhttpd or dropbear.
 function loadSystemPorts() {
   if (systemPortsCache != null) {
     return Promise.resolve(systemPortsCache);
@@ -141,8 +138,7 @@ function getInterfaceIpAddresses(networkInterface: unknown) {
     .filter((address) => isIpv4(address) || isIpv6(address));
 }
 
-// The address clients should dial: a routable address when the router has one, the
-// LAN address otherwise, because that is still the useful answer behind NAT.
+// A routable address when the router has one, else the LAN address, still useful behind NAT.
 export function chooseDefaultPublicHost(networkInterfaces: unknown) {
   const upInterfaces = (
     Array.isArray(networkInterfaces) ? networkInterfaces : []

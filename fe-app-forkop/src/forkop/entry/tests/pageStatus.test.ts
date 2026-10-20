@@ -55,8 +55,6 @@ describe('the service state in the heading', () => {
     expect(node.children[1]).toBe('applying...');
   });
 
-  // An empty store reads as a stopped service; saying so before the state has
-  // been read, or when it could not be, would be a guess.
   it('says nothing about a state the page has not read', () => {
     for (const unknown of [state(true, false, 0), state(false, true, 0)]) {
       const node = heading();

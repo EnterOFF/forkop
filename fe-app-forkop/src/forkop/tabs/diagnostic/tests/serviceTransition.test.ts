@@ -78,8 +78,6 @@ describe('service control presentation', () => {
     expect(state.restart.visible).toBe(false);
   });
 
-  // While an operation is running, its own button is the whole row: nothing
-  // else appears or moves under the cursor while the user waits.
   it.each([
     ['start' as const, false],
     ['restart' as const, true],
@@ -93,13 +91,10 @@ describe('service control presentation', () => {
     expect(visible).toEqual([operation === 'start' ? 'start' : 'restart']);
   });
 
-  // `running` flips halfway through a start, and nothing may key off that.
   it('does not reveal stop when running turns true mid-start', () => {
     expect(controls(true, 'start').stop.visible).toBe(false);
   });
 
-  // The runtime refuses any action while another one runs, so a Stop offered
-  // beside a long operation could only ever fail.
   it.each([
     ['start' as const, false],
     ['restart' as const, true],
@@ -150,10 +145,6 @@ describe('service control presentation', () => {
   });
 });
 
-// The store starts empty, which reads as running=0 with no operation - exactly
-// what a stopped service reads as. LuCI reloads the view after Save & Apply, so
-// the row was offering Start for a service that was mid-apply until the first
-// state arrived.
 describe('a state that has not arrived yet', () => {
   it('offers nothing at all', () => {
     const state = getServiceControlsPresentation({

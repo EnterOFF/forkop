@@ -1,21 +1,7 @@
-// The shipped LuCI bundle, evaluated outside a browser.
-//
-// luci-app-forkop/htdocs/.../view/forkop/main.js is what the frontend build
-// produces, and it is a LuCI module like any other: a "require" prologue naming
-// its dependencies and a `return baseclass.extend({...})` at the end. A test
-// that wants to exercise the page as the router loads it takes it from here; a
-// test about one module imports that module from src instead.
-//
-// What the bundle needs on top of LuCI is a browser: the tab service starts
-// watching the DOM while the module is being evaluated. The stubs below exist to
-// get past that, not to simulate anything; a caller that cares about one of them
-// passes its own.
+// The shipped LuCI bundle, evaluated outside a browser with just enough stubs to finish loading:
 //
 //     import { loadBundle } from '../lib/bundle.js';
-//     const main = loadBundle();
-//     main.createSectionContent(section);
-//
-//     loadBundle({ uci: myUciModel })   // read through a model of mine
+//     const main = loadBundle({ uci: myUciModel });
 import { webcrypto } from 'crypto';
 import { createLoader } from './luciModule.js';
 import { VIEW_DIR } from './paths.js';
@@ -37,8 +23,6 @@ function fakeNode() {
   };
 }
 
-// A LuCI class base: something with its own extend(), which the CBI widgets in
-// the bundle subclass while the module is being evaluated. Nothing renders here.
 function extendableClass(name) {
   function Widget() {}
   Widget.widget = name;
@@ -56,8 +40,6 @@ function extendableClass(name) {
 const classesNamed = (names) =>
   Object.fromEntries(names.map((name) => [name, extendableClass(name)]));
 
-// Enough of LuCI and of a browser for the bundle to finish evaluating. Every one
-// of these answers harmlessly: a test that depends on an answer overrides it.
 function defaultGlobals() {
   const noop = () => {};
   return {
@@ -135,7 +117,6 @@ function defaultGlobals() {
       setTimeout,
       clearTimeout,
     },
-    // The tab service observes the DOM as the bundle is evaluated.
     MutationObserver: class {
       observe() {}
       disconnect() {}

@@ -11,9 +11,7 @@ const TICKS_PER_SECOND = 100;
 
 export type CoreUsageReading = Extract<Forkop.CoreUsage, { running: true }>;
 
-// The share of the router's whole processor the core took between two
-// readings, in percent. Readings of two different core processes, or not apart
-// in time, say nothing about the load.
+// Readings of two different core processes, or not apart in time, say nothing about the load.
 export function cpuShare(
   previous: CoreUsageReading | null,
   next: CoreUsageReading,
@@ -31,7 +29,6 @@ export function cpuShare(
   return (used / seconds / Math.max(1, next.cpus)) * 100;
 }
 
-// How long the core had run when it was read, in seconds.
 export function coreAgeSeconds(reading: CoreUsageReading) {
   return Math.max(
     0,

@@ -87,9 +87,8 @@ export function makeDeviceOptionsExclusive(
   };
 }
 
-// Shown greyed out in the condition editors: one value per line, every domain
-// prefix the field understands, an address and both kinds of subnet. Each is run
-// through the analyzer of its field by luciPlaceholders.test.js.
+// One value per line: every domain prefix the field understands, an address and both subnet
+// kinds; luciPlaceholders.test.js runs each through its field's analyzer.
 export const DOMAIN_CONDITION_PLACEHOLDER = [
   'example.com',
   'full:api.example.com',
@@ -108,10 +107,8 @@ export const DESTINATION_CONDITION_PLACEHOLDER = [
   IP_CONDITION_PLACEHOLDER,
 ].join('\n');
 
-// Digits and dots, or hex digits around a colon. No domain condition looks like
-// this - a domain ends in a label that is not a number, and a prefix is spelled
-// with letters that are not hex digits - so such an entry is read as an address,
-// and a mistyped one is told what an address needs.
+// No domain condition looks like this, so such an entry is read as an address and a mistyped one
+// is told what an address needs.
 const ADDRESS_SHAPE = /^[\d.]+(?:\/.*)?$|^[\da-f]*:[\da-f:.]*(?:\/.*)?$/i;
 
 function validateDomainCondition(item: string): Check {
@@ -180,7 +177,6 @@ export function validatePortCondition(_section_id: string, value: unknown) {
   return start > end ? message.rangeReversed() : true;
 }
 
-// One list field of the Conditions tab: the uci option it writes and its wording.
 interface ConditionFieldConfig {
   key: string;
   label: string;
@@ -189,9 +185,8 @@ interface ConditionFieldConfig {
   dynamicValidate?: OptionValidator;
 }
 
-// A condition list is stored as a uci list. An older layout wrote it into a
-// single text option instead, so that one is read when the list is empty and
-// unset on every save, which is what finally clears it.
+// An older layout stored the list in a single text option, which is read when the list is empty
+// and unset on every save.
 function configureConditionListStorage(o: CBIOption, key: string) {
   o.load = function (section_id: string) {
     const values = getConfigListValues(section_id, key);
@@ -271,9 +266,8 @@ export function addLocalDeviceSubnetDynamicField(
   return o;
 }
 
-// The domains and addresses a section matches are one text in the destinations
-// option. A DNS section matches domains only and is shown a field of its own that
-// says so, so two fields edit the same text, and the hidden one leaves it alone.
+// A DNS section matches domains only and gets a field of its own over the same destinations text;
+// the hidden field leaves it alone.
 export function addDestinationField(
   section: CBISection,
   name: string,

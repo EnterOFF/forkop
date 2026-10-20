@@ -15,8 +15,7 @@ const CLOCK_TOLERANCE_S = 30;
 // Below this share of free memory the kernel is about to start killing.
 const LOW_MEMORY_SHARE = 0.1;
 
-// When the browser asked and when it heard back, to judge the router's clock
-// against: the router stamped its answer somewhere in between.
+// The router stamped its answer somewhere between these two moments.
 export interface RequestWindow {
   sentAt: number;
   receivedAt: number;
@@ -102,8 +101,7 @@ function memoryItem(data: Forkop.ServiceCheckResult) {
   return finding('success', key, free);
 }
 
-// The router stamps its answer in whole seconds somewhere between the request
-// and its reply, so only a difference beyond that window is the clock's.
+// The stamp is whole seconds somewhere inside the window, so only a difference beyond it counts.
 export function clockSkewSeconds(routerTime: number, window: RequestWindow) {
   const stamp = routerTime * 1000;
   const earliest = window.sentAt - 1000;
@@ -141,8 +139,7 @@ export function presentService(
   ];
 }
 
-// Whether the checks that need the runtime can run comes back with the result.
-// A failed call says nothing about the service, so they still try.
+// A failed call says nothing about the service, so the runtime checks still try.
 export async function runServiceCheck(): Promise<{
   result: CheckOutcome;
   running: boolean;

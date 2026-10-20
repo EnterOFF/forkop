@@ -1,11 +1,8 @@
 import { Check } from './types';
 import { validatePath } from './validatePath';
 
-// Both sing-box file paths are write targets the user picks: the generated
-// config replaces whatever already sits at its path, and the cache directory is
-// created on start. Requiring the expected file name and a directory above it
-// keeps a stray value from overwriting an unrelated file or landing in the
-// filesystem root.
+// Both paths are write targets, so the expected file name and a parent directory keep a stray
+// value from overwriting an unrelated file or landing in the root.
 export function validateSingBoxFilePath(
   value: string,
   fileName: string,

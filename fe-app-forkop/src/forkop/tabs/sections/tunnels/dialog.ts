@@ -180,9 +180,8 @@ function showWireGuardPeerSettingsModal(
   });
 }
 
-// What was pasted or loaded: what the WireGuard import reads - a configuration
-// file, a share link, a vpn:// link or an Amnezia profile -, an OpenConnect
-// configuration in any of its forms, or an OpenVPN profile.
+// A WireGuard configuration, share link, vpn:// link or Amnezia profile; an OpenConnect
+// configuration in any of its forms; or an OpenVPN profile.
 function importedFormat(input: string) {
   if (/^\{[\s\S]*"type"\s*:\s*"openconnect"/u.test(input)) {
     return 'openconnect';
@@ -222,8 +221,7 @@ function showTunnelImportModal(
   const itemSection = map.section(form.NamedSection, 'settings');
   itemSection.anonymous = true;
   itemSection.addremove = false;
-  // The certificates and keys a profile names as files of their own, from every
-  // selection so far: they may come after the profile itself.
+  // The files a profile names, from every selection so far: they may come after the profile.
   const attachments: OpenVPNFiles = {};
 
   const configuration = itemSection.option(
@@ -261,9 +259,8 @@ function showTunnelImportModal(
     if (!format) {
       return _('Unknown format');
     }
-    // A vpn:// link and an Amnezia profile carry a compressed or nested
-    // payload that only the import step decodes; a configuration file and a
-    // share link are checked while the user types.
+    // vpn:// links and Amnezia profiles are decoded only by the import step; files and share links are
+    // checked while typed.
     if (/^vpn:\/\//iu.test(input) || input.startsWith('{')) {
       return true;
     }
@@ -274,8 +271,7 @@ function showTunnelImportModal(
   };
   configureTextareaOption(configuration);
 
-  // The mark on the field shows its reason only on hover, and a missing file is
-  // what the user has to act on.
+  // The field's mark shows its reason only on hover, and a missing file needs acting on.
   const refuse = (input: string, message: string): never => {
     failedInput = input;
     importError = message;
@@ -346,8 +342,7 @@ function showTunnelImportModal(
     {
       singleField: true,
       saveLabel: _('Import'),
-      // The configuration file goes into the field and is imported at once; the
-      // files it names can be selected with it or after it.
+      // The configuration is imported at once; the files it names can be selected with it or after it.
       secondaryAction: {
         label: _('From a file…'),
         icon: renderFolderOpenIcon24,
@@ -432,8 +427,8 @@ export function showTunnelSettingsModal(
     _('Tunnel type'),
   );
   let previousTunnelType = `${data.settings.tunnel_type || 'wireguard'}`;
-  // A kind the installed core lacks is offered only to the tunnel that already
-  // is one, marked, so its save is refused by name rather than switched.
+  // A kind the installed core lacks is offered only to a tunnel already of that kind, marked, so its
+  // save is refused by name.
   TUNNEL_KINDS.forEach(([kind, label]) => {
     if (tunnelKindAvailable(kind)) {
       typeOption.value(kind, label);
@@ -646,8 +641,7 @@ export function showTunnelSettingsModal(
   listenPortOption.depends('tunnel_type', 'amneziawg');
 
   const mtuOption = itemSection.option(form.Value, 'mtu', 'MTU');
-  // What transport/wireguard in the core falls back to when the endpoint carries
-  // no MTU of its own.
+  // transport/wireguard's default when the endpoint sets no MTU.
   mtuOption.placeholder = '1408';
   mtuOption.validate = wholeNumberField(1, 65535);
   mtuOption.rmempty = true;
@@ -750,9 +744,8 @@ export function showTunnelSettingsModal(
   warpLicenseKeyOption.rmempty = true;
   warpLicenseKeyOption.depends('tunnel_type', 'warp');
 
-  // A refused generation is written to the log with its reason, and the log
-  // raises it as an alert of its own; only a call that never reached the
-  // router is this handler's to report.
+  // A refused generation is logged, which raises an alert; only a call that never reached the router
+  // is reported here.
   warpGenerateButton.onclick = function () {
     return fs
       .exec('/usr/bin/forkop', ['generate_warp_profile'])

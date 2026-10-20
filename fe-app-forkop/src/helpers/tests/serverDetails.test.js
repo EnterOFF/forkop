@@ -37,8 +37,6 @@ function load(server = {}, clients = {}) {
 
 const CONTEXT = { tlsCertificateSha256: '' };
 
-// The dialog is built before it is shown, so anything that throws here is a button
-// that does nothing at all when it is pressed.
 describe('server details', () => {
   it('builds the dialog for every protocol', () => {
     const protocols = [
@@ -88,9 +86,6 @@ describe('server details', () => {
     ).not.toThrow();
   });
 
-  // The dialog is opened with its class names as separate arguments, because LuCI
-  // spreads them into classList.add() and a token with a space in it throws, which
-  // leaves the button that opens the dialog doing nothing at all.
   it('opens without an invalid class token', () => {
     const { details } = load({ protocol: 'vless' });
 
@@ -100,8 +95,6 @@ describe('server details', () => {
     ).not.toThrow();
   });
 
-  // A server that hands out one link has nothing to choose from, so its button
-  // opens the code for it; with more than one, the list comes first.
   it('opens the code straight away for a server with one link', () => {
     const client = (name) => ({
       '.type': 'server_client',
@@ -123,8 +116,6 @@ describe('server details', () => {
     ]);
   });
 
-  // A code says what it belongs to: the account when there is one, then the server
-  // and the scheme when the listener answers more than one.
   it('names what a code belongs to', () => {
     const { details } = load({ protocol: 'mixed' });
 
@@ -136,8 +127,6 @@ describe('server details', () => {
       name: 'phone',
       details: 'Home \u00b7 SOCKS5',
     });
-    // A listener with no account is named by the server and told apart by its
-    // scheme alone.
     expect(details.linkCaption('srv', { name: '' }, 'HTTP')).toEqual({
       name: 'Home',
       details: 'HTTP',

@@ -1,7 +1,3 @@
-// The traffic obfuscation switch of the tunnel dialog, driven through the
-// shipped bundle. A WireGuard and a WARP tunnel send the one-sided AmneziaWG
-// parameters only while it is on, so what a change of kind leaves it at decides
-// which of the values in the dialog are kept.
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { coreFeatures } from '../lib/coreFeatures.js';

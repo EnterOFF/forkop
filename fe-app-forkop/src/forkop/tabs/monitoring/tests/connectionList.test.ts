@@ -67,9 +67,6 @@ const CONNECTION: ConnectionListItem = {
 };
 
 describe('the Monitoring connection list', () => {
-  // footstrap claims every <table> with a header row, and every element with
-  // LuCI's .table class, as its own data table and cards it over this page's
-  // own layout (its fs-select.js, "Rule 8" of its third-party-apps.md).
   it('is nothing a theme can claim as a data table', () => {
     const list = draw(renderConnectionList([CONNECTION], { closable: true }));
 
@@ -125,7 +122,6 @@ describe('the Monitoring connection list', () => {
     expect(closing?.attrs.disabled).toBe(true);
   });
 
-  // A column of dashes under an empty heading said nothing on every row.
   it('has no column to close a connection that is already closed', () => {
     const list = draw(renderConnectionList([CONNECTION], { closable: false }));
     const [head, row] = withRole(list, 'row');
@@ -159,8 +155,6 @@ describe('the Monitoring connection list', () => {
       .join('');
   }
 
-  // The name is what the eye looks for; the server or the address beside it
-  // only tells two of the same name apart, and its colour is what separates it.
   it('shows the name and mutes what it belongs to', () => {
     const [client, device, bare, unknown] = sourceValues([
       { ...CONNECTION, sourceName: 'alice', sourceDetail: 'Office' },
@@ -182,8 +176,6 @@ describe('the Monitoring connection list', () => {
     ]);
   });
 
-  // A tooltip has no colour to set the detail apart, so it spells the separator
-  // out the way the device filter does; a copy takes the text as it reads.
   it('separates the detail in plain text and copies the source as it reads', () => {
     const values = sourceValues([
       { ...CONNECTION, sourceName: 'mom phone', sourceDetail: 'Server #2' },

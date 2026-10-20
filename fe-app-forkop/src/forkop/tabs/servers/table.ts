@@ -24,8 +24,7 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
   );
   const actionsEl = tdEl.lastElementChild as HTMLElement;
 
-  // Only a server whose accounts can be handed a link or a profile has anything to
-  // show: Tailscale and a JSON inbound have no accounts at all.
+  // Tailscale and JSON inbounds have no accounts to hand a link or a profile.
   if (
     usesClients(getProtocol(sectionId)) &&
     (linkScheme(getProtocol(sectionId)) || usesProfile(getProtocol(sectionId)))
@@ -85,9 +84,8 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
   return tdEl;
 }
 
-// Add creates the section before its dialog opens, with what the dialog needs to
-// render: a protocol and its security. The switch is left to the dialog's Save;
-// dismissing the dialog takes the section away again.
+// Add creates the section with a protocol and its security for the dialog to render; dismissing
+// the dialog takes it away again.
 export function prepareAddedServer(sectionId: string) {
   uci.set(FORKOP_UCI_PACKAGE, sectionId, 'protocol', DEFAULT_PROTOCOL);
   uci.set(
@@ -102,16 +100,13 @@ export function configureServerSection(sectionRef: CBISection) {
   sectionRef.sortable = false;
   sectionRef.nodescriptions = true;
   sectionRef.load = function () {
-    // The router's own addresses and the ports other services hold are read
-    // once here, so the port check can name the owner.
+    // Read once here, so the port check can name the owner.
     return Promise.all([
       preloadServerModalData(),
       loadVisibleTableOptions(this),
     ]);
   };
 
-  // Removing a server takes its clients with it, otherwise they stay behind as
-  // sections pointing at a server that no longer exists.
   sectionRef.handleRemove = function (sectionId: string, ev) {
     removeServerClients(sectionId);
 
