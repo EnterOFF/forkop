@@ -20,7 +20,7 @@ controls. */
 .fkp_diagnostic-page {
     display: grid;
     grid-template-columns: minmax(17rem, max-content) minmax(0, 38rem);
-    grid-column-gap: 10px;
+    grid-gap: 10px;
     align-items: start;
     width: 100%;
 }
