@@ -8,8 +8,10 @@ let core_ip = require("core.ip");
 let core_url = require("core.url");
 let uci = require("core.uci");
 let netstat = require("core.netstat");
+let packages = require("core.packages");
 let runtime_dns = require("singbox.dns");
 let singbox_constants = require("singbox.constants");
+let features = require("singbox.features");
 let config_status = require("singbox.config_status");
 let runtime_servers = require("singbox.servers");
 let connections = require("config.connections");
@@ -105,6 +107,16 @@ function sing_box_cores() {
     return sort(result, (a, b) => a - b);
 }
 
+// The installed core: no version when it is not sing-box-forkop, and why Forkop cannot run on it.
+function core() {
+    let version = packages.sing_box_version();
+    return {
+        version,
+        variant: packages.sing_box_variant(),
+        problem: version == "" ? "" : features.core_problem()
+    };
+}
+
 function service() {
     let running = health.forkop_stably_running(constants.RT_TABLE_NAME, constants.NFT_TABLE_NAME, constants.NFT_FAKEIP_MARK, STABLE_MIN_AGE);
     let pid = health.sing_box_service_pid_runtime();
@@ -114,6 +126,7 @@ function service() {
         running,
         uptime: own > 0 ? (health.process_age_seconds(own) ?? -1) : -1,
         last_error: running ? "" : last_error(output([ "logread", "-e", "^forkop" ])),
+        core: core(),
         foreign_sing_box: filter(sing_box_cores(), (found) => found != own),
         conflicts: conflicts.find(output([ "nft", "-t", "list", "ruleset" ])),
         memory: meminfo(),
@@ -355,4 +368,4 @@ function servers() {
     return { wan, behind_cgnat, items };
 }
 
-return { paths, last_error, oom_kills, dig_result, service, dns, traffic, servers };
+return { paths, last_error, oom_kills, dig_result, core, service, dns, traffic, servers };

@@ -68,6 +68,7 @@ describe('the diagnostic report', () => {
           running: true,
           uptime: 60,
           last_error: '',
+          core: { version: '1.14.3-r1', variant: 'base', problem: '' },
           foreign_sing_box: [],
           conflicts: [],
           memory: { total_kb: 239540, available_kb: 45476 },

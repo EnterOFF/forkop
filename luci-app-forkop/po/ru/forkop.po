@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 18:05+0300\n"
-"PO-Revision-Date: 2026-10-20 18:05+0300\n"
+"POT-Creation-Date: 2026-10-20 18:39+0300\n"
+"PO-Revision-Date: 2026-10-20 18:39+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -2095,6 +2095,15 @@ msgstr "sing-box собран без %s"
 
 msgid "sing-box log level"
 msgstr "Уровень логов sing-box"
+
+msgid "sing-box-forkop %s"
+msgstr "sing-box-forkop %s"
+
+msgid "sing-box-forkop %s (%s)"
+msgstr "sing-box-forkop %s (%s)"
+
+msgid "sing-box-forkop is not installed"
+msgstr "sing-box-forkop не установлен"
 
 msgid "Skipped: Forkop is not running"
 msgstr "Пропущено: Forkop не запущен"

@@ -7102,6 +7102,21 @@ function forkopItem(data) {
     data.last_error ? _("not running: %s").format(data.last_error) : _("not running")
   );
 }
+function coreItem(data) {
+  const key = _("Core");
+  const { version, variant, problem } = data.core;
+  if (!version) {
+    return finding("error", key, _("sing-box-forkop is not installed"));
+  }
+  if (problem) {
+    return finding("error", key, problem);
+  }
+  return finding(
+    "success",
+    key,
+    variant ? _("sing-box-forkop %s (%s)").format(version, variant) : _("sing-box-forkop %s").format(version)
+  );
+}
 function conflictItems(data) {
   const key = _("Conflicts");
   const items = data.conflicts.map(
@@ -7169,6 +7184,7 @@ function clockItem(data, window2) {
 function presentService(data, window2) {
   return [
     forkopItem(data),
+    coreItem(data),
     ...conflictItems(data),
     memoryItem(data),
     clockItem(data, window2)

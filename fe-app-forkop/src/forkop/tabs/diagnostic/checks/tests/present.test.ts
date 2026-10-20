@@ -16,6 +16,7 @@ function service(
     running: true,
     uptime: 8100,
     last_error: '',
+    core: { version: '1.14.3-r1', variant: 'base', problem: '' },
     foreign_sing_box: [],
     conflicts: [],
     memory: { total_kb: 239540, available_kb: 45476 },
@@ -51,6 +52,11 @@ describe('the service check', () => {
   it('passes a running Forkop with nothing in its way, one line per question', () => {
     expect(presentService(service(), WINDOW)).toEqual([
       { state: 'success', key: 'Forkop', value: 'running for 2 h 15 min' },
+      {
+        state: 'success',
+        key: 'Core',
+        value: 'sing-box-forkop 1.14.3-r1 (base)',
+      },
       { state: 'success', key: 'Conflicts', value: 'none found' },
       { state: 'success', key: 'Memory', value: '44 MB of 234 MB free' },
       { state: 'success', key: 'Clock', value: 'matches this device' },
@@ -75,6 +81,33 @@ describe('the service check', () => {
     expect(
       presentService(service({ running: false, uptime: -1 }), WINDOW)[0].value,
     ).toBe('not running');
+  });
+
+  it('fails a core that is not sing-box-forkop or one Forkop cannot run on', () => {
+    const core = (value: Forkop.ServiceCheckResult['core']) =>
+      presentService(service({ core: value }), WINDOW).find(
+        (item) => item.key === 'Core',
+      );
+    expect(core({ version: '', variant: '', problem: '' })).toEqual({
+      state: 'error',
+      key: 'Core',
+      value: 'sing-box-forkop is not installed',
+    });
+    expect(
+      core({
+        version: '1.14.3-r1',
+        variant: 'custom',
+        problem:
+          'sing-box was built with with_wireguard but without with_gvisor',
+      }),
+    ).toEqual({
+      state: 'error',
+      key: 'Core',
+      value: 'sing-box was built with with_wireguard but without with_gvisor',
+    });
+    expect(
+      core({ version: '1.14.3-r1+2', variant: '', problem: '' })?.value,
+    ).toBe('sing-box-forkop 1.14.3-r1+2');
   });
 
   it('names every program that intercepts what Forkop does', () => {
