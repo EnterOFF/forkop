@@ -94,6 +94,15 @@ t.test("no records, no hosts server", () => {
 const DNS = { dns_server: [ "77.88.8.8" ], bootstrap_dns_server: [ "77.88.8.8" ] };
 const BYPASS = [ { ".name": "direct", enabled: "1", action: "bypass", destinations: "example.org" } ];
 
+t.test("a DNS inbound refuses what is not hijacked", () => {
+    let config = build({ settings: DNS, section: BYPASS });
+    let hijack = q.route_rule_index(config, (r) => r.action == "hijack-dns");
+    for (let tag in [ "dns-in", "source-dns-in", "system-dns-in" ]) {
+        let reject = q.route_rule_index(config, (r) => r.action == "reject" && r.inbound == tag);
+        t.ok(reject > hijack, tag + " refuses the rest after hijack-dns");
+    }
+});
+
 t.test("the router's own lookups reach sing-box whatever the sections say, and leave the way a client's do", () => {
     let config = build({ settings: DNS, section: BYPASS });
     t.eq(q.inbound(config, "system-dns-in").listen_port, 1605);

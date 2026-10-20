@@ -44,6 +44,8 @@ function config(settings, runtime) {
         default_mark: runtime_constants.OUTBOUND_MARK
     };
 
+    // the direct outbound would send what is no query back to the listen address of the inbound
+    push(result.rules, { action: "reject", inbound: runtime_constants.DNS_INBOUND_TAG });
     push(result.rules, { action: "reject", inbound: runtime_constants.SOURCE_DNS_INBOUND_TAG });
     push(result.rules, { action: "reject", inbound: runtime_constants.SYSTEM_DNS_INBOUND_TAG });
     if (output_network_interface != "")
