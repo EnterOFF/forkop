@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { checkMaterial, splitCertificateAndKey } from '../material';
-import { decodeBase64, isCertificate, pemBlocks } from '../pem';
+import {
+  certificateCanSignItself,
+  certificateDnsName,
+  decodeBase64,
+  isCertificate,
+  pemBlocks,
+} from '../pem';
 import {
   CA,
   CLIENT_CERT,
@@ -14,6 +20,33 @@ import {
 } from './openvpnFixtures';
 
 const der = (pem: string) => decodeBase64(pemBlocks(pem)[0].body)!;
+
+// sing-box generate tls-keypair www.microsoft.com, a CA that can sign itself.
+const SINGBOX_CA = `-----BEGIN CERTIFICATE-----
+MIIBrjCCAVSgAwIBAgIRAPFYVPXI/4J4zHZNBicm49cwCgYIKoZIzj0EAwIwHDEa
+MBgGA1UEAxMRd3d3Lm1pY3Jvc29mdC5jb20wIBcNMjYxMDIwMTQwMzExWhgPMjEy
+NjEwMjAxNTAzMTFaMBwxGjAYBgNVBAMTEXd3dy5taWNyb3NvZnQuY29tMFkwEwYH
+KoZIzj0CAQYIKoZIzj0DAQcDQgAEfUZ7u/Cjnul4v6s2Mem3g6Nwcu3oMTG1kW3j
+yp28i4tFWVMwjXRblgt3lF7SDRk7p1V3t79cILN0MWIYN6lN56N1MHMwDgYDVR0P
+AQH/BAQDAgKkMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8w
+HQYDVR0OBBYEFLZCprHwnTyD6ZuLm9AbCiHxyGLFMBwGA1UdEQQVMBOCEXd3dy5t
+aWNyb3NvZnQuY29tMAoGCCqGSM49BAMCA0gAMEUCIQDrjS60YrRU73phELU6CjeZ
+sFUswinmQDfr8iZ4ALzRdQIgbWUFuAb4Ntcc3lywizC1aihvSr23K1P+zZfDr+5X
+Tig=
+-----END CERTIFICATE-----`;
+
+// The same from an older core, whose key usage leaves out certificate signing.
+const SINGBOX_OLD = `-----BEGIN CERTIFICATE-----
+MIIBjDCCATKgAwIBAgIRAPtfBc7b+Py6VRrdLgDKkb8wCgYIKoZIzj0EAwIwHDEa
+MBgGA1UEAxMRd3d3Lm1pY3Jvc29mdC5jb20wIBcNMjYxMDIwMTMxNzI4WhgPMjEy
+NjEwMjAxNDE3MjhaMBwxGjAYBgNVBAMTEXd3dy5taWNyb3NvZnQuY29tMFkwEwYH
+KoZIzj0CAQYIKoZIzj0DAQcDQgAE8mU5gEAC48K+Xfrog6fl6hABO6mGkzkw8Quq
+LPxiRLNUoKgcuZJsWM2c3HiRPY+tALbu2PgP1fMOGkx/Lv3DUKNTMFEwDgYDVR0P
+AQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAwGA1UdEwEB/wQCMAAwHAYD
+VR0RBBUwE4IRd3d3Lm1pY3Jvc29mdC5jb20wCgYIKoZIzj0EAwIDSAAwRQIhAP2U
+07jWHMqU40FabCCL4nORIf9B3mkpPOScpIFRJYAzAiA7gouHWoPgseQ0yVfE8byo
+Tt5/vcIaqAWOi+tOwhK+rg==
+-----END CERTIFICATE-----`;
 
 describe('certificate structure', () => {
   it('recognises an RSA certificate and a P-256 one as sing-box issues it', () => {
@@ -28,6 +61,17 @@ describe('certificate structure', () => {
       false,
     );
     expect(decodeBase64('not base64!')).toBe(null);
+  });
+
+  it('reads the DNS name sing-box issues a certificate for, past a critical extension', () => {
+    expect(certificateDnsName(der(SINGBOX_CA))).toBe('www.microsoft.com');
+    expect(certificateDnsName(der(SINGBOX_OLD))).toBe('www.microsoft.com');
+    expect(certificateDnsName(der(CA).slice(0, 200))).toBe('');
+  });
+
+  it('tells a certificate that can be its own issuer from one whose key usage forbids it', () => {
+    expect(certificateCanSignItself(der(SINGBOX_CA))).toBe(true);
+    expect(certificateCanSignItself(der(SINGBOX_OLD))).toBe(false);
   });
 });
 

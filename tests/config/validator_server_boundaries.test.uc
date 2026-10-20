@@ -104,6 +104,18 @@ const cases = [
     [ "naive network", "'Network' of server", server({ protocol: "naive", ...mine, naive_network: "quic" }), [ client("n", { password: "p" }) ] ],
     [ "naive network pair", null, server({ protocol: "naive", ...mine, naive_network: "tcp_udp" }), [ client("n", { password: "p" }) ] ],
 
+    [ "trusttunnel", null, server({ protocol: "trusttunnel", ...tls }), [ client("tt", { password: "p" }) ] ],
+    [ "trusttunnel over http/3", null,
+        server({ protocol: "trusttunnel", ...tls, trusttunnel_network: "udp" }), [ client("tt", { password: "p" }) ] ],
+    [ "trusttunnel on both listeners", null,
+        server({ protocol: "trusttunnel", ...tls, trusttunnel_network: "tcp_udp" }), [ client("tt", { password: "p" }) ] ],
+    [ "trusttunnel network", "'Network' of server",
+        server({ protocol: "trusttunnel", ...tls, trusttunnel_network: "quic" }), [ client("tt", { password: "p" }) ] ],
+    [ "trusttunnel account name", "is used as an account name",
+        server({ protocol: "trusttunnel", ...tls }), [ client("tt", { name: "мой телефон", password: "p" }) ] ],
+    [ "trusttunnel without a certificate", "has no self-signed certificate yet",
+        server({ protocol: "trusttunnel" }), [ client("tt", { password: "p" }) ] ],
+
     [ "tuic congestion", "'Congestion control' of server",
         server({ protocol: "tuic", ...tls, tuic_congestion_control: "brutal" }), [ client("t", { uuid, password: "p" }) ] ],
 

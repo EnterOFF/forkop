@@ -1442,7 +1442,7 @@ function renderButton({
   disabled,
   loading: loading3,
   onClick,
-  text: text6,
+  text: text7,
   icon
 }) {
   const hasIcon = !!loading3 || !!icon;
@@ -1484,7 +1484,7 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text6)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text7)]
   );
 }
 
@@ -1508,9 +1508,9 @@ function showToast(message2, type, duration = 3e3) {
 }
 
 // src/helpers/copyToClipboard.ts
-function copyToClipboard(text6) {
+function copyToClipboard(text7) {
   const textarea = document.createElement("textarea");
-  textarea.value = text6;
+  textarea.value = text7;
   document.body.appendChild(textarea);
   textarea.select();
   let copied = false;
@@ -1527,8 +1527,8 @@ function copyToClipboard(text6) {
 }
 
 // src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text6, filename) {
-  const blob = new Blob([text6], { type: "text/plain;charset=utf-8" });
+function downloadAsTxt(text7, filename) {
+  const blob = new Blob([text7], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
@@ -1540,8 +1540,8 @@ function downloadAsTxt(text6, filename) {
 }
 
 // src/partials/modal/renderModal.ts
-function renderModal(text6, name, options) {
-  let currentText = text6 ?? "";
+function renderModal(text7, name, options) {
+  let currentText = text7 ?? "";
   let latestRequest = 0;
   const codeEl = textE("code", {}, currentText);
   const contentEl = textE(
@@ -3928,8 +3928,8 @@ function linkQuery(link) {
   if (start < 0) {
     return query;
   }
-  const text6 = link.slice(start + 1).split("#")[0];
-  for (const pair of text6.split("&")) {
+  const text7 = link.slice(start + 1).split("#")[0];
+  for (const pair of text7.split("&")) {
     const equals = pair.indexOf("=");
     const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
     if (key && !query.has(key)) {
@@ -5381,8 +5381,8 @@ function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
     return value ? _("Yes") : _("No");
   }
-  const text6 = `${value ?? ""}`.trim();
-  return text6 || _("No");
+  const text7 = `${value ?? ""}`.trim();
+  return text7 || _("No");
 }
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : _("N/A");
@@ -7325,7 +7325,7 @@ function target(section2) {
 }
 function presentSection(section2, node, probe) {
   const key = section2.displayName;
-  const on = (text6) => node ? `${node}: ${text6}` : text6;
+  const on = (text7) => node ? `${node}: ${text7}` : text7;
   if ("delay" in probe) {
     return finding(
       "success",
@@ -7527,9 +7527,9 @@ function timestamp(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function section(title, body) {
-  const text6 = body.trim();
+  const text7 = body.trim();
   return `== ${title} ==
-${text6 ? `${text6}
+${text7 ? `${text7}
 ` : `${_("empty")}
 `}`;
 }
@@ -8155,10 +8155,10 @@ async function showDiagnosticModal(action, title, name, load) {
   setDiagnosticActionLoading(action, true);
   try {
     const getText = diagnosticText(load);
-    const text6 = await getText({ maskValues: true });
+    const text7 = await getText({ maskValues: true });
     ui.showModal(
       title,
-      renderModal(text6, name, {
+      renderModal(text7, name, {
         getText,
         showMaskValuesToggle: true
       })
@@ -8193,10 +8193,10 @@ async function handleReport() {
   setDiagnosticActionLoading("report", true);
   try {
     const getText = ({ maskValues }) => buildReport(maskValues);
-    const text6 = await getText({ maskValues: true });
+    const text7 = await getText({ maskValues: true });
     ui.showModal(
       _("Diagnostic report"),
-      renderModal(text6, "forkop-report", {
+      renderModal(text7, "forkop-report", {
         getText,
         showMaskValuesToggle: true
       })
@@ -9260,14 +9260,14 @@ function renderList(rows, closable) {
 function cellClass(column) {
   return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
 }
-function renderHeading(column, text6) {
-  return textE("div", { class: cellClass(column), role: "columnheader" }, text6);
+function renderHeading(column, text7) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text7);
 }
 function renderCell(column, children2) {
   return textE("div", { class: cellClass(column), role: "cell" }, children2);
 }
-function renderValue(text6, className = "") {
-  const value = text6 || "-";
+function renderValue(text7, className = "") {
+  const value = text7 || "-";
   return textE(
     "span",
     {
@@ -9280,7 +9280,7 @@ function renderValue(text6, className = "") {
 }
 function renderSource(name, detail) {
   const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
-  const muted = (text6) => textE("span", { class: "fkp_monitoring-page__muted" }, text6);
+  const muted = (text7) => textE("span", { class: "fkp_monitoring-page__muted" }, text7);
   return textE(
     "span",
     {
@@ -9337,7 +9337,7 @@ function renderConnectionList(items, options) {
     options.closable
   );
 }
-function renderConnectionListState(text6, options) {
+function renderConnectionListState(text7, options) {
   return renderList(
     [
       textE(
@@ -9353,7 +9353,7 @@ function renderConnectionListState(text6, options) {
               class: ["fkp_monitoring-page__state", options.className].filter(Boolean).join(" "),
               role: "cell"
             },
-            text6
+            text7
           )
         ]
       )
@@ -10925,9 +10925,9 @@ function render4() {
 }
 
 // src/forkop/tabs/logs/filterLogs.ts
-function filterLogText(text6, query) {
+function filterLogText(text7, query) {
   const normalizedQuery = query.trim().toLowerCase();
-  return text6.split(/\r?\n/).filter((line) => {
+  return text7.split(/\r?\n/).filter((line) => {
     if (!line) {
       return false;
     }
@@ -11479,7 +11479,7 @@ function updateDynamicListItemLabel(item, label) {
     labelNode.textContent = `${label || ""}`;
   }
 }
-function addDynamicListItem(widget, value, text6) {
+function addDynamicListItem(widget, value, text7) {
   if (!widget || !widget.node) {
     return null;
   }
@@ -11492,7 +11492,7 @@ function addDynamicListItem(widget, value, text6) {
     widget.dispatchCbiDynlistChange(widget.node, normalized);
     return null;
   }
-  widget.addItem(widget.node, normalized, text6 || null, false);
+  widget.addItem(widget.node, normalized, text7 || null, false);
   widget.dispatchCbiDynlistChange(widget.node, normalized);
   updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
   return findDynamicListItemByValue(widget.node, normalized);
@@ -12283,15 +12283,15 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
       }
     });
   },
-  addItem(dl, value, text6, flash) {
+  addItem(dl, value, text7, flash) {
     if (flash && typeof this.options.createItem === "function") {
       value = this.options.createItem(value);
-      text6 = null;
+      text7 = null;
     } else if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
-    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text6) : text6;
+    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text7) : text7;
     ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
     const item = findDynamicListItemByValue(dl, value);
     const hasSettings = typeof this.options.hasSettings === "function" ? this.options.hasSettings(value) : true;
@@ -12503,15 +12503,15 @@ var SettingsDynamicList = form.DynamicList.extend({
           );
         }
       },
-      itemLabel: (itemValue, text6) => {
+      itemLabel: (itemValue, text7) => {
         if (typeof this.renderListItemLabel === "function") {
           return this.renderListItemLabel(
             this.childOwner(section_id),
             `${itemValue}`,
-            text6
+            text7
           );
         }
-        return text6;
+        return text7;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       createItem: this.entriesAreSections && !this.buttonAdd ? (inputValue) => this.createTypedItem(section_id, inputValue) : null,
@@ -12885,13 +12885,13 @@ function syncAnnotatedTextareaOverlay(textarea, wrapper, overlay) {
   overlay.scrollLeft = textarea.scrollLeft;
 }
 function renderAnnotatedTextareaOverlay(value, annotations) {
-  const text6 = value ? `${value}` : "";
+  const text7 = value ? `${value}` : "";
   const normalizedAnnotations = Array.isArray(annotations) ? annotations : [];
-  if (!text6.length) {
+  if (!text7.length) {
     return "&#8203;";
   }
   if (!normalizedAnnotations.length) {
-    return `${escapeHtml(text6)}${text6.endsWith("\n") ? "\n " : ""}`;
+    return `${escapeHtml(text7)}${text7.endsWith("\n") ? "\n " : ""}`;
   }
   let cursor2 = 0;
   let html = "";
@@ -12899,14 +12899,14 @@ function renderAnnotatedTextareaOverlay(value, annotations) {
     if (annotation.start < cursor2 || annotation.start >= annotation.end || annotation.start < 0) {
       return;
     }
-    html += escapeHtml(text6.slice(cursor2, annotation.start));
+    html += escapeHtml(text7.slice(cursor2, annotation.start));
     html += `<span class="fkp-annotated-textarea__invalid">${escapeHtml(
-      text6.slice(annotation.start, annotation.end)
+      text7.slice(annotation.start, annotation.end)
     )}</span>`;
     cursor2 = annotation.end;
   });
-  html += escapeHtml(text6.slice(cursor2));
-  if (text6.endsWith("\n")) {
+  html += escapeHtml(text7.slice(cursor2));
+  if (text7.endsWith("\n")) {
     html += "\n ";
   }
   return html;
@@ -12960,10 +12960,10 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 function parseCommentAwareListTokens(value) {
-  const text6 = value ? `${value}` : "";
+  const text7 = value ? `${value}` : "";
   const tokens = [];
-  const lines3 = text6.split(/\r\n|\r|\n/);
-  const newlines = text6.match(/\r\n|\r|\n/g) || [];
+  const lines3 = text7.split(/\r\n|\r|\n/);
+  const newlines = text7.match(/\r\n|\r|\n/g) || [];
   let offset = 0;
   lines3.forEach((line, index) => {
     const hashIndex = line.indexOf("#");
@@ -13559,48 +13559,30 @@ function setModalOptionValue(map, option2, value) {
   }
 }
 
-// src/helpers/getProxyUrlName.ts
-function getProxyUrlName(url) {
-  const link = `${url ?? ""}`;
-  const scheme = link.includes("://") ? link.slice(0, link.indexOf("://")).toLowerCase() : "";
-  if (scheme === "vmess") {
-    const name = vmessName(link.slice("vmess://".length));
-    if (name) {
-      return name;
-    }
-  }
-  const marker = link.indexOf("#");
-  if (marker >= 0) {
-    return percentDecode(link.slice(marker + 1));
-  }
-  return scheme === "tt" ? trustTunnelName(link.slice("tt://".length)) : "";
-}
-function trustTunnelName(source) {
-  const encoded = source.replace(/^\?/, "").replace(/-/g, "+").replace(/_/g, "/");
-  let payload;
-  try {
-    payload = Uint8Array.from(
-      atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
-      (character) => character.charCodeAt(0)
-    );
-  } catch {
-    return "";
-  }
-  let name = "";
-  for (let offset = 0; offset < payload.length; ) {
-    const field = readVarint(payload, offset);
-    const size = field && readVarint(payload, field.next);
-    if (!size || size.next + size.value > payload.length) {
-      return "";
-    }
-    if (field.value === 12) {
-      name = new TextDecoder().decode(
-        payload.subarray(size.next, size.next + size.value)
-      );
-    }
-    offset = size.next + size.value;
-  }
-  return name;
+// src/helpers/trustTunnelLink.ts
+var FORMAT_VERSION = 1;
+var HTTP3 = 2;
+var FIELD = {
+  version: 0,
+  hostname: 1,
+  address: 2,
+  customSni: 3,
+  username: 5,
+  password: 6,
+  skipVerification: 7,
+  certificate: 8,
+  upstreamProtocol: 9,
+  name: 12
+};
+function writeVarint(value) {
+  if (value < 64) return [value];
+  if (value < 16384) return [64 | value >> 8, value & 255];
+  return [
+    128 | value >>> 24 & 63,
+    value >>> 16 & 255,
+    value >>> 8 & 255,
+    value & 255
+  ];
 }
 function readVarint(bytes, offset) {
   if (offset >= bytes.length) {
@@ -13615,6 +13597,76 @@ function readVarint(bytes, offset) {
     value = value * 256 + bytes[offset + index];
   }
   return { value, next: offset + length };
+}
+function field(tag, value) {
+  return [
+    ...writeVarint(tag),
+    ...writeVarint(value.length),
+    ...Array.from(value)
+  ];
+}
+function text2(value) {
+  return new TextEncoder().encode(value);
+}
+function encodeTrustTunnelLink(link) {
+  const payload = [
+    ...field(FIELD.version, writeVarint(FORMAT_VERSION)),
+    ...field(FIELD.hostname, text2(link.hostname)),
+    ...field(FIELD.username, text2(link.username)),
+    ...field(FIELD.password, text2(link.password)),
+    ...field(FIELD.address, text2(link.address)),
+    ...link.customSni ? field(FIELD.customSni, text2(link.customSni)) : [],
+    ...link.skipVerification ? field(FIELD.skipVerification, [1]) : [],
+    ...link.certificate ? field(FIELD.certificate, link.certificate) : [],
+    ...link.http3 ? field(FIELD.upstreamProtocol, writeVarint(HTTP3)) : [],
+    ...link.name ? field(FIELD.name, text2(link.name)) : []
+  ];
+  const encoded = btoa(String.fromCharCode(...payload)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `tt://?${encoded}`;
+}
+function trustTunnelLinkName(source) {
+  const encoded = source.replace(/^\?/, "").replace(/-/g, "+").replace(/_/g, "/");
+  let payload;
+  try {
+    payload = Uint8Array.from(
+      atob(encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=")),
+      (character) => character.charCodeAt(0)
+    );
+  } catch {
+    return "";
+  }
+  let name = "";
+  for (let offset = 0; offset < payload.length; ) {
+    const tag = readVarint(payload, offset);
+    const size = tag && readVarint(payload, tag.next);
+    if (!size || size.next + size.value > payload.length) {
+      return "";
+    }
+    if (tag.value === FIELD.name) {
+      name = new TextDecoder().decode(
+        payload.subarray(size.next, size.next + size.value)
+      );
+    }
+    offset = size.next + size.value;
+  }
+  return name;
+}
+
+// src/helpers/getProxyUrlName.ts
+function getProxyUrlName(url) {
+  const link = `${url ?? ""}`;
+  const scheme = link.includes("://") ? link.slice(0, link.indexOf("://")).toLowerCase() : "";
+  if (scheme === "vmess") {
+    const name = vmessName(link.slice("vmess://".length));
+    if (name) {
+      return name;
+    }
+  }
+  const marker = link.indexOf("#");
+  if (marker >= 0) {
+    return percentDecode(link.slice(marker + 1));
+  }
+  return scheme === "tt" ? trustTunnelLinkName(link.slice("tt://".length)) : "";
 }
 function vmessName(source) {
   let payload = source;
@@ -13642,9 +13694,9 @@ function percentDecode(value) {
   const bytes = [];
   const encoder = new TextEncoder();
   for (let i = 0; i < value.length; ) {
-    const hex = value.slice(i + 1, i + 3);
-    if (value[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(hex)) {
-      bytes.push(parseInt(hex, 16));
+    const hex2 = value.slice(i + 1, i + 3);
+    if (value[i] === "%" && /^[0-9A-Fa-f]{2}$/.test(hex2)) {
+      bytes.push(parseInt(hex2, 16));
       i += 3;
       continue;
     }
@@ -14145,10 +14197,10 @@ function validateSubscriptionUrlEntry(_section_id, value) {
 
 // src/helpers/pem.ts
 var BEGIN = /^-----BEGIN ([A-Za-z0-9 #-]+)-----$/;
-function pemBlocks(text6) {
+function pemBlocks(text7) {
   const blocks = [];
   let current = null;
-  for (const raw of `${text6 || ""}`.split(/\r?\n/)) {
+  for (const raw of `${text7 || ""}`.split(/\r?\n/)) {
     const line = raw.trim();
     if (!current) {
       const begin = BEGIN.exec(line);
@@ -14167,12 +14219,12 @@ function pemBlocks(text6) {
   return blocks;
 }
 function decodeBase64(body) {
-  const text6 = `${body || ""}`.replace(/\s+/g, "");
-  if (!text6 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text6) || text6.length % 4 !== 0) {
+  const text7 = `${body || ""}`.replace(/\s+/g, "");
+  if (!text7 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text7) || text7.length % 4 !== 0) {
     return null;
   }
   try {
-    const binary = atob(text6);
+    const binary = atob(text7);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   } catch (_error) {
     return null;
@@ -14203,16 +14255,48 @@ function children(bytes, parent) {
   }
   return result;
 }
-function isCertificate(der) {
+function signedFields(der) {
   const certificate = readTlv(der, 0, der.length);
   if (!certificate || certificate.tag !== 48 || certificate.end !== der.length) {
-    return false;
+    return null;
   }
   const signed = children(der, certificate)[0];
-  if (!signed || signed.tag !== 48) return false;
-  const fields = children(der, signed);
+  return signed && signed.tag === 48 ? children(der, signed) : null;
+}
+function isCertificate(der) {
+  const fields = signedFields(der);
+  if (!fields) return false;
   const base = fields[0]?.tag === 160 ? 1 : 0;
   return fields[base]?.tag === 2 && [1, 2, 3, 4].every((index) => fields[base + index]?.tag === 48);
+}
+function hex(bytes) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    ""
+  );
+}
+function extensionValue(der, oid) {
+  const extensions = (signedFields(der) || []).find(
+    (field2) => field2.tag === 163
+  );
+  const list3 = extensions && children(der, extensions)[0];
+  for (const extension of list3 ? children(der, list3) : []) {
+    const parts = children(der, extension);
+    const value = parts[parts.length - 1];
+    if (parts[0]?.tag === 6 && hex(der.subarray(parts[0].start, parts[0].end)) === oid && value?.tag === 4) {
+      return readTlv(der, value.start, value.end);
+    }
+  }
+  return null;
+}
+function certificateDnsName(der) {
+  const names = extensionValue(der, "551d11");
+  const name = names && children(der, names).find((item) => item.tag === 130);
+  return name ? String.fromCharCode(...der.subarray(name.start, name.end)) : "";
+}
+function certificateCanSignItself(der) {
+  const usage = extensionValue(der, "551d0f");
+  if (!usage) return true;
+  return usage.tag === 3 && usage.end - usage.start > 1 && (der[usage.start + 1] & 4) !== 0;
 }
 
 // src/helpers/material.ts
@@ -14220,9 +14304,9 @@ var PRIVATE_KEY_LABELS = ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"];
 function isRouterPath(value) {
   return /^\/[^\n]*$/.test(value.trim());
 }
-function splitCertificateAndKey(text6) {
+function splitCertificateAndKey(text7) {
   const blocks = Array.from(
-    `${text6 || ""}`.matchAll(
+    `${text7 || ""}`.matchAll(
       /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g
     )
   );
@@ -14232,8 +14316,8 @@ function splitCertificateAndKey(text6) {
   ).map((block) => block[0].replace(/\r/g, ""));
   return certificates.length && keys.length === 1 ? { certificate: certificates.join("\n"), key: keys[0] } : null;
 }
-function certificatesCheck(text6) {
-  const blocks = pemBlocks(text6).filter(
+function certificatesCheck(text7) {
+  const blocks = pemBlocks(text7).filter(
     (block) => block.label === "CERTIFICATE"
   );
   return blocks.length && blocks.every((block) => {
@@ -14247,8 +14331,8 @@ function isEncrypted(block) {
 function isEncryptedKey(value) {
   return pemBlocks(`${value ?? ""}`).some(isEncrypted);
 }
-function keyCheck(text6, passphrase) {
-  const blocks = pemBlocks(text6);
+function keyCheck(text7, passphrase) {
+  const blocks = pemBlocks(text7);
   if (!passphrase && blocks.some(isEncrypted)) {
     return _(
       "Remove the key passphrase: openssl pkey -in key.pem -out plain.pem"
@@ -14258,32 +14342,32 @@ function keyCheck(text6, passphrase) {
   const keys = blocks.filter((block) => labels.includes(block.label));
   return keys.length === 1 && decodeBase64(keys[0].body) ? true : _("Invalid PEM private key");
 }
-function staticKeyCheck(text6) {
-  const block = pemBlocks(text6).find(
+function staticKeyCheck(text7) {
+  const block = pemBlocks(text7).find(
     (item) => item.label === "OpenVPN Static key V1"
   );
   return block && /^[0-9a-fA-F]{512}$/.test(block.body) ? true : _("Invalid OpenVPN static key");
 }
-function cryptV2Check(text6) {
-  const block = pemBlocks(text6).find(
+function cryptV2Check(text7) {
+  const block = pemBlocks(text7).find(
     (item) => item.label === "OpenVPN tls-crypt-v2 client key"
   );
   return block && decodeBase64(block.body) ? true : _("Invalid tls-crypt-v2 key");
 }
 function checkMaterial(kind, value) {
-  const text6 = `${value ?? ""}`.trim();
-  if (!text6 || isRouterPath(text6)) return true;
+  const text7 = `${value ?? ""}`.trim();
+  if (!text7 || isRouterPath(text7)) return true;
   switch (kind) {
     case "ca":
     case "certificate":
-      return certificatesCheck(text6);
+      return certificatesCheck(text7);
     case "key":
     case "passphrase-key":
-      return keyCheck(text6, kind === "passphrase-key");
+      return keyCheck(text7, kind === "passphrase-key");
     case "static":
-      return staticKeyCheck(text6);
+      return staticKeyCheck(text7);
     default:
-      return cryptV2Check(text6);
+      return cryptV2Check(text7);
   }
 }
 
@@ -15108,14 +15192,14 @@ var ADVANCED_DEFAULTS = {
   openvpn_ping_restart: "",
   openvpn_renegotiate: ""
 };
-function text2(value) {
+function text3(value) {
   return `${value ?? ""}`;
 }
 function trimmed(value) {
-  return text2(value).trim();
+  return text3(value).trim();
 }
 function list(value) {
-  return value == null ? [] : Array.isArray(value) ? value.map(text2) : [text2(value)];
+  return value == null ? [] : Array.isArray(value) ? value.map(text3) : [text3(value)];
 }
 function material2(object, key) {
   const content = list(object[key]).join("\n").trim();
@@ -15213,8 +15297,8 @@ function openVPNInitialSettings(endpoint) {
     openvpn_network: network2,
     openvpn_mode: staticMode ? "static_key" : "tls",
     openvpn_login: endpoint.username != null || endpoint.password != null ? "1" : "0",
-    openvpn_username: text2(endpoint.username),
-    openvpn_password: text2(endpoint.password),
+    openvpn_username: text3(endpoint.username),
+    openvpn_password: text3(endpoint.password),
     openvpn_ca: material2(tls, "certificate"),
     openvpn_cert: material2(tls, "client_certificate"),
     openvpn_key: material2(tls, "client_key"),
@@ -15254,7 +15338,7 @@ function openVPNInitialSettings(endpoint) {
 function mergePreserved(endpoint, settings) {
   let preserved = {};
   try {
-    preserved = JSON.parse(text2(settings.openvpn_preserved) || "{}");
+    preserved = JSON.parse(text3(settings.openvpn_preserved) || "{}");
   } catch (_error) {
     preserved = {};
   }
@@ -15300,7 +15384,7 @@ function applyAdvanced(endpoint, tls, settings) {
   else if (restart) endpoint.ping_restart = `${restart}s`;
   Object.assign(
     endpoint,
-    COMPRESSIONS[text2(settings.openvpn_compression)] || {}
+    COMPRESSIONS[text3(settings.openvpn_compression)] || {}
   );
   if (!tlsMode) return;
   const serverName = trimmed(settings.openvpn_server_name);
@@ -15318,12 +15402,12 @@ function applyAdvanced(endpoint, tls, settings) {
     settings.openvpn_peer_fingerprint
   ).map((value) => value.replace(/:/g, "").toLowerCase());
   if (fingerprints.length) tls.peer_fingerprint = fingerprints;
-  for (const [key, field] of [
+  for (const [key, field2] of [
     ["certificate_profile", "openvpn_certificate_profile"],
     ["version_min", "openvpn_tls_version_min"],
     ["cipher", "openvpn_tls_cipher"]
   ]) {
-    if (trimmed(settings[field])) tls[key] = trimmed(settings[field]);
+    if (trimmed(settings[field2])) tls[key] = trimmed(settings[field2]);
   }
   const ciphers = normalizeOptionValues(settings.openvpn_data_ciphers);
   if (ciphers.length) endpoint.data_ciphers = ciphers;
@@ -15364,9 +15448,9 @@ function openVPNEndpoint(settings) {
     applyAdvanced(endpoint, tls, settings);
     return mergePreserved(endpoint, settings);
   }
-  if (settings.openvpn_login === "1" || text2(settings.openvpn_username) || text2(settings.openvpn_password)) {
-    endpoint.username = text2(settings.openvpn_username);
-    endpoint.password = text2(settings.openvpn_password);
+  if (settings.openvpn_login === "1" || text3(settings.openvpn_username) || text3(settings.openvpn_password)) {
+    endpoint.username = text3(settings.openvpn_username);
+    endpoint.password = text3(settings.openvpn_password);
   }
   setMaterial(tls, "certificate", settings.openvpn_ca);
   setMaterial(tls, "client_certificate", settings.openvpn_cert);
@@ -15428,7 +15512,7 @@ var ImportError2 = class extends Error {
 function fail2(message2) {
   throw new ImportError2(message2);
 }
-function text3(value) {
+function text4(value) {
   return `${value ?? ""}`.trim();
 }
 function lines2(value) {
@@ -15438,7 +15522,7 @@ function basename2(path) {
   return path.split(/[\\/]/).pop().toLowerCase();
 }
 function normalizeOpenConnectServer(value) {
-  let rest = text3(value);
+  let rest = text4(value);
   const scheme = /^([a-z][a-z0-9+.-]*):\/\//i.exec(rest);
   if (scheme) {
     if (scheme[1].toLowerCase() !== "https") {
@@ -15482,7 +15566,7 @@ function server(value) {
 var HEX = /^[0-9a-f]+$/i;
 var BASE64 = /^[A-Za-z0-9+/]+={0,2}$/;
 function normalizeOpenConnectFingerprint(value) {
-  const input = text3(value);
+  const input = text4(value);
   const prefixed = /^(pin-sha256|sha256|sha1):(.*)$/i.exec(input);
   if (prefixed) {
     const prefix = prefixed[1].toLowerCase();
@@ -15493,15 +15577,15 @@ function normalizeOpenConnectFingerprint(value) {
     const size = prefix === "sha256" ? 64 : 40;
     return HEX.test(body) && body.length >= 4 && body.length <= size ? { fingerprint: `${prefix}:${body.toLowerCase()}` } : { message: _("Invalid %s").format(prefix) };
   }
-  const hex = /^([0-9a-f]{2}:)+[0-9a-f]{2}$/i.test(input) ? input.replace(/:/g, "") : input;
-  if (HEX.test(hex) && hex.length === 64) {
+  const hex2 = /^([0-9a-f]{2}:)+[0-9a-f]{2}$/i.test(input) ? input.replace(/:/g, "") : input;
+  if (HEX.test(hex2) && hex2.length === 64) {
     return { message: _("Use pin-sha256 instead of a certificate SHA-256") };
   }
-  return HEX.test(hex) && hex.length >= 4 && hex.length <= 40 ? { fingerprint: hex.toLowerCase() } : { message: _("Format: pin-sha256:\u2026 or a SHA-1") };
+  return HEX.test(hex2) && hex2.length >= 4 && hex2.length <= 40 ? { fingerprint: hex2.toLowerCase() } : { message: _("Format: pin-sha256:\u2026 or a SHA-1") };
 }
 function fingerprint(value) {
   const result = normalizeOpenConnectFingerprint(value);
-  return "fingerprint" in result ? result.fingerprint : fail2(`${text3(value)}: ${result.message}`);
+  return "fingerprint" in result ? result.fingerprint : fail2(`${text4(value)}: ${result.message}`);
 }
 var BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 function base32(bytes) {
@@ -15520,7 +15604,7 @@ function base32(bytes) {
   return result;
 }
 function isBase32Secret(value) {
-  const body = text3(value).replace(/^base32:/i, "").replace(/[\s=]/g, "");
+  const body = text4(value).replace(/^base32:/i, "").replace(/[\s=]/g, "");
   return body !== "" && /^[A-Z2-7]+$/i.test(body);
 }
 function totpSecret(value) {
@@ -15542,12 +15626,12 @@ function totpSecret(value) {
       fail2(_("Token secret: invalid base32"));
     }
   } else if (secret.startsWith("0x")) {
-    const hex = secret.slice(2);
-    if (!HEX.test(hex) || hex.length % 2) {
+    const hex2 = secret.slice(2);
+    if (!HEX.test(hex2) || hex2.length % 2) {
       fail2(_("Token secret: invalid hexadecimal"));
     }
     encoded = base32(
-      Uint8Array.from(hex.match(/../g), (pair) => parseInt(pair, 16))
+      Uint8Array.from(hex2.match(/../g), (pair) => parseInt(pair, 16))
     );
   } else {
     encoded = base32(new TextEncoder().encode(secret));
@@ -16062,7 +16146,7 @@ function isYes(value) {
   return /^(yes|true|1)$/i.test(`${value || ""}`);
 }
 function nmFile(value) {
-  const path = text3(value).replace(/^file:\/\//, "");
+  const path = text4(value).replace(/^file:\/\//, "");
   return path && path !== "(null)" ? path : "";
 }
 var NM_TOKEN_MODES = {
@@ -16091,7 +16175,7 @@ function readNetworkManager(state, input) {
   } : sections.vpn || {};
   const secrets = sections["vpn-secrets"] || {};
   const { endpoint, tls } = state;
-  state.host = text3(data.gateway);
+  state.host = text4(data.gateway);
   if (!state.host) fail2(_("No gateway"));
   const xml = secrets.xmlconfig ? decodeBase64(secrets.xmlconfig) : null;
   if (xml && !/[.:/]/.test(state.host)) {
@@ -16122,15 +16206,15 @@ function readNetworkManager(state, input) {
     }
     endpoint.reported_os = data.reported_os;
   }
-  if (/^\d+$/.test(text3(data.mtu))) endpoint.mtu = Number(data.mtu);
+  if (/^\d+$/.test(text4(data.mtu))) endpoint.mtu = Number(data.mtu);
   if (isYes(data.disable_udp)) endpoint.no_udp = true;
   if (data.proxy) state.skipped.add("proxy");
   if (data.csd_wrapper) state.skipped.add("csd_wrapper");
   if (isYes(data.pem_passphrase_fsid)) state.skipped.add("pem_passphrase_fsid");
-  const source = text3(data.stoken_source);
+  const source = text4(data.stoken_source);
   if (NM_TOKEN_MODES[source]) {
     state.tokenMode = NM_TOKEN_MODES[source];
-    state.tokenSecret = text3(secrets.stoken_string || data.stoken_string);
+    state.tokenSecret = text4(secrets.stoken_string || data.stoken_string);
   } else if (source && source !== "disabled") {
     state.skipped.add(`stoken_source ${source}`);
   }
@@ -16139,16 +16223,16 @@ function readNetworkManager(state, input) {
   if (secrets.key_pass) tls.client_key_password = secrets.key_pass;
   if (secrets.mca_key_pass) tls.mca_key_password = secrets.mca_key_pass;
   Object.entries(secrets).forEach(([key, value]) => {
-    const field = /^form:([^:]+):(.+)$/.exec(key);
-    if (!field || !value) return;
-    const name = field[2].toLowerCase();
+    const field2 = /^form:([^:]+):(.+)$/.exec(key);
+    if (!field2 || !value) return;
+    const name = field2[2].toLowerCase();
     if (name === "username") endpoint.username = value;
     else if (name === "password") endpoint.password = value;
     else if (name === "group_list") endpoint.auth_group = value;
     else
       pushTo(endpoint, "form_entries", {
-        form_id: field[1],
-        name: field[2],
+        form_id: field2[1],
+        name: field2[2],
         value
       });
   });
@@ -16214,12 +16298,12 @@ function readAnyConnectLink(state, input) {
   if (/^ipsec$/i.test(query.get("protocol") || "")) {
     fail2(_("The link connects over IPsec, which OpenConnect does not speak"));
   }
-  state.host = text3(query.get("host"));
+  state.host = text4(query.get("host"));
   if (!state.host) fail2(_("No host"));
   state.endpoint.flavor = "anyconnect";
-  const username = text3(query.get("prefill_username"));
+  const username = text4(query.get("prefill_username"));
   const password = query.get("prefill_password") ?? "";
-  const group = text3(query.get("prefill_group_list"));
+  const group = text4(query.get("prefill_group_list"));
   if (username) state.endpoint.username = username;
   if (password) state.endpoint.password = password;
   if (group) state.endpoint.auth_group = group;
@@ -16312,7 +16396,7 @@ function readJson(state, input) {
   }
   state.endpoint = endpoint;
   state.tls = { ...endpoint.tls || {} };
-  state.host = text3(endpoint.server);
+  state.host = text4(endpoint.server);
   state.browser = endpoint.external_auth_disabled !== true;
 }
 function format(input) {
@@ -16490,14 +16574,14 @@ var ADVANCED_DEFAULTS2 = {
   openconnect_form_entries: [],
   openconnect_browser: "0"
 };
-function text4(value) {
+function text5(value) {
   return `${value ?? ""}`;
 }
 function trimmed2(value) {
-  return text4(value).trim();
+  return text5(value).trim();
 }
 function list2(value) {
-  return value == null ? [] : Array.isArray(value) ? value.map(text4) : [text4(value)];
+  return value == null ? [] : Array.isArray(value) ? value.map(text5) : [text5(value)];
 }
 function flag(value) {
   return value === true ? "1" : "0";
@@ -16525,7 +16609,7 @@ function number3(value) {
   return /^\d+$/.test(trimmed2(value)) ? Number(trimmed2(value)) : null;
 }
 function isFormEntryLine(entry) {
-  return !!trimmed2(entry.form_id) && !!trimmed2(entry.name) && !entry.submission_key && !entry.promote && !/[:=]/.test(text4(entry.form_id)) && !text4(entry.name).includes("=");
+  return !!trimmed2(entry.form_id) && !!trimmed2(entry.name) && !entry.submission_key && !entry.promote && !/[:=]/.test(text5(entry.form_id)) && !text5(entry.name).includes("=");
 }
 function parseFormEntry(value) {
   const match = /^([^:=]+):([^=]+)=(.*)$/.exec(trimmed2(value));
@@ -16555,7 +16639,7 @@ function preservedFields2(endpoint) {
   });
   if (Object.keys(preservedTls).length) preserved.tls = preservedTls;
   const token = endpoint.token;
-  if (token && !TOKEN_MODES2.includes(text4(token.mode))) {
+  if (token && !TOKEN_MODES2.includes(text5(token.mode))) {
     preserved.token = token;
   }
   const entries = formEntries(endpoint).filter(
@@ -16567,22 +16651,22 @@ function preservedFields2(endpoint) {
 function openConnectInitialSettings(endpoint) {
   const tls = endpoint.tls || {};
   const token = endpoint.token || {};
-  const tokenMode = TOKEN_MODES2.includes(text4(token.mode)) ? text4(token.mode) : "";
+  const tokenMode = TOKEN_MODES2.includes(text5(token.mode)) ? text5(token.mode) : "";
   const settings = {
     openconnect_server: trimmed2(endpoint.server),
     openconnect_flavor: trimmed2(endpoint.flavor) || "anyconnect",
-    openconnect_username: text4(endpoint.username),
-    openconnect_password: text4(endpoint.password),
-    openconnect_auth_group: text4(endpoint.auth_group),
+    openconnect_username: text5(endpoint.username),
+    openconnect_password: text5(endpoint.password),
+    openconnect_auth_group: text5(endpoint.auth_group),
     openconnect_certificate_enabled: material4(tls, "client_certificate") || material4(tls, "client_key") ? "1" : "0",
     openconnect_cert: material4(tls, "client_certificate"),
     openconnect_key: material4(tls, "client_key"),
-    openconnect_key_password: text4(tls.client_key_password),
+    openconnect_key_password: text5(tls.client_key_password),
     openconnect_token_mode: tokenMode,
-    openconnect_token_secret: tokenMode ? text4(token.secret) : "",
-    openconnect_token_pin: tokenMode ? text4(token.pin) : "",
-    openconnect_token_password: tokenMode ? text4(token.password) : "",
-    openconnect_token_device_id: tokenMode ? text4(token.device_id) : "",
+    openconnect_token_secret: tokenMode ? text5(token.secret) : "",
+    openconnect_token_pin: tokenMode ? text5(token.pin) : "",
+    openconnect_token_password: tokenMode ? text5(token.password) : "",
+    openconnect_token_device_id: tokenMode ? text5(token.device_id) : "",
     openconnect_ca: material4(tls, "certificate_authority"),
     openconnect_fingerprints: list2(tls.peer_fingerprint),
     openconnect_insecure: flag(tls.insecure),
@@ -16590,7 +16674,7 @@ function openConnectInitialSettings(endpoint) {
     openconnect_no_system_trust: flag(tls.system_trust_disabled),
     openconnect_no_udp: flag(endpoint.no_udp),
     openconnect_reported_os: trimmed2(endpoint.reported_os),
-    openconnect_user_agent: text4(endpoint.user_agent),
+    openconnect_user_agent: text5(endpoint.user_agent),
     openconnect_version: trimmed2(endpoint.version),
     openconnect_local_hostname: trimmed2(endpoint.local_hostname),
     openconnect_compression: compressionValue2(endpoint),
@@ -16600,9 +16684,9 @@ function openConnectInitialSettings(endpoint) {
     openconnect_dpd: secondsValue2(endpoint.dpd_interval),
     openconnect_insecure_crypto: flag(endpoint.allow_insecure_crypto),
     openconnect_pfs: flag(endpoint.pfs),
-    openconnect_cookie: text4(endpoint.cookie),
+    openconnect_cookie: text5(endpoint.cookie),
     openconnect_form_entries: formEntries(endpoint).filter(isFormEntryLine).map(
-      (entry) => `${trimmed2(entry.form_id)}:${trimmed2(entry.name)}=${text4(entry.value)}`
+      (entry) => `${trimmed2(entry.form_id)}:${trimmed2(entry.name)}=${text5(entry.value)}`
     ),
     openconnect_browser: endpoint.external_auth_disabled === true ? "0" : "1",
     openconnect_preserved: JSON.stringify(preservedFields2(endpoint))
@@ -16613,7 +16697,7 @@ function openConnectInitialSettings(endpoint) {
 function mergePreserved2(endpoint, settings) {
   let preserved = {};
   try {
-    preserved = JSON.parse(text4(settings.openconnect_preserved) || "{}");
+    preserved = JSON.parse(text5(settings.openconnect_preserved) || "{}");
   } catch (_error) {
     preserved = {};
   }
@@ -16649,15 +16733,15 @@ function applyAdvanced2(endpoint, tls, settings) {
     tls.system_trust_disabled = true;
   }
   if (settings.openconnect_no_udp === "1") endpoint.no_udp = true;
-  for (const [key, field] of [
+  for (const [key, field2] of [
     ["reported_os", "openconnect_reported_os"],
     ["version", "openconnect_version"],
     ["local_hostname", "openconnect_local_hostname"]
   ]) {
-    if (trimmed2(settings[field])) endpoint[key] = trimmed2(settings[field]);
+    if (trimmed2(settings[field2])) endpoint[key] = trimmed2(settings[field2]);
   }
   if (trimmed2(settings.openconnect_user_agent)) {
-    endpoint.user_agent = text4(settings.openconnect_user_agent);
+    endpoint.user_agent = text5(settings.openconnect_user_agent);
   }
   if (settings.openconnect_compression === "off") {
     endpoint.compression_disabled = true;
@@ -16675,8 +16759,8 @@ function applyAdvanced2(endpoint, tls, settings) {
     endpoint.allow_insecure_crypto = true;
   }
   if (settings.openconnect_pfs === "1") endpoint.pfs = true;
-  if (text4(settings.openconnect_cookie)) {
-    endpoint.cookie = text4(settings.openconnect_cookie).trim();
+  if (text5(settings.openconnect_cookie)) {
+    endpoint.cookie = text5(settings.openconnect_cookie).trim();
   }
   const entries = normalizeOptionValues(settings.openconnect_form_entries).map(parseFormEntry).filter(Boolean);
   if (entries.length) endpoint.form_entries = entries;
@@ -16696,8 +16780,8 @@ function openConnectEndpoint(settings) {
   if (trimmed2(settings.openconnect_username)) {
     endpoint.username = trimmed2(settings.openconnect_username);
   }
-  if (text4(settings.openconnect_password)) {
-    endpoint.password = text4(settings.openconnect_password);
+  if (text5(settings.openconnect_password)) {
+    endpoint.password = text5(settings.openconnect_password);
   }
   if (trimmed2(settings.openconnect_auth_group)) {
     endpoint.auth_group = trimmed2(settings.openconnect_auth_group);
@@ -16709,12 +16793,12 @@ function openConnectEndpoint(settings) {
       secret: tokenSecret(mode, settings.openconnect_token_secret)
     };
     if (mode === "stoken") {
-      for (const [key, field] of [
+      for (const [key, field2] of [
         ["pin", "openconnect_token_pin"],
         ["password", "openconnect_token_password"],
         ["device_id", "openconnect_token_device_id"]
       ]) {
-        if (trimmed2(settings[field])) token[key] = trimmed2(settings[field]);
+        if (trimmed2(settings[field2])) token[key] = trimmed2(settings[field2]);
       }
     }
     endpoint.token = token;
@@ -16722,8 +16806,8 @@ function openConnectEndpoint(settings) {
   if (settings.openconnect_certificate_enabled === "1") {
     setMaterial2(tls, "client_certificate", settings.openconnect_cert);
     setMaterial2(tls, "client_key", settings.openconnect_key);
-    if (text4(settings.openconnect_key_password)) {
-      tls.client_key_password = text4(settings.openconnect_key_password);
+    if (text5(settings.openconnect_key_password)) {
+      tls.client_key_password = text5(settings.openconnect_key_password);
     }
   }
   setMaterial2(tls, "certificate_authority", settings.openconnect_ca);
@@ -16762,7 +16846,7 @@ function validateOpenConnectSettings(settings) {
   const mode = trimmed2(settings.openconnect_token_mode);
   const certificate = settings.openconnect_certificate_enabled === "1";
   const advanced = settings.openconnect_advanced === "1";
-  const complete = validateOpenConnectServer(settings.openconnect_server) === true && (!mode || validateTokenSecret(mode, settings.openconnect_token_secret) === true) && (!certificate || !!trimmed2(settings.openconnect_cert) && !!trimmed2(settings.openconnect_key) && (!isEncryptedKey(settings.openconnect_key) || !!text4(settings.openconnect_key_password))) && normalizeOptionValues(settings.openconnect_fingerprints).every(
+  const complete = validateOpenConnectServer(settings.openconnect_server) === true && (!mode || validateTokenSecret(mode, settings.openconnect_token_secret) === true) && (!certificate || !!trimmed2(settings.openconnect_cert) && !!trimmed2(settings.openconnect_key) && (!isEncryptedKey(settings.openconnect_key) || !!text5(settings.openconnect_key_password))) && normalizeOptionValues(settings.openconnect_fingerprints).every(
     (value) => validateOpenConnectFingerprint(value) === true
   ) && (!advanced || normalizeOptionValues(settings.openconnect_form_entries).every(
     (value) => validateFormEntry(value) === true
@@ -16933,22 +17017,22 @@ function validateAmneziaSignature(value) {
   return tags > 0;
 }
 function validateAmneziaValue(key, value) {
-  const text6 = `${value ?? ""}`.trim();
+  const text7 = `${value ?? ""}`.trim();
   const entry = amneziaParameter(key);
-  if (!text6 || !entry) return true;
+  if (!text7 || !entry) return true;
   switch (entry.kind) {
     case "count":
-      return parseUnsigned(text6, UINT32_MAX) !== void 0 ? true : message.wholeNumber(0, UINT32_MAX);
+      return parseUnsigned(text7, UINT32_MAX) !== void 0 ? true : message.wholeNumber(0, UINT32_MAX);
     case "padding":
-      return parseUnsigned(text6, UINT16_MAX) !== void 0 ? true : message.wholeNumber(0, UINT16_MAX);
+      return parseUnsigned(text7, UINT16_MAX) !== void 0 ? true : message.wholeNumber(0, UINT16_MAX);
     case "range":
-      return validateRange(text6);
+      return validateRange(text7);
     case "signature":
-      return validateAmneziaSignature(text6) ? true : _("Format: <b 0xdeadbeef><r 4>");
+      return validateAmneziaSignature(text7) ? true : _("Format: <b 0xdeadbeef><r 4>");
     case "key":
-      return validateWireGuardKey(text6) ? true : message.invalidKey();
+      return validateWireGuardKey(text7) ? true : message.invalidKey();
     default:
-      return text6 === "0" || text6 === "1" ? true : _("Only 0 or 1");
+      return text7 === "0" || text7 === "1" ? true : _("Only 0 or 1");
   }
 }
 function rangeBounds(value) {
@@ -16956,38 +17040,38 @@ function rangeBounds(value) {
   return [parts[0], parts[parts.length - 1]];
 }
 function validateAmneziaSet(values) {
-  const text6 = (key) => `${values[key] ?? ""}`.trim();
-  const protectionKey = text6("header_protection_key");
-  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text6(key) || 0) < 12)) {
+  const text7 = (key) => `${values[key] ?? ""}`.trim();
+  const protectionKey = text7("header_protection_key");
+  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text7(key) || 0) < 12)) {
     return _("HeaderProtectionKey needs S1-S4 of at least 12");
   }
   const headers = ["h1", "h2", "h3", "h4"];
-  if (headers.some((key) => text6(key))) {
+  if (headers.some((key) => text7(key))) {
     const bounds = headers.map(
-      (key, index) => rangeBounds(text6(key) || `${index + 1}`)
+      (key, index) => rangeBounds(text7(key) || `${index + 1}`)
     );
     const overlap = bounds.some(
       ([from, to], index) => bounds.slice(index + 1).some(([otherFrom, otherTo]) => from <= otherTo && otherFrom <= to)
     );
     if (overlap) return _("H1-H4 must not overlap");
   }
-  if (Number(text6("jmin") || 0) > Number(text6("jmax") || 0)) {
+  if (Number(text7("jmin") || 0) > Number(text7("jmax") || 0)) {
     return _("Jmin is greater than Jmax");
   }
   return true;
 }
 function amneziaJsonValue(key, value) {
-  const text6 = `${value ?? ""}`.trim();
+  const text7 = `${value ?? ""}`.trim();
   switch (amneziaParameter(key)?.kind) {
     case "flag":
-      return text6 === "1";
+      return text7 === "1";
     case "signature":
     case "key":
-      return text6;
+      return text7;
     case "range":
-      return text6.includes("-") ? text6 : Number(text6);
+      return text7.includes("-") ? text7 : Number(text7);
     default:
-      return Number(text6);
+      return Number(text7);
   }
 }
 var CONF_TRUE = ["on", "true", "1", "yes"];
@@ -16999,8 +17083,8 @@ function amneziaTextFromConf(key, value) {
 }
 function amneziaConfLine(key, value) {
   const entry = amneziaParameter(key);
-  const text6 = `${value ?? ""}`.trim();
-  return `${entry.conf} = ${entry.kind === "flag" ? text6 === "1" ? "on" : "off" : text6}`;
+  const text7 = `${value ?? ""}`.trim();
+  return `${entry.conf} = ${entry.kind === "flag" ? text7 === "1" ? "on" : "off" : text7}`;
 }
 
 // src/forkop/tabs/sections/tunnels/model.ts
@@ -17154,8 +17238,8 @@ function tunnelSettingsKeys() {
   ];
 }
 function setsAmneziaParameter(key, value) {
-  const text6 = `${value ?? ""}`.trim();
-  return amneziaParameter(key)?.kind === "flag" ? text6 === "1" : text6 !== "";
+  const text7 = `${value ?? ""}`.trim();
+  return amneziaParameter(key)?.kind === "flag" ? text7 === "1" : text7 !== "";
 }
 function oneSidedAmneziaEnabled(kind, settings) {
   return (kind === "wireguard" || kind === "warp") && `${settings.amnezia_enabled || ""}` === "1";
@@ -18040,37 +18124,37 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
   ].forEach(
     ([key, storageKey, label, description, validator, visibleModes]) => {
       const isList = storageKey.endsWith("_outbounds") || storageKey === "exclude_types";
-      const field = itemSection.option(
+      const field2 = itemSection.option(
         isList ? form.DynamicList : form.Value,
         key,
         label,
         description
       );
       (visibleModes || []).forEach(
-        (mode) => field.depends("server_filter_mode", mode)
+        (mode) => field2.depends("server_filter_mode", mode)
       );
-      field.rmempty = true;
+      field2.rmempty = true;
       if (key !== storageKey) {
-        field.ucioption = storageKey;
-        field.retain = true;
+        field2.ucioption = storageKey;
+        field2.retain = true;
         const mode = (visibleModes || [])[0];
         if (mode) {
           if (!sharedFields[mode]) {
             sharedFields[mode] = {};
           }
-          sharedFields[mode][storageKey] = field;
+          sharedFields[mode][storageKey] = field2;
         }
       }
       if (storageKey === "exclude_types") {
         const choices = options.groupContext ? groupTypeChoices() : providerTypeChoices();
-        field.load = function(itemId) {
+        field2.load = function(itemId) {
           const values = normalizeOptionValues(
             optionMapValue(this, itemId, storageKey)
           );
           refreshOptionChoices(this, coreFilterTypeChoices(choices, values));
           return values;
         };
-        field.placeholder = _("-- Select --");
+        field2.placeholder = _("-- Select --");
       }
       if (storageKey.endsWith("_outbounds")) {
         const choicesForItem = (option2, itemId) => {
@@ -18082,7 +18166,7 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
             normalizeChoice
           ) : currentOutboundNameChoices(sectionId, normalizeChoice);
         };
-        field.load = function(itemId) {
+        field2.load = function(itemId) {
           const sectionId = parentSectionForItem(itemId);
           const values = normalizeOptionValues(
             optionMapValue(this, itemId, storageKey)
@@ -18095,15 +18179,15 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
           refreshOptionChoices(this, choicesForItem(this, itemId));
           return values;
         };
-        field.placeholder = _("-- Select --");
+        field2.placeholder = _("-- Select --");
         configureLiveDynamicListChoices(
-          field,
-          (itemId) => choicesForItem(field, itemId),
+          field2,
+          (itemId) => choicesForItem(field2, itemId),
           parentSectionForItem
         );
       }
       if (validator) {
-        field.validate = function(_itemId, value) {
+        field2.validate = function(_itemId, value) {
           return validator(value);
         };
       }
@@ -18138,11 +18222,11 @@ var UNIT_SECONDS = {
   d: 86400
 };
 function singBoxDurationSeconds(value) {
-  const text6 = `${value ?? ""}`.trim();
-  if (!isSingBoxDuration(text6)) {
+  const text7 = `${value ?? ""}`.trim();
+  if (!isSingBoxDuration(text7)) {
     return null;
   }
-  return [...text6.matchAll(/([0-9]+(?:\.[0-9]+)?)(ns|us|ms|s|m|h|d)/g)].reduce(
+  return [...text7.matchAll(/([0-9]+(?:\.[0-9]+)?)(ns|us|ms|s|m|h|d)/g)].reduce(
     (total, [, amount, unit]) => total + Number(amount) * UNIT_SECONDS[unit],
     0
   );
@@ -18553,7 +18637,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
       }, this)
     );
   },
-  renderListItemLabel(section_id, value, text6) {
+  renderListItemLabel(section_id, value, text7) {
     const name = childItemInputValue(
       section_id,
       value,
@@ -18562,7 +18646,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
     );
     return renderNetworkInterfaceListItem(
       this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
-      name || `${text6 ?? ""}`
+      name || `${text7 ?? ""}`
     );
   }
 });
@@ -19286,9 +19370,9 @@ function canonicalField(key) {
   return CANONICAL_FIELDS[compact] || compact;
 }
 function addValue(values, key, value) {
-  const field = canonicalField(key);
-  if (!field) return;
-  (values[field] || (values[field] = [])).push(value);
+  const field2 = canonicalField(key);
+  if (!field2) return;
+  (values[field2] || (values[field2] = [])).push(value);
 }
 function firstValue(values, key) {
   return values[key]?.[0]?.trim() || "";
@@ -19409,15 +19493,15 @@ function parseAmnezia(iface) {
   for (const { key, conf, kind } of AMNEZIA_PARAMETERS) {
     const value = firstValue(iface, conf.toLowerCase());
     if (!value) continue;
-    const text6 = amneziaTextFromConf(key, value);
-    if (text6 === null)
+    const text7 = amneziaTextFromConf(key, value);
+    if (text7 === null)
       return { valid: false, message: _("Invalid AmneziaWG parameters") };
-    const validation = validateAmneziaValue(key, text6);
+    const validation = validateAmneziaValue(key, text7);
     if (validation !== true)
       return { valid: false, message: `${conf}: ${validation}` };
-    texts[key] = text6;
-    if (kind !== "flag" || text6 === "1")
-      amnezia[key] = amneziaJsonValue(key, text6);
+    texts[key] = text7;
+    if (kind !== "flag" || text7 === "1")
+      amnezia[key] = amneziaJsonValue(key, text7);
   }
   const combination = validateAmneziaSet(texts);
   if (combination !== true) return { valid: false, message: combination };
@@ -19594,10 +19678,10 @@ async function parseWireGuardInput(input) {
     if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
-    const text6 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
-    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text6))
-      return parseWireGuardConfig(text6);
-    return importAmneziaProfile(JSON.parse(text6));
+    const text7 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text7))
+      return parseWireGuardConfig(text7);
+    return importAmneziaProfile(JSON.parse(text7));
   } catch {
     return {
       valid: false,
@@ -19659,8 +19743,8 @@ function fileIcon() {
   return svg;
 }
 function readMaterialFile(bytes) {
-  const text6 = new TextDecoder().decode(bytes);
-  if (text6.includes("-----BEGIN") || !isCertificate(bytes)) return text6;
+  const text7 = new TextDecoder().decode(bytes);
+  if (text7.includes("-----BEGIN") || !isCertificate(bytes)) return text7;
   let binary = "";
   bytes.forEach((byte) => binary += String.fromCharCode(byte));
   const body = btoa(binary).replace(/.{64}/g, "$&\n").trim();
@@ -19690,9 +19774,9 @@ function setFieldValue(widget, value) {
   widget?.triggerValidation();
   widget?.node?.querySelector("textarea")?.dispatchEvent(new Event("change", { bubbles: true }));
 }
-function loadedMaterial(text6, kind, paired) {
-  const both = paired ? splitCertificateAndKey(text6) : null;
-  if (!both) return { own: text6, pair: null };
+function loadedMaterial(text7, kind, paired) {
+  const both = paired ? splitCertificateAndKey(text7) : null;
+  if (!both) return { own: text7, pair: null };
   return kind === "key" || kind === "passphrase-key" ? { own: both.key, pair: both.certificate } : { own: both.certificate, pair: both.key };
 }
 function configureMaterialOption(option2, kind, required2, pair) {
@@ -19735,10 +19819,10 @@ function configureMaterialOption(option2, kind, required2, pair) {
       },
       fileIcon()
     );
-    const fill = (text6) => {
+    const fill = (text7) => {
       const other = pairWidget();
       const loaded = loadedMaterial(
-        text6,
+        text7,
         typeof kind === "function" ? kind(formValueOf(this, sectionId)) : kind,
         !!other
       );
@@ -19758,10 +19842,10 @@ function configureMaterialOption(option2, kind, required2, pair) {
       });
     });
     frame.querySelector("textarea")?.addEventListener("paste", (ev) => {
-      const text6 = ev.clipboardData?.getData("text") ?? "";
-      if (!pair || !splitCertificateAndKey(text6)) return;
+      const text7 = ev.clipboardData?.getData("text") ?? "";
+      if (!pair || !splitCertificateAndKey(text7)) return;
       ev.preventDefault();
-      fill(text6.trim());
+      fill(text7.trim());
     });
     return textE("div", { class: "fkp-material" }, [frame, load]);
   };
@@ -19770,9 +19854,9 @@ function configureMaterialOption(option2, kind, required2, pair) {
 // src/validators/fields.ts
 function wholeNumberField(min, max = Infinity) {
   return (_sectionId, value) => {
-    const text6 = `${value ?? ""}`.trim();
-    const number4 = Number(text6);
-    return !text6 || /^[0-9]+$/.test(text6) && number4 >= min && number4 <= max ? true : max === Infinity ? _("Whole number from %d").format(min) : message.wholeNumber(min, max);
+    const text7 = `${value ?? ""}`.trim();
+    const number4 = Number(text7);
+    return !text7 || /^[0-9]+$/.test(text7) && number4 >= min && number4 <= max ? true : max === Infinity ? _("Whole number from %d").format(min) : message.wholeNumber(min, max);
   };
 }
 function portField(_sectionId, value) {
@@ -19782,21 +19866,21 @@ function anyPortField(_sectionId, value) {
   return wholeNumberField(0, 65535)(_sectionId, value) === true ? true : message.invalidPort();
 }
 function domainField(_sectionId, value) {
-  const text6 = `${value ?? ""}`.trim();
-  const ascii = asciiHostname(text6.toLowerCase());
-  return !text6 || ascii && validAsciiDomain(ascii, false) ? true : message.invalidDomain();
+  const text7 = `${value ?? ""}`.trim();
+  const ascii = asciiHostname(text7.toLowerCase());
+  return !text7 || ascii && validAsciiDomain(ascii, false) ? true : message.invalidDomain();
 }
 function hostField(_sectionId, value) {
-  const text6 = `${value ?? ""}`.trim();
-  return !text6 || isIPv4(text6) || isIPv6(text6) || domainField(_sectionId, text6) === true ? true : message.invalidHost();
+  const text7 = `${value ?? ""}`.trim();
+  return !text7 || isIPv4(text7) || isIPv6(text7) || domainField(_sectionId, text7) === true ? true : message.invalidHost();
 }
 function ipv4Field(_sectionId, value) {
-  const text6 = `${value ?? ""}`.trim();
-  return !text6 || isIPv4(text6) ? true : message.invalidIp();
+  const text7 = `${value ?? ""}`.trim();
+  return !text7 || isIPv4(text7) ? true : message.invalidIp();
 }
 function ipv6Field(_sectionId, value) {
-  const text6 = `${value ?? ""}`.trim();
-  return !text6 || isIPv6(text6) ? true : message.invalidIp();
+  const text7 = `${value ?? ""}`.trim();
+  return !text7 || isIPv6(text7) ? true : message.invalidIp();
 }
 
 // src/forkop/tabs/sections/tunnels/openvpnForm.ts
@@ -20906,9 +20990,9 @@ function validateWireGuardPeers(values, tunnelId, option2) {
   return true;
 }
 function isOptionalUint16(value, minimum) {
-  const text6 = `${value ?? ""}`.trim();
-  const parsed = parseUnsigned(text6, 65535);
-  return !text6 || parsed !== void 0 && parsed >= minimum;
+  const text7 = `${value ?? ""}`.trim();
+  const parsed = parseUnsigned(text7, 65535);
+  return !text7 || parsed !== void 0 && parsed >= minimum;
 }
 function amneziaProblem(kind, settings) {
   if (kind !== "amneziawg" && !oneSidedAmneziaEnabled(kind, settings)) {
@@ -21198,9 +21282,9 @@ function showTunnelImportModal(parentMap, fields, openvpn, openconnect) {
             if (!files.length) return;
             const found = files.find((file) => CONFIGURATION_FILE.test(file.name)) || files.find((file) => importedFormat(file.content.trim()));
             files.filter((file) => file !== found).forEach((file) => attachments[file.name] = file.content);
-            const field = configuration.getUIElement("settings");
-            if (found) field?.setValue(found.content.trim());
-            const input = `${field?.getValue() ?? ""}`.trim();
+            const field2 = configuration.getUIElement("settings");
+            if (found) field2?.setValue(found.content.trim());
+            const input = `${field2?.getValue() ?? ""}`.trim();
             const result = configuration.validate("settings", input);
             configuration.triggerValidation("settings");
             if (result === true) return save();
@@ -22537,6 +22621,15 @@ var PROTOCOLS = [
     link: "mierus"
   },
   {
+    id: "trusttunnel",
+    label: "TrustTunnel",
+    kind: "inbound",
+    securities: ["tls"],
+    login: true,
+    credentials: ["password"],
+    link: "tt"
+  },
+  {
     id: "tailscale",
     label: "Tailscale",
     kind: "endpoint",
@@ -22613,17 +22706,23 @@ function listenerProtocols() {
 }
 function listenTransports(protocol, network2) {
   const value = `${network2 || ""}`.toLowerCase();
+  const http = protocol === "naive" || protocol === "trusttunnel";
   if (protocol === "openvpn") return [value === "tcp" ? "tcp" : "udp"];
   if (protocol === "hysteria2" || protocol === "tuic" || protocol === "wireguard" || protocol === "amneziawg")
     return ["udp"];
-  if (protocol === "shadowsocks" || protocol === "naive" && value === "tcp_udp")
+  if (protocol === "shadowsocks" || http && value === "tcp_udp")
     return ["tcp", "udp"];
-  if ((protocol === "naive" || protocol === "mieru") && value === "udp")
-    return ["udp"];
+  if ((http || protocol === "mieru") && value === "udp") return ["udp"];
   return ["tcp"];
 }
+var TRANSPORT_OPTIONS = {
+  naive: "naive_network",
+  trusttunnel: "trusttunnel_network",
+  mieru: "mieru_transport",
+  openvpn: "openvpn_network"
+};
 function transportOption(protocol) {
-  return protocol === "naive" ? "naive_network" : protocol === "mieru" ? "mieru_transport" : protocol === "openvpn" ? "openvpn_network" : "";
+  return TRANSPORT_OPTIONS[protocol] || "";
 }
 function hasListener(protocol) {
   const spec = protocolSpec(protocol);
@@ -22732,7 +22831,9 @@ function serverMissingCoreFeature(sectionId) {
   const needed = [
     protocolCoreFeature(protocol),
     securityCoreFeature(getEffectiveSecurity(sectionId)),
-    protocol === "naive" && ["udp", "tcp_udp"].includes(liveOption(sectionId, "naive_network")) ? "quic" : ""
+    (protocol === "naive" || protocol === "trusttunnel") && ["udp", "tcp_udp"].includes(
+      liveOption(sectionId, transportOption(protocol))
+    ) ? "quic" : ""
   ];
   return needed.find((feature) => feature && !coreHas(feature)) || "";
 }
@@ -22777,13 +22878,13 @@ function generateUuid() {
   const bytes = randomBytes(16);
   bytes[6] = bytes[6] & 15 | 64;
   bytes[8] = bytes[8] & 63 | 128;
-  const hex = Array.from(bytes).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  const hex2 = Array.from(bytes).map((byte) => byte.toString(16).padStart(2, "0")).join("");
   return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20)
+    hex2.slice(0, 8),
+    hex2.slice(8, 12),
+    hex2.slice(12, 16),
+    hex2.slice(16, 20),
+    hex2.slice(20)
   ].join("-");
 }
 function generatePassword() {
@@ -22805,11 +22906,11 @@ function encodeQuery(params) {
     ([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(`${value}`)}`
   ).join("&");
 }
-function generateCredential(sectionId, protocol, field) {
-  if (field === "uuid") {
+function generateCredential(sectionId, protocol, field2) {
+  if (field2 === "uuid") {
     return generateUuid();
   }
-  if (field === "password") {
+  if (field2 === "password") {
     const keyBytes = protocol === "shadowsocks" ? shadowsocksKeyBytes(getShadowsocksMethod(sectionId)) : 0;
     return keyBytes > 0 ? generatePresharedKey(keyBytes) : generatePassword();
   }
@@ -22927,12 +23028,12 @@ var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
   const claim = (port2, transports, owner) => {
-    const text6 = `${port2 || ""}`.trim();
-    if (!/^[0-9]+$/.test(text6)) {
+    const text7 = `${port2 || ""}`.trim();
+    if (!/^[0-9]+$/.test(text7)) {
       return;
     }
     transports.forEach((transport3) => {
-      const key = `${transport3}/${Number(text6)}`;
+      const key = `${transport3}/${Number(text7)}`;
       if (!owners.has(key)) owners.set(key, owner);
     });
   };
@@ -23261,12 +23362,43 @@ function buildNaiveLink(sectionId, client) {
     clientLabel(sectionId, client)
   );
 }
+function buildTrustTunnelLink(sectionId, client, context) {
+  const sni = option(sectionId, "tls_server_name");
+  const link = {
+    hostname: sni || getPublicHost(sectionId),
+    address: `${formatHostForUri(getPublicHost(sectionId))}:${getListenPort(sectionId)}`,
+    username: client.name,
+    password: client.password,
+    http3: option(sectionId, "trusttunnel_network") === "udp",
+    name: clientLabel(sectionId, client)
+  };
+  if (!usesSelfSignedCertificate(sectionId)) {
+    return encodeTrustTunnelLink(link);
+  }
+  const block = pemBlocks(context.tlsCertificate || "").find(
+    (item) => item.label === "CERTIFICATE"
+  );
+  const certificate = block ? decodeBase64(block.body) : null;
+  if (!certificate) {
+    return "";
+  }
+  const hostname = certificateDnsName(certificate);
+  if (!hostname || !certificateCanSignItself(certificate)) {
+    return encodeTrustTunnelLink({ ...link, skipVerification: true });
+  }
+  return encodeTrustTunnelLink({
+    ...link,
+    hostname,
+    customSni: sni && sni !== hostname ? sni : "",
+    certificate
+  });
+}
 function hasRequiredCredentials(sectionId, client) {
-  return credentialFields(getProtocol(sectionId)).filter((field) => field !== "flow").every((field) => {
-    if (field === "password" && !isAuthenticationEnabled(sectionId)) {
+  return credentialFields(getProtocol(sectionId)).filter((field2) => field2 !== "flow").every((field2) => {
+    if (field2 === "password" && !isAuthenticationEnabled(sectionId)) {
       return true;
     }
-    return !!client[field];
+    return !!client[field2];
   });
 }
 function buildMieruLink(sectionId, client) {
@@ -23312,18 +23444,21 @@ function buildClientLinks(sectionId, client, context = {}) {
       return single(buildNaiveLink(sectionId, client));
     case "mieru":
       return single(buildMieruLink(sectionId, client));
+    case "trusttunnel":
+      return single(buildTrustTunnelLink(sectionId, client, context));
     default:
       return [];
   }
 }
 function loadLinkContext(sectionId) {
-  if (getProtocol(sectionId) !== "hysteria2" || !usesSelfSignedCertificate(sectionId)) {
-    return Promise.resolve({ tlsCertificateSha256: "" });
+  if (!["hysteria2", "trusttunnel"].includes(getProtocol(sectionId)) || !usesSelfSignedCertificate(sectionId)) {
+    return Promise.resolve({});
   }
   return loadIssuedMaterial().then((material5) => ({
     tlsCertificateSha256: normalizeSha256(
       material5[sectionId]?.tls_self_signed_sha256
-    )
+    ),
+    tlsCertificate: `${material5[sectionId]?.tls_self_signed_certificate || ""}`
   }));
 }
 
@@ -23450,7 +23585,7 @@ function addTunnelOptions(section2) {
 }
 
 // src/forkop/tabs/servers/profile.ts
-function text5(value) {
+function text6(value) {
   return `${value ?? ""}`.trim();
 }
 function fileName(value) {
@@ -23462,10 +23597,10 @@ function buildOpenVPNProfile(sectionId, client, material5) {
   if (!host || !port2) return { missing: "address" };
   const server2 = material5[sectionId] || {};
   const own = material5[client.id] || {};
-  const ca = text5(server2.openvpn_certificate);
-  const tlsCrypt = text5(server2.openvpn_tls_crypt_key);
-  const certificate = text5(own.openvpn_certificate);
-  const key = text5(own.openvpn_key);
+  const ca = text6(server2.openvpn_certificate);
+  const tlsCrypt = text6(server2.openvpn_tls_crypt_key);
+  const certificate = text6(own.openvpn_certificate);
+  const key = text6(own.openvpn_key);
   if (!ca || !tlsCrypt || !certificate || !key) {
     return { missing: "certificate" };
   }
@@ -23516,7 +23651,7 @@ function tunnelName(serverName, clientName, protocol) {
 }
 function amneziaLines(server2) {
   return AMNEZIA_KEYS.filter((key) => {
-    const value = text5(server2[`amnezia_${key}`]);
+    const value = text6(server2[`amnezia_${key}`]);
     return amneziaParameter(key).kind === "flag" ? value === "1" : !!value;
   }).map((key) => amneziaConfLine(key, server2[`amnezia_${key}`]));
 }
@@ -23528,11 +23663,11 @@ function buildWireGuardProfile(sectionId, client, material5) {
   const amnezia = protocol === "amneziawg";
   const server2 = material5[sectionId] || {};
   const own = material5[client.id] || {};
-  const serverKey = text5(server2.wireguard_public_key);
-  const privateKey = text5(own.wireguard_private_key);
-  const preSharedKey = text5(own.wireguard_pre_shared_key);
+  const serverKey = text6(server2.wireguard_public_key);
+  const privateKey = text6(own.wireguard_private_key);
+  const preSharedKey = text6(own.wireguard_pre_shared_key);
   const subnets = optionList(sectionId, "tunnel_address");
-  const addresses = asList(own.wireguard_address).map(text5);
+  const addresses = asList(own.wireguard_address).map(text6);
   const current = addresses.length === subnets.length && subnets.every(
     (subnet) => addresses.some((address) => subnetContains(subnet, address))
   );
@@ -23688,8 +23823,8 @@ function qrRawCodewords(version) {
 function qrDataCodewords(version) {
   return qrRawCodewords(version) - QR_EC_CODEWORDS_PER_BLOCK_LOW[version] * QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
 }
-function qrEncodeText(text6) {
-  return Array.from(new TextEncoder().encode(text6));
+function qrEncodeText(text7) {
+  return Array.from(new TextEncoder().encode(text7));
 }
 function qrBuildDataCodewords(bytes, version) {
   const capacity = qrDataCodewords(version);
@@ -23914,8 +24049,8 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrCode(text6) {
-  const bytes = qrEncodeText(text6);
+function qrCode(text7) {
+  const bytes = qrEncodeText(text7);
   let version = 1;
   for (; version <= 40; version += 1) {
     const countBits = version <= 9 ? 8 : 16;
@@ -24014,9 +24149,9 @@ function iconSvg(name) {
     ICON_PATHS[name].map(([tag, attrs]) => svgEl2(tag, attrs))
   );
 }
-function copyText(text6) {
+function copyText(text7) {
   const textarea = document.createElement("textarea");
-  textarea.value = text6;
+  textarea.value = text7;
   textarea.style.position = "fixed";
   textarea.style.top = "0";
   textarea.style.left = "0";
@@ -24235,12 +24370,17 @@ function renderProfileDetails(sectionId, client, material5) {
     )
   ]);
 }
-function missingLinkReason(sectionId, client) {
+function missingLinkReason(sectionId, client, context) {
   if (!hasRequiredCredentials(sectionId, client)) {
     return _("Fill in the credentials of this client to get a link.");
   }
   if (!getPublicHost(sectionId) || !getListenPort(sectionId)) {
     return _("Set the public host and the port to get a link.");
+  }
+  if (usesSelfSignedCertificate(sectionId) && !context.tlsCertificate) {
+    return _(
+      "The router issues the certificate of this server when the settings are applied. Apply them to get a link."
+    );
   }
   return _("A link cannot be built from these settings.");
 }
@@ -24261,7 +24401,7 @@ function renderClientDetails(sectionId, client, context) {
       textE(
         "div",
         { class: "fkp-details__empty" },
-        missingLinkReason(sectionId, client)
+        missingLinkReason(sectionId, client, context)
       )
     );
   }
@@ -24333,29 +24473,16 @@ function showServerDetailsModal(sectionId, clients) {
       );
     });
   }
-  const initialContext = { tlsCertificateSha256: "" };
-  const only = onlyLink(sectionId, clients, initialContext);
-  if (only) {
-    const code = showQrModal(only.caption, only.link);
-    return loadLinkContext(sectionId).then((context) => {
-      const refreshed = onlyLink(sectionId, clients, context);
-      if (code.parentNode && refreshed && refreshed.link !== only.link) {
-        showQrModal(refreshed.caption, refreshed.link);
-      }
-    });
-  }
-  let content = renderDetailsContent(sectionId, clients, initialContext);
-  ui.showModal(_("Server details: %s").format(getServerName(sectionId)), [
-    content,
-    renderCloseRow()
-  ]);
   return loadLinkContext(sectionId).then((context) => {
-    if (!content.parentNode) {
+    const only = onlyLink(sectionId, clients, context);
+    if (only) {
+      showQrModal(only.caption, only.link);
       return;
     }
-    const refreshed = renderDetailsContent(sectionId, clients, context);
-    content.replaceWith(refreshed);
-    content = refreshed;
+    ui.showModal(_("Server details: %s").format(getServerName(sectionId)), [
+      renderDetailsContent(sectionId, clients, context),
+      renderCloseRow()
+    ]);
   });
 }
 
@@ -24764,32 +24891,32 @@ function validateClientName(sectionId, value) {
   }
   return hasControlCharacters(name) ? message.noControlCharacters() : true;
 }
-function validateClientCredential(sectionId, field, value) {
-  if (field === "uuid") {
+function validateClientCredential(sectionId, field2, value) {
+  if (field2 === "uuid") {
     return `${value || ""}`.trim() ? validateUuid(sectionId, value) : message.required();
   }
-  if (field === "password") {
+  if (field2 === "password") {
     return getProtocol(sectionId) === "shadowsocks" ? validateShadowsocksPassword(sectionId, value) : validateRequiredText(sectionId, value);
   }
   return true;
 }
 function visibleClientFields(sectionId) {
   const protocol = getProtocol(sectionId);
-  return credentialFields(protocol).filter((field) => {
-    if (field === "password") {
+  return credentialFields(protocol).filter((field2) => {
+    if (field2 === "password") {
       return isAuthenticationEnabled(sectionId);
     }
-    if (field === "flow") {
+    if (field2 === "flow") {
       return supportsVisionFlow(sectionId);
     }
     return true;
   });
 }
-function clientCredentialLabel(sectionId, field) {
-  if (field === "uuid") {
+function clientCredentialLabel(sectionId, field2) {
+  if (field2 === "uuid") {
     return _("UUID");
   }
-  if (field === "flow") {
+  if (field2 === "flow") {
     return _("Flow");
   }
   return getProtocol(sectionId) === "shadowsocks" && isShadowsocks2022(getShadowsocksMethod(sectionId)) ? _("Key") : _("Password");
@@ -24801,11 +24928,11 @@ function clientSettingsDefaults(sectionId, inputValue, existing, listOption) {
     return defaults;
   }
   defaults.name = `${inputValue || ""}`.trim() || generateClientName(sectionId, listOption);
-  visibleClientFields(sectionId).forEach((field) => {
-    if (field === "flow") {
+  visibleClientFields(sectionId).forEach((field2) => {
+    if (field2 === "flow") {
       return;
     }
-    defaults[field] = generateCredential(sectionId, protocol, field);
+    defaults[field2] = generateCredential(sectionId, protocol, field2);
   });
   return defaults;
 }
@@ -24853,14 +24980,14 @@ function validateClientsOnSave(sectionId, values, listOption) {
       return message.item(name, message.nameTaken());
     }
     seen.add(name.toLowerCase());
-    for (const field of visibleClientFields(sectionId)) {
-      if (field === "flow") {
+    for (const field2 of visibleClientFields(sectionId)) {
+      if (field2 === "flow") {
         continue;
       }
       const result = validateClientCredential(
         sectionId,
-        field,
-        `${settings[field] || ""}`
+        field2,
+        `${settings[field2] || ""}`
       );
       if (result !== true) {
         return message.item(name, message.fixSettings());
@@ -24958,12 +25085,12 @@ function addRoutingOptions(section2) {
 // src/forkop/tabs/servers/clientDialog.ts
 function addClientCredentialOptions(sectionId, itemSection) {
   const protocol = getProtocol(sectionId);
-  visibleClientFields(sectionId).forEach((field) => {
-    if (field === "flow") {
+  visibleClientFields(sectionId).forEach((field2) => {
+    if (field2 === "flow") {
       const flow = itemSection.option(
         form.ListValue,
         "flow",
-        clientCredentialLabel(sectionId, field)
+        clientCredentialLabel(sectionId, field2)
       );
       flow.value("", _("None"));
       flow.value("xtls-rprx-vision", "xtls-rprx-vision");
@@ -24972,14 +25099,14 @@ function addClientCredentialOptions(sectionId, itemSection) {
     }
     const credential = itemSection.option(
       form.Value,
-      field,
-      clientCredentialLabel(sectionId, field)
+      field2,
+      clientCredentialLabel(sectionId, field2)
     );
-    credential.password = field !== "uuid";
-    credential.validate = (_id, value) => validateClientCredential(sectionId, field, value);
+    credential.password = field2 !== "uuid";
+    credential.validate = (_id, value) => validateClientCredential(sectionId, field2, value);
     addGenerateButton(
       credential,
-      () => generateCredential(sectionId, protocol, field)
+      () => generateCredential(sectionId, protocol, field2)
     );
   });
 }
@@ -25435,30 +25562,33 @@ function addTuicOptions(section2) {
   o.depends("protocol", "tuic");
 }
 function addProtocolOptions(section2) {
-  let o = section2.option(form.ListValue, "naive_network", _("Network"));
-  o.load = function(sectionId) {
-    const current = option(sectionId, "naive_network") || "tcp";
-    this.keylist = [];
-    this.vallist = [];
-    this.value("tcp", "TCP (HTTP/2)");
-    [
-      ["udp", "UDP (HTTP/3)"],
-      ["tcp_udp", _("TCP and UDP")]
-    ].forEach(([value, label]) => {
-      if (coreHas("quic")) {
-        this.value(value, label);
-      } else if (value === current) {
-        this.value(value, `${label} (${missingCoreFeatureNote("quic")})`);
-      }
-    });
-    return current;
-  };
-  o.validate = (_sectionId, value) => validateCoreFeature(value === "udp" || value === "tcp_udp" ? "quic" : "");
-  o.default = "tcp";
-  o.rmempty = false;
-  o.modalonly = true;
-  o.depends("protocol", "naive");
-  o = section2.option(form.ListValue, "mieru_transport", _("Transport"));
+  ["naive", "trusttunnel"].forEach((protocol) => {
+    const name = transportOption(protocol);
+    const o2 = section2.option(form.ListValue, name, _("Network"));
+    o2.load = function(sectionId) {
+      const current = option(sectionId, name) || "tcp";
+      this.keylist = [];
+      this.vallist = [];
+      this.value("tcp", "TCP (HTTP/2)");
+      [
+        ["udp", "UDP (HTTP/3)"],
+        ["tcp_udp", _("TCP and UDP")]
+      ].forEach(([value, label]) => {
+        if (coreHas("quic")) {
+          this.value(value, label);
+        } else if (value === current) {
+          this.value(value, `${label} (${missingCoreFeatureNote("quic")})`);
+        }
+      });
+      return current;
+    };
+    o2.validate = (_sectionId, value) => validateCoreFeature(value === "udp" || value === "tcp_udp" ? "quic" : "");
+    o2.default = "tcp";
+    o2.rmempty = false;
+    o2.modalonly = true;
+    o2.depends("protocol", protocol);
+  });
+  const o = section2.option(form.ListValue, "mieru_transport", _("Transport"));
   o.value("TCP", "TCP");
   o.value("UDP", "UDP");
   o.default = "TCP";
@@ -25960,14 +26090,14 @@ function lineFields(line, offset) {
   }
   return fields;
 }
-function analyzeStaticHosts(text6) {
-  const value = `${text6 || ""}`;
+function analyzeStaticHosts(text7) {
+  const value = `${text7 || ""}`;
   const annotations = [];
   const errors = [];
   let offset = 0;
-  const reject = (field, reason) => {
-    annotations.push({ start: field.start, end: field.end, message: reason });
-    errors.push(`${field.value}: ${reason}`);
+  const reject = (field2, reason) => {
+    annotations.push({ start: field2.start, end: field2.end, message: reason });
+    errors.push(`${field2.value}: ${reason}`);
   };
   for (const line of value.split("\n")) {
     const fields = lineFields(line, offset);

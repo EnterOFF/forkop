@@ -1388,6 +1388,7 @@ const SERVER_ENUMS = [
         "chacha20-ietf-poly1305", "xchacha20-ietf-poly1305", "none" ], "Method" ],
     [ "mieru", "mieru_transport", [ "TCP", "UDP" ], "Transport" ],
     [ "naive", "naive_network", [ "", "tcp", "udp", "tcp_udp" ], "Network" ],
+    [ "trusttunnel", "trusttunnel_network", [ "", "tcp", "udp", "tcp_udp" ], "Network" ],
     [ "tuic", "tuic_congestion_control", [ "", "cubic", "new_reno", "bbr" ], "Congestion control" ],
     [ "hysteria2", "hysteria2_obfs_type", [ "", "salamander", "gecko" ], "Obfuscation" ],
     [ "hysteria2", "hysteria2_bbr_profile", [ "", "standard", "conservative", "aggressive" ], "BBR profile" ],
@@ -1625,8 +1626,10 @@ function validate_core_features(settings, sections, servers, core_tags) {
             refuse_without(feature, core_tags, "Server '" + server_label(name) + "' uses " + protocol);
         if (runtime_servers.effective_security(server, protocol) == "reality")
             refuse_without("utls", core_tags, "Server '" + server_label(name) + "' uses Reality");
-        if (protocol == "naive" && contains([ "udp", "tcp_udp" ], option(server, "naive_network", "tcp")))
-            refuse_without("quic", core_tags, "Server '" + server_label(name) + "' serves NaiveProxy over QUIC");
+        if ((protocol == "naive" || protocol == "trusttunnel") &&
+            index(runtime_servers.listen_transports(server), "udp") >= 0)
+            refuse_without("quic", core_tags, "Server '" + server_label(name) + "' serves " +
+                (protocol == "naive" ? "NaiveProxy" : "TrustTunnel") + " over QUIC");
     }
 
     for (let section in sections) {

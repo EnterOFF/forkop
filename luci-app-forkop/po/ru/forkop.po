@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 12:27+0300\n"
-"PO-Revision-Date: 2026-10-20 12:27+0300\n"
+"POT-Creation-Date: 2026-10-20 18:05+0300\n"
+"PO-Revision-Date: 2026-10-20 18:05+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -2269,6 +2269,9 @@ msgstr "Под этим именем роутер предлагается в к
 
 msgid "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
 msgstr "Роутер выпускает сертификат клиента при применении настроек. Примените их, чтобы получить профиль."
+
+msgid "The router issues the certificate of this server when the settings are applied. Apply them to get a link."
+msgstr "Роутер выпускает сертификат сервера при применении настроек. Примените их, чтобы получить ссылку."
 
 msgid "The router issues the keys of this client when the settings are applied. Apply them to get a profile."
 msgstr "Роутер выпускает ключи этого клиента при применении настроек. Примените их, чтобы получить профиль."

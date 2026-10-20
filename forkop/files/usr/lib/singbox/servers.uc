@@ -25,13 +25,21 @@ const CLIENT_FIELDS = {
     mixed: [ "password" ],
     naive: [ "password" ],
     mieru: [ "password" ],
+    trusttunnel: [ "password" ],
     openvpn: [ "openvpn_certificate", "openvpn_key", "openvpn_certificate_sha256" ],
     wireguard: [ "wireguard_private_key", "wireguard_public_key", "wireguard_pre_shared_key", "wireguard_address" ],
     amneziawg: [ "wireguard_private_key", "wireguard_public_key", "wireguard_pre_shared_key", "wireguard_address" ],
     tailscale: [],
     json_inbound: []
 };
-const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, mieru: true };
+const LOGIN_NAME_PROTOCOLS = { mixed: true, naive: true, mieru: true, trusttunnel: true };
+// The option holding the transports of a protocol that offers a choice, and its default.
+const NETWORK_OPTIONS = {
+    naive: [ "naive_network", "tcp" ],
+    trusttunnel: [ "trusttunnel_network", "tcp" ],
+    mieru: [ "mieru_transport", "TCP" ],
+    openvpn: [ "openvpn_network", "udp" ]
+};
 const ENDPOINT_TYPES = { tailscale: "tailscale", openvpn: "openvpn-server", wireguard: "wireguard", amneziawg: "amneziawg" };
 // Every parameter but the signature packets, which only an initiator sends.
 const AMNEZIA_SERVER_KEYS = filter(amnezia.KEYS, (key) => match(key, /^i[1-5]$/) == null);
@@ -78,7 +86,7 @@ function client_user(protocol, client) {
         protocol == "mieru" || protocol == "shadowsocks")
         // Each account carries only its own key; the server key joins it in the link, not here.
         return { name, password: option(client, "password", "") };
-    if (protocol == "mixed" || protocol == "naive")
+    if (protocol == "mixed" || protocol == "naive" || protocol == "trusttunnel")
         return { username: name, password: option(client, "password", "") };
     if (protocol == "tuic")
         return { name, uuid: option(client, "uuid", ""), password: option(client, "password", "") };
@@ -97,22 +105,15 @@ function users(section, protocol) {
 
 function effective_security(section, protocol) {
     let security = option(section, "security", "");
-    if (security == "") {
-        if (protocol == "vless")
-            security = "reality";
-        else if (protocol == "trojan" || protocol == "hysteria2" || protocol == "naive" ||
-            protocol == "anytls" || protocol == "tuic")
-            security = "tls";
-        else
-            security = "none";
-    }
+    if (security == "")
+        security = protocol == "vless" ? "reality" : "none";
 
     if (protocol == "shadowsocks" || protocol == "mixed" || protocol == "mieru" ||
         ENDPOINT_TYPES[protocol] != null || protocol == "json_inbound")
         return "none";
     // No client format carries Trojan without TLS.
     if (protocol == "hysteria2" || protocol == "naive" || protocol == "anytls" || protocol == "tuic" ||
-        protocol == "trojan")
+        protocol == "trojan" || protocol == "trusttunnel")
         return "tls";
     if (protocol == "vmess" && security == "reality")
         return "none";
@@ -249,6 +250,27 @@ function apply_multiplex(inbound, section, protocol) {
     inbound.multiplex = multiplex;
 }
 
+// Two servers may share a port when one takes TCP and the other UDP.
+function transports(protocol, network) {
+    network = lc(as_string(network));
+    if (protocol == "openvpn")
+        return [ network == "tcp" ? "tcp" : "udp" ];
+    if (protocol == "hysteria2" || protocol == "tuic" || protocol == "wireguard" || protocol == "amneziawg")
+        return [ "udp" ];
+    let http = protocol == "naive" || protocol == "trusttunnel";
+    if (protocol == "shadowsocks" || (http && network == "tcp_udp"))
+        return [ "tcp", "udp" ];
+    if ((http || protocol == "mieru") && network == "udp")
+        return [ "udp" ];
+    return [ "tcp" ];
+}
+
+function listen_transports(section) {
+    let protocol = option(section, "protocol", "vless");
+    let network = NETWORK_OPTIONS[protocol];
+    return transports(protocol, network ? option(section, network[0], network[1]) : "");
+}
+
 function add_standard_inbound(config, section, protocol, tag_name) {
     let inbound = {
         type: protocol,
@@ -289,10 +311,10 @@ function add_standard_inbound(config, section, protocol, tag_name) {
         // sing-box picks the masquerade mode from the URL scheme.
         maybe_string(inbound, "masquerade", option(section, "hysteria2_masquerade", ""));
     }
-    else if (protocol == "naive") {
+    else if (protocol == "naive" || protocol == "trusttunnel") {
         inbound.users = users(section, protocol);
-        let network = option(section, "naive_network", "tcp");
-        inbound.network = network == "tcp_udp" ? [ "tcp", "udp" ] : network;
+        let network = listen_transports(section);
+        inbound.network = length(network) == 1 ? network[0] : network;
     }
     else if (protocol == "mieru") {
         inbound.users = users(section, protocol);
@@ -327,27 +349,6 @@ function add_json_inbound(config, section, tag_name) {
         inbound = {};
     inbound.tag = tag_name;
     push(config.inbounds, inbound);
-}
-
-// Two servers may share a port when one takes TCP and the other UDP.
-function transports(protocol, network) {
-    network = lc(as_string(network));
-    if (protocol == "openvpn")
-        return [ network == "tcp" ? "tcp" : "udp" ];
-    if (protocol == "hysteria2" || protocol == "tuic" || protocol == "wireguard" || protocol == "amneziawg")
-        return [ "udp" ];
-    if (protocol == "shadowsocks" || (protocol == "naive" && network == "tcp_udp"))
-        return [ "tcp", "udp" ];
-    if ((protocol == "naive" || protocol == "mieru") && network == "udp")
-        return [ "udp" ];
-    return [ "tcp" ];
-}
-
-function listen_transports(section) {
-    let protocol = option(section, "protocol", "vless");
-    return transports(protocol, protocol == "naive" ? option(section, "naive_network", "tcp")
-        : protocol == "mieru" ? option(section, "mieru_transport", "TCP")
-        : protocol == "openvpn" ? option(section, "openvpn_network", "udp") : "");
 }
 
 function add_tailscale_endpoint(config, section, tag_name) {

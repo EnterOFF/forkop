@@ -11,6 +11,8 @@ declare global {
 
   interface ShareLinkContext {
     tlsCertificateSha256?: string;
+    // The PEM of the self-signed certificate the router issued.
+    tlsCertificate?: string;
     // What the router issued, which a profile takes its certificates and keys from.
     issued?: Record<string, Record<string, unknown>>;
   }

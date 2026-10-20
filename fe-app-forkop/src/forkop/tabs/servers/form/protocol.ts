@@ -8,7 +8,11 @@ import { SHADOWSOCKS_METHODS } from '../constants';
 import { addGenerateButton, autofill } from '../controls';
 import { generatePassword, generatePresharedKey } from '../credentials';
 import { option } from '../formValues';
-import { getShadowsocksMethod, shadowsocksKeyBytes } from '../protocols';
+import {
+  getShadowsocksMethod,
+  shadowsocksKeyBytes,
+  transportOption,
+} from '../protocols';
 import {
   validateOptionalMasquerade,
   validateOptionalPositiveInteger,
@@ -154,33 +158,36 @@ export function addTuicOptions(section: CBISection) {
 }
 
 export function addProtocolOptions(section: CBISection) {
-  let o = section.option(form.ListValue, 'naive_network', _('Network'));
   // HTTP/3 needs QUIC, which a core may be built without; a server already on it keeps it, marked.
-  o.load = function (sectionId: string) {
-    const current = option(sectionId, 'naive_network') || 'tcp';
-    this.keylist = [];
-    this.vallist = [];
-    this.value('tcp', 'TCP (HTTP/2)');
-    [
-      ['udp', 'UDP (HTTP/3)'],
-      ['tcp_udp', _('TCP and UDP')],
-    ].forEach(([value, label]) => {
-      if (coreHas('quic')) {
-        this.value(value, label);
-      } else if (value === current) {
-        this.value(value, `${label} (${missingCoreFeatureNote('quic')})`);
-      }
-    });
-    return current;
-  };
-  o.validate = (_sectionId: string, value: string) =>
-    validateCoreFeature(value === 'udp' || value === 'tcp_udp' ? 'quic' : '');
-  o.default = 'tcp';
-  o.rmempty = false;
-  o.modalonly = true;
-  o.depends('protocol', 'naive');
+  ['naive', 'trusttunnel'].forEach((protocol) => {
+    const name = transportOption(protocol);
+    const o = section.option(form.ListValue, name, _('Network'));
+    o.load = function (sectionId: string) {
+      const current = option(sectionId, name) || 'tcp';
+      this.keylist = [];
+      this.vallist = [];
+      this.value('tcp', 'TCP (HTTP/2)');
+      [
+        ['udp', 'UDP (HTTP/3)'],
+        ['tcp_udp', _('TCP and UDP')],
+      ].forEach(([value, label]) => {
+        if (coreHas('quic')) {
+          this.value(value, label);
+        } else if (value === current) {
+          this.value(value, `${label} (${missingCoreFeatureNote('quic')})`);
+        }
+      });
+      return current;
+    };
+    o.validate = (_sectionId: string, value: string) =>
+      validateCoreFeature(value === 'udp' || value === 'tcp_udp' ? 'quic' : '');
+    o.default = 'tcp';
+    o.rmempty = false;
+    o.modalonly = true;
+    o.depends('protocol', protocol);
+  });
 
-  o = section.option(form.ListValue, 'mieru_transport', _('Transport'));
+  const o = section.option(form.ListValue, 'mieru_transport', _('Transport'));
   o.value('TCP', 'TCP');
   o.value('UDP', 'UDP');
   o.default = 'TCP';

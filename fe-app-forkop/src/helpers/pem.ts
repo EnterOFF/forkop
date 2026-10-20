@@ -77,24 +77,76 @@ function children(bytes: Uint8Array, parent: Tlv): Tlv[] {
   return result;
 }
 
-// A certificate is a sequence whose first element, the signed part, holds the
-// serial, the algorithm, the issuer, the validity and the subject in order,
-// after an explicit version in every v3 certificate.
-export function isCertificate(der: Uint8Array) {
+// The fields of the signed part of a certificate, or null when it is none.
+function signedFields(der: Uint8Array) {
   const certificate = readTlv(der, 0, der.length);
   if (
     !certificate ||
     certificate.tag !== 0x30 ||
     certificate.end !== der.length
   ) {
-    return false;
+    return null;
   }
   const signed = children(der, certificate)[0];
-  if (!signed || signed.tag !== 0x30) return false;
-  const fields = children(der, signed);
+  return signed && signed.tag === 0x30 ? children(der, signed) : null;
+}
+
+// A certificate is a sequence whose first element, the signed part, holds the
+// serial, the algorithm, the issuer, the validity and the subject in order,
+// after an explicit version in every v3 certificate.
+export function isCertificate(der: Uint8Array) {
+  const fields = signedFields(der);
+  if (!fields) return false;
   const base = fields[0]?.tag === 0xa0 ? 1 : 0;
   return (
     fields[base]?.tag === 0x02 &&
     [1, 2, 3, 4].every((index) => fields[base + index]?.tag === 0x30)
+  );
+}
+
+function hex(bytes: Uint8Array) {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
+}
+
+// The value of the extension with the given OID, in the explicit [3] of the
+// signed part, or null.
+function extensionValue(der: Uint8Array, oid: string) {
+  const extensions = (signedFields(der) || []).find(
+    (field) => field.tag === 0xa3,
+  );
+  const list = extensions && children(der, extensions)[0];
+  for (const extension of list ? children(der, list) : []) {
+    const parts = children(der, extension);
+    const value = parts[parts.length - 1];
+    if (
+      parts[0]?.tag === 0x06 &&
+      hex(der.subarray(parts[0].start, parts[0].end)) === oid &&
+      value?.tag === 0x04
+    ) {
+      return readTlv(der, value.start, value.end);
+    }
+  }
+  return null;
+}
+
+// The first DNS name of the subject alternative names, the name clients check
+// the certificate against, or ''.
+export function certificateDnsName(der: Uint8Array) {
+  const names = extensionValue(der, '551d11');
+  const name = names && children(der, names).find((item) => item.tag === 0x82);
+  return name ? String.fromCharCode(...der.subarray(name.start, name.end)) : '';
+}
+
+// OpenSSL and BoringSSL take a certificate as an issuer, of itself too, only
+// without a key usage or with keyCertSign, bit 5 of the bit string.
+export function certificateCanSignItself(der: Uint8Array) {
+  const usage = extensionValue(der, '551d0f');
+  if (!usage) return true;
+  return (
+    usage.tag === 0x03 &&
+    usage.end - usage.start > 1 &&
+    (der[usage.start + 1] & 0x04) !== 0
   );
 }

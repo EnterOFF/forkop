@@ -34,6 +34,12 @@ t.test("a server of a type the build lacks is refused by name", () => {
         "Server 'srv' uses openvpn, but this sing-box build lacks OpenVPN (built without with_openvpn)");
     needs({ server: [ server("vless", { security: "reality" }) ] }, without(BASE, "with_utls"), "Server 'srv' uses Reality");
     needs({ server: [ server("naive", { naive_network: "udp" }) ] }, without(BASE, "with_quic"), "serves NaiveProxy over QUIC");
+    needs({ server: [ server("trusttunnel") ] }, without(BASE, "with_trusttunnel"),
+        "Server 'srv' uses trusttunnel, but this sing-box build lacks TrustTunnel (built without with_trusttunnel)");
+    needs({ server: [ server("trusttunnel", { trusttunnel_network: "tcp_udp" }) ] }, without(BASE, "with_quic"),
+        "serves TrustTunnel over QUIC");
+    let http2 = v.run({ server: [ server("trusttunnel") ] }, { core_tags: without(BASE, "with_quic") });
+    t.ok(index(http2.error ?? "", "this sing-box build lacks") < 0, "TrustTunnel over HTTP/2 needs no QUIC: " + http2.error);
 });
 
 t.test("a disabled server asks nothing of the core", () => {

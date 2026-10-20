@@ -35,6 +35,13 @@ function load(server, client = {}) {
   };
 }
 
+// issued.ts declares its call once per module graph, so every test answers through this one.
+let routerValues = {};
+function answerFromRouter(values) {
+  routerValues = values;
+  globalThis.rpc = { declare: () => () => Promise.resolve(routerValues) };
+}
+
 function query(url) {
   return Object.fromEntries(new URL(url).searchParams);
 }
@@ -309,12 +316,10 @@ describe('QUIC protocol links', () => {
 
   it('pins the certificate the router issued with the fingerprint it wrote', async () => {
     load({ protocol: 'hysteria2', security: 'tls' });
-    globalThis.rpc = {
-      declare: () => () =>
-        Promise.resolve({ srv: { tls_self_signed_sha256: 'AB'.repeat(32) } }),
-    };
+    answerFromRouter({ srv: { tls_self_signed_sha256: 'AB'.repeat(32) } });
     expect(await loadLinkContext('srv')).toEqual({
       tlsCertificateSha256: 'ab'.repeat(32),
+      tlsCertificate: '',
     });
 
     load({
@@ -322,7 +327,7 @@ describe('QUIC protocol links', () => {
       tls_certificate_source: 'custom',
       tls_certificate: '/etc/ssl/acme/example.org.fullchain.crt',
     });
-    expect(await loadLinkContext('srv')).toEqual({ tlsCertificateSha256: '' });
+    expect(await loadLinkContext('srv')).toEqual({});
   });
 
   it('puts the UUID and the password in the TUIC user info', () => {
@@ -360,6 +365,141 @@ describe('QUIC protocol links', () => {
       true,
     );
     expect(query(url).sni).toBe('example.org');
+  });
+});
+
+// sing-box generate tls-keypair www.microsoft.com, a CA that can sign itself.
+const CERTIFICATE = `-----BEGIN CERTIFICATE-----
+MIIBrjCCAVSgAwIBAgIRAPFYVPXI/4J4zHZNBicm49cwCgYIKoZIzj0EAwIwHDEa
+MBgGA1UEAxMRd3d3Lm1pY3Jvc29mdC5jb20wIBcNMjYxMDIwMTQwMzExWhgPMjEy
+NjEwMjAxNTAzMTFaMBwxGjAYBgNVBAMTEXd3dy5taWNyb3NvZnQuY29tMFkwEwYH
+KoZIzj0CAQYIKoZIzj0DAQcDQgAEfUZ7u/Cjnul4v6s2Mem3g6Nwcu3oMTG1kW3j
+yp28i4tFWVMwjXRblgt3lF7SDRk7p1V3t79cILN0MWIYN6lN56N1MHMwDgYDVR0P
+AQH/BAQDAgKkMBMGA1UdJQQMMAoGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8w
+HQYDVR0OBBYEFLZCprHwnTyD6ZuLm9AbCiHxyGLFMBwGA1UdEQQVMBOCEXd3dy5t
+aWNyb3NvZnQuY29tMAoGCCqGSM49BAMCA0gAMEUCIQDrjS60YrRU73phELU6CjeZ
+sFUswinmQDfr8iZ4ALzRdQIgbWUFuAb4Ntcc3lywizC1aihvSr23K1P+zZfDr+5X
+Tig=
+-----END CERTIFICATE-----`;
+
+// The same from an older core, whose key usage leaves out certificate signing.
+const OLD_CERTIFICATE = `-----BEGIN CERTIFICATE-----
+MIIBjDCCATKgAwIBAgIRAPtfBc7b+Py6VRrdLgDKkb8wCgYIKoZIzj0EAwIwHDEa
+MBgGA1UEAxMRd3d3Lm1pY3Jvc29mdC5jb20wIBcNMjYxMDIwMTMxNzI4WhgPMjEy
+NjEwMjAxNDE3MjhaMBwxGjAYBgNVBAMTEXd3dy5taWNyb3NvZnQuY29tMFkwEwYH
+KoZIzj0CAQYIKoZIzj0DAQcDQgAE8mU5gEAC48K+Xfrog6fl6hABO6mGkzkw8Quq
+LPxiRLNUoKgcuZJsWM2c3HiRPY+tALbu2PgP1fMOGkx/Lv3DUKNTMFEwDgYDVR0P
+AQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMBMAwGA1UdEwEB/wQCMAAwHAYD
+VR0RBBUwE4IRd3d3Lm1pY3Jvc29mdC5jb20wCgYIKoZIzj0EAwIDSAAwRQIhAP2U
+07jWHMqU40FabCCL4nORIf9B3mkpPOScpIFRJYAzAiA7gouHWoPgseQ0yVfE8byo
+Tt5/vcIaqAWOi+tOwhK+rg==
+-----END CERTIFICATE-----`;
+
+const der = (pem) =>
+  Array.from(Buffer.from(pem.split(/\n/).slice(1, -1).join(''), 'base64'));
+
+// The fields of a tt:// link by tag: numbers and flags as numbers, the
+// certificate as bytes, the rest as text.
+function trustTunnelFields(url) {
+  const bytes = Buffer.from(url.slice('tt://?'.length), 'base64url');
+  const varint = (offset) => {
+    const length = 1 << (bytes[offset] >> 6);
+    let value = bytes[offset] & 0x3f;
+    for (let i = 1; i < length; i += 1) value = value * 256 + bytes[offset + i];
+    return [value, offset + length];
+  };
+  const fields = {};
+  for (let offset = 0; offset < bytes.length; ) {
+    const [tag, afterTag] = varint(offset);
+    const [size, start] = varint(afterTag);
+    const value = bytes.subarray(start, start + size);
+    fields[tag] =
+      tag === 8
+        ? Array.from(value)
+        : [0, 7, 9].includes(tag)
+          ? value[0]
+          : value.toString('utf8');
+    offset = start + size;
+  }
+  return fields;
+}
+
+describe('TrustTunnel links', () => {
+  const links = (server, certificate = CERTIFICATE) => {
+    const { link, client } = load(
+      {
+        protocol: 'trusttunnel',
+        tls_server_name: 'www.microsoft.com',
+        ...server,
+      },
+      { name: 'alice', password: 'secret-password' },
+    );
+    return link.buildClientLinks('srv', client, {
+      tlsCertificate: certificate,
+    });
+  };
+  const fields = (server, certificate) =>
+    trustTunnelFields(links(server, certificate)[0].link);
+
+  it('pins the self-signed certificate under the name it was issued for', () => {
+    expect(fields()).toEqual({
+      0: 1,
+      1: 'www.microsoft.com',
+      2: '203.0.113.9:30000',
+      5: 'alice',
+      6: 'secret-password',
+      8: der(CERTIFICATE),
+      12: 'alice',
+    });
+  });
+
+  it('sends a later SNI apart from the name the certificate is checked against', () => {
+    const changed = fields({ tls_server_name: 'www.apple.com' });
+    expect([changed[1], changed[3], changed[7]]).toEqual([
+      'www.microsoft.com',
+      'www.apple.com',
+      undefined,
+    ]);
+  });
+
+  it('accepts a certificate an older core issued, which no client can pin', () => {
+    const old = fields({}, OLD_CERTIFICATE);
+    expect([old[1], old[7], old[8]]).toEqual([
+      'www.microsoft.com',
+      1,
+      undefined,
+    ]);
+  });
+
+  it('has no link before the router issues the certificate', () => {
+    expect(links({}, '')).toEqual([]);
+  });
+
+  it('reads the issued certificate from the router', async () => {
+    load({ protocol: 'trusttunnel' });
+    answerFromRouter({ srv: { tls_self_signed_certificate: CERTIFICATE } });
+    expect((await loadLinkContext('srv')).tlsCertificate).toBe(CERTIFICATE);
+  });
+
+  it('checks an own certificate against the public host when there is no SNI', () => {
+    const own = fields({
+      tls_certificate_source: 'custom',
+      tls_certificate: '/etc/ssl/vpn.crt',
+      tls_server_name: '',
+      public_host: '2001:db8::9',
+    });
+    expect([own[1], own[2], own[7], own[8]]).toEqual([
+      '2001:db8::9',
+      '[2001:db8::9]:30000',
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it('asks for HTTP/3 only from a server that serves nothing else', () => {
+    expect(fields({ trusttunnel_network: 'udp' })[9]).toBe(2);
+    expect(fields({ trusttunnel_network: 'tcp_udp' })[9]).toBeUndefined();
+    expect(fields()[9]).toBeUndefined();
   });
 });
 

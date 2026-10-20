@@ -127,6 +127,7 @@ const INBOUND_STRUCTS = {
   anytls: "AnyTLSInboundOptions",
   naive: "NaiveInboundOptions",
   mieru: "MieruInboundOptions",
+  trusttunnel: "TrustTunnelInboundOptions",
   tailscale: "TailscaleEndpointOptions",
   "openvpn-server": "OpenVPNServerEndpointOptions",
   wireguard: "WireGuardEndpointOptions",

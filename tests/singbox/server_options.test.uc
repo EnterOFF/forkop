@@ -109,6 +109,15 @@ const SERVERS = {
             routing_mode: "direct"
         },
         {
+            ".name": "tt_srv", ".type": "server", enabled: "1", label: "trusttunnel", protocol: "trusttunnel",
+            listen: "::", listen_port: "20012", tls_server_name: "www.microsoft.com", ...SELF_SIGNED,
+            trusttunnel_network: "tcp_udp", routing_mode: "direct"
+        },
+        {
+            ".name": "tt_h2", ".type": "server", enabled: "1", label: "trusttunnel h2", protocol: "trusttunnel",
+            listen: "::", listen_port: "20020", ...SELF_SIGNED, routing_mode: "direct"
+        },
+        {
             ".name": "mieru_srv", ".type": "server", enabled: "1", label: "mieru", protocol: "mieru",
             listen: "0.0.0.0", listen_port: "20011", mieru_transport: "UDP", routing_mode: "direct"
         },
@@ -184,6 +193,12 @@ const SERVERS = {
             password: "naive-pass"
         },
         {
+            ".name": "c_tt", ".type": "server_client", server: "tt_srv", name: "phone", password: "tt-pass"
+        },
+        {
+            ".name": "c_tt_h2", ".type": "server_client", server: "tt_h2", name: "phone", password: "tt-pass"
+        },
+        {
             ".name": "c_mieru", ".type": "server_client", server: "mieru_srv", name: "phone",
             password: "mieru-pass"
         },
@@ -211,6 +226,7 @@ const SERVERS = {
 const USER_KEYS = {
     mixed: [ "username", "password" ],
     naive: [ "username", "password" ],
+    trusttunnel: [ "username", "password" ],
     vless: [ "name", "uuid", "flow" ],
     vmess: [ "name", "uuid", "alterId" ],
     trojan: [ "name", "password" ],
@@ -248,7 +264,7 @@ function unknown_keys(node, allowed, trail) {
 t.test("every protocol the tab serves produces a listener", () => {
     let types = uniq(map(listeners, (item) => item.type));
     for (let expected in [ "mixed", "vless", "vmess", "trojan", "shadowsocks", "hysteria2",
-        "tuic", "anytls", "naive", "mieru", "tailscale", "openvpn-server", "wireguard", "amneziawg" ])
+        "tuic", "anytls", "naive", "mieru", "trusttunnel", "tailscale", "openvpn-server", "wireguard", "amneziawg" ])
         t.contains(types, expected);
 });
 
@@ -263,6 +279,14 @@ t.test("a listener carries only options the core has", () => {
 t.test("every HTTP-like transport takes its host from the one field", () => {
     let http = filter(listeners, (item) => item.tag == "vless http")[0];
     t.eq([ http.transport.type, http.transport.host, http.transport.path ], [ "http", [ "h.example.com" ], "/h" ]);
+});
+
+t.test("an HTTP/2 and HTTP/3 listener serves the transports the firewall opens for it", () => {
+    let served = (tag) => filter(listeners, (item) => item.tag == tag)[0];
+    t.eq([ served("trusttunnel").network, served("trusttunnel h2").network, served("naive").network ],
+        [ [ "tcp", "udp" ], "tcp", [ "tcp", "udp" ] ]);
+    t.eq(served("trusttunnel").users, [ { username: "phone", password: "tt-pass" } ]);
+    t.eq(served("trusttunnel").tls.server_name, "www.microsoft.com");
 });
 
 t.test("a user carries only the fields of its protocol's user struct", () => {

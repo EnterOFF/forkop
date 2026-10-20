@@ -2,6 +2,13 @@
 
 import { DEFAULT_CLIENT_FINGERPRINT } from './constants';
 import {
+  certificateCanSignItself,
+  certificateDnsName,
+  decodeBase64,
+  pemBlocks,
+} from '../../../helpers/pem';
+import { encodeTrustTunnelLink } from '../../../helpers/trustTunnelLink';
+import {
   base64Encode,
   base64UrlEncode,
   encodeQuery,
@@ -294,6 +301,46 @@ function buildNaiveLink(sectionId: string, client: ServerClient) {
   );
 }
 
+// The official client checks a certificate the link carries against hostname and sends custom_sni,
+// so the router's own goes with the name it was issued for. One an older core issued is no issuer
+// to BoringSSL, so that server goes unchecked, as in other protocols' links.
+function buildTrustTunnelLink(
+  sectionId: string,
+  client: ServerClient,
+  context: ShareLinkContext,
+) {
+  const sni = option(sectionId, 'tls_server_name');
+  const link = {
+    hostname: sni || getPublicHost(sectionId),
+    address: `${formatHostForUri(getPublicHost(sectionId))}:${getListenPort(sectionId)}`,
+    username: client.name,
+    password: client.password,
+    http3: option(sectionId, 'trusttunnel_network') === 'udp',
+    name: clientLabel(sectionId, client),
+  };
+  if (!usesSelfSignedCertificate(sectionId)) {
+    return encodeTrustTunnelLink(link);
+  }
+
+  const block = pemBlocks(context.tlsCertificate || '').find(
+    (item) => item.label === 'CERTIFICATE',
+  );
+  const certificate = block ? decodeBase64(block.body) : null;
+  if (!certificate) {
+    return '';
+  }
+  const hostname = certificateDnsName(certificate);
+  if (!hostname || !certificateCanSignItself(certificate)) {
+    return encodeTrustTunnelLink({ ...link, skipVerification: true });
+  }
+  return encodeTrustTunnelLink({
+    ...link,
+    hostname,
+    customSni: sni && sni !== hostname ? sni : '',
+    certificate,
+  });
+}
+
 export function hasRequiredCredentials(
   sectionId: string,
   client: ServerClient,
@@ -370,23 +417,27 @@ export function buildClientLinks(
       return single(buildNaiveLink(sectionId, client));
     case 'mieru':
       return single(buildMieruLink(sectionId, client));
+    case 'trusttunnel':
+      return single(buildTrustTunnelLink(sectionId, client, context));
     default:
       return [];
   }
 }
 
-// Hysteria2 clients pin the certificate, so a link carries the issued certificate's fingerprint.
+// A Hysteria2 link pins the fingerprint of the certificate the router issued, a TrustTunnel link
+// carries the certificate itself.
 export function loadLinkContext(sectionId: string): Promise<ShareLinkContext> {
   if (
-    getProtocol(sectionId) !== 'hysteria2' ||
+    !['hysteria2', 'trusttunnel'].includes(getProtocol(sectionId)) ||
     !usesSelfSignedCertificate(sectionId)
   ) {
-    return Promise.resolve({ tlsCertificateSha256: '' });
+    return Promise.resolve({});
   }
 
   return loadIssuedMaterial().then((material) => ({
     tlsCertificateSha256: normalizeSha256(
       material[sectionId]?.tls_self_signed_sha256,
     ),
+    tlsCertificate: `${material[sectionId]?.tls_self_signed_certificate || ''}`,
   }));
 }

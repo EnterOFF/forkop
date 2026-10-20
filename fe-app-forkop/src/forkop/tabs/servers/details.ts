@@ -13,6 +13,7 @@ import {
   getServerName,
   isAuthenticationEnabled,
   usesProfile,
+  usesSelfSignedCertificate,
 } from './protocols';
 import { qrCode } from './qr';
 import { E } from '../../../helpers/element';
@@ -372,14 +373,23 @@ function renderProfileDetails(
   ]);
 }
 
-// Why a client has no link: a credential the link needs, or the address it points
-// at, is still missing.
-function missingLinkReason(sectionId: string, client: ServerClient) {
+// Why a client has no link: a credential the link needs, the address it points
+// at, or the certificate it carries is still missing.
+function missingLinkReason(
+  sectionId: string,
+  client: ServerClient,
+  context: ShareLinkContext,
+) {
   if (!hasRequiredCredentials(sectionId, client)) {
     return _('Fill in the credentials of this client to get a link.');
   }
   if (!getPublicHost(sectionId) || !getListenPort(sectionId)) {
     return _('Set the public host and the port to get a link.');
+  }
+  if (usesSelfSignedCertificate(sectionId) && !context.tlsCertificate) {
+    return _(
+      'The router issues the certificate of this server when the settings are applied. Apply them to get a link.',
+    );
   }
   return _('A link cannot be built from these settings.');
 }
@@ -406,7 +416,7 @@ function renderClientDetails(
       E(
         'div',
         { class: 'fkp-details__empty' },
-        missingLinkReason(sectionId, client),
+        missingLinkReason(sectionId, client, context),
       ),
     );
   }
@@ -509,34 +519,17 @@ export function showServerDetailsModal(
     });
   }
 
-  // Opens filled in; the Hysteria2 links gain their pin when the fingerprint arrives.
-  const initialContext = { tlsCertificateSha256: '' };
-
-  // A server with one link opens straight to its code.
-  const only = onlyLink(sectionId, clients, initialContext);
-  if (only) {
-    const code = showQrModal(only.caption, only.link);
-    return loadLinkContext(sectionId).then((context) => {
-      const refreshed = onlyLink(sectionId, clients, context);
-      if (code.parentNode && refreshed && refreshed.link !== only.link) {
-        showQrModal(refreshed.caption, refreshed.link);
-      }
-    });
-  }
-
-  let content = renderDetailsContent(sectionId, clients, initialContext);
-
-  ui.showModal(_('Server details: %s').format(getServerName(sectionId)), [
-    content,
-    renderCloseRow(),
-  ]);
-
+  // So does a link that carries the router's certificate or its fingerprint.
   return loadLinkContext(sectionId).then((context) => {
-    if (!content.parentNode) {
+    // A server with one link opens straight to its code.
+    const only = onlyLink(sectionId, clients, context);
+    if (only) {
+      showQrModal(only.caption, only.link);
       return;
     }
-    const refreshed = renderDetailsContent(sectionId, clients, context);
-    content.replaceWith(refreshed);
-    content = refreshed;
+    ui.showModal(_('Server details: %s').format(getServerName(sectionId)), [
+      renderDetailsContent(sectionId, clients, context),
+      renderCloseRow(),
+    ]);
   });
 }

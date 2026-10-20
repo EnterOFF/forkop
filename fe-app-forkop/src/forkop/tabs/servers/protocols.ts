@@ -113,6 +113,15 @@ export const PROTOCOLS = [
     link: 'mierus',
   },
   {
+    id: 'trusttunnel',
+    label: 'TrustTunnel',
+    kind: 'inbound',
+    securities: ['tls'],
+    login: true,
+    credentials: ['password'],
+    link: 'tt',
+  },
+  {
     id: 'tailscale',
     label: 'Tailscale',
     kind: 'endpoint',
@@ -201,6 +210,7 @@ export function listenerProtocols() {
 // them: a port can be shared by two servers when one takes TCP and the other UDP.
 export function listenTransports(protocol: string, network: string) {
   const value = `${network || ''}`.toLowerCase();
+  const http = protocol === 'naive' || protocol === 'trusttunnel';
   if (protocol === 'openvpn') return [value === 'tcp' ? 'tcp' : 'udp'];
   if (
     protocol === 'hysteria2' ||
@@ -209,24 +219,21 @@ export function listenTransports(protocol: string, network: string) {
     protocol === 'amneziawg'
   )
     return ['udp'];
-  if (
-    protocol === 'shadowsocks' ||
-    (protocol === 'naive' && value === 'tcp_udp')
-  )
+  if (protocol === 'shadowsocks' || (http && value === 'tcp_udp'))
     return ['tcp', 'udp'];
-  if ((protocol === 'naive' || protocol === 'mieru') && value === 'udp')
-    return ['udp'];
+  if ((http || protocol === 'mieru') && value === 'udp') return ['udp'];
   return ['tcp'];
 }
 
+const TRANSPORT_OPTIONS: Record<string, string> = {
+  naive: 'naive_network',
+  trusttunnel: 'trusttunnel_network',
+  mieru: 'mieru_transport',
+  openvpn: 'openvpn_network',
+};
+
 export function transportOption(protocol: string) {
-  return protocol === 'naive'
-    ? 'naive_network'
-    : protocol === 'mieru'
-      ? 'mieru_transport'
-      : protocol === 'openvpn'
-        ? 'openvpn_network'
-        : '';
+  return TRANSPORT_OPTIONS[protocol] || '';
 }
 
 export function hasListener(protocol: string) {
@@ -379,14 +386,17 @@ export function protocolCoreFeature(protocol: unknown) {
 }
 
 // What a server asks of the core that the installed one lacks, or ''. The
-// Reality handshake needs uTLS, and a NaiveProxy server over UDP is HTTP/3.
+// Reality handshake needs uTLS, and a NaiveProxy or TrustTunnel server over UDP
+// is HTTP/3.
 export function serverMissingCoreFeature(sectionId: string) {
   const protocol = getProtocol(sectionId);
   const needed = [
     protocolCoreFeature(protocol),
     securityCoreFeature(getEffectiveSecurity(sectionId)),
-    protocol === 'naive' &&
-    ['udp', 'tcp_udp'].includes(liveOption(sectionId, 'naive_network'))
+    (protocol === 'naive' || protocol === 'trusttunnel') &&
+    ['udp', 'tcp_udp'].includes(
+      liveOption(sectionId, transportOption(protocol)),
+    )
       ? 'quic'
       : '',
   ];
