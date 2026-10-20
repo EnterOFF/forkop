@@ -22068,7 +22068,8 @@ function createSectionContent(section2) {
     "_dns_destinations",
     _("Domains"),
     DOMAIN_CONDITION_PLACEHOLDER,
-    analyzeDnsDestinationText
+    analyzeDnsDestinationText,
+    _("Match the domains of DNS queries")
   );
   dnsDestinationOption.depends("action", "dns");
   const builtInRulesetOption = section2.taboption(
@@ -22140,29 +22141,31 @@ function createSectionContent(section2) {
   ruleSetOption.validate = function(_section_id, value) {
     return validateCustomRulesetReference(value);
   };
+  const portsOption = addDynamicConditionField(section2, {
+    key: "ports",
+    label: _("Ports"),
+    description: _(
+      "Narrows the section's conditions to these ports. Without conditions, takes all traffic to them"
+    ),
+    dynamicValidate: validatePortCondition
+  });
+  dependsOnRoutingAction(portsOption);
   const sourceIpOption = addLocalDeviceSubnetDynamicField(section2, {
     key: "source_ip_cidr",
     label: _("Only for devices"),
-    description: _("The section conditions only match these devices")
+    description: _(
+      "The section's other conditions apply only to these devices"
+    )
   });
   dependsOnRuleConditions(sourceIpOption);
   const fullyRoutedOption = addLocalDeviceSubnetDynamicField(section2, {
     key: "fully_routed_ips",
-    label: _("Devices"),
-    description: _(
-      "All traffic from these devices is forced through the section"
-    )
+    label: _("All device traffic"),
+    description: _("All traffic from the device is forced through the section")
   });
   dependsOnRoutingAction(fullyRoutedOption);
   fullyRoutedOption.depends("action", "dns");
   makeDeviceOptionsExclusive(sourceIpOption, fullyRoutedOption);
-  const portsOption = addDynamicConditionField(section2, {
-    key: "ports",
-    label: _("Ports"),
-    description: _("Match destination ports"),
-    dynamicValidate: validatePortCondition
-  });
-  dependsOnRoutingAction(portsOption);
 }
 
 // src/forkop/tabs/sections/table.ts

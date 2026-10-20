@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 07:10+0300\n"
-"PO-Revision-Date: 2026-10-20 07:10+0300\n"
+"POT-Creation-Date: 2026-10-20 08:07+0300\n"
+"PO-Revision-Date: 2026-10-20 08:07+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -248,6 +248,9 @@ msgstr "Дополнительные параметры"
 msgid "Advertise routes"
 msgstr "Раздавать маршруты"
 
+msgid "All device traffic"
+msgstr "Весь трафик устройств"
+
 msgid "All devices"
 msgstr "Все устройства"
 
@@ -266,8 +269,8 @@ msgstr "Все маршруты"
 msgid "All servers"
 msgstr "Все серверы"
 
-msgid "All traffic from these devices is forced through the section"
-msgstr "Весь трафик этих устройств принудительно пойдёт через секцию"
+msgid "All traffic from the device is forced through the section"
+msgstr "Весь трафик устройства принудительно пойдёт через секцию"
 
 msgid "All traffic through the server"
 msgstr "Весь трафик через сервер"
@@ -658,9 +661,6 @@ msgstr "Имя устройства"
 
 msgid "Device or IP"
 msgstr "Устройство или IP"
-
-msgid "Devices"
-msgstr "Устройства"
 
 msgid "Diagnostic report"
 msgstr "Отчёт диагностики"
@@ -1346,8 +1346,8 @@ msgstr "Маскировка"
 msgid "Match destination domains and addresses"
 msgstr "Совпадение по доменам и адресам назначения"
 
-msgid "Match destination ports"
-msgstr "Совпадение по портам назначения"
+msgid "Match the domains of DNS queries"
+msgstr "Совпадение по доменам DNS-запросов"
 
 msgid "matches this device"
 msgstr "совпадает с этим устройством"
@@ -1414,6 +1414,9 @@ msgstr "Префикс имени"
 
 msgid "Name suffix"
 msgstr "Суффикс имени"
+
+msgid "Narrows the section's conditions to these ports. Without conditions, takes all traffic to them"
+msgstr "Сужает условия секции до этих портов. Без условий ловит весь трафик на них"
 
 msgid "Needs a base64 key of %d bytes"
 msgstr "Нужен ключ base64 длиной %d байт"
@@ -2294,8 +2297,8 @@ msgstr "Второй адрес ifconfig в профиле"
 msgid "The second address of ifconfig-ipv6 in the profile"
 msgstr "Второй адрес ifconfig-ipv6 в профиле"
 
-msgid "The section conditions only match these devices"
-msgstr "Условия секции сработают лишь для этих устройств"
+msgid "The section's other conditions apply only to these devices"
+msgstr "Остальные условия секции действуют только для этих устройств"
 
 msgid "The server's address in the subnet, such as %s"
 msgstr "Адрес сервера в подсети, например %s"
