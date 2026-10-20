@@ -545,6 +545,32 @@ function renderCogIcon24() {
   );
 }
 
+// src/icons/renderSettingsIcon24.ts
+function renderSettingsIcon24() {
+  return svgEl(
+    "svg",
+    {
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      "aria-hidden": "true",
+      class: "lucide lucide-settings-icon lucide-settings"
+    },
+    [
+      svgEl("path", {
+        d: "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+      }),
+      svgEl("circle", { cx: "12", cy: "12", r: "3" })
+    ]
+  );
+}
+
 // src/icons/renderFileTextIcon24.ts
 function renderFileTextIcon24() {
   const NS = "http://www.w3.org/2000/svg";
@@ -12148,9 +12174,7 @@ function ensureConnectionsDynamicListStyles() {
       { id: CONNECTIONS_DYNLIST_STYLE_ID },
       `
 .fkp-connections-dynlist {
-  --fkp-dynlist-action-gap: 0.5em;
-  --fkp-dynlist-action-size: 2.5em;
-  column-gap: var(--fkp-dynlist-action-gap);
+  column-gap: 4px;
   display: inline-grid;
   grid-template-columns: minmax(0, 1fr) auto;
 }
@@ -12167,15 +12191,20 @@ function ensureConnectionsDynamicListStyles() {
   box-sizing: border-box;
   display: inline-flex;
   grid-column: 2;
-  inline-size: var(--fkp-dynlist-action-size) !important;
+  inline-size: 2.5em !important;
   justify-content: center;
   line-height: 1;
   margin: 0;
-  margin-block-start: var(--fkp-dynlist-row-offset, 0px);
   min-block-size: 0;
   min-inline-size: 0;
   padding: 0;
   user-select: none;
+}
+
+.fkp-connections-dynlist > .fkp-dynlist-settings > svg {
+  block-size: 16px;
+  display: block;
+  inline-size: 16px;
 }
 
 .fkp-connections-dynlist > .add-item {
@@ -12239,13 +12268,9 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
   },
   syncSettingsButtonSize(item) {
     const button = item && item.fkpDynamicListSettingsButton;
-    const height = item && item.clientHeight;
+    const height = item?.offsetHeight;
     if (button && height > 0) {
       button.style.setProperty("--fkp-dynlist-row-size", `${height}px`);
-      button.style.setProperty(
-        "--fkp-dynlist-row-offset",
-        `${item.clientTop}px`
-      );
     }
   },
   syncSettingsButtons(dl) {
@@ -12276,6 +12301,7 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
       {
         type: "button",
         class: "btn cbi-button cbi-button-neutral fkp-dynlist-settings",
+        title: _("Settings"),
         "aria-label": _("Settings"),
         disabled: this.options.disabled ? "" : null,
         click: (event) => {
@@ -12294,7 +12320,7 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
           }
         }
       },
-      "\u2699"
+      renderSettingsIcon24()
     );
     item.fkpDynamicListSettingsButton = settingsButton;
     item.after(settingsButton);
@@ -19599,7 +19625,7 @@ function injectMaterialStyles() {
       "style",
       { id: STYLE_ID },
       [
-        ".fkp-material{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:0.5em;align-items:start;max-inline-size:100%}",
+        ".fkp-material{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:4px;align-items:start;max-inline-size:100%}",
         ".fkp-material textarea{box-sizing:border-box;inline-size:100% !important;resize:vertical !important;font-family:monospace;font-size:12px}",
         ".fkp-material > button{display:block;text-align:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important}",
         ".fkp-material > button > svg{vertical-align:middle}"
@@ -24344,11 +24370,14 @@ function injectServerStyles() {
       "style",
       { id: STYLE_ID2 },
       [
-        // In the child item list's grid, so the button lines up with the input.
-        ".fkp-generate-row{--fkp-generate-gap:0.5em;--fkp-generate-size:2.5em;column-gap:var(--fkp-generate-gap);display:inline-grid;grid-template-columns:minmax(0,1fr) auto;max-inline-size:100%}",
-        ".fkp-generate-row > :first-child{grid-column:1;min-inline-size:0}",
-        ".fkp-generate-row > .fkp-generate{align-items:center;align-self:stretch;box-sizing:border-box;display:inline-flex;grid-column:2;inline-size:var(--fkp-generate-size) !important;justify-content:center;line-height:1;margin:0 !important;min-block-size:0;min-inline-size:0;padding:0 !important;float:none !important;user-select:none}",
-        ".fkp-generate-row--rows > .fkp-generate{align-self:start;block-size:var(--fkp-generate-row-size,auto)}",
+        // Without the box of LuCI's frame div the theme sizes the field against the row, as it does
+        // a bare field: its fixed width on a wide screen, the whole row on a phone.
+        ".fkp-generate-row{column-gap:4px;display:flex}",
+        ".fkp-generate-row > :first-child{display:contents}",
+        ".fkp-generate-row > :first-child > *{min-inline-size:0}",
+        // The theme leaves a password's reveal button more room than it takes.
+        ".fkp-generate-row .control-group > input{flex-grow:1}",
+        ".fkp-generate-row > .fkp-generate{align-items:center;box-sizing:border-box;display:inline-flex;flex:none;inline-size:2.5em !important;justify-content:center;line-height:1;margin:0 !important;min-block-size:0;min-inline-size:0;padding:0 !important;float:none !important;user-select:none}",
         ".fkp-generate-row > .fkp-generate > svg{display:block}",
         `#cbi-${FORKOP_UCI_PACKAGE}-server > h3:nth-child(1){display:none}`,
         ".fkp-server-info > svg{vertical-align:middle}"
@@ -24415,28 +24444,7 @@ function addGenerateButton(optionRef, generate, title) {
       }
       controlOf(node)?.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    const rows = !!node.querySelector?.(".add-item");
-    const row2 = textE(
-      "div",
-      {
-        class: rows ? "fkp-generate-row fkp-generate-row--rows" : "fkp-generate-row"
-      },
-      [node, button]
-    );
-    if (rows) {
-      const measure = () => {
-        const height = controlOf(node)?.offsetHeight || 0;
-        if (height > 0) {
-          button.style.setProperty("--fkp-generate-row-size", `${height}px`);
-        }
-      };
-      if (typeof ResizeObserver === "function") {
-        new ResizeObserver(measure).observe(node);
-      } else {
-        window.setTimeout(measure, 0);
-      }
-    }
-    return row2;
+    return textE("div", { class: "fkp-generate-row" }, [node, button]);
   };
 }
 function getSelectWidget(sectionId, name) {

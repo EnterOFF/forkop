@@ -27,11 +27,14 @@ export function injectServerStyles() {
       'style',
       { id: STYLE_ID },
       [
-        // In the child item list's grid, so the button lines up with the input.
-        '.fkp-generate-row{--fkp-generate-gap:0.5em;--fkp-generate-size:2.5em;column-gap:var(--fkp-generate-gap);display:inline-grid;grid-template-columns:minmax(0,1fr) auto;max-inline-size:100%}',
-        '.fkp-generate-row > :first-child{grid-column:1;min-inline-size:0}',
-        '.fkp-generate-row > .fkp-generate{align-items:center;align-self:stretch;box-sizing:border-box;display:inline-flex;grid-column:2;inline-size:var(--fkp-generate-size) !important;justify-content:center;line-height:1;margin:0 !important;min-block-size:0;min-inline-size:0;padding:0 !important;float:none !important;user-select:none}',
-        '.fkp-generate-row--rows > .fkp-generate{align-self:start;block-size:var(--fkp-generate-row-size,auto)}',
+        // Without the box of LuCI's frame div the theme sizes the field against the row, as it does
+        // a bare field: its fixed width on a wide screen, the whole row on a phone.
+        '.fkp-generate-row{column-gap:4px;display:flex}',
+        '.fkp-generate-row > :first-child{display:contents}',
+        '.fkp-generate-row > :first-child > *{min-inline-size:0}',
+        // The theme leaves a password's reveal button more room than it takes.
+        '.fkp-generate-row .control-group > input{flex-grow:1}',
+        '.fkp-generate-row > .fkp-generate{align-items:center;box-sizing:border-box;display:inline-flex;flex:none;inline-size:2.5em !important;justify-content:center;line-height:1;margin:0 !important;min-block-size:0;min-inline-size:0;padding:0 !important;float:none !important;user-select:none}',
         '.fkp-generate-row > .fkp-generate > svg{display:block}',
         `#cbi-${FORKOP_UCI_PACKAGE}-server > h3:nth-child(1){display:none}`,
         '.fkp-server-info > svg{vertical-align:middle}',
@@ -120,34 +123,7 @@ export function addGenerateButton(
       controlOf(node)?.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-    // A list's button keeps the height of one row, as the child item list does.
-    const rows = !!node.querySelector?.('.add-item');
-    const row = E(
-      'div',
-      {
-        class: rows
-          ? 'fkp-generate-row fkp-generate-row--rows'
-          : 'fkp-generate-row',
-      },
-      [node, button],
-    );
-
-    if (rows) {
-      const measure = () => {
-        const height = controlOf(node)?.offsetHeight || 0;
-        if (height > 0) {
-          button.style.setProperty('--fkp-generate-row-size', `${height}px`);
-        }
-      };
-
-      if (typeof ResizeObserver === 'function') {
-        new ResizeObserver(measure).observe(node);
-      } else {
-        window.setTimeout(measure, 0);
-      }
-    }
-
-    return row;
+    return E('div', { class: 'fkp-generate-row' }, [node, button]);
   };
 }
 

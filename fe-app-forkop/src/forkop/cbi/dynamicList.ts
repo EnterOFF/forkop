@@ -18,6 +18,7 @@ import {
   updateButtonAddDynamicListLayout,
 } from './listItems';
 import { E } from '../../helpers/element';
+import { renderSettingsIcon24 } from '../../icons';
 
 const CONNECTIONS_DYNLIST_STYLE_ID = 'fkp-connections-dynlist-styles';
 
@@ -32,9 +33,7 @@ function ensureConnectionsDynamicListStyles() {
       { id: CONNECTIONS_DYNLIST_STYLE_ID },
       `
 .fkp-connections-dynlist {
-  --fkp-dynlist-action-gap: 0.5em;
-  --fkp-dynlist-action-size: 2.5em;
-  column-gap: var(--fkp-dynlist-action-gap);
+  column-gap: 4px;
   display: inline-grid;
   grid-template-columns: minmax(0, 1fr) auto;
 }
@@ -51,15 +50,20 @@ function ensureConnectionsDynamicListStyles() {
   box-sizing: border-box;
   display: inline-flex;
   grid-column: 2;
-  inline-size: var(--fkp-dynlist-action-size) !important;
+  inline-size: 2.5em !important;
   justify-content: center;
   line-height: 1;
   margin: 0;
-  margin-block-start: var(--fkp-dynlist-row-offset, 0px);
   min-block-size: 0;
   min-inline-size: 0;
   padding: 0;
   user-select: none;
+}
+
+.fkp-connections-dynlist > .fkp-dynlist-settings > svg {
+  block-size: 16px;
+  display: block;
+  inline-size: 16px;
 }
 
 .fkp-connections-dynlist > .add-item {
@@ -129,13 +133,9 @@ const SettingsUIDynamicList = ui.DynamicList.extend({
 
   syncSettingsButtonSize(item: Element | null) {
     const button = item && item.fkpDynamicListSettingsButton;
-    const height = item && item.clientHeight;
+    const height = (item as HTMLElement | null)?.offsetHeight;
     if (button && (height as number) > 0) {
       button.style.setProperty('--fkp-dynlist-row-size', `${height}px`);
-      button.style.setProperty(
-        '--fkp-dynlist-row-offset',
-        `${item.clientTop}px`,
-      );
     }
   },
 
@@ -193,6 +193,7 @@ const SettingsUIDynamicList = ui.DynamicList.extend({
       {
         type: 'button',
         class: 'btn cbi-button cbi-button-neutral fkp-dynlist-settings',
+        title: _('Settings'),
         'aria-label': _('Settings'),
         disabled: this.options.disabled ? '' : null,
         click: (event) => {
@@ -213,7 +214,7 @@ const SettingsUIDynamicList = ui.DynamicList.extend({
           }
         },
       },
-      '\u2699',
+      renderSettingsIcon24(),
     );
     item.fkpDynamicListSettingsButton = settingsButton;
     item.after(settingsButton);
