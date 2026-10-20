@@ -4,6 +4,7 @@
 
 let fs = require("fs");
 let exec = require("core.exec");
+let url = require("core.url");
 let singbox_constants = require("singbox.constants");
 
 let paths = {
@@ -187,16 +188,47 @@ function link_uses_utls(scheme, type_name, link) {
     return tls && ((query.fp ?? "") != "" || (query["client-fingerprint"] ?? "") != "");
 }
 
+function query_value(value) {
+    return trim(url.percent_decode(value ?? ""));
+}
+
+// The core runs XHTTP over HTTP/3 when TLS offers h3 first; the parameters are Xray's, as the
+// core's link parser reads them.
+function uses_xhttp_http3(type_name, link) {
+    if ((type_name != "vless" && type_name != "vmess" && type_name != "trojan") ||
+        (type_name == "vmess" && vmess_payload(link) != null))
+        return false;
+    let query = link_query(link);
+    let transport = query_value(query.type) || query_value(query.net);
+    let security = lc(query_value(query.security));
+    let alpn = filter(map(split(query_value(query.alpn), ","), (item) => trim(item)), (item) => item != "");
+    return (transport == "xhttp" || transport == "splithttp") &&
+        (type_name == "trojan" || security == "tls" || security == "xtls" || security == "reality") &&
+        alpn[0] == "h3";
+}
+
+function link_type(link) {
+    let separator = index(link, "://");
+    return singbox_constants.LINK_SCHEME_OUTBOUND_TYPES[separator > 0 ? lc(substr(link, 0, separator)) : ""] ?? "";
+}
+
+function link_uses_xhttp_http3(link) {
+    link = trim("" + (link ?? ""));
+    return uses_xhttp_http3(link_type(link), link);
+}
+
 // The features a share link needs from the core that will parse it.
 function link_features(link) {
     link = trim("" + (link ?? ""));
     let separator = index(link, "://");
     let scheme = separator > 0 ? lc(substr(link, 0, separator)) : "";
-    let type_name = singbox_constants.LINK_SCHEME_OUTBOUND_TYPES[scheme] ?? "";
+    let type_name = link_type(link);
     let result = [];
     let feature = type_feature("outbound", type_name);
     if (feature != "")
         push(result, feature);
+    if (uses_xhttp_http3(type_name, link))
+        push(result, "quic");
     if (link_uses_utls(scheme, type_name, link))
         push(result, "utls");
     return result;
@@ -221,5 +253,6 @@ function report(present) {
 
 return {
     paths, REQUIRED, FEATURES, OUTBOUND_TYPES, INBOUND_TYPES, ENDPOINT_TYPES,
-    parse_tags, tags, available, missing_tags, unavailable_reason, core_problem, type_feature, link_features, report
+    parse_tags, tags, available, missing_tags, unavailable_reason, core_problem, type_feature, link_features,
+    link_uses_xhttp_http3, report
 };

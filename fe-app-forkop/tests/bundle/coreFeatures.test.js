@@ -101,6 +101,37 @@ describe('the Servers tab', () => {
       'sing-box is built without with_tailscale',
     );
   });
+
+  it('asks for QUIC for XHTTP over HTTP/3, which TLS offering h3 alone picks', () => {
+    harness.bundle.setCoreFeatures(without('with_quic'));
+    addSections([
+      [
+        'server',
+        'srv',
+        {
+          protocol: 'vless',
+          security: 'tls',
+          transport: 'xhttp',
+          tls_alpn: ['h3'],
+        },
+      ],
+    ]);
+    const servers = grid('server', (s) =>
+      harness.bundle.createServerContent(s),
+    );
+
+    expect(option(servers, 'transport').validate('srv', 'xhttp')).toBe(
+      'sing-box is built without with_quic',
+    );
+    expect(option(servers, '_protocol_display').textvalue('srv')).toBe(
+      'VLESS (the installed sing-box lacks with_quic)',
+    );
+    expect(option(servers, 'transport').validate('srv', 'ws')).toBe(true);
+
+    harness.store.get('srv').tls_alpn = ['h3', 'h2'];
+    expect(option(servers, 'transport').validate('srv', 'xhttp')).toBe(true);
+    expect(option(servers, '_protocol_display').textvalue('srv')).toBe('VLESS');
+  });
 });
 
 describe('the Sections tab', () => {

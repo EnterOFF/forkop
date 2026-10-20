@@ -30,6 +30,7 @@ import {
   validateRealityKey,
   validateSecurity,
   validateShortId,
+  validateTransport,
   validateTransportPath,
 } from '../validators';
 
@@ -242,6 +243,7 @@ export function addTransportOptions(section: CBISection) {
   o.default = 'tcp';
   o.rmempty = false;
   o.modalonly = true;
+  o.validate = validateTransport;
   streamProtocols.forEach((protocol: string) =>
     o.depends('protocol', protocol),
   );

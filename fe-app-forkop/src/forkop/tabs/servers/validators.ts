@@ -26,6 +26,7 @@ import {
   securitiesFor,
   securityCoreFeature,
   serverListenTransports,
+  servesXhttpHttp3,
   shadowsocksKeyBytes,
 } from './protocols';
 
@@ -199,6 +200,16 @@ export function validateSecurity(sectionId: string, value: string) {
     return _('Not supported by this protocol');
   }
   return validateCoreFeature(securityCoreFeature(selected));
+}
+
+export function validateTransport(sectionId: string, value: string) {
+  return validateCoreFeature(
+    servesXhttpHttp3(getProtocol(sectionId), (name) =>
+      name === 'transport' ? value : liveOption(sectionId, name),
+    )
+      ? 'quic'
+      : '',
+  );
 }
 
 export function validateShadowsocksPassword(sectionId: string, value: string) {

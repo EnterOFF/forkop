@@ -4220,6 +4220,23 @@ function linkUsesUtls(type, link) {
   const tls = ALWAYS_TLS_TYPES.has(type) || security === "tls" || security === "xtls";
   return tls && Boolean(query.get("fp") || query.get("client-fingerprint"));
 }
+function queryValue(value) {
+  try {
+    return decodeURIComponent(value || "").trim();
+  } catch {
+    return `${value || ""}`.trim();
+  }
+}
+function linkUsesXhttpHttp3(type, link) {
+  if (!["vless", "vmess", "trojan"].includes(type) || type === "vmess" && vmessPayload(link)) {
+    return false;
+  }
+  const query = linkQuery(link);
+  const transport3 = queryValue(query.get("type")) || queryValue(query.get("net"));
+  const security = queryValue(query.get("security")).toLowerCase();
+  const alpn = queryValue(query.get("alpn")).split(",").map((item) => item.trim()).filter(Boolean);
+  return (transport3 === "xhttp" || transport3 === "splithttp") && (type === "trojan" || ["tls", "xtls", "reality"].includes(security)) && alpn[0] === "h3";
+}
 function linkCoreFeatures(link) {
   const value = `${link || ""}`.trim();
   const separator = value.indexOf("://");
@@ -4229,6 +4246,9 @@ function linkCoreFeatures(link) {
   const feature = coreFeatureOfType(type, ["outbound"]);
   if (feature) {
     features.push(feature);
+  }
+  if (linkUsesXhttpHttp3(type, value)) {
+    features.push("quic");
   }
   if (report && linkUsesUtls(type, value)) {
     features.push("utls");
@@ -23383,7 +23403,7 @@ function serverMissingCoreFeature(sectionId) {
     securityCoreFeature(getEffectiveSecurity(sectionId)),
     (protocol === "naive" || protocol === "trusttunnel") && ["udp", "tcp_udp"].includes(
       liveOption(sectionId, transportOption(protocol))
-    ) ? "quic" : ""
+    ) || servesXhttpHttp3(protocol, (name) => liveOption(sectionId, name)) ? "quic" : ""
   ];
   return needed.find((feature) => feature && !coreHas(feature)) || "";
 }
@@ -25365,6 +25385,14 @@ function validateSecurity(sectionId, value) {
   }
   return validateCoreFeature(securityCoreFeature(selected));
 }
+function validateTransport(sectionId, value) {
+  return validateCoreFeature(
+    servesXhttpHttp3(
+      getProtocol(sectionId),
+      (name) => name === "transport" ? value : liveOption(sectionId, name)
+    ) ? "quic" : ""
+  );
+}
 function validateShadowsocksPassword(sectionId, value) {
   const required2 = validateRequiredText(sectionId, value);
   if (required2 !== true) {
@@ -26315,6 +26343,7 @@ function addTransportOptions(section2) {
   o.default = "tcp";
   o.rmempty = false;
   o.modalonly = true;
+  o.validate = validateTransport;
   streamProtocols.forEach(
     (protocol) => o.depends("protocol", protocol)
   );

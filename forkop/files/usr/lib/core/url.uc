@@ -163,6 +163,7 @@ function link_name(value) {
 }
 
 return {
+    percent_decode,
     scheme,
     fragment,
     link_name,

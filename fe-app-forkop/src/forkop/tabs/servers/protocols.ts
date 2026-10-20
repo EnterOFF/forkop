@@ -422,16 +422,17 @@ export function protocolCoreFeature(protocol: unknown) {
 
 // What a server asks of the core that the installed one lacks, or ''. The
 // Reality handshake needs uTLS, and a NaiveProxy or TrustTunnel server over UDP
-// is HTTP/3.
+// is HTTP/3, as is XHTTP when TLS offers h3 alone.
 export function serverMissingCoreFeature(sectionId: string) {
   const protocol = getProtocol(sectionId);
   const needed = [
     protocolCoreFeature(protocol),
     securityCoreFeature(getEffectiveSecurity(sectionId)),
-    (protocol === 'naive' || protocol === 'trusttunnel') &&
-    ['udp', 'tcp_udp'].includes(
-      liveOption(sectionId, transportOption(protocol)),
-    )
+    ((protocol === 'naive' || protocol === 'trusttunnel') &&
+      ['udp', 'tcp_udp'].includes(
+        liveOption(sectionId, transportOption(protocol)),
+      )) ||
+    servesXhttpHttp3(protocol, (name) => liveOption(sectionId, name))
       ? 'quic'
       : '',
   ];

@@ -43,6 +43,14 @@ t.test("a server of a type the build lacks is refused by name", () => {
     t.ok(index(http2.error ?? "", "this sing-box build lacks") < 0, "TrustTunnel over HTTP/2 needs no QUIC: " + http2.error);
 });
 
+t.test("an XHTTP server over HTTP/3 needs QUIC", () => {
+    let xhttp = { security: "tls", transport: "xhttp", tls_alpn: [ "h3" ] };
+    needs({ server: [ server("vless", xhttp) ] }, without(BASE, "with_quic"),
+        "Server 'srv' serves XHTTP over HTTP/3, but this sing-box build lacks QUIC (built without with_quic)");
+    let http2 = v.run({ server: [ server("vless", { ...xhttp, tls_alpn: [ "h2" ] }) ] }, { core_tags: without(BASE, "with_quic") });
+    t.ok(index(http2.error ?? "", "this sing-box build lacks") < 0, "XHTTP over HTTP/2 needs no QUIC: " + http2.error);
+});
+
 t.test("a server of a protocol the build was given no tag for is refused by name", () => {
     needs({ server: [ server("vmess") ] }, without(BASE, "with_vmess"),
         "Server 'srv' uses vmess, but this sing-box build lacks VMess (built without with_vmess)");
@@ -87,6 +95,9 @@ t.test("a link the build cannot dial is refused, without printing its secrets", 
         "has a naive+https:// link 'N', but this sing-box build lacks the NaiveProxy client (built without with_naive_outbound)");
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vless://u@example.com:443?security=reality&pbk=key&sni=a.com#R" ]) },
         without(BASE, "with_utls"), "has a vless:// link 'R' that uses Reality or a TLS fingerprint");
+    needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vless://u@example.com:443?security=tls&type=xhttp&alpn=h3#X" ]) },
+        without(BASE, "with_quic"),
+        "Section 'Proxy' has a vless:// link 'X' that uses XHTTP over HTTP/3, but this sing-box build lacks QUIC (built without with_quic)");
 });
 
 t.test("a link of a protocol the build was given no tag for is refused by name", () => {

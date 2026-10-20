@@ -1630,6 +1630,8 @@ function validate_core_features(settings, sections, servers, core_tags) {
             index(runtime_servers.listen_transports(server), "udp") >= 0)
             refuse_without("quic", core_tags, "Server '" + server_label(name) + "' serves " +
                 (protocol == "naive" ? "NaiveProxy" : "TrustTunnel") + " over QUIC");
+        if (runtime_servers.serves_xhttp_http3(server))
+            refuse_without("quic", core_tags, "Server '" + server_label(name) + "' serves XHTTP over HTTP/3");
     }
 
     for (let section in sections) {
@@ -1648,7 +1650,8 @@ function validate_core_features(settings, sections, servers, core_tags) {
             let label = core_url.scheme(link) + ":// link '" + connections.option(item, "name", "") + "'";
             for (let feature in features.link_features(link))
                 refuse_without(feature, core_tags, "Section '" + section_label(section) + "' has a " + label +
-                    (feature == "utls" ? " that uses Reality or a TLS fingerprint" : ""));
+                    (feature == "utls" ? " that uses Reality or a TLS fingerprint"
+                        : feature == "quic" && features.link_uses_xhttp_http3(link) ? " that uses XHTTP over HTTP/3" : ""));
         }
     }
 

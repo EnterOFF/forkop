@@ -140,6 +140,38 @@ function linkUsesUtls(type: string, link: string) {
   return tls && Boolean(query.get('fp') || query.get('client-fingerprint'));
 }
 
+function queryValue(value: string | undefined) {
+  try {
+    return decodeURIComponent(value || '').trim();
+  } catch {
+    return `${value || ''}`.trim();
+  }
+}
+
+// The core runs XHTTP over HTTP/3 when TLS offers h3 first; the parameters are Xray's, read as
+// singbox/features.uc reads them.
+function linkUsesXhttpHttp3(type: string, link: string) {
+  if (
+    !['vless', 'vmess', 'trojan'].includes(type) ||
+    (type === 'vmess' && vmessPayload(link))
+  ) {
+    return false;
+  }
+  const query = linkQuery(link);
+  const transport =
+    queryValue(query.get('type')) || queryValue(query.get('net'));
+  const security = queryValue(query.get('security')).toLowerCase();
+  const alpn = queryValue(query.get('alpn'))
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return (
+    (transport === 'xhttp' || transport === 'splithttp') &&
+    (type === 'trojan' || ['tls', 'xtls', 'reality'].includes(security)) &&
+    alpn[0] === 'h3'
+  );
+}
+
 // The features a share link needs from the core that will parse it.
 export function linkCoreFeatures(link: string) {
   const value = `${link || ''}`.trim();
@@ -150,6 +182,9 @@ export function linkCoreFeatures(link: string) {
   const feature = coreFeatureOfType(type, ['outbound']);
   if (feature) {
     features.push(feature);
+  }
+  if (linkUsesXhttpHttp3(type, value)) {
+    features.push('quic');
   }
   if (report && linkUsesUtls(type, value)) {
     features.push('utls');
