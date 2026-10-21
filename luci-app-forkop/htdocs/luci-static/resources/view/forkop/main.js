@@ -22053,14 +22053,6 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   configureTextareaOption(endpointJsonOption);
   const openvpnOptions = addOpenVPNOptions(itemSection);
   const openconnectOptions = addOpenConnectOptions(itemSection);
-  o = itemSection.option(form.Value, "warp_address", _("WARP server address"));
-  o.depends("tunnel_type", "warp");
-  o.rmempty = true;
-  o.validate = hostField;
-  o = itemSection.option(form.Value, "warp_port", _("WARP server port"));
-  o.depends("tunnel_type", "warp");
-  o.rmempty = true;
-  o.validate = anyPortField;
   const addressOption = itemSection.option(
     form.DynamicList,
     "address",
@@ -22139,17 +22131,6 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
       openconnectOptions
     );
   };
-  o = itemSection.option(
-    form.Value,
-    "warp_keepalive",
-    _("Persistent keepalive"),
-    _("Seconds, or a range such as 25-35")
-  );
-  o.validate = function(_itemId, value) {
-    return validateAmneziaRange(value);
-  };
-  o.rmempty = true;
-  o.depends("tunnel_type", "warp");
   const warpProfileIdOption = itemSection.option(
     form.Value,
     "warp_profile_id",
@@ -22184,6 +22165,25 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   warpLicenseKeyOption.password = true;
   warpLicenseKeyOption.rmempty = true;
   warpLicenseKeyOption.depends("tunnel_type", "warp");
+  o = itemSection.option(form.Value, "warp_address", _("WARP server address"));
+  o.depends("tunnel_type", "warp");
+  o.rmempty = true;
+  o.validate = hostField;
+  o = itemSection.option(form.Value, "warp_port", _("WARP server port"));
+  o.depends("tunnel_type", "warp");
+  o.rmempty = true;
+  o.validate = anyPortField;
+  o = itemSection.option(
+    form.Value,
+    "warp_keepalive",
+    _("Persistent keepalive"),
+    _("Seconds, or a range such as 25-35")
+  );
+  o.validate = function(_itemId, value) {
+    return validateAmneziaRange(value);
+  };
+  o.rmempty = true;
+  o.depends("tunnel_type", "warp");
   warpGenerateButton.onclick = function() {
     return fs.exec("/usr/bin/forkop", ["generate_warp_profile"]).then((response) => {
       if ((response.code ?? 0) !== 0) {
