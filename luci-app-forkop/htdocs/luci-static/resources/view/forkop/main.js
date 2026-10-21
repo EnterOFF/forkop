@@ -1687,7 +1687,7 @@ function renderButton({
   disabled,
   loading: loading3,
   onClick,
-  text: text7,
+  text: text8,
   icon
 }) {
   const hasIcon = !!loading3 || !!icon;
@@ -1729,7 +1729,7 @@ function renderButton({
       disabled: getDisabled(),
       click: onClick
     },
-    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text7)]
+    [...insertIf(hasIcon, [getWrappedIcon()]), textE("span", {}, text8)]
   );
 }
 
@@ -1753,9 +1753,9 @@ function showToast(message2, type, duration = 3e3) {
 }
 
 // src/helpers/copyToClipboard.ts
-function copyToClipboard(text7) {
+function copyToClipboard(text8) {
   const textarea = document.createElement("textarea");
-  textarea.value = text7;
+  textarea.value = text8;
   document.body.appendChild(textarea);
   textarea.select();
   let copied = false;
@@ -1772,8 +1772,8 @@ function copyToClipboard(text7) {
 }
 
 // src/helpers/downloadAsTxt.ts
-function downloadAsTxt(text7, filename) {
-  const blob = new Blob([text7], { type: "text/plain;charset=utf-8" });
+function downloadAsTxt(text8, filename) {
+  const blob = new Blob([text8], { type: "text/plain;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   const safeName = filename.endsWith(".txt") ? filename : `${filename}.txt`;
@@ -1785,8 +1785,8 @@ function downloadAsTxt(text7, filename) {
 }
 
 // src/partials/modal/renderModal.ts
-function renderModal(text7, name, options) {
-  let currentText = text7 ?? "";
+function renderModal(text8, name, options) {
+  let currentText = text8 ?? "";
   let latestRequest = 0;
   const codeEl = textE("code", {}, currentText);
   const contentEl = textE(
@@ -2643,6 +2643,13 @@ function updateClashApiRuleProviders() {
 function getClashApiProxies() {
   return requestClashApi(
     "/proxies",
+    void 0,
+    CLASH_API_FETCH_TIMEOUT_MS
+  );
+}
+function getClashApiTailscale() {
+  return requestClashApi(
+    "/tailscale",
     void 0,
     CLASH_API_FETCH_TIMEOUT_MS
   );
@@ -3522,6 +3529,7 @@ var CustomForkopMethods = {
   getClashApiProxyExit,
   getClashApiProxyLink,
   getClashApiProxyLatency,
+  getClashApiTailscale,
   setClashApiGroupProxy,
   updateClashApiProxyProviders,
   updateClashApiRuleProviders,
@@ -4164,8 +4172,8 @@ function linkQuery(link) {
   if (start < 0) {
     return query;
   }
-  const text7 = link.slice(start + 1).split("#")[0];
-  for (const pair of text7.split("&")) {
+  const text8 = link.slice(start + 1).split("#")[0];
+  for (const pair of text8.split("&")) {
     const equals = pair.indexOf("=");
     const key = (equals < 0 ? pair : pair.slice(0, equals)).toLowerCase();
     if (key && !query.has(key)) {
@@ -5713,8 +5721,8 @@ function formatUrlTestModalValue(value) {
   if (typeof value === "boolean") {
     return value ? _("Yes") : _("No");
   }
-  const text7 = `${value ?? ""}`.trim();
-  return text7 || _("No");
+  const text8 = `${value ?? ""}`.trim();
+  return text8 || _("No");
 }
 function formatUrlTestLatency(latency) {
   return latency ? `${latency}ms` : _("N/A");
@@ -7782,7 +7790,7 @@ function target(section2) {
 }
 function presentSection(section2, node, probe) {
   const key = section2.displayName;
-  const on = (text7) => node ? `${node}: ${text7}` : text7;
+  const on = (text8) => node ? `${node}: ${text8}` : text8;
   if ("delay" in probe) {
     return finding(
       "success",
@@ -7869,8 +7877,27 @@ function listenerItems(server2) {
   }
   return [];
 }
+function isTailscale(server2) {
+  return server2.protocol === "tailscale";
+}
+function tailscaleItems(server2) {
+  const key = server2.label;
+  const failure = !server2.runtime ? _("not in the running configuration") : server2.state === "NeedsLogin" ? _("waiting for sign-in") : server2.state === "NeedsMachineAuth" ? _("device waiting for approval in the console") : server2.state !== "Running" ? _("not started") : !server2.connected ? _("no connection to the coordination server") : server2.key_expired ? _("node key expired") : "";
+  if (failure) {
+    return [finding("error", key, failure)];
+  }
+  const pending = [
+    ...server2.exit_node_pending ? [_("exit node waiting for approval in the console")] : [],
+    ...server2.pending_routes ? [
+      _("%s waiting for approval in the console").format(
+        server2.pending_routes
+      )
+    ] : []
+  ];
+  return pending.length ? pending.map((text8) => finding("warning", key, text8)) : [finding("success", key, _("online \xB7 %s").format(server2.name))];
+}
 function facesInternet(server2) {
-  return server2.exposed && (server2.open_firewall || server2.firewall_open);
+  return !isTailscale(server2) && server2.exposed && (server2.open_firewall || server2.firewall_open);
 }
 function publicHostItems(server2, wan) {
   const key = server2.label;
@@ -7928,6 +7955,9 @@ function presentServers(data) {
   return [
     ...cgnatItems(data),
     ...data.items.flatMap((server2) => {
+      if (isTailscale(server2)) {
+        return tailscaleItems(server2);
+      }
       const problems = [
         ...listenerItems(server2),
         ...publicHostItems(server2, data.wan)
@@ -7984,9 +8014,9 @@ function timestamp(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 function section(title, body) {
-  const text7 = body.trim();
+  const text8 = body.trim();
   return `== ${title} ==
-${text7 ? `${text7}
+${text8 ? `${text8}
 ` : `${_("empty")}
 `}`;
 }
@@ -8612,10 +8642,10 @@ async function showDiagnosticModal(action, title, name, load) {
   setDiagnosticActionLoading(action, true);
   try {
     const getText = diagnosticText(load);
-    const text7 = await getText({ maskValues: true });
+    const text8 = await getText({ maskValues: true });
     ui.showModal(
       title,
-      renderModal(text7, name, {
+      renderModal(text8, name, {
         getText,
         showMaskValuesToggle: true
       })
@@ -8650,10 +8680,10 @@ async function handleReport() {
   setDiagnosticActionLoading("report", true);
   try {
     const getText = ({ maskValues }) => buildReport(maskValues);
-    const text7 = await getText({ maskValues: true });
+    const text8 = await getText({ maskValues: true });
     ui.showModal(
       _("Diagnostic report"),
-      renderModal(text7, "forkop-report", {
+      renderModal(text8, "forkop-report", {
         getText,
         showMaskValuesToggle: true
       })
@@ -9717,14 +9747,14 @@ function renderList(rows, closable) {
 function cellClass(column) {
   return `fkp_monitoring-page__cell fkp_monitoring-page__cell--${column}`;
 }
-function renderHeading(column, text7) {
-  return textE("div", { class: cellClass(column), role: "columnheader" }, text7);
+function renderHeading(column, text8) {
+  return textE("div", { class: cellClass(column), role: "columnheader" }, text8);
 }
 function renderCell(column, children2) {
   return textE("div", { class: cellClass(column), role: "cell" }, children2);
 }
-function renderValue(text7, className = "") {
-  const value = text7 || "-";
+function renderValue(text8, className = "") {
+  const value = text8 || "-";
   return textE(
     "span",
     {
@@ -9737,7 +9767,7 @@ function renderValue(text7, className = "") {
 }
 function renderSource(name, detail) {
   const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
-  const muted = (text7) => textE("span", { class: "fkp_monitoring-page__muted" }, text7);
+  const muted = (text8) => textE("span", { class: "fkp_monitoring-page__muted" }, text8);
   return textE(
     "span",
     {
@@ -9806,7 +9836,7 @@ function renderConnectionList(items, options) {
     options.closable
   );
 }
-function renderConnectionListState(text7, options) {
+function renderConnectionListState(text8, options) {
   return renderList(
     [
       textE(
@@ -9822,7 +9852,7 @@ function renderConnectionListState(text7, options) {
               class: ["fkp_monitoring-page__state", options.className].filter(Boolean).join(" "),
               role: "cell"
             },
-            text7
+            text8
           )
         ]
       )
@@ -11406,9 +11436,9 @@ function render4() {
 }
 
 // src/forkop/tabs/logs/filterLogs.ts
-function filterLogText(text7, query) {
+function filterLogText(text8, query) {
   const normalizedQuery = query.trim().toLowerCase();
-  return text7.split(/\r?\n/).filter((line) => {
+  return text8.split(/\r?\n/).filter((line) => {
     if (!line) {
       return false;
     }
@@ -11960,7 +11990,7 @@ function updateDynamicListItemLabel(item, label) {
     labelNode.textContent = `${label || ""}`;
   }
 }
-function addDynamicListItem(widget, value, text7) {
+function addDynamicListItem(widget, value, text8) {
   if (!widget || !widget.node) {
     return null;
   }
@@ -11973,7 +12003,7 @@ function addDynamicListItem(widget, value, text7) {
     widget.dispatchCbiDynlistChange(widget.node, normalized);
     return null;
   }
-  widget.addItem(widget.node, normalized, text7 || null, false);
+  widget.addItem(widget.node, normalized, text8 || null, false);
   widget.dispatchCbiDynlistChange(widget.node, normalized);
   updateButtonAddDynamicListLayout(widget.node, options.addButtonLabel);
   return findDynamicListItemByValue(widget.node, normalized);
@@ -12764,15 +12794,15 @@ var SettingsUIDynamicList = ui.DynamicList.extend({
       }
     });
   },
-  addItem(dl, value, text7, flash) {
+  addItem(dl, value, text8, flash) {
     if (flash && typeof this.options.createItem === "function") {
       value = this.options.createItem(value);
-      text7 = null;
+      text8 = null;
     } else if (flash && typeof this.options.hasEquivalentValue === "function" && this.options.hasEquivalentValue(value, dl)) {
       this.dispatchCbiDynlistChange(dl, value);
       return;
     }
-    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text7) : text7;
+    const itemText = typeof this.options.itemLabel === "function" ? this.options.itemLabel(value, text8) : text8;
     ui.DynamicList.prototype.addItem.call(this, dl, value, itemText, flash);
     const item = findDynamicListItemByValue(dl, value);
     const hasSettings = typeof this.options.hasSettings === "function" ? this.options.hasSettings(value) : true;
@@ -12986,15 +13016,15 @@ var SettingsDynamicList = form.DynamicList.extend({
           );
         }
       },
-      itemLabel: (itemValue, text7) => {
+      itemLabel: (itemValue, text8) => {
         if (typeof this.renderListItemLabel === "function") {
           return this.renderListItemLabel(
             this.childOwner(section_id),
             `${itemValue}`,
-            text7
+            text8
           );
         }
-        return text7;
+        return text8;
       },
       hasSettings: (itemValue) => this.hasItemSettings(this.childOwner(section_id), `${itemValue}`),
       createItem: this.entriesAreSections && !this.buttonAdd ? (inputValue) => this.createTypedItem(section_id, inputValue) : null,
@@ -13236,13 +13266,13 @@ function syncAnnotatedTextareaOverlay(textarea, wrapper, overlay) {
   overlay.scrollLeft = textarea.scrollLeft;
 }
 function renderAnnotatedTextareaOverlay(value, annotations) {
-  const text7 = value ? `${value}` : "";
+  const text8 = value ? `${value}` : "";
   const normalizedAnnotations = Array.isArray(annotations) ? annotations : [];
-  if (!text7.length) {
+  if (!text8.length) {
     return "&#8203;";
   }
   if (!normalizedAnnotations.length) {
-    return `${escapeHtml(text7)}${text7.endsWith("\n") ? "\n " : ""}`;
+    return `${escapeHtml(text8)}${text8.endsWith("\n") ? "\n " : ""}`;
   }
   let cursor2 = 0;
   let html = "";
@@ -13250,14 +13280,14 @@ function renderAnnotatedTextareaOverlay(value, annotations) {
     if (annotation.start < cursor2 || annotation.start >= annotation.end || annotation.start < 0) {
       return;
     }
-    html += escapeHtml(text7.slice(cursor2, annotation.start));
+    html += escapeHtml(text8.slice(cursor2, annotation.start));
     html += `<span class="fkp-annotated-textarea__invalid">${escapeHtml(
-      text7.slice(annotation.start, annotation.end)
+      text8.slice(annotation.start, annotation.end)
     )}</span>`;
     cursor2 = annotation.end;
   });
-  html += escapeHtml(text7.slice(cursor2));
-  if (text7.endsWith("\n")) {
+  html += escapeHtml(text8.slice(cursor2));
+  if (text8.endsWith("\n")) {
     html += "\n ";
   }
   return html;
@@ -13311,10 +13341,10 @@ function attachAnnotatedTextarea(textarea, analyzer) {
   controller.update();
 }
 function parseCommentAwareListTokens(value) {
-  const text7 = value ? `${value}` : "";
+  const text8 = value ? `${value}` : "";
   const tokens = [];
-  const lines3 = text7.split(/\r\n|\r|\n/);
-  const newlines = text7.match(/\r\n|\r|\n/g) || [];
+  const lines3 = text8.split(/\r\n|\r|\n/);
+  const newlines = text8.match(/\r\n|\r|\n/g) || [];
   let offset = 0;
   lines3.forEach((line, index) => {
     const hashIndex = line.indexOf("#");
@@ -14261,10 +14291,10 @@ function subscriptionDownloadTargetChoices(section_id) {
 
 // src/helpers/pem.ts
 var BEGIN = /^-----BEGIN ([A-Za-z0-9 #-]+)-----$/;
-function pemBlocks(text7) {
+function pemBlocks(text8) {
   const blocks = [];
   let current = null;
-  for (const raw of `${text7 || ""}`.split(/\r?\n/)) {
+  for (const raw of `${text8 || ""}`.split(/\r?\n/)) {
     const line = raw.trim();
     if (!current) {
       const begin = BEGIN.exec(line);
@@ -14283,12 +14313,12 @@ function pemBlocks(text7) {
   return blocks;
 }
 function decodeBase64(body) {
-  const text7 = `${body || ""}`.replace(/\s+/g, "");
-  if (!text7 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text7) || text7.length % 4 !== 0) {
+  const text8 = `${body || ""}`.replace(/\s+/g, "");
+  if (!text8 || !/^[A-Za-z0-9+/]+={0,2}$/.test(text8) || text8.length % 4 !== 0) {
     return null;
   }
   try {
-    const binary = atob(text7);
+    const binary = atob(text8);
     return Uint8Array.from(binary, (char) => char.charCodeAt(0));
   } catch (_error) {
     return null;
@@ -14368,9 +14398,9 @@ var PRIVATE_KEY_LABELS = ["PRIVATE KEY", "RSA PRIVATE KEY", "EC PRIVATE KEY"];
 function isRouterPath(value) {
   return /^\/[^\n]*$/.test(value.trim());
 }
-function splitCertificateAndKey(text7) {
+function splitCertificateAndKey(text8) {
   const blocks = Array.from(
-    `${text7 || ""}`.matchAll(
+    `${text8 || ""}`.matchAll(
       /-----BEGIN ([A-Z0-9 ]+)-----[\s\S]*?-----END \1-----/g
     )
   );
@@ -14380,8 +14410,8 @@ function splitCertificateAndKey(text7) {
   ).map((block) => block[0].replace(/\r/g, ""));
   return certificates.length && keys.length === 1 ? { certificate: certificates.join("\n"), key: keys[0] } : null;
 }
-function certificatesCheck(text7) {
-  const blocks = pemBlocks(text7).filter(
+function certificatesCheck(text8) {
+  const blocks = pemBlocks(text8).filter(
     (block) => block.label === "CERTIFICATE"
   );
   return blocks.length && blocks.every((block) => {
@@ -14395,8 +14425,8 @@ function isEncrypted(block) {
 function isEncryptedKey(value) {
   return pemBlocks(`${value ?? ""}`).some(isEncrypted);
 }
-function keyCheck(text7, passphrase) {
-  const blocks = pemBlocks(text7);
+function keyCheck(text8, passphrase) {
+  const blocks = pemBlocks(text8);
   if (!passphrase && blocks.some(isEncrypted)) {
     return _(
       "Remove the key passphrase: openssl pkey -in key.pem -out plain.pem"
@@ -14406,32 +14436,32 @@ function keyCheck(text7, passphrase) {
   const keys = blocks.filter((block) => labels.includes(block.label));
   return keys.length === 1 && decodeBase64(keys[0].body) ? true : _("Invalid PEM private key");
 }
-function staticKeyCheck(text7) {
-  const block = pemBlocks(text7).find(
+function staticKeyCheck(text8) {
+  const block = pemBlocks(text8).find(
     (item) => item.label === "OpenVPN Static key V1"
   );
   return block && /^[0-9a-fA-F]{512}$/.test(block.body) ? true : _("Invalid OpenVPN static key");
 }
-function cryptV2Check(text7) {
-  const block = pemBlocks(text7).find(
+function cryptV2Check(text8) {
+  const block = pemBlocks(text8).find(
     (item) => item.label === "OpenVPN tls-crypt-v2 client key"
   );
   return block && decodeBase64(block.body) ? true : _("Invalid tls-crypt-v2 key");
 }
 function checkMaterial(kind, value) {
-  const text7 = `${value ?? ""}`.trim();
-  if (!text7 || isRouterPath(text7)) return true;
+  const text8 = `${value ?? ""}`.trim();
+  if (!text8 || isRouterPath(text8)) return true;
   switch (kind) {
     case "ca":
     case "certificate":
-      return certificatesCheck(text7);
+      return certificatesCheck(text8);
     case "key":
     case "passphrase-key":
-      return keyCheck(text7, kind === "passphrase-key");
+      return keyCheck(text8, kind === "passphrase-key");
     case "static":
-      return staticKeyCheck(text7);
+      return staticKeyCheck(text8);
     default:
-      return cryptV2Check(text7);
+      return cryptV2Check(text8);
   }
 }
 
@@ -17099,22 +17129,22 @@ function validateAmneziaSignature(value) {
   return tags > 0;
 }
 function validateAmneziaValue(key, value) {
-  const text7 = `${value ?? ""}`.trim();
+  const text8 = `${value ?? ""}`.trim();
   const entry = amneziaParameter(key);
-  if (!text7 || !entry) return true;
+  if (!text8 || !entry) return true;
   switch (entry.kind) {
     case "count":
-      return parseUnsigned(text7, UINT32_MAX) !== void 0 ? true : message.wholeNumber(0, UINT32_MAX);
+      return parseUnsigned(text8, UINT32_MAX) !== void 0 ? true : message.wholeNumber(0, UINT32_MAX);
     case "padding":
-      return parseUnsigned(text7, UINT16_MAX) !== void 0 ? true : message.wholeNumber(0, UINT16_MAX);
+      return parseUnsigned(text8, UINT16_MAX) !== void 0 ? true : message.wholeNumber(0, UINT16_MAX);
     case "range":
-      return validateRange(text7);
+      return validateRange(text8);
     case "signature":
-      return validateAmneziaSignature(text7) ? true : _("Format: <b 0xdeadbeef><r 4>");
+      return validateAmneziaSignature(text8) ? true : _("Format: <b 0xdeadbeef><r 4>");
     case "key":
-      return validateWireGuardKey(text7) ? true : message.invalidKey();
+      return validateWireGuardKey(text8) ? true : message.invalidKey();
     default:
-      return text7 === "0" || text7 === "1" ? true : _("Only 0 or 1");
+      return text8 === "0" || text8 === "1" ? true : _("Only 0 or 1");
   }
 }
 function rangeBounds(value) {
@@ -17122,38 +17152,38 @@ function rangeBounds(value) {
   return [parts[0], parts[parts.length - 1]];
 }
 function validateAmneziaSet(values) {
-  const text7 = (key) => `${values[key] ?? ""}`.trim();
-  const protectionKey = text7("header_protection_key");
-  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text7(key) || 0) < 12)) {
+  const text8 = (key) => `${values[key] ?? ""}`.trim();
+  const protectionKey = text8("header_protection_key");
+  if (protectionKey && !/^A{43}=$/u.test(protectionKey) && ["s1", "s2", "s3", "s4"].some((key) => Number(text8(key) || 0) < 12)) {
     return _("HeaderProtectionKey needs S1-S4 of at least 12");
   }
   const headers = ["h1", "h2", "h3", "h4"];
-  if (headers.some((key) => text7(key))) {
+  if (headers.some((key) => text8(key))) {
     const bounds = headers.map(
-      (key, index) => rangeBounds(text7(key) || `${index + 1}`)
+      (key, index) => rangeBounds(text8(key) || `${index + 1}`)
     );
     const overlap = bounds.some(
       ([from, to], index) => bounds.slice(index + 1).some(([otherFrom, otherTo]) => from <= otherTo && otherFrom <= to)
     );
     if (overlap) return _("H1-H4 must not overlap");
   }
-  if (Number(text7("jmin") || 0) > Number(text7("jmax") || 0)) {
+  if (Number(text8("jmin") || 0) > Number(text8("jmax") || 0)) {
     return _("Jmin is greater than Jmax");
   }
   return true;
 }
 function amneziaJsonValue(key, value) {
-  const text7 = `${value ?? ""}`.trim();
+  const text8 = `${value ?? ""}`.trim();
   switch (amneziaParameter(key)?.kind) {
     case "flag":
-      return text7 === "1";
+      return text8 === "1";
     case "signature":
     case "key":
-      return text7;
+      return text8;
     case "range":
-      return text7.includes("-") ? text7 : Number(text7);
+      return text8.includes("-") ? text8 : Number(text8);
     default:
-      return Number(text7);
+      return Number(text8);
   }
 }
 var CONF_TRUE = ["on", "true", "1", "yes"];
@@ -17165,8 +17195,8 @@ function amneziaTextFromConf(key, value) {
 }
 function amneziaConfLine(key, value) {
   const entry = amneziaParameter(key);
-  const text7 = `${value ?? ""}`.trim();
-  return `${entry.conf} = ${entry.kind === "flag" ? text7 === "1" ? "on" : "off" : text7}`;
+  const text8 = `${value ?? ""}`.trim();
+  return `${entry.conf} = ${entry.kind === "flag" ? text8 === "1" ? "on" : "off" : text8}`;
 }
 
 // src/forkop/tabs/sections/tunnels/model.ts
@@ -17320,8 +17350,8 @@ function tunnelSettingsKeys() {
   ];
 }
 function setsAmneziaParameter(key, value) {
-  const text7 = `${value ?? ""}`.trim();
-  return amneziaParameter(key)?.kind === "flag" ? text7 === "1" : text7 !== "";
+  const text8 = `${value ?? ""}`.trim();
+  return amneziaParameter(key)?.kind === "flag" ? text8 === "1" : text8 !== "";
 }
 function oneSidedAmneziaEnabled(kind, settings) {
   return (kind === "wireguard" || kind === "warp") && `${settings.amnezia_enabled || ""}` === "1";
@@ -18631,11 +18661,11 @@ var UNIT_SECONDS = {
   d: 86400
 };
 function singBoxDurationSeconds(value) {
-  const text7 = `${value ?? ""}`.trim();
-  if (!isSingBoxDuration(text7)) {
+  const text8 = `${value ?? ""}`.trim();
+  if (!isSingBoxDuration(text8)) {
     return null;
   }
-  return [...text7.matchAll(/([0-9]+(?:\.[0-9]+)?)(ns|us|ms|s|m|h|d)/g)].reduce(
+  return [...text8.matchAll(/([0-9]+(?:\.[0-9]+)?)(ns|us|ms|s|m|h|d)/g)].reduce(
     (total, [, amount, unit]) => total + Number(amount) * UNIT_SECONDS[unit],
     0
   );
@@ -19046,7 +19076,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
       }, this)
     );
   },
-  renderListItemLabel(section_id, value, text7) {
+  renderListItemLabel(section_id, value, text8) {
     const name = childItemInputValue(
       section_id,
       value,
@@ -19055,7 +19085,7 @@ var InterfaceSettingsDynamicList = SettingsDynamicList.extend({
     );
     return renderNetworkInterfaceListItem(
       this.interfaceDeviceMap ? this.interfaceDeviceMap[name] : null,
-      name || `${text7 ?? ""}`
+      name || `${text8 ?? ""}`
     );
   }
 });
@@ -19902,15 +19932,15 @@ function parseAmnezia(iface) {
   for (const { key, conf, kind } of AMNEZIA_PARAMETERS) {
     const value = firstValue(iface, conf.toLowerCase());
     if (!value) continue;
-    const text7 = amneziaTextFromConf(key, value);
-    if (text7 === null)
+    const text8 = amneziaTextFromConf(key, value);
+    if (text8 === null)
       return { valid: false, message: _("Invalid AmneziaWG parameters") };
-    const validation = validateAmneziaValue(key, text7);
+    const validation = validateAmneziaValue(key, text8);
     if (validation !== true)
       return { valid: false, message: `${conf}: ${validation}` };
-    texts[key] = text7;
-    if (kind !== "flag" || text7 === "1")
-      amnezia[key] = amneziaJsonValue(key, text7);
+    texts[key] = text8;
+    if (kind !== "flag" || text8 === "1")
+      amnezia[key] = amneziaJsonValue(key, text8);
   }
   const combination = validateAmneziaSet(texts);
   if (combination !== true) return { valid: false, message: combination };
@@ -20087,10 +20117,10 @@ async function parseWireGuardInput(input) {
     if (!isAmneziaLink) return importAmneziaProfile(JSON.parse(value));
     const packed = decodeBase64Url(value.slice("vpn://".length));
     const decoded = await uncompressQtData(packed);
-    const text7 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
-    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text7))
-      return parseWireGuardConfig(text7);
-    return importAmneziaProfile(JSON.parse(text7));
+    const text8 = new TextDecoder("utf-8", { fatal: true }).decode(decoded);
+    if (/^\s*\[Interface\](?:\r?\n|$)/u.test(text8))
+      return parseWireGuardConfig(text8);
+    return importAmneziaProfile(JSON.parse(text8));
   } catch {
     return {
       valid: false,
@@ -20152,8 +20182,8 @@ function fileIcon() {
   return svg;
 }
 function readMaterialFile(bytes) {
-  const text7 = new TextDecoder().decode(bytes);
-  if (text7.includes("-----BEGIN") || !isCertificate(bytes)) return text7;
+  const text8 = new TextDecoder().decode(bytes);
+  if (text8.includes("-----BEGIN") || !isCertificate(bytes)) return text8;
   let binary = "";
   bytes.forEach((byte) => binary += String.fromCharCode(byte));
   const body = btoa(binary).replace(/.{64}/g, "$&\n").trim();
@@ -20183,9 +20213,9 @@ function setFieldValue(widget, value) {
   widget?.triggerValidation();
   widget?.node?.querySelector("textarea")?.dispatchEvent(new Event("change", { bubbles: true }));
 }
-function loadedMaterial(text7, kind, paired) {
-  const both = paired ? splitCertificateAndKey(text7) : null;
-  if (!both) return { own: text7, pair: null };
+function loadedMaterial(text8, kind, paired) {
+  const both = paired ? splitCertificateAndKey(text8) : null;
+  if (!both) return { own: text8, pair: null };
   return kind === "key" || kind === "passphrase-key" ? { own: both.key, pair: both.certificate } : { own: both.certificate, pair: both.key };
 }
 function configureMaterialOption(option2, kind, required2, pair) {
@@ -20228,10 +20258,10 @@ function configureMaterialOption(option2, kind, required2, pair) {
       },
       fileIcon()
     );
-    const fill = (text7) => {
+    const fill = (text8) => {
       const other = pairWidget();
       const loaded = loadedMaterial(
-        text7,
+        text8,
         typeof kind === "function" ? kind(formValueOf(this, sectionId)) : kind,
         !!other
       );
@@ -20251,10 +20281,10 @@ function configureMaterialOption(option2, kind, required2, pair) {
       });
     });
     frame.querySelector("textarea")?.addEventListener("paste", (ev) => {
-      const text7 = ev.clipboardData?.getData("text") ?? "";
-      if (!pair || !splitCertificateAndKey(text7)) return;
+      const text8 = ev.clipboardData?.getData("text") ?? "";
+      if (!pair || !splitCertificateAndKey(text8)) return;
       ev.preventDefault();
-      fill(text7.trim());
+      fill(text8.trim());
     });
     return textE("div", { class: "fkp-material" }, [frame, load]);
   };
@@ -20263,9 +20293,9 @@ function configureMaterialOption(option2, kind, required2, pair) {
 // src/validators/fields.ts
 function wholeNumberField(min, max = Infinity) {
   return (_sectionId, value) => {
-    const text7 = `${value ?? ""}`.trim();
-    const number4 = Number(text7);
-    return !text7 || /^[0-9]+$/.test(text7) && number4 >= min && number4 <= max ? true : max === Infinity ? _("Whole number from %d").format(min) : message.wholeNumber(min, max);
+    const text8 = `${value ?? ""}`.trim();
+    const number4 = Number(text8);
+    return !text8 || /^[0-9]+$/.test(text8) && number4 >= min && number4 <= max ? true : max === Infinity ? _("Whole number from %d").format(min) : message.wholeNumber(min, max);
   };
 }
 function portField(_sectionId, value) {
@@ -20275,21 +20305,21 @@ function anyPortField(_sectionId, value) {
   return wholeNumberField(0, 65535)(_sectionId, value) === true ? true : message.invalidPort();
 }
 function domainField(_sectionId, value) {
-  const text7 = `${value ?? ""}`.trim();
-  const ascii = asciiHostname(text7.toLowerCase());
-  return !text7 || ascii && validAsciiDomain(ascii, false) ? true : message.invalidDomain();
+  const text8 = `${value ?? ""}`.trim();
+  const ascii = asciiHostname(text8.toLowerCase());
+  return !text8 || ascii && validAsciiDomain(ascii, false) ? true : message.invalidDomain();
 }
 function hostField(_sectionId, value) {
-  const text7 = `${value ?? ""}`.trim();
-  return !text7 || isIPv4(text7) || isIPv6(text7) || domainField(_sectionId, text7) === true ? true : message.invalidHost();
+  const text8 = `${value ?? ""}`.trim();
+  return !text8 || isIPv4(text8) || isIPv6(text8) || domainField(_sectionId, text8) === true ? true : message.invalidHost();
 }
 function ipv4Field(_sectionId, value) {
-  const text7 = `${value ?? ""}`.trim();
-  return !text7 || isIPv4(text7) ? true : message.invalidIp();
+  const text8 = `${value ?? ""}`.trim();
+  return !text8 || isIPv4(text8) ? true : message.invalidIp();
 }
 function ipv6Field(_sectionId, value) {
-  const text7 = `${value ?? ""}`.trim();
-  return !text7 || isIPv6(text7) ? true : message.invalidIp();
+  const text8 = `${value ?? ""}`.trim();
+  return !text8 || isIPv6(text8) ? true : message.invalidIp();
 }
 
 // src/forkop/tabs/sections/tunnels/openvpnForm.ts
@@ -21399,9 +21429,9 @@ function validateWireGuardPeers(values, tunnelId, option2) {
   return true;
 }
 function isOptionalUint16(value, minimum) {
-  const text7 = `${value ?? ""}`.trim();
-  const parsed = parseUnsigned(text7, 65535);
-  return !text7 || parsed !== void 0 && parsed >= minimum;
+  const text8 = `${value ?? ""}`.trim();
+  const parsed = parseUnsigned(text8, 65535);
+  return !text8 || parsed !== void 0 && parsed >= minimum;
 }
 function amneziaProblem(kind, settings) {
   if (kind !== "amneziawg" && !oneSidedAmneziaEnabled(kind, settings)) {
@@ -23471,12 +23501,12 @@ var systemPortsCache = null;
 function occupiedPorts(currentSectionId) {
   const owners = /* @__PURE__ */ new Map();
   const claim = (port2, transports, owner) => {
-    const text7 = `${port2 || ""}`.trim();
-    if (!/^[0-9]+$/.test(text7)) {
+    const text8 = `${port2 || ""}`.trim();
+    if (!/^[0-9]+$/.test(text8)) {
       return;
     }
     transports.forEach((transport3) => {
-      const key = `${transport3}/${Number(text7)}`;
+      const key = `${transport3}/${Number(text8)}`;
       if (!owners.has(key)) owners.set(key, owner);
     });
   };
@@ -24265,8 +24295,8 @@ function qrRawCodewords(version) {
 function qrDataCodewords(version) {
   return qrRawCodewords(version) - QR_EC_CODEWORDS_PER_BLOCK_LOW[version] * QR_NUM_ERROR_CORRECTION_BLOCKS_LOW[version];
 }
-function qrEncodeText(text7) {
-  return Array.from(new TextEncoder().encode(text7));
+function qrEncodeText(text8) {
+  return Array.from(new TextEncoder().encode(text8));
 }
 function qrBuildDataCodewords(bytes, version) {
   const capacity = qrDataCodewords(version);
@@ -24491,8 +24521,8 @@ function qrMakeMatrix(version, dataCodewords) {
   drawFormatBits(0);
   return modules;
 }
-function qrCode(text7) {
-  const bytes = qrEncodeText(text7);
+function qrCode(text8) {
+  const bytes = qrEncodeText(text8);
   let version = 1;
   for (; version <= 40; version += 1) {
     const countBits = version <= 9 ? 8 : 16;
@@ -24591,9 +24621,9 @@ function iconSvg(name) {
     ICON_PATHS[name].map(([tag, attrs]) => svgEl2(tag, attrs))
   );
 }
-function copyText(text7) {
+function copyText(text8) {
   const textarea = document.createElement("textarea");
-  textarea.value = text7;
+  textarea.value = text8;
   textarea.style.position = "fixed";
   textarea.style.top = "0";
   textarea.style.left = "0";
@@ -24667,13 +24697,16 @@ function renderCopyButton(value, label = _("Copy")) {
   );
   button.addEventListener("click", (ev) => {
     ev.preventDefault();
-    const copied = copyText(value);
-    showToast(
-      copied ? _("Copied") : _("Failed to copy!"),
-      copied ? "success" : "error"
-    );
+    copyWithToast(value);
   });
   return button;
+}
+function copyWithToast(value) {
+  const copied = copyText(value);
+  showToast(
+    copied ? _("Copied") : _("Failed to copy!"),
+    copied ? "success" : "error"
+  );
 }
 function renderCloseRow() {
   return textE("div", { class: "button-row fkp-details-actions" }, [
@@ -26370,6 +26403,276 @@ function createServerContent(section2) {
   addProtocolOptions(section2);
 }
 
+// src/forkop/tabs/servers/tailscale.ts
+var REFRESH_INTERVAL_MS = 5e3;
+var STYLE_ID3 = "forkop-tailscale-styles";
+function injectStyles() {
+  injectDetailsStyles();
+  if (document.getElementById(STYLE_ID3)) {
+    return;
+  }
+  document.head.appendChild(
+    textE(
+      "style",
+      { id: STYLE_ID3 },
+      [
+        // The URLTest and Fallback details' grid of parameters and rows of nodes.
+        ".fkp-ts__params{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:8px 16px;margin:0 0 18px}",
+        ".fkp-ts__params > div{display:contents}",
+        ".fkp-ts__params dt{color:var(--text-color-medium,#666);line-height:1.35}",
+        ".fkp-ts__params dd{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;min-inline-size:0;margin:0;overflow-wrap:anywhere}",
+        ".fkp-ts__lines{display:grid;gap:4px;min-inline-size:0}",
+        ".fkp-ts--ok{color:var(--success-color-medium,green)}",
+        ".fkp-ts--warn{color:var(--warn-color-medium,#c80)}",
+        ".fkp-ts--error{color:var(--error-color-medium,red)}",
+        ".fkp-ts--muted{color:var(--text-color-medium,#666)}",
+        ".fkp-ts__pending{font-size:12px}",
+        ".fkp-ts__address{color:var(--primary-color-high,#337ab7);text-decoration:none}",
+        ".fkp-ts__address:hover{text-decoration:underline}",
+        ".fkp-ts__online{display:inline-flex;align-items:center;gap:6px}",
+        '.fkp-ts__online::before{content:"";flex:none;inline-size:8px;block-size:8px;border-radius:50%;background:currentColor}',
+        ".fkp-ts__devices-title{margin-bottom:8px;font-weight:600}",
+        ".fkp-ts__devices{display:grid;gap:6px;max-block-size:min(46vh,460px);overflow-y:auto}",
+        ".fkp-ts__device{display:flex;flex-wrap:wrap;align-items:center;column-gap:8px;row-gap:2px;padding:7px 8px;border-bottom:1px solid var(--border-color-low,#eee)}",
+        ".fkp-ts__device-name{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;flex:1 1 auto;min-inline-size:0}",
+        ".fkp-ts__device-name b{overflow-wrap:anywhere}",
+        ".fkp-ts__device-name > svg{flex:none;inline-size:14px;block-size:14px;color:var(--text-color-medium,#888)}",
+        ".fkp-ts__device-meta{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;flex:0 1 auto;margin-left:auto}"
+      ].join("\n")
+    )
+  );
+}
+function language() {
+  return document.documentElement.lang || void 0;
+}
+var TIME_UNITS = [
+  ["year", 31536e3],
+  ["month", 2592e3],
+  ["day", 86400],
+  ["hour", 3600],
+  ["minute", 60]
+];
+function relativeTime(seconds3) {
+  const difference = seconds3 - Date.now() / 1e3;
+  const format2 = new Intl.RelativeTimeFormat(language(), { numeric: "auto" });
+  for (const [unit, size] of TIME_UNITS) {
+    if (Math.abs(difference) >= size) {
+      return format2.format(Math.round(difference / size), unit);
+    }
+  }
+  return format2.format(0, "minute");
+}
+function formatDate2(seconds3) {
+  return new Date(seconds3 * 1e3).toLocaleDateString(language(), {
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  });
+}
+function text7(tone, value, title) {
+  return textE(
+    "span",
+    title ? { class: `fkp-ts--${tone}`, title } : { class: `fkp-ts--${tone}` },
+    value
+  );
+}
+function online() {
+  return textE("span", { class: "fkp-ts--ok fkp-ts__online" }, _("Online"));
+}
+function renderStatus2(endpoint) {
+  switch (endpoint.state) {
+    case "Running":
+      return endpoint.connected ? [online()] : [text7("error", _("No connection to the coordination server"))];
+    case "NeedsLogin":
+      return [
+        text7("warn", _("Waiting for sign-in")),
+        ...endpoint.authURL ? [
+          textE(
+            "a",
+            {
+              href: endpoint.authURL,
+              target: "_blank",
+              rel: "noopener noreferrer"
+            },
+            _("Sign in")
+          )
+        ] : []
+      ];
+    case "NeedsMachineAuth":
+      return [text7("warn", _("Waiting for approval in the console"))];
+    case "Stopped":
+      return [text7("muted", _("Stopped"))];
+    default:
+      return [text7("muted", _("Starting"))];
+  }
+}
+function approval(approved) {
+  return approved ? text7("ok", _("Approved")) : textE(
+    "span",
+    { class: "fkp-ts--warn fkp-ts__pending" },
+    _("Waiting for approval in the console")
+  );
+}
+function renderKeyExpiry(keyExpiry) {
+  if (!keyExpiry) {
+    return text7("muted", _("Does not expire"));
+  }
+  return keyExpiry * 1e3 < Date.now() ? text7("error", _("Expired %s").format(formatDate2(keyExpiry))) : textE("span", {}, _("Expires %s").format(formatDate2(keyExpiry)));
+}
+function renderAddresses(addresses) {
+  return addresses.flatMap((address, index) => [
+    ...index ? [text7("muted", "\xB7")] : [],
+    textE(
+      "a",
+      {
+        href: "#",
+        class: "fkp-ts__address",
+        title: _("Copy"),
+        click: (ev) => {
+          ev.preventDefault();
+          copyWithToast(address);
+        }
+      },
+      address
+    )
+  ]);
+}
+function param(label, children2) {
+  return textE("div", {}, [textE("dt", {}, label), textE("dd", {}, children2)]);
+}
+function renderParams(endpoint) {
+  const running = endpoint.state === "Running";
+  const params = [param(_("Status"), renderStatus2(endpoint))];
+  if (endpoint.name) {
+    params.push(param(_("Name in the console"), [endpoint.name]));
+  }
+  if (endpoint.addresses.length) {
+    params.push(param(_("Addresses"), renderAddresses(endpoint.addresses)));
+  }
+  if (endpoint.tailnet) {
+    params.push(param(_("Tailnet"), [endpoint.tailnet]));
+  }
+  if (endpoint.advertisesExitNode && running) {
+    params.push(param(_("Exit node"), [approval(endpoint.exitNodeApproved)]));
+  }
+  if (endpoint.routes.length) {
+    params.push(
+      param(_("Advertise routes"), [
+        textE(
+          "div",
+          { class: "fkp-ts__lines" },
+          endpoint.routes.map(
+            (route) => textE("div", {}, [`${route.prefix} \xB7 `, approval(route.approved)])
+          )
+        )
+      ])
+    );
+  }
+  if (running) {
+    params.push(param(_("Node key"), [renderKeyExpiry(endpoint.keyExpiry)]));
+  }
+  if (endpoint.health.length) {
+    params.push(
+      param(_("Warnings"), [
+        textE(
+          "div",
+          { class: "fkp-ts__lines" },
+          endpoint.health.map((message2) => textE("div", {}, message2))
+        )
+      ])
+    );
+  }
+  return textE("dl", { class: "fkp-ts__params" }, params);
+}
+function renderPeerMeta(peer) {
+  if (!peer.online) {
+    return [
+      text7(
+        "muted",
+        peer.lastSeen ? _("Offline, seen %s").format(relativeTime(peer.lastSeen)) : _("Offline")
+      )
+    ];
+  }
+  return [text7("ok", _("Online now"))];
+}
+function renderPeer(peer, showUser) {
+  return textE("div", { class: "fkp-ts__device", title: peer.dnsName || "" }, [
+    textE("div", { class: "fkp-ts__device-name" }, [
+      iconSvg("user"),
+      textE("b", {}, peer.name),
+      ...peer.addresses[0] ? [text7("muted", peer.addresses[0])] : [],
+      ...showUser && peer.user ? [text7("muted", peer.user)] : []
+    ]),
+    textE("div", { class: "fkp-ts__device-meta" }, renderPeerMeta(peer))
+  ]);
+}
+function renderPeers(peers) {
+  const showUser = new Set(peers.map((peer) => peer.user)).size > 1;
+  return textE("div", {}, [
+    textE("div", { class: "fkp-ts__devices-title" }, _("Devices")),
+    peers.length ? textE(
+      "div",
+      { class: "fkp-ts__devices" },
+      peers.map((peer) => renderPeer(peer, showUser))
+    ) : textE(
+      "div",
+      { class: "fkp-details__empty" },
+      _("No other devices in the tailnet")
+    )
+  ]);
+}
+function renderUnavailable(sectionId, load) {
+  let message2;
+  if (load.endpoint === void 0 && load.error) {
+    message2 = _("Failed to get the Tailscale state: %s").format(load.error);
+  } else if (option(sectionId, "enabled") === "0") {
+    message2 = _("The server is disabled.");
+  } else {
+    message2 = _(
+      "The server is not running yet. Apply the settings, or start Forkop."
+    );
+  }
+  return textE("div", { class: "fkp-details__empty" }, message2);
+}
+function renderTailscaleContent(sectionId, load) {
+  if (!load.endpoint) {
+    return [renderUnavailable(sectionId, load)];
+  }
+  return [
+    renderParams(load.endpoint),
+    ...load.endpoint.state === "Running" ? [renderPeers(load.endpoint.peers)] : []
+  ];
+}
+async function loadTailscaleEndpoint(tag) {
+  const response = await CustomForkopMethods.getClashApiTailscale();
+  if (!response.success) {
+    return { error: response.error };
+  }
+  const endpoint = response.data?.endpoints?.find((item) => item.tag === tag);
+  return endpoint ? { endpoint } : {};
+}
+function showTailscaleDetailsModal(sectionId) {
+  injectStyles();
+  const tag = getServerName(sectionId);
+  const content = textE("div", { class: "fkp-details" }, [
+    textE("em", { class: "spinning" }, _("Loading\u2026"))
+  ]);
+  ui.showModal(_("Server details: %s").format(tag), [
+    content,
+    renderCloseRow()
+  ]);
+  let timer = 0;
+  const refresh = () => loadTailscaleEndpoint(tag).then((load) => {
+    if (!document.body.contains(content)) {
+      window.clearInterval(timer);
+      return;
+    }
+    dom.content(content, renderTailscaleContent(sectionId, load));
+  });
+  void refresh();
+  timer = window.setInterval(refresh, REFRESH_INTERVAL_MS);
+}
+
 // src/forkop/tabs/servers/table.ts
 function renderServerRowActions(sectionRef, sectionId) {
   const editLabel = getRuleEditButtonText();
@@ -26380,7 +26683,9 @@ function renderServerRowActions(sectionRef, sectionId) {
     textE("div")
   );
   const actionsEl = tdEl.lastElementChild;
-  if (usesClients(getProtocol(sectionId)) && (linkScheme(getProtocol(sectionId)) || usesProfile(getProtocol(sectionId)))) {
+  const protocol = getProtocol(sectionId);
+  const showDetails = protocol === "tailscale" ? () => showTailscaleDetailsModal(sectionId) : usesClients(protocol) && (linkScheme(protocol) || usesProfile(protocol)) ? () => showServerDetailsModal(sectionId, listClients(sectionId)) : null;
+  if (showDetails) {
     dom.append(
       actionsEl,
       textE(
@@ -26392,7 +26697,7 @@ function renderServerRowActions(sectionRef, sectionId) {
           click: (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
-            showServerDetailsModal(sectionId, listClients(sectionId));
+            showDetails();
           }
         },
         iconSvg("info")
@@ -26540,8 +26845,8 @@ function lineFields(line, offset) {
   }
   return fields;
 }
-function analyzeStaticHosts(text7) {
-  const value = `${text7 || ""}`;
+function analyzeStaticHosts(text8) {
+  const value = `${text8 || ""}`;
   const annotations = [];
   const errors = [];
   let offset = 0;

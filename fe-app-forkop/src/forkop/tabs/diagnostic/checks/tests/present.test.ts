@@ -412,3 +412,72 @@ describe('the server check', () => {
     ]);
   });
 });
+
+describe('the Tailscale server check', () => {
+  const present = (
+    overrides: Partial<Forkop.TailscaleServerCheckItem> = {},
+    behind_cgnat = false,
+  ) =>
+    presentServers({
+      wan: '100.116.152.154',
+      behind_cgnat,
+      items: [
+        {
+          label: 'Tail',
+          protocol: 'tailscale',
+          runtime: true,
+          state: 'Running',
+          connected: true,
+          name: 'forkop-3',
+          exit_node_pending: false,
+          pending_routes: '',
+          key_expired: false,
+          ...overrides,
+        },
+      ],
+    });
+
+  it('names the device the tailnet knows once it is online', () => {
+    expect(present()).toEqual([
+      { state: 'success', key: 'Tail', value: 'online · forkop-3' },
+    ]);
+  });
+
+  it('fails a server that is not in the tailnet', () => {
+    expect(present({ runtime: false, state: '' })[0]).toEqual({
+      state: 'error',
+      key: 'Tail',
+      value: 'not in the running configuration',
+    });
+    expect(present({ state: 'NeedsLogin' })[0].value).toBe(
+      'waiting for sign-in',
+    );
+    expect(present({ connected: false })[0].value).toBe(
+      'no connection to the coordination server',
+    );
+    expect(present({ key_expired: true })[0].value).toBe('node key expired');
+  });
+
+  it('warns of what waits for approval in the console', () => {
+    expect(
+      present({ exit_node_pending: true, pending_routes: '192.168.1.1/32' }),
+    ).toEqual([
+      {
+        state: 'warning',
+        key: 'Tail',
+        value: 'exit node waiting for approval in the console',
+      },
+      {
+        state: 'warning',
+        key: 'Tail',
+        value: '192.168.1.1/32 waiting for approval in the console',
+      },
+    ]);
+  });
+
+  it('needs no open port, so the provider NAT is no concern of it', () => {
+    expect(present({}, true)).toEqual([
+      { state: 'success', key: 'Tail', value: 'online · forkop-3' },
+    ]);
+  });
+});

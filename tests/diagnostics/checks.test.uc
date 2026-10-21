@@ -200,17 +200,39 @@ t.test("a server is checked for its listener, its firewall port and its public a
         [ /'ip' '-[46]' 'route'/, { stdout: "" } ],
         [ "netstat -ln", { stdout: "Proto Recv-Q Send-Q Local Address Foreign Address State\ntcp 0 0 :::443 :::* LISTEN\ntcp 0 0 127.0.0.1:1080 0.0.0.0:* LISTEN\ntcp 0 0 0.0.0.0:22 0.0.0.0:* LISTEN\n" } ],
         [ "netstat -lnp", { stdout: "Active Internet connections\nProto Recv-Q Send-Q Local Address Foreign Address State PID/Program name\nudp 0 0 0.0.0.0:8443 0.0.0.0:* 812/nginx\ntcp 0 0 0.0.0.0:22 0.0.0.0:* LISTEN 1203/dropbear\n" } ],
-        [ "nft list chain inet fw4 input", { stdout: "\t\ttcp dport 443 counter accept comment \"forkop: server ports\"\n" } ]
+        [ "nft list chain inet fw4 input", { stdout: "\t\ttcp dport 443 counter accept comment \"forkop: server ports\"\n" } ],
+        [ /\/tailscale' /, { stdout: sprintf("%J", { endpoints: [ {
+            tag: "Tail", state: "Running", connected: true, name: "router-2", advertisesExitNode: true, exitNodeApproved: false,
+            routes: [ { prefix: "192.168.1.0/24", approved: true }, { prefix: "10.0.0.0/8", approved: false } ], keyExpiry: 1000
+        } ] }) + "__FORKOP_CLASH_STATUS__200" } ]
     ]);
     let value = checks.servers();
     stub.restore();
-    let main = value.items[0], busy = value.items[1], own = value.items[2], held = value.items[3];
-    t.eq(length(value.items), 4, "a Tailscale server listens on nothing, a disabled one is not checked");
+    let main = value.items[0], busy = value.items[1], own = value.items[2], held = value.items[3], tail = value.items[4];
+    t.eq(length(value.items), 5, "a disabled server is not checked");
+    t.eq([ tail.protocol, tail.runtime, tail.state, tail.connected, tail.name, tail.exit_node_pending, tail.pending_routes, tail.key_expired ],
+        [ "tailscale", true, "Running", true, "router-2", true, "10.0.0.0/8", true ],
+        "a Tailscale server listens on nothing; the core reports its state in the tailnet");
     t.eq([ held.listening, held.owners ], [ true, "1203/dropbear" ], "a port another program holds reads as listening, and says who holds it");
     t.eq([ value.wan, value.behind_cgnat ], [ "100.64.1.2 2a00:1450::7", false ], "a public IPv6 address reaches past the provider's NAT");
     t.eq([ main.listening, main.exposed, main.open_firewall, main.firewall_open, main.resolved, main.public, main.matches_wan ], [ true, true, true, true, 1, 1, 1 ]);
     t.eq([ busy.listening, busy.owners, busy.open_firewall, busy.firewall_open, busy.public, busy.matches_wan ], [ false, "812/nginx", false, false, 0, 0 ]);
     t.eq([ own.listening, own.port, own.transports, own.exposed, own.public_host ], [ true, 1080, "tcp", false, "" ], "a JSON server listens where its own settings say");
+});
+
+t.test("a Tailscale server the core does not report is not running", () => {
+    fixture.seed({ settings: { config_path: dir + "/config.json" }, server: [ { ".name": "d", label: "Tail", enabled: "1", protocol: "tailscale" } ] });
+    write_config({});
+    stub.commands([
+        [ "ubus -S call network.interface.wan status", { stdout: "{}" } ],
+        [ "ubus -S call network.interface.wwan status", { status: 4 } ],
+        [ /'ip' '-[46]' 'route'/, { stdout: "" } ],
+        [ /netstat/, { stdout: "" } ],
+        [ /\/tailscale' /, { status: 7 } ]
+    ]);
+    let item = checks.servers().items[0];
+    stub.restore();
+    t.eq([ item.label, item.runtime, item.state ], [ "Tail", false, "" ]);
 });
 
 t.test("a router whose only WAN address is the provider's shared one is behind its NAT, one behind another router is not", () => {

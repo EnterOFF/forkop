@@ -39,10 +39,59 @@ function listenerItems(server: Forkop.ServerCheckItem) {
   return [];
 }
 
+function isTailscale(
+  server: Forkop.ServerCheckItem | Forkop.TailscaleServerCheckItem,
+): server is Forkop.TailscaleServerCheckItem {
+  return server.protocol === 'tailscale';
+}
+
+// Online and in session with the coordination server, or the first thing keeping it from that.
+function tailscaleItems(server: Forkop.TailscaleServerCheckItem) {
+  const key = server.label;
+  const failure = !server.runtime
+    ? _('not in the running configuration')
+    : server.state === 'NeedsLogin'
+      ? _('waiting for sign-in')
+      : server.state === 'NeedsMachineAuth'
+        ? _('device waiting for approval in the console')
+        : server.state !== 'Running'
+          ? _('not started')
+          : !server.connected
+            ? _('no connection to the coordination server')
+            : server.key_expired
+              ? _('node key expired')
+              : '';
+  if (failure) {
+    return [finding('error', key, failure)];
+  }
+
+  const pending = [
+    ...(server.exit_node_pending
+      ? [_('exit node waiting for approval in the console')]
+      : []),
+    ...(server.pending_routes
+      ? [
+          _('%s waiting for approval in the console').format(
+            server.pending_routes,
+          ),
+        ]
+      : []),
+  ];
+  return pending.length
+    ? pending.map((text) => finding('warning', key, text))
+    : [finding('success', key, _('online · %s').format(server.name))];
+}
+
 // For the internet: the listener faces WAN and its port is open or meant to be. A LAN-only
 // server, such as a migrated LAN proxy, is kept to the LAN on purpose.
-function facesInternet(server: Forkop.ServerCheckItem) {
-  return server.exposed && (server.open_firewall || server.firewall_open);
+function facesInternet(
+  server: Forkop.ServerCheckItem | Forkop.TailscaleServerCheckItem,
+) {
+  return (
+    !isTailscale(server) &&
+    server.exposed &&
+    (server.open_firewall || server.firewall_open)
+  );
 }
 
 function publicHostItems(server: Forkop.ServerCheckItem, wan: string) {
@@ -109,6 +158,9 @@ export function presentServers(
   return [
     ...cgnatItems(data),
     ...data.items.flatMap((server) => {
+      if (isTailscale(server)) {
+        return tailscaleItems(server);
+      }
       const problems = [
         ...listenerItems(server),
         ...publicHostItems(server, data.wan),

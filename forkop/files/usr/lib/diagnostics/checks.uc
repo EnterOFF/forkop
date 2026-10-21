@@ -20,6 +20,7 @@ let mask = require("diagnostics.mask");
 let firewall = require("diagnostics.firewall");
 let server_rules = require("diagnostics.inbounds");
 let conflicts = require("diagnostics.conflicts");
+let clash_api = require("singbox.clash_api");
 
 const CONFIG_NAME = constants.FORKOP_CONFIG_NAME;
 const STABLE_MIN_AGE = 2;
@@ -305,8 +306,40 @@ function firewall_opens(port, transports, input_chain) {
         firewall.forkop_accepts_port(input_chain, singbox_constants.SERVER_FIREWALL_COMMENT, port, transports);
 }
 
-// A Tailscale server dials out and listens on nothing. A router whose only WAN address is the
-// provider's shared one is behind its NAT, where no port can be opened.
+// The core's Tailscale endpoints by tag; none when the core cannot be asked.
+function tailscale_endpoints() {
+    let reply;
+    try {
+        reply = clash_api.request("GET", "/tailscale", "");
+    }
+    catch (e) {
+        return {};
+    }
+    let result = {};
+    for (let endpoint in common.parse_json(reply.status == 200 ? reply.body : "")?.endpoints ?? [])
+        result[endpoint?.tag] = endpoint;
+    return result;
+}
+
+// A Tailscale server dials out and listens on nothing, so it is judged by its state in the tailnet.
+function tailscale_item(label, endpoint) {
+    let running = endpoint?.state == "Running";
+    let key_expiry = int(endpoint?.keyExpiry ?? 0);
+    return {
+        label,
+        protocol: "tailscale",
+        runtime: endpoint != null,
+        state: endpoint?.state ?? "",
+        connected: endpoint?.connected === true,
+        name: endpoint?.name ?? "",
+        exit_node_pending: running && endpoint.advertisesExitNode === true && endpoint.exitNodeApproved !== true,
+        pending_routes: join(" ", map(filter(endpoint?.routes ?? [], (route) => route?.approved !== true), (route) => route.prefix)),
+        key_expired: key_expiry > 0 && key_expiry < time()
+    };
+}
+
+// A router whose only WAN address is the provider's shared one is behind its NAT, where no port
+// can be opened.
 function servers() {
     let config = runtime_config();
     let wan = wan_addresses();
@@ -315,14 +348,20 @@ function servers() {
     let listeners = output([ "netstat", "-ln" ]);
     let owners = output([ "netstat", "-lnp" ]);
     let input_chain = null;
+    let tailscale = null;
     let items = [];
 
     for (let section in uci.section_objects(CONFIG_NAME, "server")) {
         let protocol = common.option(section, "protocol", "vless");
-        if (!common.bool_option(section, "enabled", false) || protocol == "tailscale")
+        if (!common.bool_option(section, "enabled", false))
             continue;
 
         let label = connections.server_display_name(section);
+        if (protocol == "tailscale") {
+            tailscale ??= tailscale_endpoints();
+            push(items, tailscale_item(label, tailscale[label]));
+            continue;
+        }
         let runtime = config_status.summary(config, server_rules.runtime_kind(protocol), label);
         let declared = protocol == "json_inbound";
         let listen = declared ? (runtime.listen || "::") : common.option(section, "listen", "::");

@@ -65,6 +65,7 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
     controller(204, {});
     for (let request in [
         [ "GET", "/providers/proxies", "" ],
+        [ "GET", "/tailscale", "" ],
         [ "GET", "/proxies/proxy-out/delay?url=https%3A%2F%2Flatency.example%2Fgenerate_204&timeout=5000", "" ],
         [ "GET", "/proxies/main-out/exit?timeout=8000", "" ],
         [ "PUT", "/proxies/main-out", "{\"name\":\"main-1-out\"}" ],
@@ -77,7 +78,7 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
         t.eq(result.status, 0, join(" ", request));
     }
     stub.restore();
-    let put = join(" ", requests[3].argv);
+    let put = join(" ", requests[4].argv);
     t.contains(put, "-X PUT");
     t.contains(put, "Content-Type: application/json");
     t.contains(join(" ", requests[0].argv), "http://127.0.0.1:9090/providers/proxies", "a wildcard bind is reached over the loopback");
@@ -90,7 +91,7 @@ t.test("anything else is refused before it reaches the controller", () => {
         [ "GET", "/proxies/../configs", "" ], [ "PUT", "/proxies/main-out", "{\"name\":\"x\",\"extra\":1}" ], [ "PUT", "/proxies/main-out", "not-json" ],
         [ "GET", "/proxies/main-out/delay?url=x&timeout=abc", "" ], [ "DELETE", "/connections", "{\"all\":true}" ],
         [ "GET", "/proxies/main-out/exit", "" ], [ "GET", "/proxies/main-out/exit?timeout=5000&url=https%3A%2F%2Fexample.com", "" ],
-        [ "GET", "/group/main/exit?timeout=5000", "" ],
+        [ "GET", "/group/main/exit?timeout=5000", "" ], [ "GET", "/tailscale?tag=x", "" ], [ "PUT", "/tailscale", "" ],
         [ "PUT", "/providers/rules", "{\"name\":\"geosite\"}" ], [ "PUT", "/providers/rules/geosite", "" ] ]) {
         let result = call([ "clash_api", ...request ]);
         t.eq([ result.status, result.reply ], [ 1, null ], join(" ", request));

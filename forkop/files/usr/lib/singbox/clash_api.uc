@@ -51,7 +51,7 @@ function allowed(method, path, body) {
     if (method == "GET") {
         if (body != "")
             return false;
-        if (path == "/proxies" || path == "/providers/proxies" || path == "/connections")
+        if (path == "/proxies" || path == "/providers/proxies" || path == "/connections" || path == "/tailscale")
             return true;
         let query = index(path, "?");
         if (query < 0) {

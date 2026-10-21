@@ -121,7 +121,7 @@ function copyText(text: string) {
 
 const DETAILS_STYLE_ID = 'forkop-server-details-styles';
 
-function injectDetailsStyles() {
+export function injectDetailsStyles() {
   if (document.getElementById(DETAILS_STYLE_ID)) {
     return;
   }
@@ -167,7 +167,7 @@ function injectDetailsStyles() {
   );
 }
 
-function renderCopyButton(value: string, label = _('Copy')) {
+export function renderCopyButton(value: string, label = _('Copy')) {
   const button = E(
     'button',
     {
@@ -181,17 +181,21 @@ function renderCopyButton(value: string, label = _('Copy')) {
 
   button.addEventListener('click', (ev) => {
     ev.preventDefault();
-    const copied = copyText(value);
-    showToast(
-      copied ? _('Copied') : _('Failed to copy!'),
-      copied ? 'success' : 'error',
-    );
+    copyWithToast(value);
   });
 
   return button;
 }
 
-function renderCloseRow() {
+export function copyWithToast(value: string) {
+  const copied = copyText(value);
+  showToast(
+    copied ? _('Copied') : _('Failed to copy!'),
+    copied ? 'success' : 'error',
+  );
+}
+
+export function renderCloseRow() {
   return E('div', { class: 'button-row fkp-details-actions' }, [
     E(
       'button',

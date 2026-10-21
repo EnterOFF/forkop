@@ -398,6 +398,14 @@ export function getClashApiProxies() {
   );
 }
 
+export function getClashApiTailscale() {
+  return requestClashApi<ClashAPI.Tailscale>(
+    '/tailscale',
+    undefined,
+    CLASH_API_FETCH_TIMEOUT_MS,
+  );
+}
+
 export function getClashApiProxyProviders() {
   return requestClashApi<ClashAPI.ProxyProviders>(
     '/providers/proxies',

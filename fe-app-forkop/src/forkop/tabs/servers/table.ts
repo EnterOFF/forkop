@@ -5,6 +5,7 @@ import { listClients, removeServerClients } from './clients';
 import { DEFAULT_PROTOCOL } from './constants';
 import { iconSvg, showServerDetailsModal } from './details';
 import { preloadServerModalData } from './network';
+import { showTailscaleDetailsModal } from './tailscale';
 import {
   defaultSecurity,
   getProtocol,
@@ -24,11 +25,15 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
   );
   const actionsEl = tdEl.lastElementChild as HTMLElement;
 
-  // Tailscale and JSON inbounds have no accounts to hand a link or a profile.
-  if (
-    usesClients(getProtocol(sectionId)) &&
-    (linkScheme(getProtocol(sectionId)) || usesProfile(getProtocol(sectionId)))
-  ) {
+  // Tailscale shows its state in the tailnet; JSON inbounds have nothing to show.
+  const protocol = getProtocol(sectionId);
+  const showDetails =
+    protocol === 'tailscale'
+      ? () => showTailscaleDetailsModal(sectionId)
+      : usesClients(protocol) && (linkScheme(protocol) || usesProfile(protocol))
+        ? () => showServerDetailsModal(sectionId, listClients(sectionId))
+        : null;
+  if (showDetails) {
     dom.append(
       actionsEl,
       E(
@@ -40,7 +45,7 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
           click: (ev) => {
             ev.preventDefault();
             ev.stopPropagation();
-            showServerDetailsModal(sectionId, listClients(sectionId));
+            showDetails();
           },
         },
         iconSvg('info'),

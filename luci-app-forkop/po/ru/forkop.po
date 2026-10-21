@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 12:32+0300\n"
-"PO-Revision-Date: 2026-10-21 12:32+0300\n"
+"POT-Creation-Date: 2026-10-21 13:20+0300\n"
+"PO-Revision-Date: 2026-10-21 13:20+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -85,6 +85,9 @@ msgstr "свободно %s из %s"
 
 msgid "%s takes DNS queries before Forkop"
 msgstr "%s забирает DNS-запросы раньше Forkop"
+
+msgid "%s waiting for approval in the console"
+msgstr "%s ждёт одобрения в консоли"
 
 msgid "%s, direct %s"
 msgstr "%s, напрямую %s"
@@ -239,6 +242,9 @@ msgstr "Добавляется перед именем каждого серве
 msgid "Address %s is not allowed"
 msgstr "Адрес %s недопустим"
 
+msgid "Addresses"
+msgstr "Адреса"
+
 msgid "Advanced settings"
 msgstr "Дополнительные параметры"
 
@@ -307,6 +313,9 @@ msgstr "применяет настройки..."
 
 msgid "Applying..."
 msgstr "Применение..."
+
+msgid "Approved"
+msgstr "Одобрено"
 
 msgid "At most one IPv4 subnet"
 msgstr "Не больше одной подсети IPv4"
@@ -668,6 +677,12 @@ msgstr "Имя устройства"
 msgid "Device or IP"
 msgstr "Устройство или IP"
 
+msgid "device waiting for approval in the console"
+msgstr "устройство ждёт одобрения в консоли"
+
+msgid "Devices"
+msgstr "Устройства"
+
 msgid "Diagnostic report"
 msgstr "Отчёт диагностики"
 
@@ -715,6 +730,9 @@ msgstr "Не проверять"
 
 msgid "Do not verify the server certificate"
 msgstr "Не проверять сертификат сервера"
+
+msgid "Does not expire"
+msgstr "Без срока"
 
 msgid "does not listen on %s"
 msgstr "не слушает %s"
@@ -815,6 +833,9 @@ msgstr "IP выхода"
 msgid "Exit node"
 msgstr "Выходной узел"
 
+msgid "exit node waiting for approval in the console"
+msgstr "выходной узел ждёт одобрения в консоли"
+
 msgid "Exit through"
 msgstr "Выход через"
 
@@ -827,8 +848,14 @@ msgstr "Развернуть секцию"
 msgid "Expected status"
 msgstr "Ожидаемый статус"
 
+msgid "Expired %s"
+msgstr "Истёк %s"
+
 msgid "Expires"
 msgstr "Истекает"
+
+msgid "Expires %s"
+msgstr "Истекает %s"
 
 msgid "Failed to close connection"
 msgstr "Не удалось закрыть подключение"
@@ -841,6 +868,9 @@ msgstr "Не удалось скопировать!"
 
 msgid "Failed to execute"
 msgstr "Не удалось выполнить"
+
+msgid "Failed to get the Tailscale state: %s"
+msgstr "Не удалось получить состояние Tailscale: %s"
 
 msgid "Failed to load default subscription headers"
 msgstr "Не удалось загрузить заголовки подписки по умолчанию"
@@ -1325,6 +1355,9 @@ msgstr "Загрузка подключений..."
 msgid "Loading logs..."
 msgstr "Загрузка логов..."
 
+msgid "Loading…"
+msgstr "Загрузка…"
+
 msgid "Local DNS"
 msgstr "Локальный DNS"
 
@@ -1415,6 +1448,9 @@ msgstr "Имя"
 msgid "Name already taken"
 msgstr "Имя уже занято"
 
+msgid "Name in the console"
+msgstr "Имя в консоли"
+
 msgid "Name match"
 msgstr "Сравнение имени"
 
@@ -1475,6 +1511,12 @@ msgstr "Нет сертификата CA (ca)"
 msgid "No closed connections"
 msgstr "Нет закрытых подключений"
 
+msgid "no connection to the coordination server"
+msgstr "нет связи с сервером координации"
+
+msgid "No connection to the coordination server"
+msgstr "Нет связи с сервером координации"
+
 msgid "No domain"
 msgstr "Нет домена"
 
@@ -1493,6 +1535,9 @@ msgstr "Логи отсутствуют"
 msgid "No logs match the current filters"
 msgstr "Нет логов, соответствующих текущим фильтрам"
 
+msgid "No other devices in the tailnet"
+msgstr "В сети нет других устройств"
+
 msgid "no public address"
 msgstr "публичный адрес не указан"
 
@@ -1510,6 +1555,12 @@ msgstr "Нет серверов для проверки"
 
 msgid "No tag field"
 msgstr "Нет поля tag"
+
+msgid "Node key"
+msgstr "Ключ узла"
+
+msgid "node key expired"
+msgstr "ключ узла истёк"
 
 msgid "Node list is empty"
 msgstr "Список узлов пуст"
@@ -1550,6 +1601,9 @@ msgstr "Не запущено"
 msgid "not running: %s"
 msgstr "не запущен: %s"
 
+msgid "not started"
+msgstr "не запущен"
+
 msgid "Not supported by this protocol"
 msgstr "Не поддерживается этим протоколом"
 
@@ -1571,6 +1625,12 @@ msgstr "Пароль обфускации"
 msgid "Off"
 msgstr "Выключено"
 
+msgid "Offline"
+msgstr "Не в сети"
+
+msgid "Offline, seen %s"
+msgstr "Не в сети, был %s"
+
 msgid "OIDC access token"
 msgstr "Токен доступа OIDC"
 
@@ -1579,6 +1639,15 @@ msgstr "По одному правилу в строке: шаблон => зам
 
 msgid "One-time code"
 msgstr "Одноразовый код"
+
+msgid "Online"
+msgstr "В сети"
+
+msgid "online · %s"
+msgstr "в сети · %s"
+
+msgid "Online now"
+msgstr "Онлайн"
 
 msgid "Only %s"
 msgstr "Только %s"
@@ -2102,6 +2171,9 @@ msgstr "Отображать метаданные"
 msgid "Show the metadata block on the dashboard"
 msgstr "Отображать блок метаданных в дашборде"
 
+msgid "Sign in"
+msgstr "Войти"
+
 msgid "Sign in with a certificate, alone or together with the login"
 msgstr "Вход по сертификату, отдельно или вместе с логином"
 
@@ -2159,6 +2231,9 @@ msgstr "Запустите Forkop: WARP запрашивается через с
 msgid "Start of the common name (name-prefix)"
 msgstr "Начало имени CN (name-prefix)"
 
+msgid "Starting"
+msgstr "Запускается"
+
 msgid "starting..."
 msgstr "запускается..."
 
@@ -2182,6 +2257,9 @@ msgstr "Остановить"
 
 msgid "stopped"
 msgstr "остановлен"
+
+msgid "Stopped"
+msgstr "Остановлен"
 
 msgid "stopping..."
 msgstr "останавливается..."
@@ -2230,6 +2308,9 @@ msgstr "Система"
 
 msgid "System information"
 msgstr "Системная информация"
+
+msgid "Tailnet"
+msgstr "Сеть Tailscale"
 
 msgid "TAP (layer 2) is not supported, only TUN"
 msgstr "TAP (уровень 2) не поддерживается, только TUN"
@@ -2317,6 +2398,12 @@ msgstr "Второй адрес ifconfig-ipv6 в профиле"
 
 msgid "The section's other conditions apply only to these devices"
 msgstr "Остальные условия секции действуют только для этих устройств"
+
+msgid "The server is disabled."
+msgstr "Сервер выключен."
+
+msgid "The server is not running yet. Apply the settings, or start Forkop."
+msgstr "Сервер ещё не запущен. Примените настройки или запустите Forkop."
 
 msgid "The server's address in the subnet, such as %s"
 msgstr "Адрес сервера в подсети, например %s"
@@ -2557,6 +2644,18 @@ msgstr "verify-x509-name: тип %s не поддерживается"
 
 msgid "VPN server"
 msgstr "VPN-сервер"
+
+msgid "Waiting for approval in the console"
+msgstr "Ждёт одобрения в консоли"
+
+msgid "waiting for sign-in"
+msgstr "ждёт входа"
+
+msgid "Waiting for sign-in"
+msgstr "Ждёт входа"
+
+msgid "Warnings"
+msgstr "Предупреждения"
 
 msgid "WARP profile"
 msgstr "Профиль WARP"

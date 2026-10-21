@@ -57,6 +57,37 @@ export namespace ClashAPI {
   export interface ProxyProviders {
     providers: Record<string, ProxyProvider>;
   }
+
+  export interface TailscalePeer {
+    name: string;
+    dnsName?: string;
+    user?: string;
+    addresses: string[];
+    online: boolean;
+    lastSeen?: number;
+    exitNodeOption: boolean;
+  }
+
+  export interface TailscaleEndpoint {
+    tag: string;
+    state: string;
+    authURL?: string;
+    connected: boolean;
+    name?: string;
+    dnsName?: string;
+    tailnet?: string;
+    addresses: string[];
+    keyExpiry?: number;
+    advertisesExitNode: boolean;
+    exitNodeApproved: boolean;
+    routes: Array<{ prefix: string; approved: boolean }>;
+    health: string[];
+    peers: TailscalePeer[];
+  }
+
+  export interface Tailscale {
+    endpoints: TailscaleEndpoint[];
+  }
 }
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
@@ -374,11 +405,24 @@ export namespace Forkop {
     matches_wan: -1 | 0 | 1;
   }
 
+  // A Tailscale server listens on nothing; the core reports its state in the tailnet.
+  export interface TailscaleServerCheckItem {
+    label: string;
+    protocol: 'tailscale';
+    runtime: boolean;
+    state: string;
+    connected: boolean;
+    name: string;
+    exit_node_pending: boolean;
+    pending_routes: string;
+    key_expired: boolean;
+  }
+
   export interface ServersCheckResult {
     wan: string;
     // The only WAN address is the provider's shared one.
     behind_cgnat: boolean;
-    items: ServerCheckItem[];
+    items: Array<ServerCheckItem | TailscaleServerCheckItem>;
   }
 
   export interface ReportAttachments {
