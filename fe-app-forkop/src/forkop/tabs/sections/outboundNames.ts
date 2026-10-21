@@ -96,17 +96,18 @@ export function loadProviderServerNames(): Promise<void> {
   return providerServerNamesInflight;
 }
 
-// The core knows a subscription as "<section label>/<subscription tag>"; one added in this dialog
-// runs nowhere yet.
+// The core runs a subscription as "<section label>/<subscription tag>" by the names uci.js loaded.
 function subscriptionProviderTag(section_id: string, itemId: string) {
-  if (!isExistingChildItem(section_id, itemId, 'subscription_url')) {
+  const loaded = uci.state.values[FORKOP_UCI_PACKAGE] || {};
+  if (
+    !loaded[itemId] ||
+    !isExistingChildItem(section_id, itemId, 'subscription_url')
+  ) {
     return '';
   }
 
-  const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag') || ''}`.trim();
-  const label = `${
-    uci.get(FORKOP_UCI_PACKAGE, section_id, 'label') || section_id
-  }`.trim();
+  const tag = `${loaded[itemId].tag || ''}`.trim();
+  const label = `${loaded[section_id]?.label || section_id}`.trim();
   return tag ? `${label}/${tag}` : '';
 }
 

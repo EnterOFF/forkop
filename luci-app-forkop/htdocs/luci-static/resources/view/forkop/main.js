@@ -17741,11 +17741,12 @@ function loadProviderServerNames() {
   return providerServerNamesInflight;
 }
 function subscriptionProviderTag(section_id, itemId) {
-  if (!isExistingChildItem(section_id, itemId, "subscription_url")) {
+  const loaded = uci.state.values[FORKOP_UCI_PACKAGE] || {};
+  if (!loaded[itemId] || !isExistingChildItem(section_id, itemId, "subscription_url")) {
     return "";
   }
-  const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "tag") || ""}`.trim();
-  const label = `${uci.get(FORKOP_UCI_PACKAGE, section_id, "label") || section_id}`.trim();
+  const tag = `${loaded[itemId].tag || ""}`.trim();
+  const label = `${loaded[section_id]?.label || section_id}`.trim();
   return tag ? `${label}/${tag}` : "";
 }
 function subscriptionServerNames(section_id, itemIds) {

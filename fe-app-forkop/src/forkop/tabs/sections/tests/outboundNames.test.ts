@@ -81,7 +81,7 @@ describe('the server choices of a section', () => {
   // As LuCI holds them while the dialog is open: a subscription taken out of the list keeps its
   // section until the dialog is saved.
   function section(subscriptions: string[]) {
-    installLuciStubs({
+    const stub = installLuciStubs({
       main: { '.type': 'section', label: 'Main' },
       first: {
         '.type': 'subscription_url',
@@ -120,6 +120,7 @@ describe('the server choices of a section', () => {
     outboundNameSourceOptions.set('urltest', listed([]));
     outboundNameSourceOptions.set('fallback_group', listed([]));
     outboundNameSourceOptions.set('subscription_url', listed(subscriptions));
+    return stub;
   }
 
   const choiceValues = (choices: Array<{ value: string }>) =>
@@ -168,6 +169,26 @@ describe('the server choices of a section', () => {
     expect(
       choiceValues(currentSubscriptionOutboundNameChoices('main', 'second')),
     ).toEqual(['Berlin', 'Hop']);
+  });
+
+  it('keep the servers of a subscription renamed in the open dialog', async () => {
+    const stub = section(['first', 'second']);
+    const loadedGet = stub.get;
+    // uci.js answers the dialog's edits while state.values keeps what was loaded.
+    stub.get = (config: string, sid: string, option?: string) =>
+      sid === 'first' && option === 'tag'
+        ? 'renamed'
+        : sid === 'main' && option === 'label'
+          ? 'Renamed'
+          : loadedGet(config, sid, option);
+    await loadProviderServerNames();
+
+    expect(choiceValues(currentOutboundNameChoices('main'))).toContain(
+      'Zurich',
+    );
+    expect(
+      choiceValues(currentSubscriptionOutboundNameChoices('main', 'first')),
+    ).toEqual(['Zurich', 'Amsterdam']);
   });
 
   it('ask the core nothing for a section without subscriptions', () => {
