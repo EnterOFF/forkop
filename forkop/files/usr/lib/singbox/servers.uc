@@ -4,6 +4,7 @@ let common = require("core.common");
 let runtime_constants = require("singbox.constants");
 let connections = require("config.connections");
 let amnezia = require("singbox.amnezia");
+let tailscale = require("singbox.tailscale");
 
 let as_string = common.as_string;
 let option = common.option;
@@ -367,7 +368,7 @@ function add_tailscale_endpoint(config, section, tag_name) {
     let endpoint = {
         type: "tailscale",
         tag: tag_name,
-        state_directory: "/etc/forkop/tailscale/" + safe_filename(section_name),
+        state_directory: tailscale.server_state_directory(section_name),
         auth_key: option(section, "tailscale_auth_key", ""),
         control_url: option(section, "tailscale_control_url", "https://controlplane.tailscale.com"),
         hostname: option(section, "tailscale_hostname", "forkop-" + safe_filename(section_name)),

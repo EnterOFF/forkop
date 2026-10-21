@@ -5,6 +5,7 @@ let runtime_dns = require("singbox.dns");
 let runtime_route = require("singbox.route");
 let runtime_rulesets = require("singbox.rulesets");
 let runtime_servers = require("singbox.servers");
+let runtime_tailscale = require("singbox.tailscale");
 let subscription_headers_module = require("singbox.subscription_headers");
 let runtime_urltest = require("singbox.urltest");
 let connections = require("config.connections");
@@ -1154,7 +1155,7 @@ function add_connection_tunnels(config, section, selector_tags, urltest_candidat
             if (detour_section != "")
                 endpoint.detour = outbound_tag(detour_section);
             if (as_string(endpoint.state_directory || "") == "")
-                endpoint.state_directory = "/etc/forkop/tailscale/" + section_name + "-" + as_string(tunnel[".name"] || (i + 1));
+                endpoint.state_directory = runtime_tailscale.tunnel_state_directory(section_name, as_string(tunnel[".name"] || (i + 1)));
             if (as_string(endpoint.exit_node || "") != "")
                 endpoint.exit_node_allow_lan_access = true;
         }

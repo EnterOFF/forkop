@@ -9,6 +9,7 @@ let netstat = require("core.netstat");
 let uci = require("core.uci");
 let validator = require("config.validator");
 let server = require("server.service");
+let tailscale = require("singbox.tailscale");
 let runtime = require("singbox.runtime");
 let nft = require("nft.apply");
 let nft_state = require("nft.state");
@@ -78,6 +79,7 @@ function validate() {
         return false;
     }
     server.remove_orphans();
+    tailscale.remove_orphaned_states();
     server.sync_firewall(false);
     return true;
 }
