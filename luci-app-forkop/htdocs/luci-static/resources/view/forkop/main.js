@@ -12701,6 +12701,22 @@ function dnsServerPrefixes() {
     ...coreHas("quic") ? ["quic://", "h3://"] : []
   ].join(", ");
 }
+var PUBLIC_RESOLVERS = [
+  { address: "77.88.8.8", name: "Yandex" },
+  { address: "1.1.1.1", name: "Cloudflare" },
+  { address: "8.8.8.8", name: "Google" },
+  { address: "9.9.9.9", name: "Quad9" },
+  { address: "94.140.14.14", name: "AdGuard", filtered: true }
+];
+function offerPublicResolvers(option2, options = {}) {
+  PUBLIC_RESOLVERS.forEach(({ address, name, filtered }) => {
+    if (options.bootstrap && filtered) {
+      return;
+    }
+    const servers2 = options.bootstrap ? [address] : [address, `https://${address}/dns-query`];
+    servers2.forEach((server2) => option2.value(server2, `${server2} (${name})`));
+  });
+}
 function configureDnsServerList(option2, options = {}) {
   const check = requiredList(function(_section_id, value) {
     const server2 = value.trim();
@@ -27164,6 +27180,7 @@ function addDnsOptions(section2) {
     ).format(dnsServerPrefixes())
   );
   dnsOption.default = ["77.88.8.8"];
+  offerPublicResolvers(dnsOption);
   configureDnsServerList(dnsOption);
   let o = section2.option(
     form.ListValue,
@@ -27183,6 +27200,7 @@ function addDnsOptions(section2) {
     ).format(dnsServerPrefixes())
   );
   bootstrapOption.default = ["77.88.8.8"];
+  offerPublicResolvers(bootstrapOption, { bootstrap: true });
   configureDnsServerList(bootstrapOption, { ipOnly: true });
   o = section2.option(
     form.ListValue,

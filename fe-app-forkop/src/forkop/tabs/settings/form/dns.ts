@@ -2,6 +2,7 @@ import {
   configureDnsQueryMode,
   configureDnsServerList,
   dnsServerPrefixes,
+  offerPublicResolvers,
 } from '../../../cbi/dnsServers';
 import {
   configureDownloadSectionOption,
@@ -22,6 +23,7 @@ export function addDnsOptions(section: CBISection) {
     ).format(dnsServerPrefixes()),
   );
   dnsOption.default = ['77.88.8.8'];
+  offerPublicResolvers(dnsOption);
   configureDnsServerList(dnsOption);
 
   let o = section.option(
@@ -43,6 +45,7 @@ export function addDnsOptions(section: CBISection) {
     ).format(dnsServerPrefixes()),
   );
   bootstrapOption.default = ['77.88.8.8'];
+  offerPublicResolvers(bootstrapOption, { bootstrap: true });
   configureDnsServerList(bootstrapOption, { ipOnly: true });
 
   o = section.option(

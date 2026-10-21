@@ -25,6 +25,31 @@ export function dnsServerPrefixes() {
   ].join(', ');
 }
 
+// By address, so none needs the bootstrap servers; each serves DoH on that address too.
+const PUBLIC_RESOLVERS = [
+  { address: '77.88.8.8', name: 'Yandex' },
+  { address: '1.1.1.1', name: 'Cloudflare' },
+  { address: '8.8.8.8', name: 'Google' },
+  { address: '9.9.9.9', name: 'Quad9' },
+  { address: '94.140.14.14', name: 'AdGuard', filtered: true },
+];
+
+// A bootstrap server must answer as is, so a filtering resolver is offered only as a main one.
+export function offerPublicResolvers(
+  option: CBIOption,
+  options: { bootstrap?: boolean } = {},
+) {
+  PUBLIC_RESOLVERS.forEach(({ address, name, filtered }) => {
+    if (options.bootstrap && filtered) {
+      return;
+    }
+    const servers = options.bootstrap
+      ? [address]
+      : [address, `https://${address}/dns-query`];
+    servers.forEach((server) => option.value(server, `${server} (${name})`));
+  });
+}
+
 export function configureDnsServerList(
   option: CBIOption,
   options: {
