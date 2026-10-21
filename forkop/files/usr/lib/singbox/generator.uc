@@ -1308,41 +1308,10 @@ function section_dns_server(section) {
         : runtime_constants.FAKEIP_DNS_SERVER_TAG;
 }
 
-function add_source_aware_bypass_dns_rules(config, matchers, rewrite_ttl) {
-    push_dns_matcher_rule(config, {
-        type: "logical",
-        mode: "and",
-        rules: [
-            copy_matchers(matchers),
-            {
-                ip_cidr: [ runtime_constants.FAKEIP_INET4_RANGE, runtime_constants.FAKEIP_INET6_RANGE ],
-                invert: true
-            }
-        ],
-        action: "route",
-        server: unmatched_dns_server_tag(),
-        rewrite_ttl
-    });
-
-    let fallback = copy_matchers(matchers);
-    fallback.action = "route";
-    fallback.server = runtime_constants.DNS_SERVER_TAG;
-    fallback.query_type = [ "A", "AAAA" ];
-    fallback.rewrite_ttl = rewrite_ttl;
-    push_dns_matcher_rule(config, fallback);
-}
-
 function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
-    let devices = connections.device_matchers(section, "source_ip_cidr");
     for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", true)) {
         let rule = copy_matchers(matchers);
         apply_matchers(rule, device_matchers);
-        if (option(section, "action", "") == "bypass" &&
-            !section_has_port_matchers(section) && devices.selected) {
-            add_source_aware_bypass_dns_rules(config, rule, rewrite_ttl);
-            continue;
-        }
-
         rule.action = "route";
         rule.server = section_dns_server(section);
         if (rule.server == runtime_constants.FAKEIP_DNS_SERVER_TAG) {
@@ -1562,14 +1531,14 @@ function add_fully_routed_ips_rules(config, section) {
     if (!devices.selected)
         return;
 
-    if (option(section, "action", "") == "bypass") {
-        for (let dns_matchers in device_matcher_variants(section, "fully_routed_ips", true))
-            add_source_aware_bypass_dns_rules(
-                config,
-                dns_matchers,
-                int_option(runtime_settings(), "dns_rewrite_ttl", "60")
-            );
-    }
+    if (option(section, "action", "") == "bypass")
+        for (let dns_matchers in device_matcher_variants(section, "fully_routed_ips", true)) {
+            let rule = copy_matchers(dns_matchers);
+            rule.action = "route";
+            rule.server = unmatched_dns_server_tag();
+            rule.rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
+            push_dns_matcher_rule(config, rule);
+        }
 
     let target = runtime_route.target(section, outbound_tag(section[".name"]));
     if (target.unsupported)

@@ -796,17 +796,15 @@ t.test("fully routed devices follow their section at its priority", () => {
     t.ok(q.route_rule(f, (r) => r.outbound == "direct-out" && has(r.inbound, "system-in") && has(r.inbound, "system6-in") &&
         r.source_ip_cidr == null && r.domain == null) != null, "fully routed System bypass route");
     t.ok(q.route_rule(f, (r) => r.outbound == "proxy" && has(r.source_ip_cidr, "192.168.1.40/32")) != null);
-    t.ok(q.dns_rule(f, (r) => r.type == "logical" && r.server == "dns-server" && length(r.rules ?? []) == 2 &&
-        has(r.rules[0].source_ip_cidr, "192.168.1.20/32") && r.rules[0].domain == null && r.rules[0].domain_suffix == null &&
-        r.rules[0].rule_set == null) != null, "a fully routed bypass refuses FakeIP for every domain");
-    t.ok(q.dns_rule(f, (r) => r.type == "logical" && r.server == "dns-server" && length(r.rules ?? []) == 2 && has(r.rules[0].inbound, "system-dns-in")) != null,
+    let every_query = (r) => r.domain == null && r.domain_suffix == null && r.domain_regex == null && r.rule_set == null && r.query_type == null;
+    t.ok(q.dns_rule(f, (r) => r.server == "dns-server" && has(r.source_ip_cidr, "192.168.1.20/32") && every_query(r)) != null,
+        "a fully routed bypass takes real addresses for every domain");
+    t.ok(q.dns_rule(f, (r) => r.server == "dns-server" && has(r.inbound, "system-dns-in") && r.source_ip_cidr == null && every_query(r)) != null,
         "the System bypass takes real addresses from the server unmatched queries use");
-    t.ok(q.dns_rule(f, (r) => r.server == "dns-server" && has(r.source_ip_cidr, "192.168.1.20/32") && has(r.query_type, "A")) != null);
-    t.eq(q.dns_rule(f, (r) => r.type == "logical" && length(r.rules ?? []) > 0 && has(r.rules[0].source_ip_cidr, "192.168.1.40/32")), null,
-        "a fully routed proxy keeps the normal FakeIP policy");
+    t.eq(q.dns_rule(f, (r) => has(r.source_ip_cidr, "192.168.1.40/32")), null, "a fully routed proxy keeps the normal FakeIP policy");
 
     let higher = q.dns_rule_index(f, (r) => r.server == "fakeip-server" && has(r.domain_suffix, "forced-higher.test"));
-    let forced = q.dns_rule_index(f, (r) => r.type == "logical" && length(r.rules ?? []) > 0 && has(r.rules[0].source_ip_cidr, "192.168.1.20/32"));
+    let forced = q.dns_rule_index(f, (r) => r.server == "dns-server" && has(r.source_ip_cidr, "192.168.1.20/32") && every_query(r));
     let lower = q.dns_rule_index(f, (r) => r.server == "fakeip-server" && has(r.domain_suffix, "forced-lower.test"));
     t.ok(higher >= 0 && forced > higher && lower > forced, "the forced bypass keeps its section priority in DNS rules");
     let higher_route = q.route_rule_index(f, (r) => r.outbound == "proxy_high" && has(r.domain_suffix, "forced-higher.test"));

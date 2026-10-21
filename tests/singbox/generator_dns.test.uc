@@ -121,8 +121,31 @@ t.test("the router's own lookups reach sing-box whatever the sections say, and l
     t.ok(q.dns_rule(router, (r) => r.server == "dnsmasq-server" && q.has(r.inbound, "system-dns-in") &&
         r.type == null && r.domain_regex == null && r.domain_suffix == null && r.query_type == null) != null,
         "router mode hands the router's unmatched lookups back to its resolver too");
-    t.ok(q.dns_rule(router, (r) => r.type == "logical" && r.server == "dnsmasq-server" && q.has(r.rules[0].inbound, "system-dns-in")) != null,
-        "a System bypass takes real addresses from the same server");
+    t.ok(q.dns_rule(router, (r) => r.server == "dns-server" && q.has(r.inbound, "system-dns-in") && q.has(r.domain_suffix, "example.org") &&
+        r.query_type == null) != null, "a System bypass takes real addresses the way any bypass does");
+});
+
+function response_matchers(rule) {
+    let found = [];
+    for (let part in rule.type == "logical" ? rule.rules : [ rule ])
+        if (part.match_response == null)
+            for (let key in [ "ip_cidr", "ip_is_private", "ip_accept_any" ])
+                if (part[key] != null)
+                    push(found, key);
+    return found;
+}
+
+t.test("no DNS rule matches the answer without asking for it, which the core refuses", () => {
+    let sections = [
+        { ".name": "direct_some", enabled: "1", action: "bypass", destinations: "example.org", source_ip_cidr: [ "@system", "192.168.1.10/32" ] },
+        { ".name": "direct_all", enabled: "1", action: "bypass", fully_routed_ips: [ "@system", "192.168.1.20/32" ] },
+        { ".name": "dns_all", enabled: "1", action: "dns", dns_server: [ "8.8.8.8" ], fully_routed_ips: [ "192.168.1.30/32" ] }
+    ];
+    for (let mode in [ "forkop", "router" ]) {
+        let config = build({ settings: { ...DNS, unmatched_dns_mode: mode }, section: sections });
+        for (let rule in config.dns.rules)
+            t.eq(response_matchers(rule), [], mode + ": " + sprintf("%J", rule));
+    }
 });
 
 t.test("unmatched client DNS goes to Forkop, with the local zone left to whoever owns loopback 53", () => {
