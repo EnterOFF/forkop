@@ -1308,6 +1308,31 @@ function section_dns_server(section) {
         : runtime_constants.FAKEIP_DNS_SERVER_TAG;
 }
 
+// Single-label names, the DHCP domain and reverse lookups are what the local resolver is
+// authoritative for, so they stay with it.
+function add_local_zone_rules(config, matchers, rewrite_ttl) {
+    for (let zone in [ { domain_regex: "^[^.]+$" }, { domain_suffix: "." + local_resolver_domain() }, { query_type: [ "PTR" ] } ]) {
+        let rule = copy_matchers(matchers);
+        rule.action = "route";
+        rule.server = runtime_constants.DNSMASQ_DNS_SERVER_TAG;
+        rule.rewrite_ttl = rewrite_ttl;
+        apply_matchers(rule, zone);
+        push_dns_matcher_rule(config, rule);
+    }
+}
+
+// Every query the matchers take goes to the server, except the local zone: a catch-all leaves
+// local names alone as the capture leaves local addresses.
+function add_device_dns_rules(config, matchers, server, rewrite_ttl) {
+    if (server != runtime_constants.DNSMASQ_DNS_SERVER_TAG)
+        add_local_zone_rules(config, matchers, rewrite_ttl);
+    let rule = copy_matchers(matchers);
+    rule.action = "route";
+    rule.server = server;
+    rule.rewrite_ttl = rewrite_ttl;
+    push_dns_matcher_rule(config, rule);
+}
+
 function add_section_dns_matcher_rule(config, section, matchers, rewrite_ttl) {
     for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", true)) {
         let rule = copy_matchers(matchers);
@@ -1377,34 +1402,7 @@ function add_static_hosts_dns_rule(config, hosts) {
 // resolver's own upstream queries are never captured, so this cannot loop.
 function add_source_aware_dns_fallback(config) {
     let rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
-    let server = unmatched_dns_server_tag();
-
-    if (server != runtime_constants.DNSMASQ_DNS_SERVER_TAG) {
-        // Single-label names, the DHCP domain and reverse lookups are what the
-        // local resolver is authoritative for, so they stay with it.
-        let local_zone_matchers = [
-            { domain_regex: "^[^.]+$" },
-            { domain_suffix: "." + local_resolver_domain() },
-            { query_type: [ "PTR" ] }
-        ];
-        for (let matcher in local_zone_matchers) {
-            let rule = {
-                inbound: captured_dns_inbound_matcher(),
-                action: "route",
-                server: runtime_constants.DNSMASQ_DNS_SERVER_TAG,
-                rewrite_ttl
-            };
-            apply_matchers(rule, matcher);
-            push_dns_matcher_rule(config, rule);
-        }
-    }
-
-    push_dns_matcher_rule(config, {
-        inbound: captured_dns_inbound_matcher(),
-        action: "route",
-        server,
-        rewrite_ttl
-    });
+    add_device_dns_rules(config, { inbound: captured_dns_inbound_matcher() }, unmatched_dns_server_tag(), rewrite_ttl);
 }
 
 // The names a tunnel's server declares resolve through that server when the tunnel dials
@@ -1462,17 +1460,9 @@ function add_dns_action_rules_for_section(config, section) {
     let has_inline_domains = length(domain) > 0 || length(domain_suffix) > 0 ||
         length(domain_keyword) > 0 || length(domain_regex) > 0;
 
-    if (fully_routed_devices.selected) {
-        for (let device_matchers in device_matcher_variants(section, "fully_routed_ips", true)) {
-            let dns_rule = {
-                action: "route",
-                server: server_tag,
-                rewrite_ttl
-            };
-            apply_matchers(dns_rule, device_matchers);
-            push_dns_matcher_rule(config, dns_rule);
-        }
-    }
+    if (fully_routed_devices.selected)
+        for (let device_matchers in device_matcher_variants(section, "fully_routed_ips", true))
+            add_device_dns_rules(config, device_matchers, server_tag, rewrite_ttl);
     if (has_inline_domains) {
         for (let device_matchers in device_matcher_variants(section, "source_ip_cidr", true)) {
             let dns_rule = {
@@ -1532,13 +1522,8 @@ function add_fully_routed_ips_rules(config, section) {
         return;
 
     if (option(section, "action", "") == "bypass")
-        for (let dns_matchers in device_matcher_variants(section, "fully_routed_ips", true)) {
-            let rule = copy_matchers(dns_matchers);
-            rule.action = "route";
-            rule.server = unmatched_dns_server_tag();
-            rule.rewrite_ttl = int_option(runtime_settings(), "dns_rewrite_ttl", "60");
-            push_dns_matcher_rule(config, rule);
-        }
+        for (let dns_matchers in device_matcher_variants(section, "fully_routed_ips", true))
+            add_device_dns_rules(config, dns_matchers, unmatched_dns_server_tag(), int_option(runtime_settings(), "dns_rewrite_ttl", "60"));
 
     let target = runtime_route.target(section, outbound_tag(section[".name"]));
     if (target.unsupported)

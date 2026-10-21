@@ -148,6 +148,35 @@ t.test("no DNS rule matches the answer without asking for it, which the core ref
     }
 });
 
+t.test("a device whose every query goes to one server keeps the local zone with the local resolver", () => {
+    let config = build({ settings: DNS, dhcp_dnsmasq: { domain: "home" }, section: [
+        { ".name": "dns_all", enabled: "1", action: "dns", dns_server: [ "8.8.8.8" ], fully_routed_ips: [ "@system", "192.168.1.20/32" ] },
+        { ".name": "direct_all", enabled: "1", action: "bypass", fully_routed_ips: [ "192.168.1.30/32" ] }
+    ] });
+    let catch_all = (server, device) => q.dns_rule_index(config, (r) => r.server == server && device(r) &&
+        r.domain == null && r.domain_suffix == null && r.domain_regex == null && r.query_type == null);
+    let devices = [
+        [ "dns_all-dns-server", "the router", (r) => q.has(r.inbound, "system-dns-in") && r.source_ip_cidr == null ],
+        [ "dns_all-dns-server", "a client", (r) => q.has(r.source_ip_cidr, "192.168.1.20/32") ],
+        [ "dns-server", "a bypassed client", (r) => q.has(r.source_ip_cidr, "192.168.1.30/32") ]
+    ];
+    for (let entry in devices) {
+        let at = catch_all(entry[0], entry[2]);
+        t.ok(at >= 0, entry[1] + ": every query goes to " + entry[0]);
+        for (let zone in [ (r) => r.domain_regex == "^[^.]+$", (r) => r.domain_suffix == ".home", (r) => q.has(r.query_type, "PTR") ]) {
+            let local = q.dns_rule_index(config, (r) => r.server == "dnsmasq-server" && entry[2](r) && zone(r));
+            t.ok(local >= 0 && local < at, entry[1] + ": the local zone is answered first");
+        }
+    }
+
+    let router = build({ settings: { ...DNS, unmatched_dns_mode: "router" }, section: [
+        { ".name": "direct_all", enabled: "1", action: "bypass", fully_routed_ips: [ "192.168.1.30/32" ] }
+    ] });
+    t.ok(q.dns_rule(router, (r) => r.server == "dnsmasq-server" && q.has(r.source_ip_cidr, "192.168.1.30/32") && r.domain_regex == null) != null,
+        "router mode: a bypassed client asks the local resolver for everything");
+    t.eq(q.dns_rule(router, (r) => q.has(r.source_ip_cidr, "192.168.1.30/32") && r.domain_regex != null), null, "with nothing to carve out");
+});
+
 t.test("unmatched client DNS goes to Forkop, with the local zone left to whoever owns loopback 53", () => {
     let moved = build({ settings: DNS, dhcp_dnsmasq: { port: "5353", domain: "home" }, section: BYPASS });
     let local = q.dns_server_tag(moved, "dnsmasq-server");

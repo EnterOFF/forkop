@@ -603,8 +603,10 @@ t.test("DNS action sections build their servers and rules at their priority", ()
     let local = q.ruleset_path(d, "/tmp/dns-action.lst");
     t.eq([ local.type, local.format ], [ "local", "auto" ]);
     t.ok(q.dns_rule(d, (r) => has(r.rule_set, local.tag) && r.server == "dns_first-dns-server") != null);
-    let fallback = q.dns_rule(d, (r) => r.server == "dnsmasq-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null && has(r.inbound, "source-dns-in"));
-    t.eq(fallback.source_ip_cidr, null);
+    t.ok(q.dns_rule(d, (r) => r.server == "dnsmasq-server" && r.domain == null && r.domain_suffix == null && r.rule_set == null &&
+        has(r.inbound, "source-dns-in") && r.source_ip_cidr == null) != null);
+    let forced_local = q.dns_rule_index(d, (r) => r.server == "dnsmasq-server" && r.domain_regex == "^[^.]+$" && has(r.source_ip_cidr, "192.0.2.2/32"));
+    t.ok(forced_local >= 0 && forced_local < forced_at, "a forced device's local names stay with the local resolver");
     t.eq(q.route_rule(d, (r) => has(r.source_ip_cidr, "192.0.2.2/32")), null, "a forced DNS action does not route device traffic");
 });
 
