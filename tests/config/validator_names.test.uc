@@ -43,9 +43,11 @@ t.test("every link of a section has a link and a name of its own", () => {
     v.refuses({ section: main, connection_link: [ links[0], { ...links[1], name: "A" } ] }, "Section 'Main' has more than one link named 'A'");
     v.refuses({ section: main, connection_link: [ links[0], { ...links[1], name: " " } ] }, "A link in section 'Main' has no name");
     v.refuses({ section: main, connection_link: [ links[0], { ...links[1], uri: "" } ] }, "A link in section 'Main' is empty");
-    for (let address in [ "https://sub.example.com/api/sub/token", "http://user:pass@proxy.example.com:8080" ])
+    for (let address in [ "https://sub.example.com/api/sub/token", "https://example.com" ])
         v.refuses({ section: main, connection_link: [ links[0], { ...links[1], uri: address } ] },
-            "Link 'B' in section 'Main' is not a supported link");
+            "Link 'B' in section 'Main' is probably a subscription URL. Paste it into Subscription");
+    for (let address in [ "http://user:pass@proxy.example.com:8080", "https://proxy.example.com:443#RU/Moscow" ])
+        v.accepts({ section: main, connection_link: [ links[0], { ...links[1], uri: address } ] });
     v.accepts({ section: [ ...main, { ".name": "other", enabled: "1", action: "connection" } ],
         connection_link: [ ...links, { ...links[1], ".name": "other_link1", name: "A", section: "other" } ] });
 });

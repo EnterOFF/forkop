@@ -164,8 +164,9 @@ describe('the Sections tab', () => {
     const links = option(sections(), 'connection_link');
 
     expect(links.description).toBe(
-      'Supported URIs: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, anytls, trusttunnel',
+      'Supported URIs: vless, vmess, shadowsocks, trojan, socks, http, tuic, hysteria, anytls, trusttunnel',
     );
+    expect(links.validate('sec', 'http://u:p@example.com:8080#h')).toBe(true);
     expect(links.validate('sec', 'naive+https://u:p@example.com:443#n')).toBe(
       'sing-box is built without with_naive',
     );

@@ -18091,6 +18091,7 @@ var CONNECTION_URI_TYPES = [
   ["shadowsocks", "shadowsocks"],
   ["trojan", "trojan"],
   ["socks", "socks"],
+  ["http", "http"],
   ["tuic", "tuic"],
   ["hysteria", "hysteria2"],
   ["naiveproxy", "naive"],
@@ -19204,8 +19205,10 @@ var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
   "hysteria",
   "hysteria2",
   "hy2",
+  "http",
   "http2",
   "http3",
+  "https",
   "mieru",
   "mierus",
   "naive+https",
@@ -19221,9 +19224,22 @@ var NATIVE_PROXY_SCHEMES = /* @__PURE__ */ new Set([
   "vless",
   "vmess"
 ]);
+function isSubscriptionAddress(link) {
+  const match = /^https?:\/\/([^/?#]*)([^?#]*)[^#]*(?:#(.*))?$/u.exec(link);
+  if (!match) {
+    return false;
+  }
+  const [, authority, path, name] = match;
+  const proxy = authority.includes("@") || /:\d+$/u.test(authority) || !!name;
+  return path !== "" && path !== "/" || !proxy;
+}
 function validateProxyUrl(url) {
-  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(url.trim());
-  return match && NATIVE_PROXY_SCHEMES.has(match[1]) ? true : _("Unsupported link");
+  const link = url.trim();
+  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(link);
+  if (!match || !NATIVE_PROXY_SCHEMES.has(match[1])) {
+    return _("Unsupported link");
+  }
+  return isSubscriptionAddress(link) ? _("Probably a subscription URL: paste it into Subscription") : true;
 }
 
 // src/forkop/tabs/sections/cascade.ts

@@ -173,15 +173,26 @@ function validate_subscription_tags(section) {
     }
 }
 
-// An http:// or https:// address is no link the core dials.
+// The core reads http(s)://[user:pass@]host[:port][#name] as an HTTP proxy only when
+// it names credentials, a port or a node; a path means a web page. Mirrors validateProxyUrl.ts.
+function subscription_address(uri) {
+    let parts = match(uri, /^https?:\/\/([^\/?#]*)([^?#]*)[^#]*(#(.*))?$/i);
+    if (parts == null)
+        return false;
+
+    let authority = parts[1], path = parts[2];
+    let proxy = index(authority, "@") >= 0 || match(authority, /:[0-9]+$/) != null || length(parts[4] ?? "") > 0;
+    return (path != "" && path != "/") || !proxy;
+}
+
 function validate_connection_links(section) {
     for (let link in connections.connection_link_items(section)) {
         let link_name = option(link, "name", "");
-        let scheme = core_url.scheme(trim(option(link, "uri", "")));
-        if (trim(option(link, "uri", "")) == "")
+        let uri = trim(option(link, "uri", ""));
+        if (uri == "")
             fail_validation("A link in section '" + section_label(section) + "' is empty. Paste the link in its settings");
-        if (scheme == "http" || scheme == "https")
-            fail_validation("Link '" + link_name + "' in section '" + section_label(section) + "' is not a supported link");
+        if (subscription_address(uri))
+            fail_validation("Link '" + link_name + "' in section '" + section_label(section) + "' is probably a subscription URL. Paste it into Subscription");
         if (trim(link_name) == "")
             fail_validation("A link in section '" + section_label(section) + "' has no name. Set one in its settings");
     }

@@ -239,7 +239,7 @@ describe('a stored link', () => {
     );
     expect(check('uri', ' ')).toBe('Required');
     expect(check('uri', 'https://sub.example.com/api/sub/token')).toBe(
-      'Unsupported link',
+      'Probably a subscription URL: paste it into Subscription',
     );
     expect(check('uri', 'vless://a@a.example:443#USA')).toBe(true);
     expect(check('name', '')).toBe('Required');

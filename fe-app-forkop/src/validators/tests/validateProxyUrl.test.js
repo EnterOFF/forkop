@@ -32,6 +32,10 @@ const validUrls = [
   ['socks4', 'socks4://127.0.0.1:1080'],
   ['socks4a', 'socks4a://example.com:1080'],
   ['socks5', 'socks5://user:pass@example.com:1080'],
+  ['HTTP proxy', 'http://user:password@example.com:8080'],
+  ['HTTPS proxy on its port', 'https://example.com:443'],
+  ['HTTP proxy named with a slash', 'http://example.com:3128#RU/Moscow'],
+  ['HTTPS proxy with credentials only', 'https://user:password@example.com'],
   ['tuic', 'tuic://uuid:password@example.com:443'],
   [
     'tt',
@@ -84,9 +88,13 @@ describe('validateProxyUrl', () => {
 
   it.each([
     'https://sub.example.com/api/sub/token',
-    'http://user:password@example.com:8080',
-  ])('refuses the web address %s like any other unsupported link', (url) => {
-    expect(validateProxyUrl(url)).toBe('Unsupported link');
+    'https://panel.example.com:2096/sub/abc#Mine',
+    'https://example.com/api/v1/client/subscribe?token=abc',
+    'https://example.com',
+  ])('sends the subscription address %s to its own field', (url) => {
+    expect(validateProxyUrl(url)).toBe(
+      'Probably a subscription URL: paste it into Subscription',
+    );
   });
 
   it('leaves protocol-specific validation to sing-box-forkop', () => {
