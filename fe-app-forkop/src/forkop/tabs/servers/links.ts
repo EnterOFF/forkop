@@ -98,6 +98,17 @@ function tlsQuery(
   return security;
 }
 
+// Xray-core no longer skips verification (allowInsecure): its clients connect to a self-signed
+// server only by the fingerprint of its certificate, pinned as pcs.
+function xrayCertificatePin(
+  params: Record<string, string>,
+  context: ShareLinkContext,
+) {
+  if (params.insecure) {
+    params.pcs = normalizeSha256(context.tlsCertificateSha256);
+  }
+}
+
 function shareUrl(
   scheme: string,
   sectionId: string,
@@ -122,13 +133,19 @@ function shareUrl(
   ].join('');
 }
 
-function buildVlessLink(sectionId: string, client: ServerClient) {
+function buildVlessLink(
+  sectionId: string,
+  client: ServerClient,
+  context: ShareLinkContext,
+) {
   const params: Record<string, string> = {};
   const security = tlsQuery(sectionId, params, true);
 
   if (security === 'reality' && (!params.pbk || !params.sid)) {
     return '';
   }
+
+  xrayCertificatePin(params, context);
 
   transportQuery(sectionId, params, 'serviceName');
   params.encryption = 'none';
@@ -145,9 +162,14 @@ function buildVlessLink(sectionId: string, client: ServerClient) {
   );
 }
 
-function buildTrojanLink(sectionId: string, client: ServerClient) {
+function buildTrojanLink(
+  sectionId: string,
+  client: ServerClient,
+  context: ShareLinkContext,
+) {
   const params: Record<string, string> = {};
   tlsQuery(sectionId, params, true);
+  xrayCertificatePin(params, context);
   transportQuery(sectionId, params, 'grpc-service-name');
 
   return shareUrl(
@@ -159,9 +181,14 @@ function buildTrojanLink(sectionId: string, client: ServerClient) {
   );
 }
 
-function buildVmessLink(sectionId: string, client: ServerClient) {
+function buildVmessLink(
+  sectionId: string,
+  client: ServerClient,
+  context: ShareLinkContext,
+) {
   const params: Record<string, string> = {};
   const security = tlsQuery(sectionId, params, false);
+  xrayCertificatePin(params, context);
   const transportParams: Record<string, string> = {};
   transportQuery(sectionId, transportParams, 'serviceName');
   const payload: Record<string, string> = {
@@ -184,6 +211,9 @@ function buildVmessLink(sectionId: string, client: ServerClient) {
 
   if (params.insecure) {
     payload.insecure = '1';
+  }
+  if (params.pcs) {
+    payload.pcs = params.pcs;
   }
 
   // Unpadded standard base64, the encoding the core generator emits.
@@ -398,11 +428,11 @@ export function buildClientLinks(
 
   switch (protocol) {
     case 'vless':
-      return single(buildVlessLink(sectionId, client));
+      return single(buildVlessLink(sectionId, client, context));
     case 'vmess':
-      return single(buildVmessLink(sectionId, client));
+      return single(buildVmessLink(sectionId, client, context));
     case 'trojan':
-      return single(buildTrojanLink(sectionId, client));
+      return single(buildTrojanLink(sectionId, client, context));
     case 'shadowsocks':
       return single(buildShadowsocksLink(sectionId, client));
     case 'mixed':
@@ -424,11 +454,13 @@ export function buildClientLinks(
   }
 }
 
-// A Hysteria2 link pins the fingerprint of the certificate the router issued, a TrustTunnel link
-// carries the certificate itself.
+// Hysteria2, VLESS, VMess and Trojan links pin the fingerprint of the certificate the router
+// issued, a TrustTunnel link carries the certificate itself.
 export function loadLinkContext(sectionId: string): Promise<ShareLinkContext> {
   if (
-    !['hysteria2', 'trusttunnel'].includes(getProtocol(sectionId)) ||
+    !['hysteria2', 'vless', 'vmess', 'trojan', 'trusttunnel'].includes(
+      getProtocol(sectionId),
+    ) ||
     !usesSelfSignedCertificate(sectionId)
   ) {
     return Promise.resolve({});

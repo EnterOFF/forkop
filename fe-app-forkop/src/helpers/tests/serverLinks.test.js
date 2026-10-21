@@ -212,6 +212,87 @@ describe('VMess links', () => {
   });
 });
 
+describe('certificate pins for Xray clients', () => {
+  const pin = 'ab'.repeat(32);
+  const vmessPayload = (url) =>
+    JSON.parse(
+      Buffer.from(url.slice('vmess://'.length), 'base64').toString('utf8'),
+    );
+
+  it('pins the self-signed certificate as pcs beside insecure', () => {
+    for (const protocol of ['vless', 'trojan']) {
+      const { link, client } = load(
+        { protocol, security: 'tls', tls_server_name: 'example.org' },
+        { uuid: UUID, password: 'secret-password' },
+      );
+      const [{ link: url }] = link.buildClientLinks('srv', client, {
+        tlsCertificateSha256: pin,
+      });
+      expect(query(url)).toMatchObject({ insecure: '1', pcs: pin });
+    }
+
+    const { link, client } = load(
+      { protocol: 'vmess', security: 'tls', tls_server_name: 'example.org' },
+      { uuid: UUID },
+    );
+    const [{ link: url }] = link.buildClientLinks('srv', client, {
+      tlsCertificateSha256: pin,
+    });
+    expect(vmessPayload(url)).toMatchObject({ insecure: '1', pcs: pin });
+  });
+
+  it('pins nothing that clients verify by themselves', () => {
+    const custom = load(
+      {
+        protocol: 'vless',
+        security: 'tls',
+        tls_server_name: 'example.org',
+        tls_certificate_source: 'custom',
+        tls_certificate: '/etc/ssl/acme/example.org.fullchain.crt',
+      },
+      { uuid: UUID },
+    );
+    const [{ link: url }] = custom.link.buildClientLinks('srv', custom.client, {
+      tlsCertificateSha256: pin,
+    });
+    expect(query(url).pcs).toBeUndefined();
+
+    const reality = load(
+      {
+        protocol: 'vless',
+        security: 'reality',
+        reality_public_key: 'public-key',
+        reality_short_id: ['abcd1234'],
+      },
+      { uuid: UUID },
+    );
+    const [{ link: realityUrl }] = reality.link.buildClientLinks(
+      'srv',
+      reality.client,
+      { tlsCertificateSha256: pin },
+    );
+    expect(query(realityUrl).pcs).toBeUndefined();
+  });
+
+  it('reads the fingerprint of the certificate from the router', async () => {
+    load({ protocol: 'vless', security: 'tls' });
+    answerFromRouter({ srv: { tls_self_signed_sha256: 'AB'.repeat(32) } });
+    expect(await loadLinkContext('srv')).toMatchObject({
+      tlsCertificateSha256: pin,
+    });
+  });
+
+  it('keeps the link usable before the router issues the certificate', () => {
+    const { link, client } = load(
+      { protocol: 'vless', security: 'tls', tls_server_name: 'example.org' },
+      { uuid: UUID },
+    );
+    const [{ link: url }] = link.buildClientLinks('srv', client, {});
+    expect(query(url).insecure).toBe('1');
+    expect(query(url).pcs).toBeUndefined();
+  });
+});
+
 describe('Shadowsocks links', () => {
   it('joins the server and client keys for a 2022 method', () => {
     const serverKey = Buffer.alloc(16, 1).toString('base64');

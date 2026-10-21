@@ -23,6 +23,7 @@ function load(server = {}, clients = {}) {
     },
     ...clients,
   });
+  answerFromRouter({});
   return {
     uci,
     details: {

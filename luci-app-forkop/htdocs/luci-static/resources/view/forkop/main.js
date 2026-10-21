@@ -23763,6 +23763,11 @@ function tlsQuery(sectionId, params, includeSecurity) {
   }
   return security;
 }
+function xrayCertificatePin(params, context) {
+  if (params.insecure) {
+    params.pcs = normalizeSha256(context.tlsCertificateSha256);
+  }
+}
 function shareUrl(scheme, sectionId, userInfo, params, label) {
   const host = formatHostForUri(getPublicHost(sectionId));
   const port2 = getListenPort(sectionId);
@@ -23779,12 +23784,13 @@ function shareUrl(scheme, sectionId, userInfo, params, label) {
     encodeURIComponent(label)
   ].join("");
 }
-function buildVlessLink(sectionId, client) {
+function buildVlessLink(sectionId, client, context) {
   const params = {};
   const security = tlsQuery(sectionId, params, true);
   if (security === "reality" && (!params.pbk || !params.sid)) {
     return "";
   }
+  xrayCertificatePin(params, context);
   transportQuery(sectionId, params, "serviceName");
   params.encryption = "none";
   if (client.flow && client.flow !== "none") {
@@ -23798,9 +23804,10 @@ function buildVlessLink(sectionId, client) {
     clientLabel(sectionId, client)
   );
 }
-function buildTrojanLink(sectionId, client) {
+function buildTrojanLink(sectionId, client, context) {
   const params = {};
   tlsQuery(sectionId, params, true);
+  xrayCertificatePin(params, context);
   transportQuery(sectionId, params, "grpc-service-name");
   return shareUrl(
     "trojan",
@@ -23810,9 +23817,10 @@ function buildTrojanLink(sectionId, client) {
     clientLabel(sectionId, client)
   );
 }
-function buildVmessLink(sectionId, client) {
+function buildVmessLink(sectionId, client, context) {
   const params = {};
   const security = tlsQuery(sectionId, params, false);
+  xrayCertificatePin(params, context);
   const transportParams = {};
   transportQuery(sectionId, transportParams, "serviceName");
   const payload = {
@@ -23834,6 +23842,9 @@ function buildVmessLink(sectionId, client) {
   };
   if (params.insecure) {
     payload.insecure = "1";
+  }
+  if (params.pcs) {
+    payload.pcs = params.pcs;
   }
   return `vmess://${base64Encode(JSON.stringify(payload)).replace(/=+$/, "")}`;
 }
@@ -23982,11 +23993,11 @@ function buildClientLinks(sectionId, client, context = {}) {
   const single = (link) => link ? [{ title: _("Link"), link }] : [];
   switch (protocol) {
     case "vless":
-      return single(buildVlessLink(sectionId, client));
+      return single(buildVlessLink(sectionId, client, context));
     case "vmess":
-      return single(buildVmessLink(sectionId, client));
+      return single(buildVmessLink(sectionId, client, context));
     case "trojan":
-      return single(buildTrojanLink(sectionId, client));
+      return single(buildTrojanLink(sectionId, client, context));
     case "shadowsocks":
       return single(buildShadowsocksLink(sectionId, client));
     case "mixed":
@@ -24008,7 +24019,9 @@ function buildClientLinks(sectionId, client, context = {}) {
   }
 }
 function loadLinkContext(sectionId) {
-  if (!["hysteria2", "trusttunnel"].includes(getProtocol(sectionId)) || !usesSelfSignedCertificate(sectionId)) {
+  if (!["hysteria2", "vless", "vmess", "trojan", "trusttunnel"].includes(
+    getProtocol(sectionId)
+  ) || !usesSelfSignedCertificate(sectionId)) {
     return Promise.resolve({});
   }
   return loadIssuedMaterial().then((material5) => ({
