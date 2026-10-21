@@ -17,6 +17,10 @@ const PLURAL_FORMS = {
   ru: 'nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);',
 };
 const DEFAULT_PLURAL_FORMS = 'nplurals=2; plural=(n != 1);';
+const DEFAULT_IDENTITY = {
+  name: 'Forkop',
+  email: 'ushan0v@users.noreply.github.com',
+};
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.resolve(projectRoot, '..');
@@ -37,9 +41,14 @@ function gitIdentity() {
 
   const name = read('user.name');
   const email = read('user.email');
-  return name && email
-    ? { name, email }
-    : { name: 'Forkop', email: 'ushan0v@users.noreply.github.com' };
+  return name && email ? { name, email } : null;
+}
+
+// Windows git cannot open a worktree that WSL git added, so there the catalog keeps the author
+// it already names.
+function catalogIdentity(pot) {
+  const match = pot.match(/^"Last-Translator: (.+) <([^>]+)>\\n"$/m);
+  return match ? { name: match[1], email: match[2] } : null;
 }
 
 function timestamp(now) {
@@ -202,10 +211,12 @@ function renderPo(entries, translations, language, { name }, now) {
 }
 
 const entries = await collectCalls();
-const identity = gitIdentity();
+const potPath = path.join(poRoot, 'templates', 'forkop.pot');
+const previousPot = await fs.readFile(potPath, 'utf8').catch(() => '');
+const identity =
+  gitIdentity() ?? catalogIdentity(previousPot) ?? DEFAULT_IDENTITY;
 const now = new Date();
 
-const potPath = path.join(poRoot, 'templates', 'forkop.pot');
 await fs.mkdir(path.dirname(potPath), { recursive: true });
 await fs.writeFile(potPath, renderPot(entries, identity, now), 'utf8');
 console.log(`${entries.length} strings -> ${path.relative(repoRoot, potPath)}`);
