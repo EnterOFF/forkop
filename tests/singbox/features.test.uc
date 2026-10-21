@@ -64,7 +64,7 @@ t.test("a feature is there when every tag it needs is", () => {
 
 t.test("types name the feature they need by the kind of object they are", () => {
     t.eq(features.type_feature("outbound", "naive"), "naive");
-    t.eq(features.type_feature("inbound", "naive"), "", "the naive server is in every build");
+    t.eq(features.type_feature("inbound", "naive"), "naive", "one tag makes the NaiveProxy server and client");
     t.eq(features.type_feature("inbound", "trusttunnel"), "trusttunnel");
     t.eq(features.type_feature("endpoint", "warp"), "wireguard");
     t.eq(features.type_feature("endpoint", "openvpn-client"), "openvpn");

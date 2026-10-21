@@ -24,7 +24,7 @@ const FEATURES = {
     quic: { name: "QUIC", tags: [ "with_quic" ] },
     openvpn: { name: "OpenVPN", tags: [ "with_openvpn", "with_gvisor" ] },
     tailscale: { name: "Tailscale", tags: [ "with_tailscale", "with_gvisor" ] },
-    naive: { name: "the NaiveProxy client", tags: [ "with_naive_outbound" ] },
+    naive: { name: "NaiveProxy", tags: [ "with_naive" ] },
     trusttunnel: { name: "TrustTunnel", tags: [ "with_trusttunnel" ] },
     openconnect: { name: "OpenConnect", tags: [ "with_openconnect", "with_gvisor" ] },
     vmess: { name: "VMess", tags: [ "with_vmess" ] },
@@ -36,7 +36,6 @@ const FEATURES = {
     mieru: { name: "mieru", tags: [ "with_mieru" ] }
 };
 
-// The naive inbound is in every build; its client is not.
 const OUTBOUND_TYPES = {
     hysteria: "quic", hysteria2: "quic", tuic: "quic",
     naive: "naive", trusttunnel: "trusttunnel",
@@ -45,7 +44,7 @@ const OUTBOUND_TYPES = {
 };
 const INBOUND_TYPES = {
     hysteria: "quic", hysteria2: "quic", tuic: "quic",
-    trusttunnel: "trusttunnel",
+    naive: "naive", trusttunnel: "trusttunnel",
     vmess: "vmess", snell: "snell", shadowtls: "shadowtls", anytls: "anytls", mieru: "mieru"
 };
 const ENDPOINT_TYPES = {

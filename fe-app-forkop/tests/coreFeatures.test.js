@@ -54,8 +54,9 @@ describe('the base build', () => {
   it('looks a type up by the kind of object it is', () => {
     setCoreFeatures(coreFeatures());
     expect(coreFeatureOfType('warp')).toBe('wireguard');
-    expect(coreSupportsType('naive')).toBe(false);
-    expect(coreSupportsType('naive', ['inbound'])).toBe(true);
+    expect(coreSupportsType('ssh')).toBe(false);
+    expect(coreSupportsType('ssh', ['inbound'])).toBe(true);
+    expect(coreSupportsType('naive', ['inbound'])).toBe(false);
     expect(coreSupportsType('tailscale', ['endpoint'])).toBe(false);
     expect(coreSupportsType('vless')).toBe(true);
   });
@@ -67,7 +68,7 @@ describe('the base build', () => {
       'the installed sing-box lacks with_tailscale',
     );
     expect(validateCoreFeature('naive')).toBe(
-      'sing-box is built without with_naive_outbound',
+      'sing-box is built without with_naive',
     );
     expect(validateCoreFeature('quic')).toBe(true);
     expect(validateCoreFeature('')).toBe(true);
@@ -108,7 +109,7 @@ describe('the server types a filter offers', () => {
 
     expect(offered.map((choice) => choice.value)).toContain('hysteria2');
     expect(offered.find((choice) => choice.value === 'naive')?.label).toBe(
-      'NaiveProxy (the installed sing-box lacks with_naive_outbound)',
+      'NaiveProxy (the installed sing-box lacks with_naive)',
     );
     const groupValues = coreFilterTypeChoices(groupTypeChoices(), []).map(
       (choice) => choice.value,

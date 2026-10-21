@@ -4,7 +4,7 @@ let fixture = require("fixture");
 
 const BASE = [ "badlinkname", "tfogo_checklinkname0", "with_anytls", "with_clash_api", "with_gvisor", "with_openvpn",
     "with_quic", "with_trusttunnel", "with_utls", "with_vmess", "with_wireguard" ];
-const FULL = [ ...BASE, "with_snell", "with_ssh", "with_shadowtls", "with_tor", "with_tailscale", "with_naive_outbound",
+const FULL = [ ...BASE, "with_snell", "with_ssh", "with_shadowtls", "with_tor", "with_tailscale", "with_naive",
     "with_openconnect", "with_mieru" ];
 
 function without(tags, tag) {
@@ -34,7 +34,7 @@ t.test("a server of a type the build lacks is refused by name", () => {
     needs({ server: [ server("openvpn") ] }, without(BASE, "with_openvpn"),
         "Server 'srv' uses openvpn, but this sing-box build lacks OpenVPN (built without with_openvpn)");
     needs({ server: [ server("vless", { security: "reality" }) ] }, without(BASE, "with_utls"), "Server 'srv' uses Reality");
-    needs({ server: [ server("naive", { naive_network: "udp" }) ] }, without(BASE, "with_quic"), "serves NaiveProxy over QUIC");
+    needs({ server: [ server("naive", { naive_network: "udp" }) ] }, without(FULL, "with_quic"), "serves NaiveProxy over QUIC");
     needs({ server: [ server("trusttunnel") ] }, without(BASE, "with_trusttunnel"),
         "Server 'srv' uses trusttunnel, but this sing-box build lacks TrustTunnel (built without with_trusttunnel)");
     needs({ server: [ server("trusttunnel", { trusttunnel_network: "tcp_udp" }) ] }, without(BASE, "with_quic"),
@@ -57,6 +57,8 @@ t.test("a server of a protocol the build was given no tag for is refused by name
     needs({ server: [ server("anytls") ] }, without(BASE, "with_anytls"), "Server 'srv' uses anytls");
     needs({ server: [ server("mieru") ] }, BASE,
         "Server 'srv' uses mieru, but this sing-box build lacks mieru (built without with_mieru)");
+    needs({ server: [ server("naive") ] }, BASE,
+        "Server 'srv' uses naive, but this sing-box build lacks NaiveProxy (built without with_naive)");
 });
 
 t.test("a disabled server asks nothing of the core", () => {
@@ -96,7 +98,7 @@ t.test("a link the build cannot dial is refused, without printing its secrets", 
     t.ok(index(result.error, "secret-password") < 0, "the refusal carries the password");
 
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "naive+https://u:p@example.com:443#N" ]) }, BASE,
-        "has a naive+https:// link 'N', but this sing-box build lacks the NaiveProxy client (built without with_naive_outbound)");
+        "has a naive+https:// link 'N', but this sing-box build lacks NaiveProxy (built without with_naive)");
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vless://u@example.com:443?security=reality&pbk=key&sni=a.com#R" ]) },
         without(BASE, "with_utls"), "has a vless:// link 'R' that uses Reality or a TLS fingerprint");
     needs({ section: [ section() ], connection_link: fixture.links("proxy", [ "vless://u@example.com:443?security=tls&type=xhttp&alpn=h3#X" ]) },

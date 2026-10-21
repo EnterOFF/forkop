@@ -214,7 +214,7 @@
       },
       "naive": {
         "available": false,
-        "tags": ["with_naive_outbound"]
+        "tags": ["with_naive"]
       },
       "trusttunnel": {
         "available": true,
@@ -272,6 +272,7 @@
         "hysteria": "quic",
         "hysteria2": "quic",
         "tuic": "quic",
+        "naive": "naive",
         "trusttunnel": "trusttunnel",
         "vmess": "vmess",
         "snell": "snell",

@@ -51,9 +51,9 @@ describe('the Servers tab', () => {
     await protocol.load('srv');
 
     expect(protocol.keylist).toEqual(
-      expect.arrayContaining(['mixed', 'vless', 'naive', 'vmess', 'anytls']),
+      expect.arrayContaining(['mixed', 'vless', 'vmess', 'anytls']),
     );
-    for (const missing of ['hysteria2', 'tuic', 'tailscale', 'mieru'])
+    for (const missing of ['hysteria2', 'tuic', 'naive', 'tailscale', 'mieru'])
       expect(protocol.keylist).not.toContain(missing);
   });
 
@@ -167,7 +167,7 @@ describe('the Sections tab', () => {
       'Supported URIs: vless, vmess, shadowsocks, trojan, socks, tuic, hysteria, anytls, trusttunnel',
     );
     expect(links.validate('sec', 'naive+https://u:p@example.com:443#n')).toBe(
-      'sing-box is built without with_naive_outbound',
+      'sing-box is built without with_naive',
     );
     expect(
       links.validate(
