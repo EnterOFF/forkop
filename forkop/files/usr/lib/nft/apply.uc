@@ -111,6 +111,9 @@ function tproxy_target(family, port) {
 }
 
 const CAPTURE_MARKED = [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK ];
+// A reply belongs to a connection the other side opened, or to one sing-box already holds:
+// handed to TProxy, it finds no socket of its own and the connection dies.
+const REPLY_RETURN = [ "ct", "direction", "reply", "return" ];
 
 // Packets of a flow sing-box holds are marked from the flow: only its first packet is NATed,
 // and a later one forwarded directly would let flow offloading take the whole connection.
@@ -164,6 +167,7 @@ function add_base(settings, excluded_router, excluded) {
     add_held_flow_rule("mangle");
     add_excluded_returns("mangle", excluded);
     add_rule("mangle", [ "ct", "status", "dnat", "return" ]);
+    add_rule("mangle", REPLY_RETURN);
     // nft runs every nat chain at the NAT hook, after this chain, so a query a
     // section marked here would reach the TProxy inbound instead of the DNS one.
     add_rule("mangle", [ "iifname", "@" + INTERFACES, "meta", "l4proto", "{ tcp, udp }", "th", "dport", "53", "return" ]);
@@ -188,6 +192,7 @@ function add_base(settings, excluded_router, excluded) {
     add_held_flow_rule("mangle_output");
     if (excluded_router)
         add_rule("mangle_output", [ "counter", "return" ]);
+    add_rule("mangle_output", REPLY_RETURN);
     add_rule("mangle_output", [ "ip", "daddr", "@" + LOCAL4, "return" ]);
     add_rule("mangle_output", [ "ip6", "daddr", "@" + LOCAL6, "ip6", "daddr", "!=", FAKEIP6, "return" ]);
     add_rule("mangle_output", [ "meta", "mark", OUTBOUND_MARK, "counter", "return" ]);

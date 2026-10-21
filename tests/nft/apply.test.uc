@@ -127,6 +127,13 @@ function priority_sections() {
     ];
 }
 
+t.test("an answer to a connection the other side opened never reaches the section rules", () => {
+    let lines = script_lines({ settings: {}, section: priority_sections() });
+    before(lines, T + "mangle ct direction reply return", T + "mangle jump priority_rules", "a device answering from behind the router");
+    before(lines, T + "mangle_output ct direction reply return", T + "mangle_output jump priority_output_rules",
+        "a server on the router and sing-box answering a client it captured");
+});
+
 t.test("section rules keep configuration order and reach only the traffic their devices send", () => {
     let lines = script_lines({ settings: {}, section: priority_sections() });
     let local = "ip daddr != @localv4 ";
