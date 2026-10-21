@@ -134,6 +134,7 @@ export function addTailscaleOptions(section: CBISection) {
     form.Value,
     'tailscale_auth_key',
     _('Authorization key'),
+    _('Created in the Tailscale console under Settings → Keys'),
   );
   o.modalonly = true;
   o.password = true;
@@ -144,9 +145,7 @@ export function addTailscaleOptions(section: CBISection) {
     form.Value,
     'tailscale_hostname',
     _('Device name'),
-    _(
-      'The router is offered in the Tailscale console as an exit node under this name, and carries traffic once approved',
-    ),
+    _('The name this device appears under in the Tailscale console'),
   );
   o.modalonly = true;
   o.validate = (_sectionId: string, value: string) =>
@@ -157,8 +156,8 @@ export function addTailscaleOptions(section: CBISection) {
     form.DynamicList,
     'tailscale_advertise_routes',
     _('Advertise routes'),
+    _('LAN subnets that tailnet devices can reach'),
   );
-  o.placeholder = '192.168.1.0/24';
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalCidrOrIp;
@@ -170,7 +169,12 @@ export function addTailscaleOptions(section: CBISection) {
   o.modalonly = true;
   onTailscale(o);
 
-  o = section.option(form.Flag, 'tailscale_ephemeral', _('Ephemeral node'));
+  o = section.option(
+    form.Flag,
+    'tailscale_ephemeral',
+    _('Ephemeral node'),
+    _('Remove the device from the tailnet once it goes offline'),
+  );
   o.default = '0';
   o.rmempty = true;
   o.modalonly = true;
@@ -180,6 +184,7 @@ export function addTailscaleOptions(section: CBISection) {
     form.Value,
     'tailscale_control_url',
     _('Coordination server'),
+    _('For a server of your own, such as Headscale'),
   );
   o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
@@ -190,6 +195,7 @@ export function addTailscaleOptions(section: CBISection) {
     form.Flag,
     'tailscale_detour_enabled',
     _('Coordination server through a section'),
+    _('Reach the coordination server through a section instead of the WAN'),
   );
   o.default = '0';
   o.rmempty = false;

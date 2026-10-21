@@ -21773,7 +21773,7 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
     form.Value,
     "tailscale_auth_key",
     _("Authorization key"),
-    _("A key from the Tailscale console")
+    _("Created in the Tailscale console under Settings \u2192 Keys")
   );
   tailscaleAuthKeyOption.password = true;
   tailscaleAuthKeyOption.validate = required();
@@ -25723,7 +25723,8 @@ function addTailscaleOptions(section2) {
   let o = section2.option(
     form.Value,
     "tailscale_auth_key",
-    _("Authorization key")
+    _("Authorization key"),
+    _("Created in the Tailscale console under Settings \u2192 Keys")
   );
   o.modalonly = true;
   o.password = true;
@@ -25733,9 +25734,7 @@ function addTailscaleOptions(section2) {
     form.Value,
     "tailscale_hostname",
     _("Device name"),
-    _(
-      "The router is offered in the Tailscale console as an exit node under this name, and carries traffic once approved"
-    )
+    _("The name this device appears under in the Tailscale console")
   );
   o.modalonly = true;
   o.validate = (_sectionId, value) => validateTailscaleHostname(value);
@@ -25743,9 +25742,9 @@ function addTailscaleOptions(section2) {
   o = section2.option(
     form.DynamicList,
     "tailscale_advertise_routes",
-    _("Advertise routes")
+    _("Advertise routes"),
+    _("LAN subnets that tailnet devices can reach")
   );
-  o.placeholder = "192.168.1.0/24";
   o.modalonly = true;
   o.rmempty = true;
   o.validate = validateOptionalCidrOrIp;
@@ -25755,7 +25754,12 @@ function addTailscaleOptions(section2) {
   o.rmempty = true;
   o.modalonly = true;
   onTailscale(o);
-  o = section2.option(form.Flag, "tailscale_ephemeral", _("Ephemeral node"));
+  o = section2.option(
+    form.Flag,
+    "tailscale_ephemeral",
+    _("Ephemeral node"),
+    _("Remove the device from the tailnet once it goes offline")
+  );
   o.default = "0";
   o.rmempty = true;
   o.modalonly = true;
@@ -25763,7 +25767,8 @@ function addTailscaleOptions(section2) {
   o = section2.option(
     form.Value,
     "tailscale_control_url",
-    _("Coordination server")
+    _("Coordination server"),
+    _("For a server of your own, such as Headscale")
   );
   o.default = TAILSCALE_CONTROL_URL;
   o.modalonly = true;
@@ -25772,7 +25777,8 @@ function addTailscaleOptions(section2) {
   o = section2.option(
     form.Flag,
     "tailscale_detour_enabled",
-    _("Coordination server through a section")
+    _("Coordination server through a section"),
+    _("Reach the coordination server through a section instead of the WAN")
   );
   o.default = "0";
   o.rmempty = false;

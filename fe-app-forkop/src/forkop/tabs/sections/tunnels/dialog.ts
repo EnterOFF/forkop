@@ -487,7 +487,7 @@ export function showTunnelSettingsModal(
     form.Value,
     'tailscale_auth_key',
     _('Authorization key'),
-    _('A key from the Tailscale console'),
+    _('Created in the Tailscale console under Settings → Keys'),
   );
   tailscaleAuthKeyOption.password = true;
   tailscaleAuthKeyOption.validate = required();

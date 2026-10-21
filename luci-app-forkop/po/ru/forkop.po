@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-20 20:01+0300\n"
-"PO-Revision-Date: 2026-10-20 20:01+0300\n"
+"POT-Creation-Date: 2026-10-21 12:20+0300\n"
+"PO-Revision-Date: 2026-10-21 12:20+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -145,9 +145,6 @@ msgstr "Пользовательский объект sing-box outbound"
 
 msgid "A JSON object merged into every server. Parameters a server does not support are skipped, matching parameters are overwritten"
 msgstr "JSON-объект, добавляемый к каждому серверу. Неподдерживаемые параметры пропускаются, совпадающие перезаписываются"
-
-msgid "A key from the Tailscale console"
-msgstr "Ключ из консоли Tailscale"
 
 msgid "A link cannot be built from these settings."
 msgstr "Из этих настроек ссылку собрать нельзя."
@@ -610,6 +607,9 @@ msgstr "Процессор"
 
 msgid "Create and fetch Cloudflare WARP profiles through the selected section. The tunnels' own traffic does not go through it"
 msgstr "Создавать и получать профили Cloudflare WARP через выбранную секцию. Трафик самих туннелей через неё не идёт"
+
+msgid "Created in the Tailscale console under Settings → Keys"
+msgstr "Создаётся в консоли Tailscale: Settings → Keys"
 
 msgid "Currently unavailable"
 msgstr "Временно недоступно"
@@ -1265,6 +1265,9 @@ msgstr "Смена ключей, секунд"
 msgid "key without cert"
 msgstr "key без cert"
 
+msgid "LAN subnets that tailnet devices can reach"
+msgstr "LAN-подсети, доступные устройствам сети"
+
 msgid "Latency difference"
 msgstr "Разница задержки"
 
@@ -1808,6 +1811,9 @@ msgstr "Убрать серверы из выборки выше"
 msgid "Remove servers whose names match the regular expression"
 msgstr "Убрать серверы, чьи имена совпадают с регулярным выражением"
 
+msgid "Remove the device from the tailnet once it goes offline"
+msgstr "Удалять устройство из сети после отключения"
+
 msgid "Remove the key passphrase: openssl pkey -in key.pem -out plain.pem"
 msgstr "Снимите пароль с ключа: openssl pkey -in key.pem -out plain.pem"
 
@@ -2277,7 +2283,7 @@ msgid "The name the router reports to the server"
 msgstr "Имя, которое роутер сообщает серверу"
 
 msgid "The name this device appears under in the Tailscale console"
-msgstr "Под этим именем устройство видно в консоли Tailscale"
+msgstr "Под этим именем устройство отобразится в консоли"
 
 msgid "The profile connects over IPsec, which OpenConnect does not speak"
 msgstr "Профиль подключается по IPsec, а OpenConnect его не поддерживает"
@@ -2287,9 +2293,6 @@ msgstr "Начало диапазона больше конца"
 
 msgid "The router answers the request for a code itself"
 msgstr "Роутер сам отвечает на запрос кода"
-
-msgid "The router is offered in the Tailscale console as an exit node under this name, and carries traffic once approved"
-msgstr "Под этим именем роутер предлагается в консоли Tailscale как выходной узел и начинает пропускать трафик после одобрения"
 
 msgid "The router issues the certificate of this client when the settings are applied. Apply them to get a profile."
 msgstr "Роутер выпускает сертификат клиента при применении настроек. Примените их, чтобы получить профиль."
