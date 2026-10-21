@@ -237,7 +237,11 @@ function in_fakeip_range(address) {
 
 // The router looks the check domain up through its resolver, which must hand out a FakeIP
 // address, and fetches it; the endpoint reports whether the connection came through Forkop.
+// An excluded router reaches neither the capture nor a section, so nothing here can be seen.
 function traffic() {
+    if (connections.excluded_devices(settings()).router)
+        return { router: { excluded: true, dns_fakeip: false, answered: false, fakeip: false, ip: "" }, exit: null };
+
     let section = check_section(runtime_config());
     let commands = [
         [ "dig", "+short", "+tries=1", "+timeout=3", FAKEIP_DOMAIN, "A" ],
@@ -251,6 +255,7 @@ function traffic() {
 
     return {
         router: {
+            excluded: false,
             dns_fakeip: in_fakeip_range(first_line(results[0].stdout)),
             answered: router != null,
             fakeip: router?.fakeip ?? false,

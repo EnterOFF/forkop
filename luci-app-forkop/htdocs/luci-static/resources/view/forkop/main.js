@@ -7699,6 +7699,9 @@ async function runDnsCheck() {
 // src/forkop/tabs/diagnostic/checks/traffic.ts
 function routerItem(router) {
   const key = _("Router");
+  if (router.excluded) {
+    return finding("success", key, _("excluded from routing"));
+  }
   if (router.fakeip) {
     return finding("success", key, _("goes through Forkop"));
   }

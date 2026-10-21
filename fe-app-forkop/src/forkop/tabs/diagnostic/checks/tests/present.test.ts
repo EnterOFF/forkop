@@ -211,6 +211,7 @@ function traffic(
 ): Forkop.TrafficCheckResult {
   return {
     router: {
+      excluded: false,
       dns_fakeip: true,
       answered: true,
       fakeip: true,
@@ -275,6 +276,27 @@ describe('the traffic check', () => {
     expect(router({ answered: false, fakeip: false }).value).toBe(
       'not checked: the check service did not answer',
     );
+  });
+
+  it('says the router is excluded instead of judging a path it deliberately skips', () => {
+    expect(
+      presentTraffic(
+        traffic({
+          router: {
+            excluded: true,
+            dns_fakeip: false,
+            answered: false,
+            fakeip: false,
+            ip: '',
+          },
+          exit: null,
+        }),
+        { fakeip: true },
+      ).slice(0, 2),
+    ).toEqual([
+      { state: 'success', key: 'Router', value: 'excluded from routing' },
+      { state: 'success', key: 'This device', value: 'goes through Forkop' },
+    ]);
   });
 });
 

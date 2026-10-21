@@ -80,6 +80,14 @@ function device_matchers(section, key) {
     return result;
 }
 
+function excluded_devices(settings) {
+    let values = common.words(option(settings, "routing_excluded_ips", ""));
+    return {
+        router: index(values, SYSTEM_DEVICE_VALUE) >= 0,
+        addresses: filter(values, (value) => value != SYSTEM_DEVICE_VALUE)
+    };
+}
+
 function whitespace_list_value(section, key) {
     let value = raw_option(section, key);
     if (type(value) == "array")
@@ -748,6 +756,7 @@ return {
     download_via_proxy_section,
     option,
     device_matchers,
+    excluded_devices,
     load,
     is_connections_action,
     connection_link_items,

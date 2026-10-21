@@ -91,14 +91,6 @@ function csv_values(csv) {
     return filter(map(split(csv ?? "", ","), (value) => trim(replace(value, /\r/g, ""))), (value) => value != "");
 }
 
-function excluded_devices(settings) {
-    let values = common.words(common.option(settings, "routing_excluded_ips", ""));
-    return {
-        router: index(values, connections.SYSTEM_DEVICE_VALUE) >= 0,
-        addresses: filter(values, (value) => value != connections.SYSTEM_DEVICE_VALUE)
-    };
-}
-
 function add_excluded_returns(chain, excluded) {
     if (length(excluded) > 0) {
         add_rule(chain, [ "ip", "saddr", "@" + EXCLUDED4, "counter", "return" ]);
@@ -333,7 +325,7 @@ function build() {
     if (planned.error != "")
         die(planned.error);
 
-    let excluded = excluded_devices(settings);
+    let excluded = connections.excluded_devices(settings);
     let kept = [];
     for (let entry in planned.sections)
         push(kept, ...nft_sections.provider_sets(entry.matchers));

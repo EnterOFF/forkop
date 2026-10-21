@@ -172,14 +172,22 @@ t.test("the router's own traffic is checked the way a client's goes, and the exi
         [ /ip\.podkop\.fyi\/check/, "{\"fakeip\": false, \"IP\": \"198.51.100.9\"}" ]
     ]);
     t.eq(checks.traffic(), {
-        router: { dns_fakeip: true, answered: true, fakeip: true, ip: "203.0.113.5" },
+        router: { excluded: false, dns_fakeip: true, answered: true, fakeip: true, ip: "203.0.113.5" },
         exit: { section: "Main", answered: true, ip: "198.51.100.9" }
     });
 
     write_config({ route: { rules: [] } });
     let asked = parallel([ [ /^dig \+short/, "93.184.215.14\n" ], [ /fakeip\.podkop\.fyi\/check/, "<html>blocked</html>" ] ]);
-    t.eq(checks.traffic(), { router: { dns_fakeip: false, answered: false, fakeip: false, ip: "" }, exit: null });
+    t.eq(checks.traffic(), { router: { excluded: false, dns_fakeip: false, answered: false, fakeip: false, ip: "" }, exit: null });
     t.eq(length(asked), 2, "no section, no exit to check");
+});
+
+t.test("a router excluded from routing is not checked, nor is the exit it would take", () => {
+    fixture.seed({ settings: { config_path: dir + "/config.json", routing_excluded_ips: [ "192.168.1.50", "@system" ] } });
+    write_config({ route: { rules: [ { action: "route", inbound: [ "tproxy-in" ], outbound: "Main", domain: "ip.podkop.fyi" } ] } });
+    let asked = parallel([]);
+    t.eq(checks.traffic(), { router: { excluded: true, dns_fakeip: false, answered: false, fakeip: false, ip: "" }, exit: null });
+    t.eq(asked, []);
 });
 
 t.test("a server is checked for its listener, its firewall port and its public address", () => {

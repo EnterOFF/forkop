@@ -9,6 +9,9 @@ export type BrowserCheck = { fakeip: boolean } | null;
 function routerItem(router: Forkop.TrafficCheckResult['router']) {
   const key = _('Router');
 
+  if (router.excluded) {
+    return finding('success', key, _('excluded from routing'));
+  }
   if (router.fakeip) {
     return finding('success', key, _('goes through Forkop'));
   }

@@ -378,6 +378,7 @@ export namespace Forkop {
 
   export interface TrafficCheckResult {
     router: {
+      excluded: boolean;
       dns_fakeip: boolean;
       answered: boolean;
       fakeip: boolean;
