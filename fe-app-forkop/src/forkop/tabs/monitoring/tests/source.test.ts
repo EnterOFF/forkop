@@ -102,6 +102,16 @@ describe('the source of a Monitoring connection', () => {
     );
   });
 
+  it("calls the router's requests through a local proxy System, but not a server's client", () => {
+    expect(describe_(connection('mixed/service-warp-in', '127.0.0.1'))).toEqual(
+      expect.objectContaining({ key: '@system', kind: 'system' }),
+    );
+    expect(label(connection('mixed/service-warp-in', '::1'))).toBe('System');
+    expect(label(connection('socks/Open', '127.0.0.1'))).toBe(
+      'Open · 127.0.0.1',
+    );
+  });
+
   it('finds a server whose name holds a slash', () => {
     expect(label(connection('vless/Home/Work', '203.0.113.9', 'alice'))).toBe(
       'alice · Home/Work',

@@ -9654,6 +9654,9 @@ var collator = new Intl.Collator(void 0, {
 function text(value) {
   return value == null ? "" : String(value).trim();
 }
+function isLoopback(ip) {
+  return ip === "::1" || /^(::ffff:)?127\./.test(ip);
+}
 function connectionInboundTag(connection) {
   const type = text(connection.metadata?.type);
   const tag = text(type.split("/").slice(1).join("/") || type);
@@ -9669,7 +9672,7 @@ function describeSource(connection, names) {
   const ip = text(connection.metadata?.sourceIP);
   const tag = connectionInboundTag(connection);
   const search = (...values) => [...values, ip, tag].filter(Boolean).join(" ");
-  if (SYSTEM_INBOUND_TAGS.has(tag)) {
+  if (SYSTEM_INBOUND_TAGS.has(tag) || !names.servers.has(tag) && isLoopback(ip)) {
     const name2 = _("System");
     return {
       key: SYSTEM_SOURCE_KEY,

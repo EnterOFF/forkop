@@ -45,6 +45,10 @@ function text(value?: string | number | null): string {
   return value == null ? '' : String(value).trim();
 }
 
+function isLoopback(ip: string): boolean {
+  return ip === '::1' || /^(::ffff:)?127\./.test(ip);
+}
+
 function connectionInboundTag(connection: SourceConnection): string {
   const type = text(connection.metadata?.type);
   const tag = text(type.split('/').slice(1).join('/') || type);
@@ -70,7 +74,11 @@ export function describeSource(
   const search = (...values: string[]) =>
     [...values, ip, tag].filter(Boolean).join(' ');
 
-  if (SYSTEM_INBOUND_TAGS.has(tag)) {
+  // The router's own requests also reach a local proxy inbound such as the WARP dialog's.
+  if (
+    SYSTEM_INBOUND_TAGS.has(tag) ||
+    (!names.servers.has(tag) && isLoopback(ip))
+  ) {
     const name = _('System');
     return {
       key: SYSTEM_SOURCE_KEY,
