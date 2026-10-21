@@ -257,6 +257,8 @@ function start_runtime() {
         log("error", e.message);
         return false;
     }
+    if (!nft_state.ipv6_enabled())
+        log("info", "IPv6 is off on the router; only IPv4 traffic is routed");
     if (!wait_ready(0, 0, true)) {
         log("error", NOT_CAPTURING);
         return false;

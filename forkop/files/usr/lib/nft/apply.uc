@@ -386,10 +386,18 @@ function ensure_tproxy_routing() {
         die("Failed to add the " + RT_TABLE + " routing table to " + paths.rt_tables);
     ensure_route(() => nft_state.tproxy_route4_present(RT_TABLE), [ ip, "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", RT_TABLE ],
         "Failed to add the IPv4 TProxy route");
-    ensure_route(() => nft_state.tproxy_route6_present(RT_TABLE), [ ip, "-6", "route", "add", "local", "::/0", "dev", "lo", "table", RT_TABLE ],
-        "Failed to add the IPv6 TProxy route");
     ensure_route(() => nft_state.tproxy_marking_rule4_present(RT_TABLE, FAKEIP_MARK), [ ip, "-4", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
         "Failed to add the IPv4 TProxy routing rule");
+
+    let ipv6 = nft_state.ipv6_interfaces() ?? [];
+    if (length(ipv6) == 0)
+        return;
+    // The kernel refuses a route through lo while lo has IPv6 disabled.
+    if (index(ipv6, "lo") < 0)
+        die("IPv6 is disabled on the loopback interface lo but enabled on " + join(", ", ipv6) +
+            ", so Forkop cannot route that IPv6 traffic. Disable IPv6 on every interface or enable it on lo");
+    ensure_route(() => nft_state.tproxy_route6_present(RT_TABLE), [ ip, "-6", "route", "add", "local", "::/0", "dev", "lo", "table", RT_TABLE ],
+        "Failed to add the IPv6 TProxy route");
     ensure_route(() => nft_state.tproxy_marking_rule6_present(RT_TABLE, FAKEIP_MARK), [ ip, "-6", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
         "Failed to add the IPv6 TProxy routing rule");
 }

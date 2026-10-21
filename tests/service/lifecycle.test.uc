@@ -82,6 +82,7 @@ function reset(options) {
     nft_state.table_present = () => world.network;
     for (let name in [ "tproxy_marking_rule4_present", "tproxy_marking_rule6_present", "tproxy_route4_present", "tproxy_route6_present" ])
         nft_state[name] = () => false;
+    nft_state.ipv6_enabled = () => !world.ipv6_off;
     health.sing_box_service_pid_runtime = () => world.pid;
     health.pid_is_sing_box = (pid) => pid == world.pid && pid > 0;
     health.start_ticks = (pid) => pid == world.pid ? world.ticks : null;
@@ -195,6 +196,12 @@ t.test("a start answers only once sing-box is ready, then turns the table on, th
     t.eq(fs.readfile(lifecycle.paths.applied_nft), world.script, "the applied table is recorded");
     t.eq(world.logs, [ "[info] Starting Forkop", "[info] Forkop started" ]);
     t.eq(result.stdout, "", "a start prints nothing");
+});
+
+t.test("a start on a router with IPv6 off says that only IPv4 is routed", () => {
+    reset({ ipv6_off: true });
+    t.eq(run(() => lifecycle.start()).result, 0);
+    t.eq(world.logs, [ "[info] Starting Forkop", "[info] IPv6 is off on the router; only IPv4 traffic is routed", "[info] Forkop started" ]);
 });
 
 t.test("a start of a running Forkop does nothing", () => {

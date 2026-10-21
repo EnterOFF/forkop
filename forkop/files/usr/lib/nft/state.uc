@@ -7,6 +7,10 @@ let constants = require("core.constants");
 const IP_BIN = "/usr/libexec/ip-full";
 const PAUSE_CHAIN = constants.NFT_PAUSE_CHAIN_NAME;
 
+let paths = {
+    ipv6_conf: "/proc/sys/net/ipv6/conf"
+};
+
 let as_string = common.as_string;
 let parse_mark_number = common.parse_number;
 
@@ -108,6 +112,20 @@ function rt_table_has_entry(text, table_id, table_name) {
     return false;
 }
 
+// The interfaces IPv6 is enabled on, lo among them; null for a kernel booted with
+// ipv6.disable=1 or built without IPv6, which has no such directory.
+function ipv6_interfaces() {
+    let names = fs.lsdir(paths.ipv6_conf);
+    if (names == null)
+        return null;
+    return sort(filter(names, (name) => name != "all" && name != "default" &&
+        trim(fs.readfile(paths.ipv6_conf + "/" + name + "/disable_ipv6") ?? "") == "0"));
+}
+
+function ipv6_enabled() {
+    return length(ipv6_interfaces() ?? []) > 0;
+}
+
 function tproxy_route4_present(table) {
     return has_local_default_route_text(command_output_from_args([ IP_BIN, "route", "list", "table", table ]), 4);
 }
@@ -186,19 +204,20 @@ function capture_active_output(output, table) {
     return false;
 }
 
+// IPv6 routing is part of the runtime unless ipv6_enabled is false.
 function runtime_network_configured_snapshot(snapshot, nft_table, mark) {
     snapshot = type(snapshot) == "object" ? snapshot : {};
 
     return capture_active_output(snapshot.tables, nft_table) &&
         has_local_default_route_text(snapshot.inet4, 4) &&
-        has_local_default_route_text(snapshot.inet6, 6) &&
         has_tproxy_marking_rule_text(snapshot.inet4, mark) &&
-        has_tproxy_marking_rule_text(snapshot.inet6, mark);
+        (snapshot.ipv6_enabled === false ||
+            has_local_default_route_text(snapshot.inet6, 6) && has_tproxy_marking_rule_text(snapshot.inet6, mark));
 }
 
 function runtime_network_configured(nft_table, rt_table, mark) {
     return runtime_network_configured_snapshot(
-        split_snapshot(command_output(runtime_snapshot_command(rt_table, nft_table))),
+        { ...split_snapshot(command_output(runtime_snapshot_command(rt_table, nft_table))), ipv6_enabled: ipv6_enabled() },
         nft_table,
         mark
     );
@@ -206,6 +225,9 @@ function runtime_network_configured(nft_table, rt_table, mark) {
 
 return {
     IP_BIN,
+    paths,
+    ipv6_interfaces,
+    ipv6_enabled,
     table_present,
     runtime_network_configured_snapshot,
     runtime_network_configured,

@@ -1,5 +1,6 @@
 let t = require("t");
 let stub = require("stub");
+let fixture = require("fixture");
 let fs = require("fs");
 let health = require("service.health");
 let nft_state = require("nft.state");
@@ -56,8 +57,8 @@ t.test("a process costs its processor time and the memory only it holds", () => 
 
 const RULE4 ="105:\tfrom all fwmark 0x4000000/0x4000000 lookup forkop\n";
 
-function snapshot(tables, route4, route6, rule4, rule6) {
-    return nft_state.runtime_network_configured_snapshot({ tables, inet4: route4 + rule4, inet6: route6 + rule6 }, "ForkopTable", "0x04000000");
+function snapshot(tables, route4, route6, rule4, rule6, ipv6_enabled) {
+    return nft_state.runtime_network_configured_snapshot({ tables, inet4: route4 + rule4, inet6: route6 + rule6, ipv6_enabled }, "ForkopTable", "0x04000000");
 }
 
 const META = "{\"metainfo\":{\"version\":\"1.1.6\",\"json_schema_version\":1}}";
@@ -81,6 +82,32 @@ t.test("the runtime network is up when the table captures and both routes and ru
     t.ok(!snapshot(json_tables, route4, route6, "105:\tfrom all fwmark 0x2000000/0x2000000 lookup forkop\n", RULE4), "a rule for another mark");
     t.ok(snapshot(json_tables, route4, route6, RULE4, "105:\tfrom all fwmark 0x4000000/0x4000000 lookup podkop\n"),
         "another package may own the printed name of table 105");
+});
+
+t.test("with IPv6 off the runtime network is up on the IPv4 route and rule alone", () => {
+    let tables = "table inet ForkopTable {\n\tchain capture_pause {\n\t}\n}\n";
+    let route4 = "local default dev lo scope host\n";
+    t.ok(snapshot(tables, route4, "", RULE4, "", false));
+    t.ok(snapshot(tables, route4, "", RULE4, RULE4, false), "a rule left from when IPv6 was on");
+    t.ok(!snapshot(tables, route4, "", RULE4, RULE4), "IPv6 on without its route");
+    t.ok(!snapshot(tables, route4, "", RULE4, "", true));
+    t.ok(!snapshot(tables, "", "", RULE4, "", false), "without the IPv4 route");
+});
+
+t.test("the network check asks the kernel whether IPv6 is on", () => {
+    let output = "table inet ForkopTable {\n\tchain capture_pause {\n\t}\n}\n@@forkop-runtime-snapshot@@\n" +
+        "local default dev lo scope host\n" + RULE4 + "@@forkop-runtime-snapshot@@\n";
+    let configured = (ipv6) => {
+        fixture.kernel_ipv6(ipv6);
+        stub.commands([ [ () => true, { stdout: output } ] ]);
+        let result = nft_state.runtime_network_configured("ForkopTable", "forkop", "0x04000000");
+        stub.restore();
+        return result;
+    };
+    t.ok(configured({ lo: "1", "br-lan": "1" }));
+    t.ok(configured(null), "a kernel without IPv6");
+    t.ok(!configured({ lo: "0", "br-lan": "1" }));
+    t.ok(!configured({ lo: "1", "br-lan": "0" }), "IPv6 on an interface but not on lo");
 });
 
 t.test("the routing table registry entry is matched by id and name", () => {

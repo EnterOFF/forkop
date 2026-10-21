@@ -235,6 +235,7 @@ t.test("a value nft cannot take is left out and reported when the table is appli
 function routing(ip_state) {
     let dir = stub.tmpdir();
     nft.paths.rt_tables = dir + "/rt_tables";
+    fixture.kernel_ipv6(ip_state != null && exists(ip_state, "ipv6") ? ip_state.ipv6 : { lo: "0", "br-lan": "0" });
     let logs = [];
     let handlers = [
         stub.logger(logs),
@@ -275,6 +276,34 @@ t.test("applying the table sets up its routing once and hands nft the whole scri
     stub.restore();
     t.eq(filter(commands, (line) => index(line, " add ") >= 0), [], "routing that is in place is left alone");
     t.eq(present.logs, [], "and nothing is reported about it");
+});
+
+t.test("a router with IPv6 off everywhere, or a kernel without IPv6, gets IPv4 routing only", () => {
+    fixture.seed({ settings: {} });
+    for (let ipv6 in [ { lo: "1", "br-lan": "1", wan: "1" }, null ]) {
+        let r = routing({ ipv6: ipv6 });
+        stub.commands(r.handlers);
+        nft.apply(nft.build());
+        let calls = stub.calls();
+        stub.restore();
+        let commands = map(calls, (c) => join(" ", c.argv));
+        t.contains(commands, "/usr/libexec/ip-full route add local 0.0.0.0/0 dev lo table forkop");
+        t.contains(commands, "/usr/libexec/ip-full -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105");
+        t.eq(filter(commands, (line) => index(line, " -6 ") >= 0), [], "nothing is asked of IPv6");
+        t.eq(length(filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f")), 1, "the table is applied");
+    }
+});
+
+t.test("IPv6 left on some interfaces but off on lo is refused, since that traffic would bypass Forkop", () => {
+    fixture.seed({ settings: {} });
+    let r = routing({ ipv6: { lo: "1", "br-lan": "0", wan: "0", "wan.30": "1" } });
+    stub.commands(r.handlers);
+    let e = t.throws(() => nft.apply(nft.build()));
+    let calls = stub.calls();
+    stub.restore();
+    t.eq(e.message, "IPv6 is disabled on the loopback interface lo but enabled on br-lan, wan, so Forkop cannot route that IPv6 traffic. " +
+        "Disable IPv6 on every interface or enable it on lo");
+    t.eq(filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f"), [], "the table is not applied");
 });
 
 t.test("a rebuilt table keeps what the rule-set worker wrote and defines everything else again", () => {

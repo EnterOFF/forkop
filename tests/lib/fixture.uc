@@ -2,6 +2,7 @@
 // in: { settings: {...}, section: [...], server: [...], ... } for /etc/config/forkop,
 // plus dhcp_dnsmasq for the first dnsmasq section of /etc/config/dhcp.
 
+let fs = require("fs");
 let uci = require("uci");
 let core_uci = require("core.uci");
 let core_url = require("core.url");
@@ -69,4 +70,18 @@ function settings(extra) {
     };
 }
 
-return { seed, settings, links };
+// The kernel's IPv6 switches, { lo: "0", "br-lan": "1" } as disable_ipv6 holds them; null
+// for a kernel without IPv6. "all" and "default" read 0 whatever the interfaces say.
+function kernel_ipv6(interfaces) {
+    let dir = require("stub").tmpdir() + "/conf";
+    require("nft.state").paths.ipv6_conf = dir;
+    if (interfaces == null)
+        return;
+    fs.mkdir(dir);
+    for (let name in [ "all", "default", ...keys(interfaces) ]) {
+        fs.mkdir(dir + "/" + name);
+        fs.writefile(dir + "/" + name + "/disable_ipv6", (interfaces[name] ?? "0") + "\n");
+    }
+}
+
+return { seed, settings, links, kernel_ipv6 };

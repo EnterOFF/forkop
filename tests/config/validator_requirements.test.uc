@@ -44,6 +44,16 @@ function requirements(version_text, handlers) {
     return { error, logs };
 }
 
+t.test("a kernel without IPv6 is refused before sing-box fails to open its IPv6 inbound", () => {
+    fixture.kernel_ipv6(null);
+    let error = requirements("1.14.3-r1\n", [ [ /command -v/, { status: 1 } ] ]).error;
+    t.eq(error, "The kernel runs without IPv6 (ipv6.disable=1 on its command line, or built without it), and sing-box needs it even with IPv6 off. " +
+        "Boot without ipv6.disable=1 and turn IPv6 off with sysctl net.ipv6.conf.all.disable_ipv6=1 instead");
+    fixture.kernel_ipv6({ lo: "1", "br-lan": "1" });
+    t.contains(requirements("1.14.3-r1\n", [ [ /command -v/, { status: 1 } ] ]).error, "Binary 'sing-box' is not available",
+        "IPv6 turned off by sysctl is no reason to refuse");
+});
+
 t.test("the core version comes from the file the core package installs, never from the package manager", () => {
     let result = requirements("1.14.1-extended-2.7.2-f122\n", [
         [ /command -v/, { status: 1 } ]

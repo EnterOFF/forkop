@@ -17,6 +17,7 @@ let features = require("singbox.features");
 let amnezia = require("singbox.amnezia");
 let runtime_urltest = require("singbox.urltest");
 let subscription_headers_module = require("singbox.subscription_headers");
+let nft_state = require("nft.state");
 
 let as_string = core_common.as_string;
 let object_or_empty = core_common.object_or_empty;
@@ -1751,6 +1752,11 @@ function has_outbound_section() {
 function check_requirements() {
     let ctx = context_from_runtime();
     let sing_box_version = packages.sing_box_version();
+
+    // Without IPv6 in the kernel no IPv6 socket opens, the TProxy inbound on ::1 among them.
+    if (nft_state.ipv6_interfaces() == null)
+        die("The kernel runs without IPv6 (ipv6.disable=1 on its command line, or built without it), and sing-box needs it even with IPv6 off. " +
+            "Boot without ipv6.disable=1 and turn IPv6 off with sysctl net.ipv6.conf.all.disable_ipv6=1 instead");
 
     if (!command_exists("sing-box"))
         die("Binary 'sing-box' is not available. Reinstall sing-box-forkop");
