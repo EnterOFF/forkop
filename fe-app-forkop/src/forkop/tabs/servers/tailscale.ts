@@ -1,4 +1,5 @@
 import { E } from '../../../helpers/element';
+import { pageLanguage, relativeTime } from '../../../helpers/relativeTime';
 import { CustomForkopMethods } from '../../methods';
 import { ClashAPI } from '../../types';
 import {
@@ -57,31 +58,8 @@ function injectStyles() {
   );
 }
 
-function language() {
-  return document.documentElement.lang || undefined;
-}
-
-const TIME_UNITS: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-  ['year', 31536000],
-  ['month', 2592000],
-  ['day', 86400],
-  ['hour', 3600],
-  ['minute', 60],
-];
-
-function relativeTime(seconds: number) {
-  const difference = seconds - Date.now() / 1000;
-  const format = new Intl.RelativeTimeFormat(language(), { numeric: 'auto' });
-  for (const [unit, size] of TIME_UNITS) {
-    if (Math.abs(difference) >= size) {
-      return format.format(Math.round(difference / size), unit);
-    }
-  }
-  return format.format(0, 'minute');
-}
-
 function formatDate(seconds: number) {
-  return new Date(seconds * 1000).toLocaleDateString(language(), {
+  return new Date(seconds * 1000).toLocaleDateString(pageLanguage(), {
     day: 'numeric',
     month: 'long',
     year: 'numeric',

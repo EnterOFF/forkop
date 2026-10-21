@@ -12,6 +12,7 @@ import {
 } from '../../../../icons';
 import { isCopyableProxyLink } from '../../../../helpers/isCopyableProxyLink';
 import { prettyBytes } from '../../../../helpers/prettyBytes';
+import { pageLanguage, relativeTime } from '../../../../helpers/relativeTime';
 import { Forkop } from '../../../types';
 import { renderFlagEmojis } from './renderFlagEmojis';
 import { ExitPanelState, renderExitPanel } from './renderExitPanel';
@@ -99,6 +100,43 @@ function formatDate(seconds?: number) {
     month: '2-digit',
     day: '2-digit',
   });
+}
+
+const UPDATED_CLASS = 'fkp_dashboard-page__subscription-meta__updated';
+
+// The router's clock may run ahead of this browser's.
+function updatedLabel(seconds: number) {
+  return relativeTime(Math.min(seconds, Date.now() / 1000), 'short');
+}
+
+function renderUpdated(seconds: number) {
+  const date = new Date(seconds * 1000);
+  return E(
+    'time',
+    {
+      class: UPDATED_CLASS,
+      dateTime: date.toISOString(),
+      title: _('Updated %s').format(
+        date.toLocaleString(pageLanguage(), {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }),
+      ),
+    },
+    updatedLabel(seconds),
+  );
+}
+
+// Sections are drawn again only when their data changes, so the page keeps the ages current here.
+export function refreshSubscriptionAges(root: ParentNode) {
+  root
+    .querySelectorAll<HTMLTimeElement>(`time.${UPDATED_CLASS}`)
+    .forEach((node) => {
+      const label = updatedLabel(Date.parse(node.dateTime) / 1000);
+      if (node.textContent !== label) {
+        node.textContent = label;
+      }
+    });
 }
 
 function getLatencySortValue(outbound: Forkop.Outbound) {
@@ -239,6 +277,7 @@ function renderSubscriptionMetadata(
             actions,
           )
         : '',
+      metadata.updatedAt ? renderUpdated(metadata.updatedAt) : '',
     ]),
     metadata.announce
       ? E(

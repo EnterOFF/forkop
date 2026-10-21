@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Forkop } from '../../../types';
 
 interface FakeNode {
@@ -880,6 +880,117 @@ describe('renderSections subscription metadata', () => {
           'fkp_dashboard-page__subscription-meta',
       ),
     ).toBeTruthy();
+  });
+});
+
+describe('renderSections subscription update time', () => {
+  const now = Date.UTC(2026, 9, 21, 18, 0, 0);
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  async function render(updatedAt?: number, lang = 'en') {
+    vi.useFakeTimers();
+    vi.setSystemTime(now);
+    installElementFactory();
+    vi.stubGlobal('document', { ...document, documentElement: { lang } });
+    const { renderSections } = await import('../partials/renderSections');
+    return renderSections({
+      loading: false,
+      failed: false,
+      section: {
+        code: 'proxy-out',
+        sectionName: 'main',
+        displayName: 'Main',
+        withTagSelect: true,
+        outbounds: [],
+        subscriptionMetadata: [{ title: 'Subscription', updatedAt }],
+      },
+      onTestLatency: vi.fn(),
+      onTestOutboundLatency: vi.fn(),
+      onChooseOutbound: vi.fn(),
+      onCopyOutbound: vi.fn(),
+      onShowUrlTestInfo: vi.fn(),
+      onShowFallbackInfo: vi.fn(),
+      latencyFetching: false,
+    }) as unknown as FakeNode;
+  }
+
+  const updated = (root: FakeNode) =>
+    findNode(
+      root,
+      (node) =>
+        node.type === 'time' &&
+        node.attrs.class === 'fkp_dashboard-page__subscription-meta__updated',
+    );
+
+  // Looks nodes up by `tag.class` in the rendered tree and writes their text back into it.
+  function queryRoot(root: FakeNode) {
+    return {
+      querySelectorAll: (selector: string) => {
+        const [type, className] = selector.split('.');
+        return findNodes(
+          root,
+          (node) => node.type === type && node.attrs.class === className,
+        ).map((node) => ({
+          get dateTime() {
+            return String(node.attrs.dateTime);
+          },
+          get textContent() {
+            return node.children[0];
+          },
+          set textContent(value) {
+            node.children = [value];
+          },
+        }));
+      },
+    } as unknown as ParentNode;
+  }
+
+  it('says how long ago the core last updated the subscription, and when on hover', async () => {
+    const node = updated(await render(now / 1000 - 300));
+
+    expect(node?.children).toEqual(['5 min. ago']);
+    expect(node?.attrs.dateTime).toBe('2026-10-21T17:55:00.000Z');
+    expect(node?.attrs.title).toMatch(/^Updated .*2026/);
+  });
+
+  it('says it in the language of the page', async () => {
+    const node = updated(await render(now / 1000 - 7200, 'ru'));
+
+    expect(node?.children).toEqual(['2 ч назад']);
+  });
+
+  it('never puts the update ahead of the browser clock', async () => {
+    const node = updated(await render(now / 1000 + 120));
+
+    expect(node?.children).toEqual(['this minute']);
+  });
+
+  it('leaves the line out of a subscription with no update time', async () => {
+    const root = await render(undefined);
+
+    expect(updated(root)).toBeUndefined();
+    expect(
+      findNode(
+        root,
+        (node) => node.attrs.class === 'fkp_dashboard-page__subscription-meta',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('keeps the age current without drawing the section again', async () => {
+    const root = await render(now / 1000 - 300);
+    const { refreshSubscriptionAges } = await import(
+      '../partials/renderSections'
+    );
+
+    vi.setSystemTime(now + 120000);
+    refreshSubscriptionAges(queryRoot(root));
+
+    expect(updated(root)?.children).toEqual(['7 min. ago']);
   });
 });
 

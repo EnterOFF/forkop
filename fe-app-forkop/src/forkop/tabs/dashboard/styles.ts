@@ -420,8 +420,9 @@ dropdown does; it carries the section's own outline and header band. */
     min-width: 0;
 }
 
+/* The facts wrap when the row is short of room; the name keeps its words on one line. */
 .fkp_dashboard-page__subscription-meta__name {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -501,6 +502,13 @@ dropdown does; it carries the section's own outline and header band. */
     text-underline-offset: 3px;
 }
 
+.fkp_dashboard-page__subscription-meta__updated {
+    margin-left: auto;
+    color: var(--text-color-medium, #888);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 .fkp_dashboard-page__subscription-meta__announce {
     margin: 6px 0 0;
     border-left: 2px solid var(--primary-color-low, dodgerblue);
@@ -523,7 +531,8 @@ dropdown does; it carries the section's own outline and header band. */
         order: 1;
     }
 
-    .fkp_dashboard-page__subscription-meta__actions {
+    .fkp_dashboard-page__subscription-meta__actions,
+    .fkp_dashboard-page__subscription-meta__updated {
         order: 2;
     }
 

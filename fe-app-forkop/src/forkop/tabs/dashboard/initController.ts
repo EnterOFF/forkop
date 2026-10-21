@@ -13,6 +13,7 @@ import { renderPinIcon24 } from '../../../icons';
 import { CustomForkopMethods } from '../../methods';
 import { logger, socket, store, StoreType } from '../../services';
 import {
+  refreshSubscriptionAges,
   renderFlagEmojis,
   renderSections,
   renderSectionsPlaceholder,
@@ -415,12 +416,12 @@ function stopWidgetsPolling() {
 // The load is what the core used between two readings, so they come close together.
 const CORE_USAGE_INTERVAL_MS = 2000;
 const CORE_USAGE_BACKOFF_MAX_MS = 30000;
-// The age is counted on this browser's clock between readings.
-const CORE_AGE_TICK_MS = 1000;
+// Ages are counted on this browser's clock between readings.
+const AGE_TICK_MS = 1000;
 let coreUsageFailures = 0;
 let lastCoreUsage: CoreUsageReading | null = null;
 let coreStartedAt = 0;
-let coreAgeTimer: ReturnType<typeof setInterval> | null = null;
+let ageTimer: ReturnType<typeof setInterval> | null = null;
 
 function reportCoreUsageFailure() {
   coreUsageFailures += 1;
@@ -1870,6 +1871,14 @@ function renderCoreWidget() {
   container.replaceChildren(renderWidget(props));
 }
 
+function renderAges() {
+  renderCoreWidget();
+  const sections = document.getElementById('dashboard-sections-grid');
+  if (sections) {
+    refreshSubscriptionAges(sections);
+  }
+}
+
 async function onStoreUpdate(
   next: StoreType,
   prev: StoreType,
@@ -1917,7 +1926,7 @@ async function onPageMount() {
   void renderTrafficTotalWidget();
   void renderLoadWidget();
   renderCoreWidget();
-  coreAgeTimer = setInterval(renderCoreWidget, CORE_AGE_TICK_MS);
+  ageTimer = setInterval(renderAges, AGE_TICK_MS);
   startDashboardDataUpdates();
 }
 
@@ -1928,9 +1937,9 @@ function onPageUnmount() {
   stopDashboardDataUpdates();
   sectionsRefreshQueued = false;
   sectionsRefreshPromise = null;
-  if (coreAgeTimer) {
-    clearInterval(coreAgeTimer);
-    coreAgeTimer = null;
+  if (ageTimer) {
+    clearInterval(ageTimer);
+    ageTimer = null;
   }
   store.unsubscribe(onStoreUpdate);
   document.removeEventListener(

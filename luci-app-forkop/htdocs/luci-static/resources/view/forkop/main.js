@@ -879,6 +879,31 @@ function prettyBytes(n) {
   return n + " " + unit;
 }
 
+// src/helpers/relativeTime.ts
+function pageLanguage() {
+  return document.documentElement.lang || void 0;
+}
+var TIME_UNITS = [
+  ["year", 31536e3],
+  ["month", 2592e3],
+  ["day", 86400],
+  ["hour", 3600],
+  ["minute", 60]
+];
+function relativeTime(seconds3, style = "long") {
+  const difference = seconds3 - Date.now() / 1e3;
+  const format2 = new Intl.RelativeTimeFormat(pageLanguage(), {
+    numeric: "auto",
+    style
+  });
+  for (const [unit, size] of TIME_UNITS) {
+    if (Math.abs(difference) >= size) {
+      return format2.format(Math.round(difference / size), unit);
+    }
+  }
+  return format2.format(0, "minute");
+}
+
 // src/forkop/tabs/dashboard/partials/renderExitPanel.ts
 function describeCountry(code) {
   if (!code || code === "XX") {
@@ -1100,6 +1125,35 @@ function formatDate(seconds3) {
     day: "2-digit"
   });
 }
+var UPDATED_CLASS = "fkp_dashboard-page__subscription-meta__updated";
+function updatedLabel(seconds3) {
+  return relativeTime(Math.min(seconds3, Date.now() / 1e3), "short");
+}
+function renderUpdated(seconds3) {
+  const date = new Date(seconds3 * 1e3);
+  return textE(
+    "time",
+    {
+      class: UPDATED_CLASS,
+      dateTime: date.toISOString(),
+      title: _("Updated %s").format(
+        date.toLocaleString(pageLanguage(), {
+          dateStyle: "medium",
+          timeStyle: "short"
+        })
+      )
+    },
+    updatedLabel(seconds3)
+  );
+}
+function refreshSubscriptionAges(root) {
+  root.querySelectorAll(`time.${UPDATED_CLASS}`).forEach((node) => {
+    const label = updatedLabel(Date.parse(node.dateTime) / 1e3);
+    if (node.textContent !== label) {
+      node.textContent = label;
+    }
+  });
+}
 function getLatencySortValue(outbound) {
   return Number.isFinite(outbound.latency) && outbound.latency > 0 ? outbound.latency : Number.POSITIVE_INFINITY;
 }
@@ -1207,7 +1261,8 @@ function renderSubscriptionMetadata(metadata) {
         "div",
         { class: "fkp_dashboard-page__subscription-meta__actions" },
         actions
-      ) : ""
+      ) : "",
+      metadata.updatedAt ? renderUpdated(metadata.updatedAt) : ""
     ]),
     metadata.announce ? textE(
       "blockquote",
@@ -3353,6 +3408,12 @@ function providerNumber(value, lower) {
   const number4 = Number(value?.[lower] ?? value?.[upper] ?? 0);
   return Number.isFinite(number4) ? number4 : 0;
 }
+function providerUpdatedAt(provider) {
+  const milliseconds = Date.parse(
+    (provider.updatedAt || "").replace(/(\.\d{3})\d+/, "$1")
+  );
+  return milliseconds > 0 ? milliseconds / 1e3 : void 0;
+}
 function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
   const metadata = provider.subscriptionMetadata || {};
   const upload = providerNumber(provider.subscriptionInfo, "upload");
@@ -3360,6 +3421,7 @@ function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
   const total = providerNumber(provider.subscriptionInfo, "total");
   const expire = providerNumber(provider.subscriptionInfo, "expire");
   const used = upload + download;
+  const updatedAt = providerUpdatedAt(provider);
   if (!upload && !download && !total && !expire && !Object.keys(metadata).length) {
     return void 0;
   }
@@ -3378,7 +3440,8 @@ function providerSubscriptionMetadata(provider, sourceIndex, subscriptionTag) {
         isUnlimited: total <= 0
       }
     } : {},
-    ...expire ? { expire } : {}
+    ...expire ? { expire } : {},
+    ...updatedAt ? { updatedAt } : {}
   };
 }
 function getSubscriptionMetadata(section2, sourceCount, subscriptionTags, providers) {
@@ -5319,11 +5382,11 @@ function stopWidgetsPolling() {
 }
 var CORE_USAGE_INTERVAL_MS = 2e3;
 var CORE_USAGE_BACKOFF_MAX_MS = 3e4;
-var CORE_AGE_TICK_MS = 1e3;
+var AGE_TICK_MS = 1e3;
 var coreUsageFailures = 0;
 var lastCoreUsage = null;
 var coreStartedAt = 0;
-var coreAgeTimer = null;
+var ageTimer = null;
 function reportCoreUsageFailure() {
   coreUsageFailures += 1;
   lastCoreUsage = null;
@@ -6458,6 +6521,13 @@ function renderCoreWidget() {
   renderedCoreWidget = key;
   container.replaceChildren(renderWidget(props));
 }
+function renderAges() {
+  renderCoreWidget();
+  const sections = document.getElementById("dashboard-sections-grid");
+  if (sections) {
+    refreshSubscriptionAges(sections);
+  }
+}
 async function onStoreUpdate(next, prev, diff) {
   if (diff.sectionsWidget) {
     renderSectionsWidget();
@@ -6491,7 +6561,7 @@ async function onPageMount() {
   void renderTrafficTotalWidget();
   void renderLoadWidget();
   renderCoreWidget();
-  coreAgeTimer = setInterval(renderCoreWidget, CORE_AGE_TICK_MS);
+  ageTimer = setInterval(renderAges, AGE_TICK_MS);
   startDashboardDataUpdates();
 }
 function onPageUnmount() {
@@ -6500,9 +6570,9 @@ function onPageUnmount() {
   stopDashboardDataUpdates();
   sectionsRefreshQueued = false;
   sectionsRefreshPromise = null;
-  if (coreAgeTimer) {
-    clearInterval(coreAgeTimer);
-    coreAgeTimer = null;
+  if (ageTimer) {
+    clearInterval(ageTimer);
+    ageTimer = null;
   }
   store.unsubscribe(onStoreUpdate);
   document.removeEventListener(
@@ -6979,8 +7049,9 @@ dropdown does; it carries the section's own outline and header band. */
     min-width: 0;
 }
 
+/* The facts wrap when the row is short of room; the name keeps its words on one line. */
 .fkp_dashboard-page__subscription-meta__name {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
     gap: 0.4rem;
@@ -7060,6 +7131,13 @@ dropdown does; it carries the section's own outline and header band. */
     text-underline-offset: 3px;
 }
 
+.fkp_dashboard-page__subscription-meta__updated {
+    margin-left: auto;
+    color: var(--text-color-medium, #888);
+    font-size: 12px;
+    white-space: nowrap;
+}
+
 .fkp_dashboard-page__subscription-meta__announce {
     margin: 6px 0 0;
     border-left: 2px solid var(--primary-color-low, dodgerblue);
@@ -7082,7 +7160,8 @@ dropdown does; it carries the section's own outline and header band. */
         order: 1;
     }
 
-    .fkp_dashboard-page__subscription-meta__actions {
+    .fkp_dashboard-page__subscription-meta__actions,
+    .fkp_dashboard-page__subscription-meta__updated {
         order: 2;
     }
 
@@ -26540,28 +26619,8 @@ function injectStyles() {
     )
   );
 }
-function language() {
-  return document.documentElement.lang || void 0;
-}
-var TIME_UNITS = [
-  ["year", 31536e3],
-  ["month", 2592e3],
-  ["day", 86400],
-  ["hour", 3600],
-  ["minute", 60]
-];
-function relativeTime(seconds3) {
-  const difference = seconds3 - Date.now() / 1e3;
-  const format2 = new Intl.RelativeTimeFormat(language(), { numeric: "auto" });
-  for (const [unit, size] of TIME_UNITS) {
-    if (Math.abs(difference) >= size) {
-      return format2.format(Math.round(difference / size), unit);
-    }
-  }
-  return format2.format(0, "minute");
-}
 function formatDate2(seconds3) {
-  return new Date(seconds3 * 1e3).toLocaleDateString(language(), {
+  return new Date(seconds3 * 1e3).toLocaleDateString(pageLanguage(), {
     day: "numeric",
     month: "long",
     year: "numeric"

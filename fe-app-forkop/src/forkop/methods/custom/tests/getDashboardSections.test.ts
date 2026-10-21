@@ -397,6 +397,59 @@ describe('getDashboardSections', () => {
     ).toEqual(['Office/sub2']);
   });
 
+  it("carries the core's last update, and none for a subscription it never downloaded", async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      section(),
+      child('subscription_url', 'subscription1', {
+        url: 'https://example.com/one',
+        tag: 'sub1',
+      }),
+      child('subscription_url', 'subscription2', {
+        url: 'https://example.com/two',
+        tag: 'sub2',
+      }),
+    ]);
+    setClashProxies({
+      Office: proxy('Selector', {
+        name: 'Office',
+        now: 'Office/sub1/DE',
+        all: ['Office/sub1/DE'],
+      }),
+      'Office/sub1/DE': proxy('HTTP'),
+    });
+    // An expired subscription keeps the headers of the answer it was refused with.
+    setClashProviders({
+      'Office/sub1': {
+        name: 'Office/sub1',
+        type: 'Proxy',
+        vehicleType: 'Remote',
+        proxies: [proxy('HTTP', { name: 'Office/sub1/DE' })],
+        updatedAt: '2026-10-21T17:42:30.868334621Z',
+        subscriptionInfo: { Upload: 0, Download: 20, Total: 100, Expire: 0 },
+      },
+      'Office/sub2': {
+        name: 'Office/sub2',
+        type: 'Proxy',
+        vehicleType: 'Remote',
+        proxies: [],
+        updatedAt: '0001-01-01T00:00:00Z',
+        subscriptionInfo: { Upload: 0, Download: 0, Total: 0, Expire: 200 },
+      },
+    });
+
+    const [dashboardSection] = (await getDashboardSections()).data;
+
+    expect(
+      dashboardSection.subscriptionMetadata?.map((item) => [
+        item.subscriptionTag,
+        item.updatedAt,
+      ]),
+    ).toEqual([
+      ['sub1', Date.UTC(2026, 9, 21, 17, 42, 30, 868) / 1000],
+      ['sub2', undefined],
+    ]);
+  });
+
   it('does not classify a static slash name as a subscription node', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section(),

@@ -205,6 +205,8 @@ export namespace Forkop {
     traffic?: SubscriptionTraffic;
     expire?: number;
     refillDate?: number;
+    // Epoch seconds of the core's last successful download or not-modified answer.
+    updatedAt?: number;
     webPageUrl?: string;
     supportUrl?: string;
     announce?: string;

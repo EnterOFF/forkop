@@ -987,6 +987,15 @@ function providerNumber(
   return Number.isFinite(number) ? number : 0;
 }
 
+// Go writes up to nine fractional digits where the format every browser parses has three, and a
+// provider never downloaded as its zero time, 0001-01-01.
+function providerUpdatedAt(provider: ClashAPI.ProxyProvider) {
+  const milliseconds = Date.parse(
+    (provider.updatedAt || '').replace(/(\.\d{3})\d+/, '$1'),
+  );
+  return milliseconds > 0 ? milliseconds / 1000 : undefined;
+}
+
 function providerSubscriptionMetadata(
   provider: ClashAPI.ProxyProvider,
   sourceIndex: number,
@@ -998,6 +1007,7 @@ function providerSubscriptionMetadata(
   const total = providerNumber(provider.subscriptionInfo, 'total');
   const expire = providerNumber(provider.subscriptionInfo, 'expire');
   const used = upload + download;
+  const updatedAt = providerUpdatedAt(provider);
 
   if (
     !upload &&
@@ -1027,6 +1037,7 @@ function providerSubscriptionMetadata(
         }
       : {}),
     ...(expire ? { expire } : {}),
+    ...(updatedAt ? { updatedAt } : {}),
   };
 }
 
