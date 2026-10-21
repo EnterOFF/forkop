@@ -93,6 +93,7 @@ import {
   wholeNumberField,
 } from '../../../../validators/fields';
 import { E } from '../../../../helpers/element';
+import { offerTailscaleExitNodes } from './exitNodes';
 
 function addWireGuardPeerItemOptions(section: CBISection) {
   let o = section.option(form.Value, 'address', _('Server address'));
@@ -572,12 +573,10 @@ export function showTunnelSettingsModal(
     form.Value,
     'tailscale_exit_node',
     _('Exit node'),
-    _(
-      'IP address or name of the device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable',
-    ),
   );
   tailscaleExitNodeOption.rmempty = true;
   tailscaleExitNodeOption.depends('tunnel_type', 'tailscale');
+  offerTailscaleExitNodes(tailscaleExitNodeOption, section_id, data.settings);
 
   const endpointJsonOption = itemSection.option(
     form.TextValue,

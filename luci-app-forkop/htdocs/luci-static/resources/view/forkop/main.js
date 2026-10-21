@@ -21531,6 +21531,71 @@ function validateTunnelItemsBeforeSave(section_id, values) {
   return true;
 }
 
+// src/forkop/tabs/sections/tunnels/exitNodes.ts
+async function loadTunnelExitNodes(tag) {
+  const response = await CustomForkopMethods.getClashApiTailscale();
+  const endpoint = response.success ? response.data?.endpoints?.find((item) => item.tag === tag) : void 0;
+  if (!endpoint) {
+    return { state: "absent", candidates: [] };
+  }
+  if (endpoint.state === "NeedsLogin" || endpoint.state === "NeedsMachineAuth") {
+    return { state: "signedOut", candidates: [] };
+  }
+  if (endpoint.state !== "Running") {
+    return { state: "absent", candidates: [] };
+  }
+  if (!endpoint.connected) {
+    return { state: "offline", candidates: [] };
+  }
+  return {
+    state: "connected",
+    candidates: endpoint.peers.filter((peer) => peer.exitNodeOption).sort(
+      (a, b) => Number(b.online) - Number(a.online) || a.name.localeCompare(b.name)
+    )
+  };
+}
+function describe({ state, candidates }) {
+  switch (state) {
+    case "signedOut":
+      return _(
+        "IP address or name of the device. The tunnel is not signed in to its tailnet: check the authorization key"
+      );
+    case "offline":
+      return _(
+        "IP address or name of the device. The tunnel has no connection to the coordination server"
+      );
+    case "connected":
+      return candidates.length ? _(
+        "The device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable"
+      ) : _("No device of the tailnet is approved as an exit node");
+    default:
+      return _(
+        "IP address or name of the device. Once the tunnel connects, the devices of its tailnet are offered here"
+      );
+  }
+}
+function offerTailscaleExitNodes(option2, sectionId, tunnel) {
+  const renderWidget2 = form.Value.prototype.renderWidget;
+  option2.renderWidget = function(itemId, optionIndex, cfgvalue) {
+    const section2 = uci.get(FORKOP_UCI_PACKAGE, sectionId, "label") || sectionId;
+    const lookup = tunnel.tunnel_type === "tailscale" ? loadTunnelExitNodes(
+      `${section2.trim()}/${`${tunnel.name || ""}`.trim()}`
+    ) : Promise.resolve({ state: "absent", candidates: [] });
+    return lookup.then((exitNodes) => {
+      this.keylist = [];
+      this.vallist = [];
+      exitNodes.candidates.forEach(
+        (peer) => this.value(
+          peer.name,
+          `${peer.name} \xB7 ${peer.online ? _("Online now") : _("Offline")}`
+        )
+      );
+      this.description = describe(exitNodes);
+      return renderWidget2.call(this, itemId, optionIndex, cfgvalue);
+    });
+  };
+}
+
 // src/forkop/tabs/sections/tunnels/dialog.ts
 function addWireGuardPeerItemOptions(section2) {
   let o = section2.option(form.Value, "address", _("Server address"));
@@ -21912,13 +21977,11 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   const tailscaleExitNodeOption = itemSection.option(
     form.Value,
     "tailscale_exit_node",
-    _("Exit node"),
-    _(
-      "IP address or name of the device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable"
-    )
+    _("Exit node")
   );
   tailscaleExitNodeOption.rmempty = true;
   tailscaleExitNodeOption.depends("tunnel_type", "tailscale");
+  offerTailscaleExitNodes(tailscaleExitNodeOption, section_id, data.settings);
   const endpointJsonOption = itemSection.option(
     form.TextValue,
     "endpoint_json",

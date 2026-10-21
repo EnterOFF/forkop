@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-21 13:31+0300\n"
-"PO-Revision-Date: 2026-10-21 13:31+0300\n"
+"POT-Creation-Date: 2026-10-21 14:24+0300\n"
+"PO-Revision-Date: 2026-10-21 14:24+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1250,8 +1250,14 @@ msgstr "Неверная конфигурация WireGuard"
 msgid "IP address only"
 msgstr "Только IP-адрес"
 
-msgid "IP address or name of the device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable"
-msgstr "IP-адрес или имя устройства, через которое трафик выходит в интернет. Без него доступны только устройства tailnet и подсети, которые они открывают"
+msgid "IP address or name of the device. Once the tunnel connects, the devices of its tailnet are offered here"
+msgstr "IP-адрес или имя устройства. Когда туннель подключится, здесь появится выбор из устройств сети"
+
+msgid "IP address or name of the device. The tunnel has no connection to the coordination server"
+msgstr "IP-адрес или имя устройства. Туннель без связи с сервером координации"
+
+msgid "IP address or name of the device. The tunnel is not signed in to its tailnet: check the authorization key"
+msgstr "IP-адрес или имя устройства. Туннель не вошёл в сеть: проверьте ключ авторизации"
 
 msgid "IPv4 only"
 msgstr "Только IPv4"
@@ -1516,6 +1522,9 @@ msgstr "нет связи с сервером координации"
 
 msgid "No connection to the coordination server"
 msgstr "Нет связи с сервером координации"
+
+msgid "No device of the tailnet is approved as an exit node"
+msgstr "Ни одно устройство сети не одобрено как выходной узел"
 
 msgid "No domain"
 msgstr "Нет домена"
@@ -2344,6 +2353,9 @@ msgstr "Протокол Array Networks в sing-box не поддерживае�
 
 msgid "The authorities the router trusts are not used"
 msgstr "Центры сертификации, которым доверяет роутер, не используются"
+
+msgid "The device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable"
+msgstr "Устройство, через которое трафик выходит в интернет. Без него доступны только устройства сети и подсети, которые они открывают"
 
 msgid "The group joins as the single node it has selected"
 msgstr "Группа участвует как один выбранный узел"
