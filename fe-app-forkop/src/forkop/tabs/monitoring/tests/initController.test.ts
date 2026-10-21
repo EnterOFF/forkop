@@ -324,9 +324,9 @@ describe('the Monitoring filters', () => {
     await openMonitoring();
     expect(optionTexts('monitoring-route-filter')).toEqual([
       'All routes',
+      'Direct',
       'proxy',
       'google',
-      'Direct',
       'other-out',
     ]);
 
@@ -348,6 +348,25 @@ describe('the Monitoring filters', () => {
 
     choose('monitoring-route-filter', 'all');
     expect([hosts(), activeCount()]).toEqual([['b.example.com'], '1']);
+  });
+
+  it('tells a section named Direct from the direct route', async () => {
+    mocks.getConfigSections.mockResolvedValue([
+      { '.name': 'section_a', '.type': 'section', label: 'Direct' },
+    ]);
+    answerWith(connection('a'), connection('b', { chains: ['Direct'] }));
+    await openMonitoring();
+    expect(optionTexts('monitoring-route-filter')).toEqual([
+      'All routes',
+      'Direct',
+      'Direct',
+    ]);
+
+    choose('monitoring-route-filter', 'Direct');
+    expect([hosts(), activeCount()]).toEqual([['b.example.com'], '1']);
+
+    choose('monitoring-route-filter', 'direct-out');
+    expect([hosts(), activeCount()]).toEqual([['a.example.com'], '1']);
   });
 
   it('combines the device and the route', async () => {

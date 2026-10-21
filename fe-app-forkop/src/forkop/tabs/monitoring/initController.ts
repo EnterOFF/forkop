@@ -85,6 +85,12 @@ const CONNECTIONS_POLL_DUTY_MAX_MS = 15000;
 const CONNECTIONS_SOCKET_GRACE_MS = 2000;
 const CLOSED_CONNECTION_LIMIT = 300;
 const ALL_FILTER_VALUE = '';
+const DIRECT_ROUTE_TAG = 'direct-out';
+
+interface ConnectionRoute {
+  tag: string;
+  label: string;
+}
 
 let monitoringMounted = false;
 let monitoringMountId = 0;
@@ -102,9 +108,9 @@ let selectedDeviceFilter = ALL_FILTER_VALUE;
 let selectedRouteFilter = ALL_FILTER_VALUE;
 let searchQuery = '';
 let localDeviceNames: Record<string, string> = {};
-let routeDisplayNames: Record<string, string> = {};
-let routeSections: Array<{ sectionName: string; displayName: string }> = [];
-let routeOrder: string[] = [];
+let routeLabels: Record<string, string> = {};
+let sectionTags: string[] = [];
+let sectionTagsLongestFirst: string[] = [];
 let serverInboundTags = new Set<string>();
 let serverClientNames: Record<string, Record<string, string>> = {};
 let filterSignatures: Record<string, string> = {};
@@ -128,16 +134,16 @@ function getDisplayName(section: Forkop.ConfigSection) {
   return normalizeString(section.label) || section['.name'];
 }
 
+// A section's display name is its tag, and the outbounds inside it are tagged under it.
 function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
-  const map: Record<string, string> = {
-    'direct-out': _('Direct'),
+  const labels: Record<string, string> = {
+    [DIRECT_ROUTE_TAG]: _('Direct'),
   };
   const serverTags = new Set<string>();
   const openVPNServerTags: Record<string, string> = {};
   const wireGuardServerTags: Record<string, string> = {};
   const clientNames: Record<string, Record<string, string>> = {};
-  const routeSectionItems: Array<{ sectionName: string; displayName: string }> =
-    [];
+  const routeSectionTags: string[] = [];
   sections
     .filter((section) => section['.type'] === 'section')
     .filter((section) => section.enabled !== '0')
@@ -149,8 +155,8 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
         return;
       }
 
-      routeSectionItems.push({ sectionName: displayName, displayName });
-      map[displayName] = displayName;
+      routeSectionTags.push(displayName);
+      labels[displayName] = displayName;
     });
 
   sections
@@ -211,29 +217,25 @@ function buildRouteDisplayNames(sections: Forkop.ConfigSection[]) {
       }
     });
 
-  routeDisplayNames = map;
+  routeLabels = labels;
   serverInboundTags = serverTags;
   serverClientNames = clientNames;
-  routeOrder = routeSectionItems.map(({ displayName }) => displayName);
-  routeSections = routeSectionItems.sort(
-    (a, b) => b.sectionName.length - a.sectionName.length,
+  sectionTags = routeSectionTags;
+  sectionTagsLongestFirst = [...routeSectionTags].sort(
+    (a, b) => b.length - a.length,
   );
 }
 
-function getRouteDisplayNameByTag(tag: string): string {
-  if (!tag) {
-    return '';
+function getKnownRouteTag(tag: string): string {
+  if (!tag || routeLabels[tag]) {
+    return tag;
   }
 
-  if (routeDisplayNames[tag]) {
-    return routeDisplayNames[tag];
-  }
-
-  const manualSection = routeSections.find(({ sectionName }) =>
-    tag.startsWith(`${sectionName}/`),
+  return (
+    sectionTagsLongestFirst.find((sectionTag) =>
+      tag.startsWith(`${sectionTag}/`),
+    ) || ''
   );
-
-  return manualSection?.displayName || '';
 }
 
 function getRouteTagFromRule(rule?: string): string {
@@ -296,18 +298,17 @@ function getTargetCellParts(connection: MonitoredConnection): {
   };
 }
 
-function getRoute(connection: MonitoredConnection): string {
+// The core lists the chain from the outbound that dialed back to the rule's, so the rule's
+// outermost known outbound names the route.
+function getRoute(connection: MonitoredConnection): ConnectionRoute | null {
   const chains = Array.isArray(connection.chains) ? connection.chains : [];
-  const routeTag = [...chains].reverse().find(getRouteDisplayNameByTag);
-  const fallbackRouteTag = getRouteTagFromRule(connection.rule);
+  const ruleTag = getRouteTagFromRule(connection.rule);
+  const tag =
+    [...chains].reverse().map(getKnownRouteTag).find(Boolean) ||
+    getKnownRouteTag(ruleTag) ||
+    ruleTag;
 
-  return (
-    getRouteDisplayNameByTag(routeTag || '') ||
-    getRouteDisplayNameByTag(fallbackRouteTag) ||
-    normalizeString(routeTag) ||
-    normalizeString(fallbackRouteTag) ||
-    '-'
-  );
+  return tag ? { tag, label: routeLabels[tag] || tag } : null;
 }
 
 function getNetwork(connection: MonitoredConnection): string {
@@ -347,7 +348,7 @@ function getSearchValues(connection: MonitoredConnection): string[] {
     connection.id,
     target.primary,
     getNetwork(connection),
-    getRoute(connection),
+    getRoute(connection)?.label || '',
     formatConnectionDuration(connection),
     formatBytes(connection.download),
     formatBytes(connection.upload),
@@ -368,7 +369,7 @@ function matchesConnectionFilters(
 
   if (
     selectedRouteFilter !== ALL_FILTER_VALUE &&
-    getRoute(connection) !== selectedRouteFilter
+    getRoute(connection)?.tag !== selectedRouteFilter
   ) {
     return false;
   }
@@ -500,25 +501,36 @@ function getKnownSources(): ConnectionSource[] {
   return Array.from(sources.values()).sort(compareSources);
 }
 
-// The sections in the order the Sections tab lists them, then the rest.
-function compareRoutes(a: string, b: string) {
-  const rank = (route: string) => {
-    const index = routeOrder.indexOf(route);
-    return index < 0 ? routeOrder.length : index;
+// Direct first, then the sections in the order the Sections tab lists them, then the rest.
+function compareRoutes(a: ConnectionRoute, b: ConnectionRoute) {
+  const rank = ({ tag }: ConnectionRoute) => {
+    if (tag === DIRECT_ROUTE_TAG) {
+      return -1;
+    }
+
+    const index = sectionTags.indexOf(tag);
+    return index < 0 ? sectionTags.length : index;
   };
 
-  return rank(a) - rank(b) || a.localeCompare(b, undefined, { numeric: true });
+  return (
+    rank(a) - rank(b) ||
+    a.label.localeCompare(b.label, undefined, { numeric: true })
+  );
 }
 
-function getKnownRoutes(): string[] {
-  const routes = new Set<string>();
+function getKnownRoutes(): ConnectionRoute[] {
+  const routes = new Map<string, ConnectionRoute>();
 
   [activeConnections, closedConnections].forEach((connections) =>
-    connections.forEach((connection) => routes.add(getRoute(connection))),
+    connections.forEach((connection) => {
+      const route = getRoute(connection);
+      if (route) {
+        routes.set(route.tag, route);
+      }
+    }),
   );
-  routes.delete('-');
 
-  return Array.from(routes).sort(compareRoutes);
+  return Array.from(routes.values()).sort(compareRoutes);
 }
 
 // A filter left on a value no connection has any more goes back to all.
@@ -565,7 +577,7 @@ function renderFilters() {
   selectedRouteFilter = renderFilterOptions(
     'monitoring-route-filter',
     _('All routes'),
-    getKnownRoutes().map((route) => ({ value: route, label: route })),
+    getKnownRoutes().map(({ tag, label }) => ({ value: tag, label })),
     selectedRouteFilter,
   );
 }
@@ -647,13 +659,15 @@ function renderControls() {
 
 function toListItem(connection: MonitoredConnection): ConnectionListItem {
   const source = getSource(connection);
+  const route = getRoute(connection);
 
   return {
     id: connection.id,
     host: getTargetCellParts(connection).primary,
     sourceName: source.name,
     sourceDetail: source.detail,
-    route: getRoute(connection),
+    route: route?.label || '',
+    direct: route?.tag === DIRECT_ROUTE_TAG,
     network: getNetwork(connection),
     time: formatConnectionDuration(connection),
     download: formatBytes(connection.download),

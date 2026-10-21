@@ -8,6 +8,7 @@ export interface ConnectionListItem {
   sourceName: string;
   sourceDetail: string;
   route: string;
+  direct: boolean;
   network: string;
   time: string;
   download: string;
@@ -106,6 +107,24 @@ function renderSource(name: string, detail: string) {
   );
 }
 
+// Direct is no section, so it is drawn unlike a section's name, which it could share.
+function renderRoute(item: ConnectionListItem) {
+  if (!item.direct) {
+    return renderValue(item.route, 'fkp_monitoring-page__route');
+  }
+
+  return E(
+    'span',
+    {
+      class:
+        'fkp_monitoring-page__value fkp_monitoring-page__route fkp_monitoring-page__route--direct',
+      title: _('Straight from the router, without a proxy or tunnel'),
+      'data-copy-value': item.route,
+    },
+    item.route,
+  );
+}
+
 function renderAction(item: ConnectionListItem) {
   return E(
     'button',
@@ -136,9 +155,7 @@ function renderRow(item: ConnectionListItem, closable: boolean) {
     [
       renderCell('host', [renderValue(item.host)]),
       renderCell('source', [renderSource(item.sourceName, item.sourceDetail)]),
-      renderCell('route', [
-        renderValue(item.route, 'fkp_monitoring-page__route'),
-      ]),
+      renderCell('route', [renderRoute(item)]),
       renderCell('network', [
         renderValue(item.network, 'fkp_monitoring-page__network'),
       ]),

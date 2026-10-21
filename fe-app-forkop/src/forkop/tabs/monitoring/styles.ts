@@ -244,6 +244,12 @@ when the width runs short. */
     vertical-align: middle;
 }
 
+.fkp_monitoring-page__route--direct {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
+    color: var(--text-color-medium, #bbb);
+}
+
 .fkp_monitoring-page__network {
     color: var(--text-color-medium, #bbb);
     text-transform: lowercase;

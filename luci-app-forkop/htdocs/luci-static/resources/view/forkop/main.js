@@ -9748,6 +9748,20 @@ function renderSource(name, detail) {
     name ? [name, ...detail ? [" ", muted(detail)] : []] : [muted(shown2)]
   );
 }
+function renderRoute(item) {
+  if (!item.direct) {
+    return renderValue(item.route, "fkp_monitoring-page__route");
+  }
+  return textE(
+    "span",
+    {
+      class: "fkp_monitoring-page__value fkp_monitoring-page__route fkp_monitoring-page__route--direct",
+      title: _("Straight from the router, without a proxy or tunnel"),
+      "data-copy-value": item.route
+    },
+    item.route
+  );
+}
 function renderAction(item) {
   return textE(
     "button",
@@ -9775,9 +9789,7 @@ function renderRow(item, closable) {
     [
       renderCell("host", [renderValue(item.host)]),
       renderCell("source", [renderSource(item.sourceName, item.sourceDetail)]),
-      renderCell("route", [
-        renderValue(item.route, "fkp_monitoring-page__route")
-      ]),
+      renderCell("route", [renderRoute(item)]),
       renderCell("network", [
         renderValue(item.network, "fkp_monitoring-page__network")
       ]),
@@ -9951,6 +9963,7 @@ var CONNECTIONS_POLL_DUTY_MAX_MS = 15e3;
 var CONNECTIONS_SOCKET_GRACE_MS = 2e3;
 var CLOSED_CONNECTION_LIMIT = 300;
 var ALL_FILTER_VALUE = "";
+var DIRECT_ROUTE_TAG = "direct-out";
 var monitoringMounted = false;
 var monitoringMountId = 0;
 var monitoringLifecycleRegistered = false;
@@ -9966,9 +9979,9 @@ var selectedDeviceFilter = ALL_FILTER_VALUE;
 var selectedRouteFilter = ALL_FILTER_VALUE;
 var searchQuery = "";
 var localDeviceNames = {};
-var routeDisplayNames = {};
-var routeSections = [];
-var routeOrder = [];
+var routeLabels = {};
+var sectionTags = [];
+var sectionTagsLongestFirst = [];
 var serverInboundTags = /* @__PURE__ */ new Set();
 var serverClientNames = {};
 var filterSignatures = {};
@@ -9989,22 +10002,22 @@ function getDisplayName2(section2) {
   return normalizeString(section2.label) || section2[".name"];
 }
 function buildRouteDisplayNames(sections) {
-  const map = {
-    "direct-out": _("Direct")
+  const labels = {
+    [DIRECT_ROUTE_TAG]: _("Direct")
   };
   const serverTags = /* @__PURE__ */ new Set();
   const openVPNServerTags = {};
   const wireGuardServerTags = {};
   const clientNames = {};
-  const routeSectionItems = [];
+  const routeSectionTags = [];
   sections.filter((section2) => section2[".type"] === "section").filter((section2) => section2.enabled !== "0").forEach((section2) => {
     const sectionName = section2[".name"];
     const displayName = getDisplayName2(section2);
     if (!sectionName || !displayName) {
       return;
     }
-    routeSectionItems.push({ sectionName: displayName, displayName });
-    map[displayName] = displayName;
+    routeSectionTags.push(displayName);
+    labels[displayName] = displayName;
   });
   sections.filter((section2) => section2[".type"] === "server").filter((section2) => section2.enabled !== "0").forEach((section2) => {
     const sectionName = section2[".name"];
@@ -10042,25 +10055,21 @@ function buildRouteDisplayNames(sections) {
       };
     }
   });
-  routeDisplayNames = map;
+  routeLabels = labels;
   serverInboundTags = serverTags;
   serverClientNames = clientNames;
-  routeOrder = routeSectionItems.map(({ displayName }) => displayName);
-  routeSections = routeSectionItems.sort(
-    (a, b) => b.sectionName.length - a.sectionName.length
+  sectionTags = routeSectionTags;
+  sectionTagsLongestFirst = [...routeSectionTags].sort(
+    (a, b) => b.length - a.length
   );
 }
-function getRouteDisplayNameByTag(tag) {
-  if (!tag) {
-    return "";
+function getKnownRouteTag(tag) {
+  if (!tag || routeLabels[tag]) {
+    return tag;
   }
-  if (routeDisplayNames[tag]) {
-    return routeDisplayNames[tag];
-  }
-  const manualSection = routeSections.find(
-    ({ sectionName }) => tag.startsWith(`${sectionName}/`)
-  );
-  return manualSection?.displayName || "";
+  return sectionTagsLongestFirst.find(
+    (sectionTag) => tag.startsWith(`${sectionTag}/`)
+  ) || "";
 }
 function getRouteTagFromRule(rule) {
   const match = normalizeString(rule).match(/=>\s*route\(([^)]+)\)/);
@@ -10110,9 +10119,9 @@ function getTargetCellParts(connection) {
 }
 function getRoute(connection) {
   const chains = Array.isArray(connection.chains) ? connection.chains : [];
-  const routeTag = [...chains].reverse().find(getRouteDisplayNameByTag);
-  const fallbackRouteTag = getRouteTagFromRule(connection.rule);
-  return getRouteDisplayNameByTag(routeTag || "") || getRouteDisplayNameByTag(fallbackRouteTag) || normalizeString(routeTag) || normalizeString(fallbackRouteTag) || "-";
+  const ruleTag = getRouteTagFromRule(connection.rule);
+  const tag = [...chains].reverse().map(getKnownRouteTag).find(Boolean) || getKnownRouteTag(ruleTag) || ruleTag;
+  return tag ? { tag, label: routeLabels[tag] || tag } : null;
 }
 function getNetwork(connection) {
   return normalizeString(connection.metadata?.network).toLowerCase() || "-";
@@ -10138,7 +10147,7 @@ function getSearchValues(connection) {
     connection.id,
     target2.primary,
     getNetwork(connection),
-    getRoute(connection),
+    getRoute(connection)?.label || "",
     formatConnectionDuration(connection),
     formatBytes2(connection.download),
     formatBytes2(connection.upload),
@@ -10149,7 +10158,7 @@ function matchesConnectionFilters(connection, normalizedSearch) {
   if (selectedDeviceFilter !== ALL_FILTER_VALUE && getSource(connection).key !== selectedDeviceFilter) {
     return false;
   }
-  if (selectedRouteFilter !== ALL_FILTER_VALUE && getRoute(connection) !== selectedRouteFilter) {
+  if (selectedRouteFilter !== ALL_FILTER_VALUE && getRoute(connection)?.tag !== selectedRouteFilter) {
     return false;
   }
   if (!normalizedSearch) {
@@ -10249,19 +10258,26 @@ function getKnownSources() {
   return Array.from(sources.values()).sort(compareSources);
 }
 function compareRoutes(a, b) {
-  const rank = (route) => {
-    const index = routeOrder.indexOf(route);
-    return index < 0 ? routeOrder.length : index;
+  const rank = ({ tag }) => {
+    if (tag === DIRECT_ROUTE_TAG) {
+      return -1;
+    }
+    const index = sectionTags.indexOf(tag);
+    return index < 0 ? sectionTags.length : index;
   };
-  return rank(a) - rank(b) || a.localeCompare(b, void 0, { numeric: true });
+  return rank(a) - rank(b) || a.label.localeCompare(b.label, void 0, { numeric: true });
 }
 function getKnownRoutes() {
-  const routes = /* @__PURE__ */ new Set();
+  const routes = /* @__PURE__ */ new Map();
   [activeConnections, closedConnections].forEach(
-    (connections) => connections.forEach((connection) => routes.add(getRoute(connection)))
+    (connections) => connections.forEach((connection) => {
+      const route = getRoute(connection);
+      if (route) {
+        routes.set(route.tag, route);
+      }
+    })
   );
-  routes.delete("-");
-  return Array.from(routes).sort(compareRoutes);
+  return Array.from(routes.values()).sort(compareRoutes);
 }
 function renderFilterOptions(id, allLabel, options, selected) {
   const value = options.some((option2) => option2.value === selected) ? selected : ALL_FILTER_VALUE;
@@ -10295,7 +10311,7 @@ function renderFilters() {
   selectedRouteFilter = renderFilterOptions(
     "monitoring-route-filter",
     _("All routes"),
-    getKnownRoutes().map((route) => ({ value: route, label: route })),
+    getKnownRoutes().map(({ tag, label }) => ({ value: tag, label })),
     selectedRouteFilter
   );
 }
@@ -10355,12 +10371,14 @@ function renderControls() {
 }
 function toListItem(connection) {
   const source = getSource(connection);
+  const route = getRoute(connection);
   return {
     id: connection.id,
     host: getTargetCellParts(connection).primary,
     sourceName: source.name,
     sourceDetail: source.detail,
-    route: getRoute(connection),
+    route: route?.label || "",
+    direct: route?.tag === DIRECT_ROUTE_TAG,
     network: getNetwork(connection),
     time: formatConnectionDuration(connection),
     download: formatBytes2(connection.download),
@@ -11123,6 +11141,12 @@ when the width runs short. */
     font-size: 11px;
     font-weight: 500;
     vertical-align: middle;
+}
+
+.fkp_monitoring-page__route--direct {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
+    color: var(--text-color-medium, #bbb);
 }
 
 .fkp_monitoring-page__network {

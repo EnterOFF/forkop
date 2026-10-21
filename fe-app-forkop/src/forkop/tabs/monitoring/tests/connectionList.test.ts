@@ -59,6 +59,7 @@ const CONNECTION: ConnectionListItem = {
   sourceName: 'POCO-F7',
   sourceDetail: '192.168.1.144',
   route: 'Proxy',
+  direct: false,
   network: 'tcp',
   time: '0:40',
   download: '2.46 KB',
@@ -196,6 +197,34 @@ describe('the Monitoring connection list', () => {
       '192.168.1.101',
       '-',
     ]);
+  });
+
+  it('draws the direct route unlike a section and says what it means', () => {
+    const [section, direct] = withRole(
+      draw(
+        renderConnectionList(
+          [CONNECTION, { ...CONNECTION, route: 'Direct', direct: true }],
+          { closable: true },
+        ),
+      ),
+      'cell',
+    )
+      .filter((cell) =>
+        classes(cell).includes('fkp_monitoring-page__cell--route'),
+      )
+      .map((cell) => draw(cell.children[0]));
+
+    expect(classes(section)).not.toContain(
+      'fkp_monitoring-page__route--direct',
+    );
+    expect(classes(direct)).toContain('fkp_monitoring-page__route--direct');
+    expect([text(direct), direct.attrs['data-copy-value']]).toEqual([
+      'Direct',
+      'Direct',
+    ]);
+    expect(direct.attrs.title).toBe(
+      'Straight from the router, without a proxy or tunnel',
+    );
   });
 
   it('says what it is waiting for in a row of its own', () => {
