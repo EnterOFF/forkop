@@ -79,6 +79,9 @@ define Package/forkop/install
 	$(INSTALL_DIR) $(1)/usr/share/nftables.d/chain-pre/input
 	$(INSTALL_DATA) ./files/usr/share/nftables.d/chain-pre/input/forkop.nft $(1)/usr/share/nftables.d/chain-pre/input/forkop.nft
 
+	$(INSTALL_DIR) $(1)/lib/upgrade/keep.d
+	$(INSTALL_DATA) ./files/lib/upgrade/keep.d/forkop $(1)/lib/upgrade/keep.d/forkop
+
 	sed -i -e 's/__COMPILED_VERSION_VARIABLE__/$(FORKOP_COMPILED_VERSION)/g' $(1)/usr/lib/forkop/core/constants.uc
 endef
 

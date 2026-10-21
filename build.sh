@@ -176,6 +176,7 @@ build_backend_root() {
   make_dir "$output_root/usr/lib/forkop"
   make_dir "$output_root/usr/share/forkop"
   make_dir "$output_root/usr/share/nftables.d/chain-pre/input"
+  make_dir "$output_root/lib/upgrade/keep.d"
 
   install -m 0755 "$ROOT_DIR/forkop/files/etc/init.d/forkop" "$output_root/etc/init.d/forkop"
   install -m 0755 "$ROOT_DIR/forkop/files/etc/init.d/forkop-state" "$output_root/etc/init.d/forkop-state"
@@ -185,6 +186,7 @@ build_backend_root() {
   cp -a "$ROOT_DIR/forkop/files/usr/lib/." "$output_root/usr/lib/forkop/"
   install -m 0644 "$ROOT_DIR/forkop/files/usr/share/nftables.d/chain-pre/input/forkop.nft" \
     "$output_root/usr/share/nftables.d/chain-pre/input/forkop.nft"
+  install -m 0644 "$ROOT_DIR/forkop/files/lib/upgrade/keep.d/forkop" "$output_root/lib/upgrade/keep.d/forkop"
 
   sed -i -e "s/__COMPILED_VERSION_VARIABLE__/${RELEASE_VERSION}/g" \
     "$output_root/usr/lib/forkop/core/constants.uc"

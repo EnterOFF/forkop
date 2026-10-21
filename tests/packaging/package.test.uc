@@ -118,6 +118,12 @@ t.test("both packagers install the reset configuration and the fw4 include", () 
     t.contains(BUILD_SH, "\"$output_root/usr/share/nftables.d/chain-pre/input/forkop.nft\"");
 });
 
+t.test("a sysupgrade keeps the Tailscale identities, which no UCI option holds", () => {
+    t.eq(fs.readfile(repo.path("forkop/files/lib/upgrade/keep.d/forkop")), "/etc/forkop/\n");
+    t.contains(MAKEFILE, "./files/lib/upgrade/keep.d/forkop $(1)/lib/upgrade/keep.d/forkop");
+    t.contains(BUILD_SH, "\"$output_root/lib/upgrade/keep.d/forkop\"");
+});
+
 t.test("both packagers stamp the release into the files that carry the placeholder", () => {
     t.eq(constants.FORKOP_VERSION, "__COMPILED_VERSION_VARIABLE__");
     t.contains(MAKEFILE, "s/__COMPILED_VERSION_VARIABLE__/$(FORKOP_COMPILED_VERSION)/g' $(1)/usr/lib/forkop/core/constants.uc");
