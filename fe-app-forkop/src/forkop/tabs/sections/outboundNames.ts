@@ -23,7 +23,15 @@ import { optionMapValue } from './subscriptions/model';
 import { tunnelDisplayName } from './tunnels/model';
 import { getClashApiProxyProviders } from '../../methods/custom/clashApi';
 
-let providerServerNames: Map<string, string[]> | null = null;
+interface ProviderServerNames {
+  imported: string[];
+  // What the subscription's own filter chooses from, those it drops included.
+  filterCandidates: string[];
+}
+
+type ProviderServerNameKind = keyof ProviderServerNames;
+
+let providerServerNames: Map<string, ProviderServerNames> | null = null;
 let providerServerNamesAt = 0;
 let providerServerNamesInflight: Promise<void> | null = null;
 
@@ -42,11 +50,11 @@ const liveChoiceRefreshers = new Map<string, Set<() => boolean | void>>();
 
 // The groups the core builds out of a subscription are no servers of it.
 export function providerServerNameMap(value: unknown) {
-  const result = new Map<string, string[]>();
+  const result = new Map<string, ProviderServerNames>();
 
   Object.entries(plainObject(plainObject(value).providers)).forEach(
     ([providerTag, provider]) => {
-      const proxies = plainObject(provider).proxies;
+      const { proxies, filterCandidates } = plainObject(provider);
       const runtimePrefix = `${providerTag}/`;
       const names: string[] = [];
 
@@ -65,7 +73,15 @@ export function providerServerNameMap(value: unknown) {
           names.push(name);
         }
       });
-      result.set(providerTag, names);
+      result.set(providerTag, {
+        imported: names,
+        filterCandidates: (Array.isArray(filterCandidates)
+          ? filterCandidates
+          : []
+        )
+          .map((name) => `${name || ''}`.trim())
+          .filter(Boolean),
+      });
     },
   );
 
@@ -81,9 +97,9 @@ export function loadProviderServerNames(): Promise<void> {
     .then((response) =>
       response.success
         ? providerServerNameMap(response.data)
-        : new Map<string, string[]>(),
+        : new Map<string, ProviderServerNames>(),
     )
-    .catch(() => new Map<string, string[]>())
+    .catch(() => new Map<string, ProviderServerNames>())
     .then((names) => {
       providerServerNames = names;
       providerServerNamesAt = Date.now();
@@ -111,19 +127,25 @@ function subscriptionProviderTag(section_id: string, itemId: string) {
   return tag ? `${label}/${tag}` : '';
 }
 
-function subscriptionServerNames(section_id: string, itemIds: string[]) {
+function subscriptionServerNames(
+  section_id: string,
+  itemIds: string[],
+  kind: ProviderServerNameKind,
+) {
   const providerTags = itemIds
     .map((itemId) => subscriptionProviderTag(section_id, itemId))
     .filter(Boolean);
 
   if (
-    providerTags.some((tag) => !providerServerNames?.get(tag)?.length) &&
+    providerTags.some((tag) => !providerServerNames?.get(tag)?.[kind].length) &&
     Date.now() - providerServerNamesAt >= PROVIDER_SERVER_NAMES_RETRY_MS
   ) {
     void loadProviderServerNames();
   }
 
-  return providerTags.flatMap((tag) => providerServerNames?.get(tag) || []);
+  return providerTags.flatMap(
+    (tag) => providerServerNames?.get(tag)?.[kind] || [],
+  );
 }
 
 export function configureLiveDynamicListChoices(
@@ -220,6 +242,7 @@ export function currentOutboundNameChoices(section_id: string) {
     ...subscriptionServerNames(
       section_id,
       currentSourceOptionValues(section_id, 'subscription_url'),
+      'imported',
     ),
   ]);
 }
@@ -228,7 +251,9 @@ export function currentSubscriptionOutboundNameChoices(
   section_id: string,
   itemId: string,
 ) {
-  return outboundNameChoiceItems(subscriptionServerNames(section_id, [itemId]));
+  return outboundNameChoiceItems(
+    subscriptionServerNames(section_id, [itemId], 'filterCandidates'),
+  );
 }
 
 function currentSourceOptionValues(section_id: string, optionName: string) {

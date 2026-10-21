@@ -50,6 +50,8 @@ export namespace ClashAPI {
       refillDate?: number;
       fileName?: string;
     };
+    // Every server the provider's name filters chose from, without the provider prefix.
+    filterCandidates: string[];
   }
 
   export interface ProxyProviders {

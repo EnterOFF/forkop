@@ -17703,7 +17703,7 @@ function providerServerNameMap(value) {
   const result = /* @__PURE__ */ new Map();
   Object.entries(plainObject(plainObject(value).providers)).forEach(
     ([providerTag, provider]) => {
-      const proxies = plainObject(provider).proxies;
+      const { proxies, filterCandidates } = plainObject(provider);
       const runtimePrefix = `${providerTag}/`;
       const names = [];
       (Array.isArray(proxies) ? proxies : []).forEach((proxy) => {
@@ -17720,7 +17720,10 @@ function providerServerNameMap(value) {
           names.push(name);
         }
       });
-      result.set(providerTag, names);
+      result.set(providerTag, {
+        imported: names,
+        filterCandidates: (Array.isArray(filterCandidates) ? filterCandidates : []).map((name) => `${name || ""}`.trim()).filter(Boolean)
+      });
     }
   );
   return result;
@@ -17749,12 +17752,14 @@ function subscriptionProviderTag(section_id, itemId) {
   const label = `${loaded[section_id]?.label || section_id}`.trim();
   return tag ? `${label}/${tag}` : "";
 }
-function subscriptionServerNames(section_id, itemIds) {
+function subscriptionServerNames(section_id, itemIds, kind) {
   const providerTags = itemIds.map((itemId) => subscriptionProviderTag(section_id, itemId)).filter(Boolean);
-  if (providerTags.some((tag) => !providerServerNames?.get(tag)?.length) && Date.now() - providerServerNamesAt >= PROVIDER_SERVER_NAMES_RETRY_MS) {
+  if (providerTags.some((tag) => !providerServerNames?.get(tag)?.[kind].length) && Date.now() - providerServerNamesAt >= PROVIDER_SERVER_NAMES_RETRY_MS) {
     void loadProviderServerNames();
   }
-  return providerTags.flatMap((tag) => providerServerNames?.get(tag) || []);
+  return providerTags.flatMap(
+    (tag) => providerServerNames?.get(tag)?.[kind] || []
+  );
 }
 function configureLiveDynamicListChoices(option2, getChoices, getRefreshSectionId = (section_id) => section_id) {
   option2.renderWidget = function(section_id, _option_index, cfgvalue) {
@@ -17830,12 +17835,15 @@ function currentOutboundNameChoices(section_id) {
     ...currentDraftOutboundNames(section_id),
     ...subscriptionServerNames(
       section_id,
-      currentSourceOptionValues(section_id, "subscription_url")
+      currentSourceOptionValues(section_id, "subscription_url"),
+      "imported"
     )
   ]);
 }
 function currentSubscriptionOutboundNameChoices(section_id, itemId) {
-  return outboundNameChoiceItems(subscriptionServerNames(section_id, [itemId]));
+  return outboundNameChoiceItems(
+    subscriptionServerNames(section_id, [itemId], "filterCandidates")
+  );
 }
 function currentSourceOptionValues(section_id, optionName) {
   const liveValues = currentLiveDynamicListValues(section_id, optionName);

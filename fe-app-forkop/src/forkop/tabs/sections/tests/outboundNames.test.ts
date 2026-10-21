@@ -29,12 +29,14 @@ const PAYLOAD = {
         { name: 'Main/sub1/Amsterdam', type: 'AnyTLS' },
         { name: 'Main/sub1/Auto', type: 'URLTest' },
       ],
+      filterCandidates: ['Zurich', 'Amsterdam'],
     },
     'Main/sub2': {
       proxies: [
         { name: 'Main/sub2/Berlin', type: 'VLESS' },
         { name: 'Main/sub2/Hop', type: 'VLESS' },
       ],
+      filterCandidates: ['Berlin', 'Oslo', 'Hop'],
     },
     'Other/sub1': {
       proxies: [{ name: 'Other/sub1/Tokyo', type: 'VLESS' }],
@@ -64,16 +66,16 @@ afterEach(() => {
 
 describe('providerServerNameMap', () => {
   it("keeps each provider's servers in its own order, without their prefix", () => {
-    expect(providerServerNameMap(PAYLOAD).get('Main/sub1')).toEqual([
+    expect(providerServerNameMap(PAYLOAD).get('Main/sub1')?.imported).toEqual([
       'Zurich',
       'Amsterdam',
     ]);
   });
 
   it('leaves the groups the core built out of them alone', () => {
-    expect(providerServerNameMap(PAYLOAD).get('Main/sub1')).not.toContain(
-      'Auto',
-    );
+    expect(
+      providerServerNameMap(PAYLOAD).get('Main/sub1')?.imported,
+    ).not.toContain('Auto');
   });
 });
 
@@ -162,13 +164,13 @@ describe('the server choices of a section', () => {
     );
   });
 
-  it('of a subscription are its own servers alone', async () => {
+  it('of a subscription are every server its filter chooses from, those it drops included', async () => {
     section(['first', 'second']);
     await loadProviderServerNames();
 
     expect(
       choiceValues(currentSubscriptionOutboundNameChoices('main', 'second')),
-    ).toEqual(['Berlin', 'Hop']);
+    ).toEqual(['Berlin', 'Oslo', 'Hop']);
   });
 
   it('keep the servers of a subscription renamed in the open dialog', async () => {
