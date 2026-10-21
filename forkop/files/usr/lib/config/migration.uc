@@ -1317,7 +1317,8 @@ function migrate_shadowsocks_server_keys(ctx) {
     }
 }
 
-// Options the dialog no longer asks for; each had a working core default or belonged to MTProto.
+// Options the dialog no longer asks for; each had a working core default, belonged to MTProto
+// or, like a Tailscale server's accepted routes, changed nothing Forkop routes.
 const REMOVED_SERVER_OPTIONS = [
     "mtproto_faketls",
     "mtproto_padding",
@@ -1332,7 +1333,8 @@ const REMOVED_SERVER_OPTIONS = [
     "mtproto_idle_timeout",
     "mtproto_handshake_timeout",
     "reality_max_time_difference",
-    "tailscale_advertise_exit_node"
+    "tailscale_advertise_exit_node",
+    "tailscale_accept_routes"
 ];
 
 function remove_expert_server_options(ctx) {

@@ -184,7 +184,10 @@ const FULL_1_0_2 = {
         { ".name": "vmess", ".type": "server", label: "VMess", protocol: "vmess", server_uuid: "66666666-6666-4666-8666-666666666666", vmess_alter_id: "0" },
         { ".name": "trojan", ".type": "server", label: "Trojan", protocol: "trojan", server_password: "trojan-secret" },
         { ".name": "hysteria2", ".type": "server", label: "Hysteria2", protocol: "hysteria2", server_password: "hysteria-secret" },
-        { ".name": "tailscale", ".type": "server", label: "Tailscale", protocol: "tailscale", tailscale_advertise_exit_node: "0" }
+        {
+            ".name": "tailscale", ".type": "server", label: "Tailscale", protocol: "tailscale",
+            tailscale_advertise_exit_node: "0", tailscale_accept_routes: "1"
+        }
     ]
 };
 
@@ -416,7 +419,7 @@ t.test("released server credentials move into typed clients", () => {
     t.eq([ legacy.name, legacy.uuid, legacy.flow ], [ "phone", "55555555-5555-4555-8555-555555555555", "xtls-rprx-vision" ]);
     t.eq(only_client("vmess").uuid, "66666666-6666-4666-8666-666666666666");
     t.eq([ only_client("trojan").password, only_client("hysteria2").password ], [ "trojan-secret", "hysteria-secret" ]);
-    absent(server.tailscale, [ "tailscale_advertise_exit_node" ]);
+    absent(server.tailscale, [ "tailscale_advertise_exit_node", "tailscale_accept_routes" ]);
     for (let item in config.server)
         absent(item, RETIRED_SERVER_OPTIONS);
 });

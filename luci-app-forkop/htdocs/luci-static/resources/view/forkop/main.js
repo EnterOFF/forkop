@@ -25749,11 +25749,6 @@ function addTailscaleOptions(section2) {
   o.rmempty = true;
   o.validate = validateOptionalCidrOrIp;
   onTailscale(o);
-  o = section2.option(form.Flag, "tailscale_accept_routes", _("Accept routes"));
-  o.default = "0";
-  o.rmempty = true;
-  o.modalonly = true;
-  onTailscale(o);
   o = section2.option(
     form.Flag,
     "tailscale_ephemeral",

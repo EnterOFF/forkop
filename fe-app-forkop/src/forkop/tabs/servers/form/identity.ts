@@ -163,12 +163,6 @@ export function addTailscaleOptions(section: CBISection) {
   o.validate = validateOptionalCidrOrIp;
   onTailscale(o);
 
-  o = section.option(form.Flag, 'tailscale_accept_routes', _('Accept routes'));
-  o.default = '0';
-  o.rmempty = true;
-  o.modalonly = true;
-  onTailscale(o);
-
   o = section.option(
     form.Flag,
     'tailscale_ephemeral',

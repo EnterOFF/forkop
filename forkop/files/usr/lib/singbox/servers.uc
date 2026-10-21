@@ -379,8 +379,6 @@ function add_tailscale_endpoint(config, section, tag_name) {
         if (detour_section != "")
             endpoint.detour = runtime_constants.outbound_tag(connections.section_display_name(detour_section));
     }
-    if (bool_option(section, "tailscale_accept_routes", false))
-        endpoint.accept_routes = true;
     if (bool_option(section, "tailscale_ephemeral", false))
         endpoint.ephemeral = true;
     // sing-box reads each as a prefix, and the dialog takes a single address too.
