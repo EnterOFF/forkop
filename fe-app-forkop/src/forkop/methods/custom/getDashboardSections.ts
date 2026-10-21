@@ -705,16 +705,12 @@ function buildUrlTestInfo({
   config,
   entry,
   proxyByCode,
-  manualLinkByCode,
-  exportableProviderTags,
   sectionDisplayName,
   subscriptionTags,
 }: {
   config: UrlTestConfig;
   entry?: ClashProxyEntry;
   proxyByCode: Map<string, ClashProxyEntry>;
-  manualLinkByCode: Map<string, string>;
-  exportableProviderTags: string[];
   sectionDisplayName: string;
   subscriptionTags: SubscriptionTagConfig[];
 }): Forkop.UrlTestInfo {
@@ -723,14 +719,6 @@ function buildUrlTestInfo({
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link = manualLinkByCode.get(childCode) || '';
-      const canCopyLink =
-        isCopyableProxyLink(link) ||
-        canExportProviderProxyLink(
-          childCode,
-          childEntry?.value?.type || '',
-          exportableProviderTags,
-        );
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
@@ -744,8 +732,6 @@ function buildUrlTestInfo({
           latency: childEntry?.value?.history?.[0]?.delay || 0,
           type: getOutboundDisplayType(childEntry),
           selected: selectedCode === childCode,
-          link,
-          canCopyLink,
         },
       ];
     }),
@@ -773,16 +759,12 @@ function buildFallbackInfo({
   config,
   entry,
   proxyByCode,
-  manualLinkByCode,
-  exportableProviderTags,
   sectionDisplayName,
   subscriptionTags,
 }: {
   config: FallbackConfig;
   entry?: ClashProxyEntry;
   proxyByCode: Map<string, ClashProxyEntry>;
-  manualLinkByCode: Map<string, string>;
-  exportableProviderTags: string[];
   sectionDisplayName: string;
   subscriptionTags: SubscriptionTagConfig[];
 }): Forkop.FallbackInfo {
@@ -814,14 +796,6 @@ function buildFallbackInfo({
   const outbounds = levels.flatMap((level, levelIndex) => {
     const members = uniqueCodes(level.outbounds || []).map((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link = manualLinkByCode.get(childCode) || '';
-      const canCopyLink =
-        isCopyableProxyLink(link) ||
-        canExportProviderProxyLink(
-          childCode,
-          childEntry?.value?.type || '',
-          exportableProviderTags,
-        );
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
@@ -835,8 +809,6 @@ function buildFallbackInfo({
         type: getOutboundDisplayType(childEntry),
         selected: selectedCode === childCode,
         pinned: pinnedCode === childCode,
-        link,
-        canCopyLink,
         levelIndex,
         levelName: level.displayName,
         levelId: level.id,
@@ -927,8 +899,6 @@ function buildProxyGroupOutbounds(
           config: effectiveUrlTestConfig,
           entry: item,
           proxyByCode,
-          manualLinkByCode,
-          exportableProviderTags,
           sectionDisplayName,
           subscriptionTags,
         })
@@ -938,8 +908,6 @@ function buildProxyGroupOutbounds(
           config: fallbackConfig,
           entry: item,
           proxyByCode,
-          manualLinkByCode,
-          exportableProviderTags,
           sectionDisplayName,
           subscriptionTags,
         })

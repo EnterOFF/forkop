@@ -104,8 +104,6 @@ export namespace Forkop {
     latency: number;
     type: string;
     selected: boolean;
-    link?: string;
-    canCopyLink?: boolean;
     subscriptionTag?: string;
   }
 

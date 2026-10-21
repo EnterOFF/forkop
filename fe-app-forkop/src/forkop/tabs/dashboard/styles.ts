@@ -782,12 +782,13 @@ dropdown does; it carries the section's own outline and header band. */
     scrollbar-gutter: auto;
 }
 
-/* The action keeps its own column, so it stays on the row's first line however the name wraps. */
+/* Name and latency side by side while both fit, stacked when they do not; each row decides by
+its own name's length. */
 .fkp_dashboard-page__urltest-details__row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 20px;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    column-gap: 8px;
     width: 100%;
     min-width: 0;
     padding: 7px 8px;
@@ -834,16 +835,6 @@ dropdown does; it carries the section's own outline and header band. */
     color: var(--text-color-medium, #666);
     font-size: 12px;
     line-height: 1.35;
-}
-
-/* Name and latency side by side while both fit, stacked when they do not; each row decides by
-its own name's length. */
-.fkp_dashboard-page__urltest-details__row-body {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    column-gap: 8px;
-    min-width: 0;
 }
 
 .fkp_dashboard-page__urltest-details__row-name,
@@ -916,30 +907,6 @@ its own name's length. */
 .fkp_dashboard-page__urltest-details__row-meta {
     justify-content: flex-end;
     white-space: nowrap;
-}
-
-.fkp_dashboard-page__urltest-details__copy-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 20px;
-    width: 20px;
-    min-width: 20px;
-    height: 20px;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-.fkp_dashboard-page__urltest-details__copy-button svg {
-    width: 12px;
-    height: 12px;
-}
-
-.fkp_dashboard-page__urltest-details__copy-placeholder {
-    display: block;
-    width: 20px;
-    min-width: 20px;
-    height: 1px;
 }
 
 .fkp_dashboard-page__urltest-details__empty {

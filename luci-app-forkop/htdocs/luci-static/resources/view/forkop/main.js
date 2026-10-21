@@ -3147,8 +3147,6 @@ function buildUrlTestInfo({
   config,
   entry,
   proxyByCode,
-  manualLinkByCode,
-  exportableProviderTags,
   sectionDisplayName,
   subscriptionTags
 }) {
@@ -3157,12 +3155,6 @@ function buildUrlTestInfo({
   const outbounds = sortUrlTestMembers(
     childCodes.flatMap((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link = manualLinkByCode.get(childCode) || "";
-      const canCopyLink = isCopyableProxyLink(link) || canExportProviderProxyLink(
-        childCode,
-        childEntry?.value?.type || "",
-        exportableProviderTags
-      );
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
@@ -3174,9 +3166,7 @@ function buildUrlTestInfo({
           ...presentation,
           latency: childEntry?.value?.history?.[0]?.delay || 0,
           type: getOutboundDisplayType(childEntry),
-          selected: selectedCode === childCode,
-          link,
-          canCopyLink
+          selected: selectedCode === childCode
         }
       ];
     })
@@ -3200,8 +3190,6 @@ function buildFallbackInfo({
   config,
   entry,
   proxyByCode,
-  manualLinkByCode,
-  exportableProviderTags,
   sectionDisplayName,
   subscriptionTags
 }) {
@@ -3223,12 +3211,6 @@ function buildFallbackInfo({
   const outbounds = levels.flatMap((level, levelIndex) => {
     const members = uniqueCodes(level.outbounds || []).map((childCode) => {
       const childEntry = proxyByCode.get(childCode);
-      const link = manualLinkByCode.get(childCode) || "";
-      const canCopyLink = isCopyableProxyLink(link) || canExportProviderProxyLink(
-        childCode,
-        childEntry?.value?.type || "",
-        exportableProviderTags
-      );
       const presentation = getOutboundPresentation(
         childCode,
         sectionDisplayName,
@@ -3241,8 +3223,6 @@ function buildFallbackInfo({
         type: getOutboundDisplayType(childEntry),
         selected: selectedCode === childCode,
         pinned: pinnedCode === childCode,
-        link,
-        canCopyLink,
         levelIndex,
         levelName: level.displayName,
         levelId: level.id
@@ -3310,8 +3290,6 @@ function buildProxyGroupOutbounds(section2, proxies, subscriptionTags) {
       config: effectiveUrlTestConfig,
       entry: item,
       proxyByCode,
-      manualLinkByCode,
-      exportableProviderTags,
       sectionDisplayName,
       subscriptionTags
     }) : void 0;
@@ -3319,8 +3297,6 @@ function buildProxyGroupOutbounds(section2, proxies, subscriptionTags) {
       config: fallbackConfig,
       entry: item,
       proxyByCode,
-      manualLinkByCode,
-      exportableProviderTags,
       sectionDisplayName,
       subscriptionTags
     }) : void 0;
@@ -5806,19 +5782,6 @@ function renderUrlTestSelectedValue(info) {
     ]
   );
 }
-function renderUrlTestCopyButton(title, onClick) {
-  return textE(
-    "button",
-    {
-      type: "button",
-      class: "btn fkp_dashboard-page__urltest-details__copy-button",
-      title,
-      "aria-label": title,
-      click: onClick
-    },
-    renderCopyIcon24()
-  );
-}
 function renderUrlTestInfoModal(info) {
   if (!info) {
     return [textE("div", {}, _("URLTest details are unavailable"))];
@@ -5875,52 +5838,33 @@ function renderUrlTestInfoModal(info) {
               ].filter(Boolean).join(" ")
             },
             [
-              // Name and latency share one cell, so they wrap against each other and the copy action stays put.
               textE(
                 "div",
-                {
-                  class: "fkp_dashboard-page__urltest-details__row-body"
-                },
+                { class: "fkp_dashboard-page__urltest-details__row-name" },
                 [
-                  textE(
-                    "div",
-                    {
-                      class: "fkp_dashboard-page__urltest-details__row-name"
-                    },
-                    [
-                      textE("b", {}, renderDetailsMemberName(member)),
-                      ...member.type ? [
-                        textE(
-                          "span",
-                          {
-                            class: "fkp_dashboard-page__urltest-details__row-type"
-                          },
-                          member.type
-                        )
-                      ] : []
-                    ]
-                  ),
-                  textE(
-                    "div",
-                    {
-                      class: "fkp_dashboard-page__urltest-details__row-meta"
-                    },
-                    [
-                      textE(
-                        "span",
-                        { class: latencyClassName(member.latency) },
-                        formatUrlTestLatency(member.latency)
-                      )
-                    ]
-                  )
+                  textE("b", {}, renderDetailsMemberName(member)),
+                  ...member.type ? [
+                    textE(
+                      "span",
+                      {
+                        class: "fkp_dashboard-page__urltest-details__row-type"
+                      },
+                      member.type
+                    )
+                  ] : []
                 ]
               ),
-              member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
-                event.preventDefault();
-                void handleCopyOutbound(member);
-              }) : textE("span", {
-                class: "fkp_dashboard-page__urltest-details__copy-placeholder"
-              })
+              textE(
+                "div",
+                { class: "fkp_dashboard-page__urltest-details__row-meta" },
+                [
+                  textE(
+                    "span",
+                    { class: latencyClassName(member.latency) },
+                    formatUrlTestLatency(member.latency)
+                  )
+                ]
+              )
             ]
           )
         ) : [
@@ -6071,47 +6015,37 @@ function renderFallbackMemberRow(info, member, showLevel) {
       }
     },
     [
-      // One cell for the name and its latency, as in a URLTest row.
-      textE("div", { class: "fkp_dashboard-page__urltest-details__row-body" }, [
-        textE("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
-          textE(
-            "b",
-            { class: "fkp_dashboard-page__urltest-details__fallback-name" },
-            renderFallbackMemberName(member, showLevel)
-          ),
-          ...member.type ? [
-            textE(
-              "span",
-              { class: "fkp_dashboard-page__urltest-details__row-type" },
-              member.type
-            )
-          ] : [],
-          ...member.pinned ? [
-            textE(
-              "span",
-              {
-                class: "fkp_dashboard-page__urltest-details__row-pin",
-                "aria-hidden": "true"
-              },
-              renderPinIcon24()
-            )
-          ] : []
-        ]),
-        textE("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
+      textE("div", { class: "fkp_dashboard-page__urltest-details__row-name" }, [
+        textE(
+          "b",
+          { class: "fkp_dashboard-page__urltest-details__fallback-name" },
+          renderFallbackMemberName(member, showLevel)
+        ),
+        ...member.type ? [
           textE(
             "span",
-            { class: latencyClassName(member.latency) },
-            formatUrlTestLatency(member.latency)
+            { class: "fkp_dashboard-page__urltest-details__row-type" },
+            member.type
           )
-        ])
+        ] : [],
+        ...member.pinned ? [
+          textE(
+            "span",
+            {
+              class: "fkp_dashboard-page__urltest-details__row-pin",
+              "aria-hidden": "true"
+            },
+            renderPinIcon24()
+          )
+        ] : []
       ]),
-      member.canCopyLink ? renderUrlTestCopyButton(_("Copy proxy link"), (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        void handleCopyOutbound(member);
-      }) : textE("span", {
-        class: "fkp_dashboard-page__urltest-details__copy-placeholder"
-      })
+      textE("div", { class: "fkp_dashboard-page__urltest-details__row-meta" }, [
+        textE(
+          "span",
+          { class: latencyClassName(member.latency) },
+          formatUrlTestLatency(member.latency)
+        )
+      ])
     ]
   );
 }
@@ -7399,12 +7333,13 @@ dropdown does; it carries the section's own outline and header band. */
     scrollbar-gutter: auto;
 }
 
-/* The action keeps its own column, so it stays on the row's first line however the name wraps. */
+/* Name and latency side by side while both fit, stacked when they do not; each row decides by
+its own name's length. */
 .fkp_dashboard-page__urltest-details__row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 20px;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
+    column-gap: 8px;
     width: 100%;
     min-width: 0;
     padding: 7px 8px;
@@ -7451,16 +7386,6 @@ dropdown does; it carries the section's own outline and header band. */
     color: var(--text-color-medium, #666);
     font-size: 12px;
     line-height: 1.35;
-}
-
-/* Name and latency side by side while both fit, stacked when they do not; each row decides by
-its own name's length. */
-.fkp_dashboard-page__urltest-details__row-body {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    column-gap: 8px;
-    min-width: 0;
 }
 
 .fkp_dashboard-page__urltest-details__row-name,
@@ -7533,30 +7458,6 @@ its own name's length. */
 .fkp_dashboard-page__urltest-details__row-meta {
     justify-content: flex-end;
     white-space: nowrap;
-}
-
-.fkp_dashboard-page__urltest-details__copy-button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 20px;
-    width: 20px;
-    min-width: 20px;
-    height: 20px;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-.fkp_dashboard-page__urltest-details__copy-button svg {
-    width: 12px;
-    height: 12px;
-}
-
-.fkp_dashboard-page__urltest-details__copy-placeholder {
-    display: block;
-    width: 20px;
-    min-width: 20px;
-    height: 1px;
 }
 
 .fkp_dashboard-page__urltest-details__empty {
