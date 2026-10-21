@@ -467,28 +467,6 @@ function add_wireguard_endpoint(config, section, protocol, tag_name) {
     push(config.endpoints, endpoint);
 }
 
-function add_dns_bypass(config, section) {
-    if (option(section, "protocol", "vless") != "tailscale")
-        return;
-
-    let section_name = section[".name"];
-    let inbound = runtime_constants.server_inbound_tag(connections.server_display_name(section));
-    let dns_tag = runtime_constants.tailscale_dns_server_tag(section_name);
-    let rule_tag = "tailscale-server-dns-" + safe_filename(section_name);
-    push(config.dns.servers, {
-        type: "tailscale",
-        tag: dns_tag,
-        endpoint: inbound,
-        accept_default_resolvers: true
-    });
-    push(config.dns.rules, {
-        action: "route",
-        server: dns_tag,
-        inbound,
-        __service_tag: rule_tag
-    });
-}
-
 function add_server(config, section) {
     let section_name = section[".name"];
     let protocol = option(section, "protocol", "vless");
@@ -504,7 +482,6 @@ function add_server(config, section) {
         add_json_inbound(config, section, tag_name);
     else
         add_standard_inbound(config, section, protocol, tag_name);
-    add_dns_bypass(config, section);
 }
 
 // The user the core reports (the account name; for OpenVPN the certificate's common name, its
@@ -529,9 +506,6 @@ function is_endpoint(protocol) {
 }
 
 function add_sniff_rule(config, section) {
-    if (option(section, "protocol", "vless") == "tailscale")
-        return;
-
     let rules = array_or_empty(config.route.rules);
     let rule = {
         action: "sniff",

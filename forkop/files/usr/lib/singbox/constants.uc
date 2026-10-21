@@ -136,10 +136,6 @@ function server_inbound_tag(display_name) {
     return as_string(display_name);
 }
 
-function tailscale_dns_server_tag(section_name) {
-    return tag("server-" + as_string(section_name), "tailscale-dns");
-}
-
 return {
     DNS_SERVER_TAG,
     FAKEIP_DNS_SERVER_TAG,
@@ -185,6 +181,5 @@ return {
     outbound_tag,
     child_tag,
     domain_resolver_tag,
-    server_inbound_tag,
-    tailscale_dns_server_tag
+    server_inbound_tag
 };

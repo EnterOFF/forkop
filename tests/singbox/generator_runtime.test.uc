@@ -255,7 +255,11 @@ t.test("server inbounds carry their protocol options and their clients", () => {
     t.eq(tailnet.detour, "proxy");
     t.eq(tailnet.advertise_exit_node, true);
     t.eq(server.route.auto_detect_interface, false, "a direct Tailscale server does not pin LAN routes to the WAN");
-    t.eq(q.route_rule(server, (r) => r.action == "sniff" && r.inbound == "tailnet"), null, "the Tailscale endpoint is not sniffed");
+    t.ok(q.route_rule(server, (r) => r.action == "sniff" && r.inbound == "tailnet") != null,
+        "the Tailscale endpoint is sniffed, so the shared rules see the domain of a peer's flow to an address");
+    t.eq(q.dns_server(server, (s) => s.type == "tailscale"), null,
+        "a peer using the router as its exit node resolves through the shared DNS rules, not the tailnet's resolvers");
+    t.eq(q.dns_rule(server, (r) => has(r.inbound, "tailnet")), null);
 
     let open = q.inbound(server, "open");
     t.eq([ open.type, open.listen_port, open.users ], [ "mixed", 18081, null ], "disabled mixed authentication omits users");
