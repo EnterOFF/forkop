@@ -72,6 +72,8 @@ t.test("a released server's credentials become a client committed through core.u
     t.eq(length(clients), 1);
     t.eq([ clients[0].server, clients[0].uuid ], [ "inbound", "44444444-4444-4444-8444-444444444444" ]);
     t.contains(fs.readfile(run.config_path + ".migration-backup.1.0.5"), "config_version");
+    t.contains(run.commands, "rm -rf /etc/forkop/server-certs/",
+        "the certificates the released page wrote for servers go once the migration is committed");
 });
 
 t.test("a file the UCI parser refuses stops the migration with the parser's own position", () => {

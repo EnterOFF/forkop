@@ -476,6 +476,8 @@ t.test("a released certificate path becomes the user's own certificate, and Fork
     t.eq([ out.reality.tls_certificate_source, out.reality.tls_self_signed_key ], [ null, null ], "a Reality server gets none");
     for (let name, item in out)
         absent(item, [ "tls_certificate_path", "tls_key_path" ], name);
+    t.eq([ run.out.removed_after_commit, index(run.out.removed_caches, dir) ], [ [ dir ], -1 ],
+        "the released directory goes only once the certificates it held are committed");
 
     let again = migrate({ ...run.out.config, settings: settings("1.0.5") }, null, module);
     t.eq(filter(again.out.operations, (op) => op.section != "settings"), [], "a second run changes no server");

@@ -195,6 +195,7 @@ function migration_context(model) {
         model,
         operations: [],
         removed_caches: [],
+        removed_after_commit: [],
         removed_cron_markers: [],
         warnings: [],
         added_lists: {},
@@ -1403,6 +1404,8 @@ function migrate_server_certificates(ctx) {
         delete_option(ctx, server, "tls_certificate_path");
         delete_option(ctx, server, "tls_key_path");
     }
+    // The issued ones now live in the servers' options, so their files go once those are committed.
+    push(ctx.removed_after_commit, RELEASED_CERTIFICATE_DIR);
 }
 
 // A link carries one host, so the first of the released list becomes the host.
@@ -2484,6 +2487,9 @@ function migrate_runtime(source) {
         report_migration_error("could not commit migrated UCI package '" + CONFIG_NAME + "'");
         return false;
     }
+    for (let path in ctx.removed_after_commit)
+        if (!remove_cache_path(path))
+            warn("[warning] could not remove obsolete " + path + "\n");
     return true;
 }
 
@@ -2506,6 +2512,7 @@ function migrate_fixture(path, source) {
         config: ctx.reset ? null : export_model(ctx.model),
         operations: ctx.operations,
         removed_caches: ctx.removed_caches,
+        removed_after_commit: ctx.removed_after_commit,
         removed_cron_markers: ctx.removed_cron_markers,
         warnings: ctx.warnings,
         restore_dnsmasq: ctx.restore_dnsmasq === true
