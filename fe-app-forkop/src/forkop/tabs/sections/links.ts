@@ -10,7 +10,7 @@ import { E } from '../../../helpers/element';
 import { addCascadeOptions } from './cascade';
 import { validateConnectionUriCore } from './coreSupport';
 import {
-  refreshDashboardFilterChoiceWidgets,
+  refreshLiveChoiceWidgets,
   sectionChildNames,
   validateSectionChildListName,
 } from './outboundNames';
@@ -131,7 +131,7 @@ export function showConnectionLinkSettingsModal(
       settings: ChildSettings,
     ) => {
       updateDynamicListItemLabel(itemNode, `${settings.name || ''}`.trim());
-      refreshDashboardFilterChoiceWidgets(sectionId);
+      refreshLiveChoiceWidgets(sectionId);
     },
   });
 }

@@ -16,7 +16,7 @@ import { SettingsDynamicList } from '../../cbi/dynamicList';
 import { showChildItemSettingsModal } from '../../cbi/modal';
 import { CONNECTIONS_BLOCKED_INTERFACES } from './constants';
 import {
-  refreshDashboardFilterChoiceWidgets,
+  refreshLiveChoiceWidgets,
   validateSectionChildName,
 } from './outboundNames';
 import { refreshDnsDetourSectionOptionValues } from './references';
@@ -264,6 +264,6 @@ export function showInterfaceSettingsModal(
       name
         ? _('Network interface: %s').format(name)
         : _('Network interface settings'),
-    afterSave: () => refreshDashboardFilterChoiceWidgets(_section_id),
+    afterSave: () => refreshLiveChoiceWidgets(_section_id),
   });
 }

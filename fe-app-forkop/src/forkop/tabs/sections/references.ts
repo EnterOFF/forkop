@@ -142,10 +142,6 @@ export function dependsOnRuleConditions(option: CBIOption) {
   return option;
 }
 
-export function safeRuntimeSectionName(section_id: string) {
-  return /^[A-Za-z0-9_-]+$/.test(`${section_id || ''}`);
-}
-
 export function subscriptionDownloadTargetChoices(section_id: string) {
   return (uci.sections(FORKOP_UCI_PACKAGE, 'section') || [])
     .filter((section) => isDetourTargetSection(section, section_id))

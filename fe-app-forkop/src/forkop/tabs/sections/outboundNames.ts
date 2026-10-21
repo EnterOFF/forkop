@@ -19,48 +19,38 @@ import {
   outboundJsonDisplayTag,
   parseOutboundJsonObject,
 } from './outboundJson';
-import { safeRuntimeSectionName } from './references';
 import { optionMapValue } from './subscriptions/model';
 import { tunnelDisplayName } from './tunnels/model';
 import { getClashApiProxyProviders } from '../../methods/custom/clashApi';
 
-const outboundNameChoicesCache = new Map();
+let providerServerNames: Map<string, string[]> | null = null;
+let providerServerNamesAt = 0;
+let providerServerNamesInflight: Promise<void> | null = null;
 
-const outboundNameChoicesInflight = new Map();
-
-const outboundNameChoicesEmptyAt = new Map();
-
-// Server names of a subscription exist only once the core fetched it, so an empty answer expires.
-const OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = 5000;
+// A subscription has servers only once the core fetched it, so an answer lacking one expires.
+const PROVIDER_SERVER_NAMES_RETRY_MS = 5000;
 
 // Each dialog asks again: a subscription that updated meanwhile delivers other servers.
 export function forgetOutboundNameChoices() {
-  outboundNameChoicesCache.clear();
-  outboundNameChoicesEmptyAt.clear();
+  providerServerNames = null;
+  providerServerNamesAt = 0;
 }
 
 export const outboundNameSourceOptions = new Map();
 
-const dashboardFilterChoiceRefreshers = new Map<
-  string,
-  Set<() => boolean | void>
->();
+const liveChoiceRefreshers = new Map<string, Set<() => boolean | void>>();
 
-export function nativeProviderOutboundNames(
-  providerTags: unknown,
-  value: unknown,
-): string[] {
-  const providers = plainObject(plainObject(value).providers);
-  const seen = new Set<string>();
-  const result: string[] = [];
+// The groups the core builds out of a subscription are no servers of it.
+export function providerServerNameMap(value: unknown) {
+  const result = new Map<string, string[]>();
 
-  (Array.isArray(providerTags) ? providerTags : []).forEach((providerTag) => {
-    providerTag = `${providerTag || ''}`.trim();
-    const provider = plainObject(providers[providerTag]);
-    const runtimePrefix = `${providerTag}/`;
+  Object.entries(plainObject(plainObject(value).providers)).forEach(
+    ([providerTag, provider]) => {
+      const proxies = plainObject(provider).proxies;
+      const runtimePrefix = `${providerTag}/`;
+      const names: string[] = [];
 
-    (Array.isArray(provider.proxies) ? provider.proxies : []).forEach(
-      (proxy) => {
+      (Array.isArray(proxies) ? proxies : []).forEach((proxy) => {
         proxy = plainObject(proxy);
         const type = `${proxy.type || ''}`.toLowerCase();
         if (['selector', 'urltest', 'fallback'].includes(type)) {
@@ -71,145 +61,68 @@ export function nativeProviderOutboundNames(
         if (name.startsWith(runtimePrefix)) {
           name = name.slice(runtimePrefix.length);
         }
-        if (name && !seen.has(name)) {
-          seen.add(name);
-          result.push(name);
+        if (name) {
+          names.push(name);
         }
-      },
-    );
-  });
+      });
+      result.set(providerTag, names);
+    },
+  );
 
   return result;
 }
 
-export function loadNativeProviderOutboundNames(providerTags: unknown) {
-  if (!Array.isArray(providerTags) || !providerTags.length) {
-    return Promise.resolve([]);
+export function loadProviderServerNames(): Promise<void> {
+  if (providerServerNamesInflight) {
+    return providerServerNamesInflight;
   }
 
-  return getClashApiProxyProviders()
-    .then((response) => {
-      const providers = response.success ? response.data?.providers : null;
-      if (
-        !providers ||
-        typeof providers !== 'object' ||
-        Array.isArray(providers)
-      ) {
-        return null;
-      }
-      return nativeProviderOutboundNames(providerTags, { providers });
-    })
-    .catch(() => null);
-}
-
-function readOutboundChoiceState(section_id: string) {
-  if (!safeRuntimeSectionName(section_id)) {
-    return Promise.resolve(null);
-  }
-
-  const sectionDisplayName = `${
-    uci.get(FORKOP_UCI_PACKAGE, section_id, 'label') || section_id
-  }`.trim();
-  return Promise.resolve({
-    providerTags: getChildItemIds(section_id, 'subscription_url').map(
-      (itemId: string) => {
-        const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag') || ''}`;
-        return `${sectionDisplayName}/${tag.trim()}`;
-      },
-    ),
-  });
-}
-
-function cacheOutboundNameChoices(key: string, names: string[]) {
-  outboundNameChoicesCache.set(key, names);
-  if (names.length) {
-    outboundNameChoicesEmptyAt.delete(key);
-  } else {
-    outboundNameChoicesEmptyAt.set(key, Date.now());
-  }
-}
-
-function outboundNameChoicesCached(key: string) {
-  if (!outboundNameChoicesCache.has(key)) {
-    return false;
-  }
-
-  const names = outboundNameChoicesCache.get(key);
-  if (Array.isArray(names) && names.length) {
-    return true;
-  }
-
-  return (
-    Date.now() - (outboundNameChoicesEmptyAt.get(key) || 0) <
-    OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS
-  );
-}
-
-// providerIndex selects one subscription of the section; null takes them all.
-function loadOutboundNameChoices(
-  section_id: string,
-  key: string,
-  providerIndex: number | null,
-) {
-  if (outboundNameChoicesCached(key)) {
-    return Promise.resolve(outboundNameChoicesCache.get(key));
-  }
-  if (outboundNameChoicesInflight.has(key)) {
-    return outboundNameChoicesInflight.get(key);
-  }
-  if (providerIndex != null && providerIndex < 0) {
-    return Promise.resolve([]);
-  }
-
-  const task = readOutboundChoiceState(section_id)
-    .then((state) =>
-      state
-        ? loadNativeProviderOutboundNames(
-            providerIndex == null
-              ? state.providerTags
-              : [state.providerTags[providerIndex]],
-          )
-        : null,
+  providerServerNamesInflight = getClashApiProxyProviders()
+    .then((response) =>
+      response.success
+        ? providerServerNameMap(response.data)
+        : new Map<string, string[]>(),
     )
+    .catch(() => new Map<string, string[]>())
     .then((names) => {
-      if (names == null) {
-        return [];
-      }
-      // nativeProviderOutboundNames already trimmed and deduplicated them.
-      const choices = [...names].sort((a, b) => a.localeCompare(b));
-      cacheOutboundNameChoices(key, choices);
-      refreshDashboardFilterChoiceWidgets(section_id);
-      return choices;
+      providerServerNames = names;
+      providerServerNamesAt = Date.now();
+      refreshAllLiveChoiceWidgets();
     })
-    .catch(() => [])
     .finally(() => {
-      outboundNameChoicesInflight.delete(key);
+      providerServerNamesInflight = null;
     });
 
-  outboundNameChoicesInflight.set(key, task);
-
-  return task;
+  return providerServerNamesInflight;
 }
 
-function subscriptionProviderIndex(section_id: string, itemId: string) {
-  return getChildItemIds(section_id, 'subscription_url').indexOf(
-    `${itemId || ''}`,
-  );
+// The core knows a subscription as "<section label>/<subscription tag>"; one added in this dialog
+// runs nowhere yet.
+function subscriptionProviderTag(section_id: string, itemId: string) {
+  if (!isExistingChildItem(section_id, itemId, 'subscription_url')) {
+    return '';
+  }
+
+  const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, 'tag') || ''}`.trim();
+  const label = `${
+    uci.get(FORKOP_UCI_PACKAGE, section_id, 'label') || section_id
+  }`.trim();
+  return tag ? `${label}/${tag}` : '';
 }
 
-export function loadSectionOutboundNameChoices(section_id: string) {
-  return loadOutboundNameChoices(section_id, section_id, null);
-}
+function subscriptionServerNames(section_id: string, itemIds: string[]) {
+  const providerTags = itemIds
+    .map((itemId) => subscriptionProviderTag(section_id, itemId))
+    .filter(Boolean);
 
-export function loadSubscriptionOutboundNameChoices(
-  section_id: string,
-  itemId: string,
-) {
-  return loadOutboundNameChoices(
-    section_id,
-    `${section_id}:${itemId}`,
-    subscriptionProviderIndex(section_id, itemId),
-  );
+  if (
+    providerTags.some((tag) => !providerServerNames?.get(tag)?.length) &&
+    Date.now() - providerServerNamesAt >= PROVIDER_SERVER_NAMES_RETRY_MS
+  ) {
+    void loadProviderServerNames();
+  }
+
+  return providerTags.flatMap((tag) => providerServerNames?.get(tag) || []);
 }
 
 export function configureLiveDynamicListChoices(
@@ -283,70 +196,38 @@ export function configureLiveDynamicListChoices(
     node.addEventListener('mousedown', refreshBeforeOpening, true);
     node.addEventListener('focusin', refreshBeforeOpening, true);
 
-    if (!dashboardFilterChoiceRefreshers.has(refreshSectionId)) {
-      dashboardFilterChoiceRefreshers.set(refreshSectionId, new Set());
+    if (!liveChoiceRefreshers.has(refreshSectionId)) {
+      liveChoiceRefreshers.set(refreshSectionId, new Set());
     }
-    dashboardFilterChoiceRefreshers.get(refreshSectionId)!.add(refreshChoices);
+    liveChoiceRefreshers.get(refreshSectionId)!.add(refreshChoices);
 
     return node;
   };
 }
 
-export function outboundNameChoiceItems(
-  names: string[],
-  normalizeChoice: ((name: string) => string) | null,
-) {
-  const seen = new Set<string>();
-  const result: Array<{ value: string; label: string }> = [];
-  const append = (name: string) => {
-    let value = `${name || ''}`.trim();
-    if (typeof normalizeChoice === 'function') {
-      value = `${normalizeChoice(value) || ''}`.trim();
-    }
-    if (!value || seen.has(value)) {
-      return;
-    }
-
-    seen.add(value);
-    result.push({ value, label: value });
-  };
-
-  names.forEach(append);
-
-  return result.sort((a, b) => a.label.localeCompare(b.label));
+export function outboundNameChoiceItems(names: string[]) {
+  return Array.from(
+    new Set(names.map((name) => `${name || ''}`.trim()).filter(Boolean)),
+    (value) => ({ value, label: value }),
+  );
 }
 
-export function currentOutboundNameChoices(
-  section_id: string,
-  normalizeChoice: ((name: string) => string) | null,
-) {
-  if (!outboundNameChoicesCached(section_id)) {
-    loadSectionOutboundNameChoices(section_id);
-  }
-
-  return outboundNameChoiceItems(
-    [
-      ...(outboundNameChoicesCache.get(section_id) || []),
-      ...currentDraftOutboundNames(section_id),
-    ],
-    normalizeChoice,
-  );
+// As the dashboard lists them: the section's own servers, then each subscription's in turn.
+export function currentOutboundNameChoices(section_id: string) {
+  return outboundNameChoiceItems([
+    ...currentDraftOutboundNames(section_id),
+    ...subscriptionServerNames(
+      section_id,
+      currentSourceOptionValues(section_id, 'subscription_url'),
+    ),
+  ]);
 }
 
 export function currentSubscriptionOutboundNameChoices(
   section_id: string,
   itemId: string,
-  normalizeChoice: ((name: string) => string) | null,
 ) {
-  const cacheKey = `${section_id}:${itemId}`;
-  if (!outboundNameChoicesCached(cacheKey)) {
-    loadSubscriptionOutboundNameChoices(section_id, itemId);
-  }
-
-  return outboundNameChoiceItems(
-    outboundNameChoicesCache.get(cacheKey) || [],
-    normalizeChoice,
-  );
+  return outboundNameChoiceItems(subscriptionServerNames(section_id, [itemId]));
 }
 
 function currentSourceOptionValues(section_id: string, optionName: string) {
@@ -635,8 +516,8 @@ export function addUrlTestMemberOption(
   return option;
 }
 
-export function refreshDashboardFilterChoiceWidgets(section_id: string) {
-  const refreshers = dashboardFilterChoiceRefreshers.get(section_id);
+export function refreshLiveChoiceWidgets(section_id: string) {
+  const refreshers = liveChoiceRefreshers.get(section_id);
   if (!refreshers) {
     return;
   }
@@ -648,6 +529,10 @@ export function refreshDashboardFilterChoiceWidgets(section_id: string) {
   });
 
   if (refreshers.size === 0) {
-    dashboardFilterChoiceRefreshers.delete(section_id);
+    liveChoiceRefreshers.delete(section_id);
   }
+}
+
+function refreshAllLiveChoiceWidgets() {
+  Array.from(liveChoiceRefreshers.keys()).forEach(refreshLiveChoiceWidgets);
 }

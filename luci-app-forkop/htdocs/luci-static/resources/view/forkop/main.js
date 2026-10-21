@@ -13876,144 +13876,6 @@ function nextNumberedName(prefix, taken, separator = " #") {
   return `${marker}${highest + 1}`;
 }
 
-// src/forkop/tabs/sections/constants.ts
-var RULE_SET_ITEM_SETTINGS_KEY = "rule_set_settings";
-var ROUTING_ACTIONS = [
-  "connection",
-  "proxy",
-  "outbound",
-  "vpn",
-  "bypass",
-  "block"
-];
-var JSON_ENDPOINT_PLACEHOLDER = [
-  "{",
-  '  "type": "wireguard",',
-  '  "tag": "my-endpoint",',
-  '  "address": ["10.0.0.2/32"],',
-  '  "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="',
-  "}"
-].join("\n");
-var CONNECTIONS_BLOCKED_INTERFACES = [
-  "br-lan",
-  "eth0",
-  "eth1",
-  "wan",
-  "phy0-ap0",
-  "phy1-ap0",
-  "pppoe-wan",
-  "lan"
-];
-var CONNECTION_OUTBOUND_SOURCES = [
-  "connection_link",
-  "subscription_url",
-  "interfaces",
-  "tunnels",
-  "outbound_jsons"
-];
-
-// src/forkop/tabs/sections/references.ts
-function missingConnectionOutbound(modalMap, section_id) {
-  const action = modalOptionFormValue(modalMap, section_id, "action");
-  if (action !== "connection") {
-    return false;
-  }
-  return !CONNECTION_OUTBOUND_SOURCES.some(
-    (optionName) => normalizeDynamicListItems(
-      modalOptionFormValue(modalMap, section_id, optionName)
-    ).length > 0
-  );
-}
-function missingDnsMatcher(modalMap, section_id) {
-  if (modalOptionFormValue(modalMap, section_id, "action") !== "dns") {
-    return false;
-  }
-  const value = (name) => modalOptionFormValue(modalMap, section_id, name);
-  return !parseCommentAwareListTokens(value("_dns_destinations")).length && !["community_lists", "_dns_rule_set", "fully_routed_ips"].some(
-    (name) => normalizeDynamicListItems(value(name)).length > 0
-  );
-}
-function isDetourTargetSection(section2, currentSectionId) {
-  const sectionName = getUciSectionName(section2);
-  const action = section2 && section2.action || "";
-  return !!sectionName && sectionName !== currentSectionId && section2.enabled !== "0" && DETOUR_TARGET_ACTIONS.includes(action);
-}
-function getOutboundDetourTargetSections(currentSectionId) {
-  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
-    (section2) => isDetourTargetSection(section2, currentSectionId)
-  );
-}
-function refreshOutboundDetourSectionOptionValues(option2, sectionId) {
-  option2.keylist = [];
-  option2.vallist = [];
-  getOutboundDetourTargetSections(sectionId).forEach((targetSection) => {
-    option2.value(
-      getUciSectionName(targetSection),
-      getUciSectionLabel(targetSection)
-    );
-  });
-}
-function tailscaleDetourSectionValue(detour, currentSectionId) {
-  const wanted = `${detour || ""}`.trim();
-  if (!wanted) {
-    return "";
-  }
-  const target2 = getOutboundDetourTargetSections(currentSectionId).find(
-    (section2) => getUciSectionLabel(section2) === wanted
-  );
-  return target2 ? getUciSectionName(target2) : wanted;
-}
-function tailscaleDetourTag(sectionId) {
-  sectionId = `${sectionId || ""}`.trim();
-  if (!sectionId) {
-    return "";
-  }
-  const target2 = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
-    (section2) => getUciSectionName(section2) === sectionId
-  );
-  return target2 ? getUciSectionLabel(target2) : sectionId;
-}
-function refreshDnsDetourSectionOptionValues(option2, sectionId) {
-  option2.keylist = [];
-  option2.vallist = [];
-  (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section2) => isDetourTargetSection(section2, sectionId)).forEach((targetSection) => {
-    option2.value(
-      getUciSectionName(targetSection),
-      getUciSectionLabel(targetSection)
-    );
-  });
-}
-function dependsOnRoutingAction(option2) {
-  ROUTING_ACTIONS.forEach((action) => option2.depends("action", action));
-  return option2;
-}
-function dependsOnRuleConditions(option2) {
-  const routingConditions = [
-    "destinations",
-    "community_lists",
-    "rule_set",
-    "ports"
-  ];
-  ROUTING_ACTIONS.forEach(
-    (action) => routingConditions.forEach(
-      (condition) => option2.depends({ action, [condition]: /\S/ })
-    )
-  );
-  ["_dns_destinations", "community_lists", "rule_set", "_dns_rule_set"].forEach(
-    (condition) => option2.depends({ action: "dns", [condition]: /\S/ })
-  );
-  return option2;
-}
-function safeRuntimeSectionName(section_id) {
-  return /^[A-Za-z0-9_-]+$/.test(`${section_id || ""}`);
-}
-function subscriptionDownloadTargetChoices(section_id) {
-  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section2) => isDetourTargetSection(section2, section_id)).map((section2) => ({
-    value: getUciSectionName(section2),
-    label: getUciSectionLabel(section2)
-  }));
-}
-
 // src/validators/validatePath.ts
 function validatePath(value) {
   if (!value) {
@@ -14335,6 +14197,141 @@ function validateSubscriptionUrlEntry(_section_id, value) {
   }
   const validation = isRemoteSubscriptionSource(parsed.url) ? validateUrl(`${parsed.url}`) : validatePath(`${parsed.url}`);
   return validation === true ? true : message.urlOrPath();
+}
+
+// src/forkop/tabs/sections/constants.ts
+var RULE_SET_ITEM_SETTINGS_KEY = "rule_set_settings";
+var ROUTING_ACTIONS = [
+  "connection",
+  "proxy",
+  "outbound",
+  "vpn",
+  "bypass",
+  "block"
+];
+var JSON_ENDPOINT_PLACEHOLDER = [
+  "{",
+  '  "type": "wireguard",',
+  '  "tag": "my-endpoint",',
+  '  "address": ["10.0.0.2/32"],',
+  '  "private_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="',
+  "}"
+].join("\n");
+var CONNECTIONS_BLOCKED_INTERFACES = [
+  "br-lan",
+  "eth0",
+  "eth1",
+  "wan",
+  "phy0-ap0",
+  "phy1-ap0",
+  "pppoe-wan",
+  "lan"
+];
+var CONNECTION_OUTBOUND_SOURCES = [
+  "connection_link",
+  "subscription_url",
+  "interfaces",
+  "tunnels",
+  "outbound_jsons"
+];
+
+// src/forkop/tabs/sections/references.ts
+function missingConnectionOutbound(modalMap, section_id) {
+  const action = modalOptionFormValue(modalMap, section_id, "action");
+  if (action !== "connection") {
+    return false;
+  }
+  return !CONNECTION_OUTBOUND_SOURCES.some(
+    (optionName) => normalizeDynamicListItems(
+      modalOptionFormValue(modalMap, section_id, optionName)
+    ).length > 0
+  );
+}
+function missingDnsMatcher(modalMap, section_id) {
+  if (modalOptionFormValue(modalMap, section_id, "action") !== "dns") {
+    return false;
+  }
+  const value = (name) => modalOptionFormValue(modalMap, section_id, name);
+  return !parseCommentAwareListTokens(value("_dns_destinations")).length && !["community_lists", "_dns_rule_set", "fully_routed_ips"].some(
+    (name) => normalizeDynamicListItems(value(name)).length > 0
+  );
+}
+function isDetourTargetSection(section2, currentSectionId) {
+  const sectionName = getUciSectionName(section2);
+  const action = section2 && section2.action || "";
+  return !!sectionName && sectionName !== currentSectionId && section2.enabled !== "0" && DETOUR_TARGET_ACTIONS.includes(action);
+}
+function getOutboundDetourTargetSections(currentSectionId) {
+  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter(
+    (section2) => isDetourTargetSection(section2, currentSectionId)
+  );
+}
+function refreshOutboundDetourSectionOptionValues(option2, sectionId) {
+  option2.keylist = [];
+  option2.vallist = [];
+  getOutboundDetourTargetSections(sectionId).forEach((targetSection) => {
+    option2.value(
+      getUciSectionName(targetSection),
+      getUciSectionLabel(targetSection)
+    );
+  });
+}
+function tailscaleDetourSectionValue(detour, currentSectionId) {
+  const wanted = `${detour || ""}`.trim();
+  if (!wanted) {
+    return "";
+  }
+  const target2 = getOutboundDetourTargetSections(currentSectionId).find(
+    (section2) => getUciSectionLabel(section2) === wanted
+  );
+  return target2 ? getUciSectionName(target2) : wanted;
+}
+function tailscaleDetourTag(sectionId) {
+  sectionId = `${sectionId || ""}`.trim();
+  if (!sectionId) {
+    return "";
+  }
+  const target2 = (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).find(
+    (section2) => getUciSectionName(section2) === sectionId
+  );
+  return target2 ? getUciSectionLabel(target2) : sectionId;
+}
+function refreshDnsDetourSectionOptionValues(option2, sectionId) {
+  option2.keylist = [];
+  option2.vallist = [];
+  (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section2) => isDetourTargetSection(section2, sectionId)).forEach((targetSection) => {
+    option2.value(
+      getUciSectionName(targetSection),
+      getUciSectionLabel(targetSection)
+    );
+  });
+}
+function dependsOnRoutingAction(option2) {
+  ROUTING_ACTIONS.forEach((action) => option2.depends("action", action));
+  return option2;
+}
+function dependsOnRuleConditions(option2) {
+  const routingConditions = [
+    "destinations",
+    "community_lists",
+    "rule_set",
+    "ports"
+  ];
+  ROUTING_ACTIONS.forEach(
+    (action) => routingConditions.forEach(
+      (condition) => option2.depends({ action, [condition]: /\S/ })
+    )
+  );
+  ["_dns_destinations", "community_lists", "rule_set", "_dns_rule_set"].forEach(
+    (condition) => option2.depends({ action: "dns", [condition]: /\S/ })
+  );
+  return option2;
+}
+function subscriptionDownloadTargetChoices(section_id) {
+  return (uci.sections(FORKOP_UCI_PACKAGE, "section") || []).filter((section2) => isDetourTargetSection(section2, section_id)).map((section2) => ({
+    value: getUciSectionName(section2),
+    label: getUciSectionLabel(section2)
+  }));
 }
 
 // src/helpers/pem.ts
@@ -17692,26 +17689,24 @@ function wireGuardPeerDisplayNameFromObject(peer) {
 }
 
 // src/forkop/tabs/sections/outboundNames.ts
-var outboundNameChoicesCache = /* @__PURE__ */ new Map();
-var outboundNameChoicesInflight = /* @__PURE__ */ new Map();
-var outboundNameChoicesEmptyAt = /* @__PURE__ */ new Map();
-var OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS = 5e3;
+var providerServerNames = null;
+var providerServerNamesAt = 0;
+var providerServerNamesInflight = null;
+var PROVIDER_SERVER_NAMES_RETRY_MS = 5e3;
 function forgetOutboundNameChoices() {
-  outboundNameChoicesCache.clear();
-  outboundNameChoicesEmptyAt.clear();
+  providerServerNames = null;
+  providerServerNamesAt = 0;
 }
 var outboundNameSourceOptions = /* @__PURE__ */ new Map();
-var dashboardFilterChoiceRefreshers = /* @__PURE__ */ new Map();
-function nativeProviderOutboundNames(providerTags, value) {
-  const providers = plainObject(plainObject(value).providers);
-  const seen = /* @__PURE__ */ new Set();
-  const result = [];
-  (Array.isArray(providerTags) ? providerTags : []).forEach((providerTag) => {
-    providerTag = `${providerTag || ""}`.trim();
-    const provider = plainObject(providers[providerTag]);
-    const runtimePrefix = `${providerTag}/`;
-    (Array.isArray(provider.proxies) ? provider.proxies : []).forEach(
-      (proxy) => {
+var liveChoiceRefreshers = /* @__PURE__ */ new Map();
+function providerServerNameMap(value) {
+  const result = /* @__PURE__ */ new Map();
+  Object.entries(plainObject(plainObject(value).providers)).forEach(
+    ([providerTag, provider]) => {
+      const proxies = plainObject(provider).proxies;
+      const runtimePrefix = `${providerTag}/`;
+      const names = [];
+      (Array.isArray(proxies) ? proxies : []).forEach((proxy) => {
         proxy = plainObject(proxy);
         const type = `${proxy.type || ""}`.toLowerCase();
         if (["selector", "urltest", "fallback"].includes(type)) {
@@ -17721,101 +17716,44 @@ function nativeProviderOutboundNames(providerTags, value) {
         if (name.startsWith(runtimePrefix)) {
           name = name.slice(runtimePrefix.length);
         }
-        if (name && !seen.has(name)) {
-          seen.add(name);
-          result.push(name);
+        if (name) {
+          names.push(name);
         }
-      }
-    );
-  });
+      });
+      result.set(providerTag, names);
+    }
+  );
   return result;
 }
-function loadNativeProviderOutboundNames(providerTags) {
-  if (!Array.isArray(providerTags) || !providerTags.length) {
-    return Promise.resolve([]);
+function loadProviderServerNames() {
+  if (providerServerNamesInflight) {
+    return providerServerNamesInflight;
   }
-  return getClashApiProxyProviders().then((response) => {
-    const providers = response.success ? response.data?.providers : null;
-    if (!providers || typeof providers !== "object" || Array.isArray(providers)) {
-      return null;
-    }
-    return nativeProviderOutboundNames(providerTags, { providers });
-  }).catch(() => null);
-}
-function readOutboundChoiceState(section_id) {
-  if (!safeRuntimeSectionName(section_id)) {
-    return Promise.resolve(null);
-  }
-  const sectionDisplayName = `${uci.get(FORKOP_UCI_PACKAGE, section_id, "label") || section_id}`.trim();
-  return Promise.resolve({
-    providerTags: getChildItemIds(section_id, "subscription_url").map(
-      (itemId) => {
-        const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "tag") || ""}`;
-        return `${sectionDisplayName}/${tag.trim()}`;
-      }
-    )
+  providerServerNamesInflight = getClashApiProxyProviders().then(
+    (response) => response.success ? providerServerNameMap(response.data) : /* @__PURE__ */ new Map()
+  ).catch(() => /* @__PURE__ */ new Map()).then((names) => {
+    providerServerNames = names;
+    providerServerNamesAt = Date.now();
+    refreshAllLiveChoiceWidgets();
+  }).finally(() => {
+    providerServerNamesInflight = null;
   });
+  return providerServerNamesInflight;
 }
-function cacheOutboundNameChoices(key, names) {
-  outboundNameChoicesCache.set(key, names);
-  if (names.length) {
-    outboundNameChoicesEmptyAt.delete(key);
-  } else {
-    outboundNameChoicesEmptyAt.set(key, Date.now());
+function subscriptionProviderTag(section_id, itemId) {
+  if (!isExistingChildItem(section_id, itemId, "subscription_url")) {
+    return "";
   }
+  const tag = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "tag") || ""}`.trim();
+  const label = `${uci.get(FORKOP_UCI_PACKAGE, section_id, "label") || section_id}`.trim();
+  return tag ? `${label}/${tag}` : "";
 }
-function outboundNameChoicesCached(key) {
-  if (!outboundNameChoicesCache.has(key)) {
-    return false;
+function subscriptionServerNames(section_id, itemIds) {
+  const providerTags = itemIds.map((itemId) => subscriptionProviderTag(section_id, itemId)).filter(Boolean);
+  if (providerTags.some((tag) => !providerServerNames?.get(tag)?.length) && Date.now() - providerServerNamesAt >= PROVIDER_SERVER_NAMES_RETRY_MS) {
+    void loadProviderServerNames();
   }
-  const names = outboundNameChoicesCache.get(key);
-  if (Array.isArray(names) && names.length) {
-    return true;
-  }
-  return Date.now() - (outboundNameChoicesEmptyAt.get(key) || 0) < OUTBOUND_NAME_CHOICES_EMPTY_TTL_MS;
-}
-function loadOutboundNameChoices(section_id, key, providerIndex) {
-  if (outboundNameChoicesCached(key)) {
-    return Promise.resolve(outboundNameChoicesCache.get(key));
-  }
-  if (outboundNameChoicesInflight.has(key)) {
-    return outboundNameChoicesInflight.get(key);
-  }
-  if (providerIndex != null && providerIndex < 0) {
-    return Promise.resolve([]);
-  }
-  const task = readOutboundChoiceState(section_id).then(
-    (state) => state ? loadNativeProviderOutboundNames(
-      providerIndex == null ? state.providerTags : [state.providerTags[providerIndex]]
-    ) : null
-  ).then((names) => {
-    if (names == null) {
-      return [];
-    }
-    const choices = [...names].sort((a, b) => a.localeCompare(b));
-    cacheOutboundNameChoices(key, choices);
-    refreshDashboardFilterChoiceWidgets(section_id);
-    return choices;
-  }).catch(() => []).finally(() => {
-    outboundNameChoicesInflight.delete(key);
-  });
-  outboundNameChoicesInflight.set(key, task);
-  return task;
-}
-function subscriptionProviderIndex(section_id, itemId) {
-  return getChildItemIds(section_id, "subscription_url").indexOf(
-    `${itemId || ""}`
-  );
-}
-function loadSectionOutboundNameChoices(section_id) {
-  return loadOutboundNameChoices(section_id, section_id, null);
-}
-function loadSubscriptionOutboundNameChoices(section_id, itemId) {
-  return loadOutboundNameChoices(
-    section_id,
-    `${section_id}:${itemId}`,
-    subscriptionProviderIndex(section_id, itemId)
-  );
+  return providerTags.flatMap((tag) => providerServerNames?.get(tag) || []);
 }
 function configureLiveDynamicListChoices(option2, getChoices, getRefreshSectionId = (section_id) => section_id) {
   option2.renderWidget = function(section_id, _option_index, cfgvalue) {
@@ -17873,51 +17811,30 @@ function configureLiveDynamicListChoices(option2, getChoices, getRefreshSectionI
     };
     node.addEventListener("mousedown", refreshBeforeOpening, true);
     node.addEventListener("focusin", refreshBeforeOpening, true);
-    if (!dashboardFilterChoiceRefreshers.has(refreshSectionId)) {
-      dashboardFilterChoiceRefreshers.set(refreshSectionId, /* @__PURE__ */ new Set());
+    if (!liveChoiceRefreshers.has(refreshSectionId)) {
+      liveChoiceRefreshers.set(refreshSectionId, /* @__PURE__ */ new Set());
     }
-    dashboardFilterChoiceRefreshers.get(refreshSectionId).add(refreshChoices);
+    liveChoiceRefreshers.get(refreshSectionId).add(refreshChoices);
     return node;
   };
 }
-function outboundNameChoiceItems(names, normalizeChoice) {
-  const seen = /* @__PURE__ */ new Set();
-  const result = [];
-  const append = (name) => {
-    let value = `${name || ""}`.trim();
-    if (typeof normalizeChoice === "function") {
-      value = `${normalizeChoice(value) || ""}`.trim();
-    }
-    if (!value || seen.has(value)) {
-      return;
-    }
-    seen.add(value);
-    result.push({ value, label: value });
-  };
-  names.forEach(append);
-  return result.sort((a, b) => a.label.localeCompare(b.label));
-}
-function currentOutboundNameChoices(section_id, normalizeChoice) {
-  if (!outboundNameChoicesCached(section_id)) {
-    loadSectionOutboundNameChoices(section_id);
-  }
-  return outboundNameChoiceItems(
-    [
-      ...outboundNameChoicesCache.get(section_id) || [],
-      ...currentDraftOutboundNames(section_id)
-    ],
-    normalizeChoice
+function outboundNameChoiceItems(names) {
+  return Array.from(
+    new Set(names.map((name) => `${name || ""}`.trim()).filter(Boolean)),
+    (value) => ({ value, label: value })
   );
 }
-function currentSubscriptionOutboundNameChoices(section_id, itemId, normalizeChoice) {
-  const cacheKey = `${section_id}:${itemId}`;
-  if (!outboundNameChoicesCached(cacheKey)) {
-    loadSubscriptionOutboundNameChoices(section_id, itemId);
-  }
-  return outboundNameChoiceItems(
-    outboundNameChoicesCache.get(cacheKey) || [],
-    normalizeChoice
-  );
+function currentOutboundNameChoices(section_id) {
+  return outboundNameChoiceItems([
+    ...currentDraftOutboundNames(section_id),
+    ...subscriptionServerNames(
+      section_id,
+      currentSourceOptionValues(section_id, "subscription_url")
+    )
+  ]);
+}
+function currentSubscriptionOutboundNameChoices(section_id, itemId) {
+  return outboundNameChoiceItems(subscriptionServerNames(section_id, [itemId]));
 }
 function currentSourceOptionValues(section_id, optionName) {
   const liveValues = currentLiveDynamicListValues(section_id, optionName);
@@ -18091,8 +18008,8 @@ function addUrlTestMemberOption(itemSection, parentSectionForItem, modes) {
   );
   return option2;
 }
-function refreshDashboardFilterChoiceWidgets(section_id) {
-  const refreshers = dashboardFilterChoiceRefreshers.get(section_id);
+function refreshLiveChoiceWidgets(section_id) {
+  const refreshers = liveChoiceRefreshers.get(section_id);
   if (!refreshers) {
     return;
   }
@@ -18102,8 +18019,11 @@ function refreshDashboardFilterChoiceWidgets(section_id) {
     }
   });
   if (refreshers.size === 0) {
-    dashboardFilterChoiceRefreshers.delete(section_id);
+    liveChoiceRefreshers.delete(section_id);
   }
+}
+function refreshAllLiveChoiceWidgets() {
+  Array.from(liveChoiceRefreshers.keys()).forEach(refreshLiveChoiceWidgets);
 }
 
 // src/forkop/tabs/sections/outboundJson.ts
@@ -18726,32 +18646,18 @@ function addServerFilterOptions(itemSection, parentSectionForItem, options = {})
         field2.placeholder = _("-- Select --");
       }
       if (storageKey.endsWith("_outbounds")) {
-        const choicesForItem = (option2, itemId) => {
-          const sectionId = parentSectionForItem(itemId);
-          const normalizeChoice = typeof options.normalizeOutboundChoice === "function" ? (name) => options.normalizeOutboundChoice(option2, itemId, name) : null;
-          return typeof options.ownerId === "function" ? currentSubscriptionOutboundNameChoices(
-            sectionId,
-            options.ownerId(),
-            normalizeChoice
-          ) : currentOutboundNameChoices(sectionId, normalizeChoice);
-        };
         field2.load = function(itemId) {
-          const sectionId = parentSectionForItem(itemId);
-          const values = normalizeOptionValues(
+          return normalizeOptionValues(
             optionMapValue(this, itemId, storageKey)
           );
-          if (typeof options.ownerId === "function") {
-            loadSubscriptionOutboundNameChoices(sectionId, options.ownerId());
-          } else {
-            loadSectionOutboundNameChoices(sectionId);
-          }
-          refreshOptionChoices(this, choicesForItem(this, itemId));
-          return values;
         };
         field2.placeholder = _("-- Select --");
         configureLiveDynamicListChoices(
           field2,
-          (itemId) => choicesForItem(field2, itemId),
+          (itemId) => typeof options.ownerId === "function" ? currentSubscriptionOutboundNameChoices(
+            parentSectionForItem(itemId),
+            options.ownerId()
+          ) : currentOutboundNameChoices(parentSectionForItem(itemId)),
           parentSectionForItem
         );
       }
@@ -19324,7 +19230,7 @@ function showInterfaceSettingsModal(_section_id, itemValue, option2) {
     defaults: (inputValue) => defaultInterfaceSettings(inputValue),
     addOptions: addInterfaceItemOptions,
     title: (name) => name ? _("Network interface: %s").format(name) : _("Network interface settings"),
-    afterSave: () => refreshDashboardFilterChoiceWidgets(_section_id)
+    afterSave: () => refreshLiveChoiceWidgets(_section_id)
   });
 }
 
@@ -19480,7 +19386,7 @@ function showConnectionLinkSettingsModal(sectionId, itemValue, option2, widget, 
     title: () => name ? _("Server: %s").format(name) : _("Server settings"),
     afterSave: (_itemId, _inputValue, settings) => {
       updateDynamicListItemLabel(itemNode, `${settings.name || ""}`.trim());
-      refreshDashboardFilterChoiceWidgets(sectionId);
+      refreshLiveChoiceWidgets(sectionId);
     }
   });
 }
@@ -22613,7 +22519,7 @@ function createSectionContent(section2) {
       childItemInputValue(section_id, value, "connection_link", "uri")
     );
   };
-  links.onListChange = refreshDashboardFilterChoiceWidgets;
+  links.onListChange = refreshLiveChoiceWidgets;
   links.afterMaterializeChildItems = orderChildItemsByPosition;
   links.liveDynamicListNodes = /* @__PURE__ */ new Map();
   const renderLinks = links.renderWidget;
@@ -22683,6 +22589,8 @@ function createSectionContent(section2) {
       childItemInputValue(section_id, value, "subscription_url", "url")
     );
   };
+  subscriptions.onListChange = refreshLiveChoiceWidgets;
+  outboundNameSourceOptions.set("subscription_url", subscriptions);
   o = section2.taboption(
     "settings",
     InterfaceSettingsDynamicList,
@@ -22712,7 +22620,7 @@ function createSectionContent(section2) {
     }
     return this.validate(section_id, normalized) === true;
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   outboundNameSourceOptions.set("interfaces", o);
   o = section2.taboption(
     "settings",
@@ -22747,7 +22655,7 @@ function createSectionContent(section2) {
     const tunnelId = `${value || ""}`.trim();
     return tunnelId ? validateTunnelItem(section_id, tunnelId) : true;
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   o.afterMaterializeChildItems = orderChildItemsByPosition;
   outboundNameSourceOptions.set("tunnels", o);
   o = section2.taboption(
@@ -22774,7 +22682,7 @@ function createSectionContent(section2) {
     const validation = validateOutboundJson(value);
     return validation === true ? true : message.item(outboundJsonDisplayTag(value), validation);
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   outboundNameSourceOptions.set("outbound_jsons", o);
   o = section2.taboption(
     "settings",
@@ -22799,7 +22707,7 @@ function createSectionContent(section2) {
   o.renderListItemLabel = function(section_id, itemId) {
     return renderChildItemLabel(this, section_id, itemId);
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   o = section2.taboption(
     "settings",
     ButtonAddSettingsDynamicList,
@@ -22823,7 +22731,7 @@ function createSectionContent(section2) {
   o.renderListItemLabel = function(section_id, itemId) {
     return renderChildItemLabel(this, section_id, itemId);
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   const destinationOption = addDestinationField(
     section2,
     "destinations",

@@ -10,30 +10,34 @@ import { childPendingSettingsStore } from '../../../cbi/itemSettings';
 import {
   currentDraftOutboundNames,
   currentLiveDynamicListValues,
+  currentOutboundNameChoices,
+  currentSubscriptionOutboundNameChoices,
   forgetOutboundNameChoices,
-  loadNativeProviderOutboundNames,
-  loadSectionOutboundNameChoices,
-  nativeProviderOutboundNames,
+  loadProviderServerNames,
   nextSectionChildName,
   outboundNameChoiceItems,
   outboundNameSourceOptions,
+  providerServerNameMap,
   validateSectionChildName,
 } from '../outboundNames';
 
-const PROVIDER_TAG = 'Main/sub1';
 const PAYLOAD = {
   providers: {
-    [PROVIDER_TAG]: {
+    'Main/sub1': {
       proxies: [
-        { name: `${PROVIDER_TAG}/Main US`, type: 'VLESS' },
-        { name: `${PROVIDER_TAG}/Main DE`, type: 'AnyTLS' },
-        { name: `${PROVIDER_TAG}/Main Auto`, type: 'URLTest' },
+        { name: 'Main/sub1/Zurich', type: 'VLESS' },
+        { name: 'Main/sub1/Amsterdam', type: 'AnyTLS' },
+        { name: 'Main/sub1/Auto', type: 'URLTest' },
       ],
     },
-    'other-subscription-provider': {
+    'Main/sub2': {
       proxies: [
-        { name: 'other-subscription-provider/Other JP', type: 'VLESS' },
+        { name: 'Main/sub2/Berlin', type: 'VLESS' },
+        { name: 'Main/sub2/Hop', type: 'VLESS' },
       ],
+    },
+    'Other/sub1': {
+      proxies: [{ name: 'Other/sub1/Tokyo', type: 'VLESS' }],
     },
   },
 };
@@ -44,10 +48,13 @@ function answerWith(next: Promise<unknown>) {
   mocks.providers.mockImplementation(() => next);
 }
 
+const listed = (values: string[]) => ({ formvalue: () => values });
+
 beforeEach(() => {
   mocks.providers.mockReset();
   answerWith(Promise.resolve(clashAnswer(PAYLOAD)));
   installLuciStubs({});
+  forgetOutboundNameChoices();
 });
 
 afterEach(() => {
@@ -55,114 +62,178 @@ afterEach(() => {
   outboundNameSourceOptions.clear();
 });
 
-describe('nativeProviderOutboundNames', () => {
-  it('takes the servers of the named providers, without their prefix', () => {
-    expect(nativeProviderOutboundNames([PROVIDER_TAG], PAYLOAD)).toEqual([
-      'Main US',
-      'Main DE',
+describe('providerServerNameMap', () => {
+  it("keeps each provider's servers in its own order, without their prefix", () => {
+    expect(providerServerNameMap(PAYLOAD).get('Main/sub1')).toEqual([
+      'Zurich',
+      'Amsterdam',
     ]);
   });
 
   it('leaves the groups the core built out of them alone', () => {
-    expect(nativeProviderOutboundNames([PROVIDER_TAG], PAYLOAD)).not.toContain(
-      'Main Auto',
-    );
-  });
-
-  it('leaves the servers of another provider alone', () => {
-    expect(nativeProviderOutboundNames([PROVIDER_TAG], PAYLOAD)).not.toContain(
-      'Other JP',
+    expect(providerServerNameMap(PAYLOAD).get('Main/sub1')).not.toContain(
+      'Auto',
     );
   });
 });
 
-describe('loadNativeProviderOutboundNames', () => {
-  it('asks the core over the Clash API', async () => {
-    await expect(
-      loadNativeProviderOutboundNames([PROVIDER_TAG]),
-    ).resolves.toEqual(['Main US', 'Main DE']);
-    expect(mocks.providers).toHaveBeenCalledTimes(1);
+describe('the server choices of a section', () => {
+  // As LuCI holds them while the dialog is open: a subscription taken out of the list keeps its
+  // section until the dialog is saved.
+  function section(subscriptions: string[]) {
+    installLuciStubs({
+      main: { '.type': 'section', label: 'Main' },
+      first: {
+        '.type': 'subscription_url',
+        section: 'main',
+        tag: 'sub1',
+      },
+      second: {
+        '.type': 'subscription_url',
+        section: 'main',
+        tag: 'sub2',
+      },
+      germany: {
+        '.type': 'connection_link',
+        section: 'main',
+        uri: 'vless://a.test#A',
+        name: 'Germany',
+      },
+      uplink: {
+        '.type': 'section_interface',
+        section: 'main',
+        name: 'wan',
+        display_name: 'Uplink',
+      },
+      wg: { '.type': 'tunnel', section: 'main', name: 'Warp' },
+    });
+    outboundNameSourceOptions.set('connection_link', listed(['germany']));
+    outboundNameSourceOptions.set('interfaces', {
+      sharedPendingSettingsKey: 'interfaces',
+      ...listed(['uplink']),
+    });
+    outboundNameSourceOptions.set('tunnels', listed(['wg']));
+    outboundNameSourceOptions.set(
+      'outbound_jsons',
+      listed(['{"type":"socks","tag":"Hop"}']),
+    );
+    outboundNameSourceOptions.set('urltest', listed([]));
+    outboundNameSourceOptions.set('fallback_group', listed([]));
+    outboundNameSourceOptions.set('subscription_url', listed(subscriptions));
+  }
+
+  const choiceValues = (choices: Array<{ value: string }>) =>
+    choices.map((choice) => choice.value);
+
+  it("list the section's own servers before the subscriptions, as the dashboard does", async () => {
+    section(['first', 'second']);
+    await loadProviderServerNames();
+
+    expect(choiceValues(currentOutboundNameChoices('main'))).toEqual([
+      'Germany',
+      'Uplink',
+      'Warp',
+      'Hop',
+      'Zurich',
+      'Amsterdam',
+      'Berlin',
+    ]);
   });
 
-  it('fails open when the core is unavailable', async () => {
+  it('follow the order of the subscriptions in the list', async () => {
+    section(['second', 'first']);
+    await loadProviderServerNames();
+
+    expect(choiceValues(currentOutboundNameChoices('main')).slice(4)).toEqual([
+      'Berlin',
+      'Zurich',
+      'Amsterdam',
+    ]);
+  });
+
+  it('lose the servers of a subscription the moment it leaves the list', async () => {
+    section(['first', 'second']);
+    await loadProviderServerNames();
+    outboundNameSourceOptions.set('subscription_url', listed(['second']));
+
+    expect(choiceValues(currentOutboundNameChoices('main'))).not.toContain(
+      'Zurich',
+    );
+  });
+
+  it('of a subscription are its own servers alone', async () => {
+    section(['first', 'second']);
+    await loadProviderServerNames();
+
+    expect(
+      choiceValues(currentSubscriptionOutboundNameChoices('main', 'second')),
+    ).toEqual(['Berlin', 'Hop']);
+  });
+
+  it('ask the core nothing for a section without subscriptions', () => {
+    section([]);
+
+    expect(choiceValues(currentOutboundNameChoices('main'))).toEqual([
+      'Germany',
+      'Uplink',
+      'Warp',
+      'Hop',
+    ]);
+    expect(mocks.providers).not.toHaveBeenCalled();
+  });
+
+  it('keep the own servers while the core is unavailable', async () => {
+    section(['first']);
     answerWith(
       Promise.resolve({ success: false, error: 'sing-box is unavailable' }),
     );
+    await loadProviderServerNames();
 
-    await expect(loadNativeProviderOutboundNames([PROVIDER_TAG])).resolves.toBe(
-      null,
+    expect(choiceValues(currentOutboundNameChoices('main'))).toEqual([
+      'Germany',
+      'Uplink',
+      'Warp',
+      'Hop',
+    ]);
+  });
+
+  it('ask the core again once an answer lacking a subscription goes stale', async () => {
+    section(['first']);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    answerWith(Promise.resolve(clashAnswer({ providers: {} })));
+    await loadProviderServerNames();
+
+    answerWith(Promise.resolve(clashAnswer(PAYLOAD)));
+    currentOutboundNameChoices('main');
+    expect(mocks.providers).toHaveBeenCalledTimes(1);
+
+    vi.setSystemTime(new Date('2026-01-01T00:01:00Z'));
+    currentOutboundNameChoices('main');
+    await loadProviderServerNames();
+    expect(choiceValues(currentOutboundNameChoices('main'))).toContain(
+      'Zurich',
     );
   });
 
-  it('asks nothing when there is no provider to ask about', async () => {
-    await expect(loadNativeProviderOutboundNames([])).resolves.toEqual([]);
-    expect(mocks.providers).not.toHaveBeenCalled();
-  });
-});
-
-describe('the choices of a section', () => {
-  function sectionWithSubscription(sectionId: string) {
-    const uci = installLuciStubs({
-      [sectionId]: { '.type': 'section', label: 'Main' },
-      [`${sectionId}_sub`]: {
-        '.type': 'subscription_url',
-        section: sectionId,
-        tag: 'sub1',
-      },
-    });
-    return uci;
-  }
-
-  it('come from the running core, sorted', async () => {
-    sectionWithSubscription('main');
-
-    await expect(loadSectionOutboundNameChoices('main')).resolves.toEqual([
-      'Main DE',
-      'Main US',
-    ]);
-  });
-
-  it('are looked up again after an empty answer goes stale', async () => {
-    sectionWithSubscription('empty_first');
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-
-    answerWith(Promise.resolve(clashAnswer({ providers: {} })));
-    await expect(
-      loadSectionOutboundNameChoices('empty_first'),
-    ).resolves.toEqual([]);
-
-    answerWith(Promise.resolve(clashAnswer(PAYLOAD)));
-    await expect(
-      loadSectionOutboundNameChoices('empty_first'),
-    ).resolves.toEqual([]);
-
-    vi.setSystemTime(new Date('2026-01-01T00:01:00Z'));
-    await expect(
-      loadSectionOutboundNameChoices('empty_first'),
-    ).resolves.toEqual(['Main DE', 'Main US']);
-  });
-
-  it('are looked up again for the next dialog', async () => {
-    sectionWithSubscription('updated');
-    await loadSectionOutboundNameChoices('updated');
-
-    const updated = {
-      providers: {
-        [PROVIDER_TAG]: {
-          proxies: [{ name: `${PROVIDER_TAG}/Main NL`, type: 'VLESS' }],
-        },
-      },
-    };
-    answerWith(Promise.resolve(clashAnswer(updated)));
-    await expect(loadSectionOutboundNameChoices('updated')).resolves.toEqual([
-      'Main DE',
-      'Main US',
-    ]);
+  it('ask the core again for the next dialog', async () => {
+    section(['first']);
+    await loadProviderServerNames();
+    answerWith(
+      Promise.resolve(
+        clashAnswer({
+          providers: {
+            'Main/sub1': { proxies: [{ name: 'Main/sub1/Oslo' }] },
+          },
+        }),
+      ),
+    );
 
     forgetOutboundNameChoices();
-    await expect(loadSectionOutboundNameChoices('updated')).resolves.toEqual([
-      'Main NL',
+    currentOutboundNameChoices('main');
+    await loadProviderServerNames();
+    expect(choiceValues(currentOutboundNameChoices('main')).slice(4)).toEqual([
+      'Oslo',
     ]);
   });
 });
@@ -357,14 +428,11 @@ describe('the name offered to a new group or tunnel', () => {
 });
 
 describe('outboundNameChoiceItems', () => {
-  it('offers what the active sources hold', () => {
-    expect(outboundNameChoiceItems(['lan2'], null)).toEqual([
+  it('offers a name two servers share once, where it first appears', () => {
+    expect(outboundNameChoiceItems(['wan', 'lan2', 'wan'])).toEqual([
+      { value: 'wan', label: 'wan' },
       { value: 'lan2', label: 'lan2' },
     ]);
-  });
-
-  it('promotes no selected custom value into the offered choices', () => {
-    expect(outboundNameChoiceItems([], null)).toEqual([]);
   });
 });
 

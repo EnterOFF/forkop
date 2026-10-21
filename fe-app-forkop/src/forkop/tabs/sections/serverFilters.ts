@@ -8,8 +8,6 @@ import {
   configureLiveDynamicListChoices,
   currentOutboundNameChoices,
   currentSubscriptionOutboundNameChoices,
-  loadSectionOutboundNameChoices,
-  loadSubscriptionOutboundNameChoices,
 } from './outboundNames';
 import { coreFilterTypeChoices } from './coreSupport';
 import { groupTypeChoices, providerTypeChoices } from './providers';
@@ -26,11 +24,6 @@ interface ServerFilterOptions {
   groupContext?: boolean;
   // The subscription an outbound name belongs to, for a filter inside one.
   ownerId?: () => string;
-  normalizeOutboundChoice?: (
-    option: CBIOption,
-    itemId: string,
-    name: string,
-  ) => string;
   excludeTypesDescription?: string;
   excludeRegexDescription?: string;
   includeRegexDescription?: string;
@@ -257,38 +250,21 @@ export function addServerFilterOptions(
         field.placeholder = _('-- Select --');
       }
       if (storageKey.endsWith('_outbounds')) {
-        const choicesForItem = (option: CBIOption, itemId: string) => {
-          const sectionId = parentSectionForItem(itemId);
-          const normalizeChoice =
-            typeof options.normalizeOutboundChoice === 'function'
-              ? (name: string) =>
-                  options.normalizeOutboundChoice!(option, itemId, name)
-              : null;
-          return typeof options.ownerId === 'function'
-            ? currentSubscriptionOutboundNameChoices(
-                sectionId,
-                options.ownerId!(),
-                normalizeChoice,
-              )
-            : currentOutboundNameChoices(sectionId, normalizeChoice);
-        };
         field.load = function (itemId: string) {
-          const sectionId = parentSectionForItem(itemId);
-          const values = normalizeOptionValues(
+          return normalizeOptionValues(
             optionMapValue(this, itemId, storageKey),
           );
-          if (typeof options.ownerId === 'function') {
-            loadSubscriptionOutboundNameChoices(sectionId, options.ownerId());
-          } else {
-            loadSectionOutboundNameChoices(sectionId);
-          }
-          refreshOptionChoices(this, choicesForItem(this, itemId));
-          return values;
         };
         field.placeholder = _('-- Select --');
         configureLiveDynamicListChoices(
           field,
-          (itemId: string) => choicesForItem(field, itemId),
+          (itemId: string) =>
+            typeof options.ownerId === 'function'
+              ? currentSubscriptionOutboundNameChoices(
+                  parentSectionForItem(itemId),
+                  options.ownerId(),
+                )
+              : currentOutboundNameChoices(parentSectionForItem(itemId)),
           parentSectionForItem,
         );
       }

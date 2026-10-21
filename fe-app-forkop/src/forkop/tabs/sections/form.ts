@@ -71,7 +71,7 @@ import {
 } from './outboundJson';
 import {
   outboundNameSourceOptions,
-  refreshDashboardFilterChoiceWidgets,
+  refreshLiveChoiceWidgets,
 } from './outboundNames';
 import {
   dependsOnRoutingAction,
@@ -279,7 +279,7 @@ export function createSectionContent(section: CBISection) {
       childItemInputValue(section_id, value, 'connection_link', 'uri'),
     );
   };
-  links.onListChange = refreshDashboardFilterChoiceWidgets;
+  links.onListChange = refreshLiveChoiceWidgets;
   links.afterMaterializeChildItems = orderChildItemsByPosition;
   links.liveDynamicListNodes = new Map();
   const renderLinks = links.renderWidget;
@@ -373,6 +373,8 @@ export function createSectionContent(section: CBISection) {
       childItemInputValue(section_id, value, 'subscription_url', 'url'),
     );
   };
+  subscriptions.onListChange = refreshLiveChoiceWidgets;
+  outboundNameSourceOptions.set('subscription_url', subscriptions);
 
   o = section.taboption(
     'settings',
@@ -407,7 +409,7 @@ export function createSectionContent(section: CBISection) {
 
     return this.validate(section_id, normalized) === true;
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   outboundNameSourceOptions.set('interfaces', o);
 
   o = section.taboption(
@@ -449,7 +451,7 @@ export function createSectionContent(section: CBISection) {
     const tunnelId = `${value || ''}`.trim();
     return tunnelId ? validateTunnelItem(section_id, tunnelId) : true;
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   o.afterMaterializeChildItems = orderChildItemsByPosition;
   outboundNameSourceOptions.set('tunnels', o);
 
@@ -481,7 +483,7 @@ export function createSectionContent(section: CBISection) {
       ? true
       : message.item(outboundJsonDisplayTag(value), validation);
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
   outboundNameSourceOptions.set('outbound_jsons', o);
 
   o = section.taboption(
@@ -507,7 +509,7 @@ export function createSectionContent(section: CBISection) {
   o.renderListItemLabel = function (section_id: string, itemId: string) {
     return renderChildItemLabel(this, section_id, itemId);
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
 
   o = section.taboption(
     'settings',
@@ -532,7 +534,7 @@ export function createSectionContent(section: CBISection) {
   o.renderListItemLabel = function (section_id: string, itemId: string) {
     return renderChildItemLabel(this, section_id, itemId);
   };
-  o.onListChange = refreshDashboardFilterChoiceWidgets;
+  o.onListChange = refreshLiveChoiceWidgets;
 
   const destinationOption = addDestinationField(
     section,
