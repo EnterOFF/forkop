@@ -1,6 +1,18 @@
 import { E } from '../../../helpers/element';
-import { renderXIcon24 } from '../../../icons';
+import { renderChevronUpIcon24, renderXIcon24 } from '../../../icons';
 import { sourceLabel } from './source';
+
+export type ConnectionSortColumn = 'time' | 'download' | 'upload';
+
+export interface ConnectionListSort {
+  column: ConnectionSortColumn;
+  descending: boolean;
+}
+
+interface ConnectionListOptions {
+  closable: boolean;
+  sort?: ConnectionListSort | null;
+}
 
 export interface ConnectionListItem {
   id: string;
@@ -19,7 +31,10 @@ export interface ConnectionListItem {
 // Divs with table roles rather than a <table>: footstrap claims any <table> with a header row and
 // restyles it with !important rules nothing outside its cascade layers can override. Closed
 // connections get no close column.
-function renderList(rows: HTMLElement[], closable: boolean) {
+function renderList(
+  rows: HTMLElement[],
+  { closable, sort }: ConnectionListOptions,
+) {
   return E(
     'div',
     {
@@ -43,9 +58,9 @@ function renderList(rows: HTMLElement[], closable: boolean) {
           renderHeading('source', _('Source')),
           renderHeading('route', _('Route')),
           renderHeading('network', _('Type')),
-          renderHeading('time', _('Time')),
-          renderHeading('download', `↓ ${_('Downloaded')}`),
-          renderHeading('upload', `↑ ${_('Uploaded')}`),
+          renderSortHeading('time', _('Time'), sort),
+          renderSortHeading('download', `↓ ${_('Downloaded')}`, sort),
+          renderSortHeading('upload', `↑ ${_('Uploaded')}`, sort),
           ...(closable
             ? [
                 E('div', {
@@ -68,6 +83,37 @@ function cellClass(column: string) {
 
 function renderHeading(column: string, text: string) {
   return E('div', { class: cellClass(column), role: 'columnheader' }, text);
+}
+
+// Every sortable heading carries the arrow, shown only on the sorted one, so a column keeps its
+// width when the sort moves.
+function renderSortHeading(
+  column: ConnectionSortColumn,
+  text: string,
+  sort?: ConnectionListSort | null,
+) {
+  const order =
+    sort?.column === column
+      ? sort.descending
+        ? 'descending'
+        : 'ascending'
+      : '';
+
+  return E(
+    'div',
+    {
+      class: cellClass(column),
+      role: 'columnheader',
+      ...(order ? { 'aria-sort': order } : {}),
+    },
+    [
+      E(
+        'button',
+        { class: 'fkp_monitoring-page__sort', type: 'button', value: column },
+        [text, renderChevronUpIcon24()],
+      ),
+    ],
+  );
 }
 
 function renderCell(column: string, children: Node[]) {
@@ -169,17 +215,17 @@ function renderRow(item: ConnectionListItem, closable: boolean) {
 
 export function renderConnectionList(
   items: ConnectionListItem[],
-  options: { closable: boolean },
+  options: ConnectionListOptions,
 ) {
   return renderList(
     items.map((item) => renderRow(item, options.closable)),
-    options.closable,
+    options,
   );
 }
 
 export function renderConnectionListState(
   text: string,
-  options: { closable: boolean; className?: string },
+  options: ConnectionListOptions & { className?: string },
 ) {
   return renderList(
     [
@@ -203,6 +249,6 @@ export function renderConnectionListState(
         ],
       ),
     ],
-    options.closable,
+    options,
   );
 }

@@ -150,6 +150,8 @@ named children. */
 /* Every row is a subgrid, so columns size like a table's; only host, source and route give way
 when the width runs short. */
 .fkp_monitoring-page__list {
+    --fkp-monitoring-sort-arrow-size: 12px;
+    --fkp-monitoring-sort-arrow-gap: 2px;
     --fkp-monitoring-columns:
         minmax(8em, auto)
         minmax(6em, auto)
@@ -191,6 +193,51 @@ when the width runs short. */
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+}
+
+/* A selection inside the list holds the monitoring, so only the values can be selected. */
+.fkp_monitoring-page__row--head,
+.fkp_monitoring-page__row--state {
+    user-select: none;
+}
+
+.fkp_monitoring-page .fkp_monitoring-page__sort {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--fkp-monitoring-sort-arrow-gap);
+    max-width: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+.fkp_monitoring-page .fkp_monitoring-page__sort:hover,
+.fkp_monitoring-page__cell[aria-sort] .fkp_monitoring-page__sort {
+    color: var(--text-color-high);
+}
+
+.fkp_monitoring-page__sort svg {
+    width: var(--fkp-monitoring-sort-arrow-size);
+    height: var(--fkp-monitoring-sort-arrow-size);
+    flex: 0 0 auto;
+    visibility: hidden;
+}
+
+.fkp_monitoring-page__cell[aria-sort] .fkp_monitoring-page__sort svg {
+    visibility: visible;
+}
+
+.fkp_monitoring-page__cell[aria-sort='descending'] .fkp_monitoring-page__sort svg {
+    transform: rotate(180deg);
 }
 
 .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--head):not(.fkp_monitoring-page__row--state):hover {
@@ -259,9 +306,11 @@ when the width runs short. */
     color: var(--text-color-medium, #bbb);
 }
 
+/* The sort arrow sits right of its heading, so the values end where the heading's text does. */
 .fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
+    padding-right: calc(var(--fkp-monitoring-sort-arrow-size) + var(--fkp-monitoring-sort-arrow-gap));
     color: var(--text-color-medium, #bbb);
 }
 
@@ -419,6 +468,12 @@ when the width runs short. */
         content: '\\2191';
         margin-right: 3px;
         color: var(--text-color-medium);
+    }
+
+    .fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
+    .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
+    .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
+        padding-right: 0;
     }
 
     .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,

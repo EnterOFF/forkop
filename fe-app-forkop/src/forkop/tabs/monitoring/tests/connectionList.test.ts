@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ConnectionListItem } from '../connectionList';
+import type { ConnectionListItem, ConnectionListSort } from '../connectionList';
 
 interface Drawn {
   tag: string;
@@ -21,6 +21,7 @@ vi.stubGlobal(
   }),
 );
 vi.mock('../../../../icons', () => ({
+  renderChevronUpIcon24: () => ({ tag: 'svg', attrs: {}, children: [] }),
   renderXIcon24: () => ({ tag: 'svg', attrs: {}, children: [] }),
 }));
 
@@ -51,6 +52,10 @@ function withRole(node: Drawn, role: string) {
 
 function classes(node: Drawn): string[] {
   return String(node.attrs.class ?? '').split(/\s+/);
+}
+
+function isCloseButton(node: Drawn) {
+  return classes(node).includes('fkp_monitoring-page__row-action');
 }
 
 const CONNECTION: ConnectionListItem = {
@@ -107,13 +112,53 @@ describe('the Monitoring connection list', () => {
     ]);
   });
 
+  it('sorts by time and traffic from their headings and marks the sorted one', () => {
+    const headings = (sort: ConnectionListSort | null) =>
+      withRole(
+        withRole(
+          draw(renderConnectionList([CONNECTION], { closable: true, sort })),
+          'row',
+        )[0],
+        'columnheader',
+      );
+    const buttonValue = (heading: Drawn) =>
+      elements(heading).find((element) => element.tag === 'button')?.attrs
+        .value ?? '';
+    const order = (heading: Drawn) => heading.attrs['aria-sort'] ?? '';
+
+    expect(headings(null).map(buttonValue)).toEqual([
+      '',
+      '',
+      '',
+      '',
+      'time',
+      'download',
+      'upload',
+      '',
+    ]);
+    expect(headings(null).map(order)).toEqual(Array(8).fill(''));
+    expect(
+      headings({ column: 'download', descending: true }).map(order),
+    ).toEqual(['', '', '', '', '', 'descending', '', '']);
+    expect(headings({ column: 'time', descending: false }).map(order)).toEqual([
+      '',
+      '',
+      '',
+      '',
+      'ascending',
+      '',
+      '',
+      '',
+    ]);
+  });
+
   it('closes a connection by its id, once', () => {
     const [open, closing] = [
       CONNECTION,
       { ...CONNECTION, id: 'c-2', closing: true },
     ].map((item) =>
       elements(draw(renderConnectionList([item], { closable: true }))).find(
-        (element) => element.tag === 'button',
+        isCloseButton,
       ),
     );
 
@@ -127,9 +172,7 @@ describe('the Monitoring connection list', () => {
     const list = draw(renderConnectionList([CONNECTION], { closable: false }));
     const [head, row] = withRole(list, 'row');
 
-    expect(elements(list).some((element) => element.tag === 'button')).toBe(
-      false,
-    );
+    expect(elements(list).some(isCloseButton)).toBe(false);
     expect(withRole(head, 'columnheader')).toHaveLength(7);
     expect(withRole(row, 'cell').map(text)).not.toContain('-');
     expect(withRole(row, 'cell')).toHaveLength(7);

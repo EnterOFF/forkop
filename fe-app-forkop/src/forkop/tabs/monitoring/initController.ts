@@ -20,6 +20,8 @@ import { Forkop } from '../../types';
 import { E } from '../../../helpers/element';
 import {
   ConnectionListItem,
+  ConnectionListSort,
+  ConnectionSortColumn,
   renderConnectionList,
   renderConnectionListState,
 } from './connectionList';
@@ -107,6 +109,7 @@ let activeTab: MonitoringTabId = 'active';
 let selectedDeviceFilter = ALL_FILTER_VALUE;
 let selectedRouteFilter = ALL_FILTER_VALUE;
 let searchQuery = '';
+let connectionSort: ConnectionListSort | null = null;
 let localDeviceNames: Record<string, string> = {};
 let routeLabels: Record<string, string> = {};
 let sectionTags: string[] = [];
@@ -262,11 +265,17 @@ function formatDuration(ms: number): string {
   return `${minutes}:${pad(seconds)}`;
 }
 
-function formatConnectionDuration(connection: MonitoredConnection): string {
-  const startedAt = parseStartedAt(connection);
-  const finishedAt = connection.closedAt || monitoringPausedAt || Date.now();
+function getConnectionDuration(
+  connection: MonitoredConnection,
+  now: number,
+): number {
+  const finishedAt = connection.closedAt || monitoringPausedAt || now;
 
-  return formatDuration(finishedAt - startedAt);
+  return finishedAt - parseStartedAt(connection);
+}
+
+function formatConnectionDuration(connection: MonitoredConnection): string {
+  return formatDuration(getConnectionDuration(connection, Date.now()));
 }
 
 function formatBytes(value?: number): string {
@@ -328,13 +337,57 @@ function sortConnections(
   });
 }
 
+// The active list's own order is the time column's, shortest first; the closed list's is when
+// each closed, which no column shows.
+function getShownSort(): ConnectionListSort | null {
+  return (
+    connectionSort ??
+    (activeTab === 'active' ? { column: 'time', descending: false } : null)
+  );
+}
+
+function getSortValue(
+  connection: MonitoredConnection,
+  column: ConnectionSortColumn,
+  now: number,
+): number {
+  if (column === 'time') {
+    return getConnectionDuration(connection, now);
+  }
+
+  return Number(connection[column]) || 0;
+}
+
+// The sort is stable, so equal values keep the list's own order.
 function getConnectionsForActiveTab(): MonitoredConnection[] {
   const source =
     activeTab === 'active'
       ? Array.from(activeConnections.values())
       : Array.from(closedConnections.values());
+  const connections = sortConnections(source, activeTab);
 
-  return sortConnections(source, activeTab);
+  if (!connectionSort) {
+    return connections;
+  }
+
+  const { column, descending } = connectionSort;
+  const now = Date.now();
+  const direction = descending ? -1 : 1;
+
+  return connections.sort(
+    (a, b) =>
+      direction * (getSortValue(a, column, now) - getSortValue(b, column, now)),
+  );
+}
+
+// A column sorts first the way it is read most: the shortest time, the most traffic.
+function sortBy(column: ConnectionSortColumn) {
+  const shown = getShownSort();
+  connectionSort =
+    shown?.column === column
+      ? { column, descending: !shown.descending }
+      : { column, descending: column !== 'time' };
+  redrawForAction();
 }
 
 function normalizeSearchValue(value: string): string {
@@ -700,11 +753,13 @@ function renderConnections(options: { force?: boolean } = {}) {
   }
 
   const closable = activeTab === 'active';
+  const sort = getShownSort();
 
   if (loading) {
     container.replaceChildren(
       renderConnectionListState(_('Loading connections...'), {
         closable,
+        sort,
         className: 'fkp_monitoring-page__state--loading',
       }),
     );
@@ -715,6 +770,7 @@ function renderConnections(options: { force?: boolean } = {}) {
     container.replaceChildren(
       renderConnectionListState(_('Connections are unavailable'), {
         closable,
+        sort,
         className: 'fkp_monitoring-page__state--error',
       }),
     );
@@ -727,14 +783,17 @@ function renderConnections(options: { force?: boolean } = {}) {
     container.replaceChildren(
       renderConnectionListState(
         closable ? _('No active connections') : _('No closed connections'),
-        { closable },
+        { closable, sort },
       ),
     );
     return;
   }
 
   container.replaceChildren(
-    renderConnectionList(visibleConnections.map(toListItem), { closable }),
+    renderConnectionList(visibleConnections.map(toListItem), {
+      closable,
+      sort,
+    }),
   );
 }
 
@@ -780,7 +839,7 @@ function holdForSelection() {
   updatePause({ selection: isTextSelectionInsideList() });
 }
 
-// Switching tab, device or search replaces the list, so it is drawn at once.
+// Switching tab, device, search or sort replaces the list, so it is drawn at once.
 function redrawForAction() {
   renderControls();
   renderConnections({ force: true });
@@ -1024,9 +1083,14 @@ function bindControls() {
       const button = target?.closest(
         '.fkp_monitoring-page__row-action',
       ) as HTMLButtonElement | null;
+      const sortButton = target?.closest(
+        '.fkp_monitoring-page__sort',
+      ) as HTMLButtonElement | null;
 
       if (button?.value) {
         void closeConnection(button.value);
+      } else if (sortButton?.value) {
+        sortBy(sortButton.value as ConnectionSortColumn);
       }
     };
   }
@@ -1216,6 +1280,7 @@ function resetMonitoringState() {
   selectedDeviceFilter = ALL_FILTER_VALUE;
   selectedRouteFilter = ALL_FILTER_VALUE;
   searchQuery = '';
+  connectionSort = null;
   filterSignatures = {};
   loading = true;
   failed = false;

@@ -9707,7 +9707,7 @@ function compareSources(a, b) {
 }
 
 // src/forkop/tabs/monitoring/connectionList.ts
-function renderList(rows, closable) {
+function renderList(rows, { closable, sort }) {
   return textE(
     "div",
     {
@@ -9729,9 +9729,9 @@ function renderList(rows, closable) {
           renderHeading("source", _("Source")),
           renderHeading("route", _("Route")),
           renderHeading("network", _("Type")),
-          renderHeading("time", _("Time")),
-          renderHeading("download", `\u2193 ${_("Downloaded")}`),
-          renderHeading("upload", `\u2191 ${_("Uploaded")}`),
+          renderSortHeading("time", _("Time"), sort),
+          renderSortHeading("download", `\u2193 ${_("Downloaded")}`, sort),
+          renderSortHeading("upload", `\u2191 ${_("Uploaded")}`, sort),
           ...closable ? [
             textE("div", {
               class: cellClass("action"),
@@ -9750,6 +9750,24 @@ function cellClass(column) {
 }
 function renderHeading(column, text8) {
   return textE("div", { class: cellClass(column), role: "columnheader" }, text8);
+}
+function renderSortHeading(column, text8, sort) {
+  const order = sort?.column === column ? sort.descending ? "descending" : "ascending" : "";
+  return textE(
+    "div",
+    {
+      class: cellClass(column),
+      role: "columnheader",
+      ...order ? { "aria-sort": order } : {}
+    },
+    [
+      textE(
+        "button",
+        { class: "fkp_monitoring-page__sort", type: "button", value: column },
+        [text8, renderChevronUpIcon24()]
+      )
+    ]
+  );
 }
 function renderCell(column, children2) {
   return textE("div", { class: cellClass(column), role: "cell" }, children2);
@@ -9834,7 +9852,7 @@ function renderRow(item, closable) {
 function renderConnectionList(items, options) {
   return renderList(
     items.map((item) => renderRow(item, options.closable)),
-    options.closable
+    options
   );
 }
 function renderConnectionListState(text8, options) {
@@ -9858,7 +9876,7 @@ function renderConnectionListState(text8, options) {
         ]
       )
     ],
-    options.closable
+    options
   );
 }
 
@@ -10009,6 +10027,7 @@ var activeTab = "active";
 var selectedDeviceFilter = ALL_FILTER_VALUE;
 var selectedRouteFilter = ALL_FILTER_VALUE;
 var searchQuery = "";
+var connectionSort = null;
 var localDeviceNames = {};
 var routeLabels = {};
 var sectionTags = [];
@@ -10121,10 +10140,12 @@ function formatDuration2(ms) {
   }
   return `${minutes}:${pad2(seconds3)}`;
 }
+function getConnectionDuration(connection, now) {
+  const finishedAt = connection.closedAt || monitoringPausedAt || now;
+  return finishedAt - parseStartedAt(connection);
+}
 function formatConnectionDuration(connection) {
-  const startedAt = parseStartedAt(connection);
-  const finishedAt = connection.closedAt || monitoringPausedAt || Date.now();
-  return formatDuration2(finishedAt - startedAt);
+  return formatDuration2(getConnectionDuration(connection, Date.now()));
 }
 function formatBytes2(value) {
   return prettyBytes(Number.isFinite(value) ? Number(value) : 0);
@@ -10165,9 +10186,32 @@ function sortConnections(connections, tab) {
     return parseStartedAt(b) - parseStartedAt(a);
   });
 }
+function getShownSort() {
+  return connectionSort ?? (activeTab === "active" ? { column: "time", descending: false } : null);
+}
+function getSortValue(connection, column, now) {
+  if (column === "time") {
+    return getConnectionDuration(connection, now);
+  }
+  return Number(connection[column]) || 0;
+}
 function getConnectionsForActiveTab() {
   const source = activeTab === "active" ? Array.from(activeConnections.values()) : Array.from(closedConnections.values());
-  return sortConnections(source, activeTab);
+  const connections = sortConnections(source, activeTab);
+  if (!connectionSort) {
+    return connections;
+  }
+  const { column, descending } = connectionSort;
+  const now = Date.now();
+  const direction = descending ? -1 : 1;
+  return connections.sort(
+    (a, b) => direction * (getSortValue(a, column, now) - getSortValue(b, column, now))
+  );
+}
+function sortBy(column) {
+  const shown2 = getShownSort();
+  connectionSort = shown2?.column === column ? { column, descending: !shown2.descending } : { column, descending: column !== "time" };
+  redrawForAction();
 }
 function normalizeSearchValue(value) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -10434,10 +10478,12 @@ function renderConnections(options = {}) {
     return;
   }
   const closable = activeTab === "active";
+  const sort = getShownSort();
   if (loading) {
     container.replaceChildren(
       renderConnectionListState(_("Loading connections..."), {
         closable,
+        sort,
         className: "fkp_monitoring-page__state--loading"
       })
     );
@@ -10447,6 +10493,7 @@ function renderConnections(options = {}) {
     container.replaceChildren(
       renderConnectionListState(_("Connections are unavailable"), {
         closable,
+        sort,
         className: "fkp_monitoring-page__state--error"
       })
     );
@@ -10457,13 +10504,16 @@ function renderConnections(options = {}) {
     container.replaceChildren(
       renderConnectionListState(
         closable ? _("No active connections") : _("No closed connections"),
-        { closable }
+        { closable, sort }
       )
     );
     return;
   }
   container.replaceChildren(
-    renderConnectionList(visibleConnections.map(toListItem), { closable })
+    renderConnectionList(visibleConnections.map(toListItem), {
+      closable,
+      sort
+    })
   );
 }
 function updatePause(change) {
@@ -10704,8 +10754,13 @@ function bindControls() {
       const button = target2?.closest(
         ".fkp_monitoring-page__row-action"
       );
+      const sortButton = target2?.closest(
+        ".fkp_monitoring-page__sort"
+      );
       if (button?.value) {
         void closeConnection(button.value);
+      } else if (sortButton?.value) {
+        sortBy(sortButton.value);
       }
     };
   }
@@ -10845,6 +10900,7 @@ function resetMonitoringState() {
   selectedDeviceFilter = ALL_FILTER_VALUE;
   selectedRouteFilter = ALL_FILTER_VALUE;
   searchQuery = "";
+  connectionSort = null;
   filterSignatures = {};
   loading = true;
   failed = false;
@@ -11080,6 +11136,8 @@ named children. */
 /* Every row is a subgrid, so columns size like a table's; only host, source and route give way
 when the width runs short. */
 .fkp_monitoring-page__list {
+    --fkp-monitoring-sort-arrow-size: 12px;
+    --fkp-monitoring-sort-arrow-gap: 2px;
     --fkp-monitoring-columns:
         minmax(8em, auto)
         minmax(6em, auto)
@@ -11121,6 +11179,51 @@ when the width runs short. */
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
+}
+
+/* A selection inside the list holds the monitoring, so only the values can be selected. */
+.fkp_monitoring-page__row--head,
+.fkp_monitoring-page__row--state {
+    user-select: none;
+}
+
+.fkp_monitoring-page .fkp_monitoring-page__sort {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--fkp-monitoring-sort-arrow-gap);
+    max-width: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+.fkp_monitoring-page .fkp_monitoring-page__sort:hover,
+.fkp_monitoring-page__cell[aria-sort] .fkp_monitoring-page__sort {
+    color: var(--text-color-high);
+}
+
+.fkp_monitoring-page__sort svg {
+    width: var(--fkp-monitoring-sort-arrow-size);
+    height: var(--fkp-monitoring-sort-arrow-size);
+    flex: 0 0 auto;
+    visibility: hidden;
+}
+
+.fkp_monitoring-page__cell[aria-sort] .fkp_monitoring-page__sort svg {
+    visibility: visible;
+}
+
+.fkp_monitoring-page__cell[aria-sort='descending'] .fkp_monitoring-page__sort svg {
+    transform: rotate(180deg);
 }
 
 .fkp_monitoring-page__row:not(.fkp_monitoring-page__row--head):not(.fkp_monitoring-page__row--state):hover {
@@ -11189,9 +11292,11 @@ when the width runs short. */
     color: var(--text-color-medium, #bbb);
 }
 
+/* The sort arrow sits right of its heading, so the values end where the heading's text does. */
 .fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
 .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
+    padding-right: calc(var(--fkp-monitoring-sort-arrow-size) + var(--fkp-monitoring-sort-arrow-gap));
     color: var(--text-color-medium, #bbb);
 }
 
@@ -11349,6 +11454,12 @@ when the width runs short. */
         content: '\\2191';
         margin-right: 3px;
         color: var(--text-color-medium);
+    }
+
+    .fkp_monitoring-page__cell--time .fkp_monitoring-page__value,
+    .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,
+    .fkp_monitoring-page__cell--upload .fkp_monitoring-page__value {
+        padding-right: 0;
     }
 
     .fkp_monitoring-page__cell--download .fkp_monitoring-page__value,

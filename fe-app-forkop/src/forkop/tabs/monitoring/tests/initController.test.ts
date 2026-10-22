@@ -26,6 +26,7 @@ vi.mock('../../../cbi/localDevices', () => ({
   loadLocalDevices: async () => ({ choices: {}, order: [], names: {} }),
 }));
 vi.mock('../../../../icons', () => ({
+  renderChevronUpIcon24: () => new FakeElement('svg'),
   renderSearchIcon24: () => new FakeElement('svg'),
   renderXIcon24: () => new FakeElement('svg'),
 }));
@@ -36,6 +37,7 @@ class FakeElement {
   tag: string;
   attrs: Record<string, unknown>;
   children: Child[] = [];
+  parent: FakeElement | null = null;
   [property: string]: unknown;
 
   constructor(
@@ -56,6 +58,17 @@ class FakeElement {
 
   replaceChildren(...children: Child[]) {
     this.children = children;
+    children.forEach((child) => {
+      if (typeof child !== 'string') {
+        child.parent = this;
+      }
+    });
+  }
+
+  closest(selector: string): FakeElement | null {
+    return `${this.attrs.class}`.split(' ').includes(selector.slice(1))
+      ? this
+      : (this.parent?.closest(selector) ?? null);
   }
 
   get childNodes() {
@@ -105,7 +118,14 @@ function byId(id: string) {
 
 function connection(
   id: string,
-  { sourceIP = '192.168.1.101', chains = ['direct-out'], rule = '' } = {},
+  {
+    sourceIP = '192.168.1.101',
+    chains = ['direct-out'],
+    rule = '',
+    ageSeconds = 0,
+    download = 0,
+    upload = 0,
+  } = {},
 ) {
   return {
     id,
@@ -118,7 +138,9 @@ function connection(
       type: 'tproxy/tproxy-in',
     },
     chains,
-    start: new Date().toISOString(),
+    start: new Date(Date.now() - ageSeconds * 1000).toISOString(),
+    download,
+    upload,
   };
 }
 
@@ -161,6 +183,31 @@ function rows() {
 
 function activeCount() {
   return byId('monitoring-tab-active').textContent.replace(/\D/g, '');
+}
+
+function showTab(id: string) {
+  (byId(id).onclick as (event: unknown) => void)({ preventDefault() {} });
+}
+
+function sortBy(column: string) {
+  const list = byId('monitoring-connections');
+  const button = list
+    .descendants()
+    .find(
+      (element) =>
+        `${element.attrs.class}`.includes('__sort') &&
+        element.attrs.value === column,
+    );
+  (list.onclick as (event: unknown) => void)({ target: button });
+}
+
+function sortedColumn() {
+  const heading = byId('monitoring-connections')
+    .descendants()
+    .find((element) => element.attrs['aria-sort']);
+  const button = heading?.descendants().find((element) => element !== heading);
+
+  return heading ? `${button?.attrs.value} ${heading.attrs['aria-sort']}` : '';
 }
 
 function select(node: unknown) {
@@ -287,6 +334,88 @@ describe('the Monitoring pause', () => {
     answer('a', 'b');
     await vi.advanceTimersByTimeAsync(5000);
     expect(rows()).toHaveLength(1);
+  });
+});
+
+describe('the Monitoring order', () => {
+  it('lists the newest connection first, the shortest time', async () => {
+    answerWith(
+      connection('a', { ageSeconds: 60 }),
+      connection('b', { ageSeconds: 10 }),
+      connection('c', { ageSeconds: 30 }),
+    );
+    await openMonitoring();
+
+    expect(hosts()).toEqual([
+      'b.example.com',
+      'c.example.com',
+      'a.example.com',
+    ]);
+    expect(sortedColumn()).toBe('time ascending');
+  });
+
+  it('turns the time over to the longest first', async () => {
+    answerWith(
+      connection('a', { ageSeconds: 60 }),
+      connection('b', { ageSeconds: 10 }),
+    );
+    await openMonitoring();
+
+    sortBy('time');
+    expect([hosts(), sortedColumn()]).toEqual([
+      ['a.example.com', 'b.example.com'],
+      'time descending',
+    ]);
+  });
+
+  it('sorts by traffic the most first and turns it over on a second click', async () => {
+    answerWith(
+      connection('a', { download: 100, upload: 70 }),
+      connection('b', { download: 3000, upload: 5 }),
+      connection('c', { download: 20, upload: 1 }),
+    );
+    await openMonitoring();
+
+    sortBy('download');
+    expect([hosts(), sortedColumn()]).toEqual([
+      ['b.example.com', 'a.example.com', 'c.example.com'],
+      'download descending',
+    ]);
+
+    sortBy('download');
+    expect([hosts(), sortedColumn()]).toEqual([
+      ['c.example.com', 'a.example.com', 'b.example.com'],
+      'download ascending',
+    ]);
+
+    sortBy('upload');
+    expect([hosts(), sortedColumn()]).toEqual([
+      ['a.example.com', 'b.example.com', 'c.example.com'],
+      'upload descending',
+    ]);
+  });
+
+  it('lists the last closed first until a column is chosen', async () => {
+    const shortLived = connection('a', { ageSeconds: 10 });
+    const longLived = connection('b', { ageSeconds: 100 });
+    answerWith(shortLived, longLived);
+    await openMonitoring();
+    answerWith(longLived);
+    await vi.advanceTimersByTimeAsync(2000);
+    answerWith();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    showTab('monitoring-tab-closed');
+    expect([hosts(), sortedColumn()]).toEqual([
+      ['b.example.com', 'a.example.com'],
+      '',
+    ]);
+
+    sortBy('time');
+    expect([hosts(), sortedColumn()]).toEqual([
+      ['a.example.com', 'b.example.com'],
+      'time ascending',
+    ]);
   });
 });
 
