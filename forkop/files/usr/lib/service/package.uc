@@ -14,35 +14,11 @@ let paths = {
     firewall_init: "/etc/init.d/firewall",
     firewall_input_include: "/usr/share/nftables.d/chain-pre/input/forkop.nft",
     rpcd_init: "/etc/init.d/rpcd",
-    luci_index_cache: [ "/var/luci-indexcache*", "/tmp/luci-indexcache*" ],
-    // What releases up to 1.0.5 left behind: cached answers and the directories of retired features.
-    obsolete: [
-        "/var/run/forkop/system-info.json",
-        "/tmp/forkop/system-info.json",
-        "/var/run/forkop/component-update-check.timestamp",
-        "/var/run/forkop/component-update-checks",
-        "/var/run/forkop/component-actions",
-        "/var/run/forkop/component-action.lock",
-        "/tmp/forkop.latest-version.cache",
-        "/var/run/forkop/zapret",
-        "/var/run/forkop/zapret2",
-        "/var/run/forkop/byedpi",
-        "/var/run/forkop/zapret-runtime",
-        "/usr/lib/forkop/components",
-        "/usr/lib/forkop/dns",
-        "/usr/lib/forkop/providers",
-        "/usr/lib/forkop/routing",
-        "/usr/lib/forkop/subscription"
-    ]
+    luci_index_cache: [ "/var/luci-indexcache*", "/tmp/luci-indexcache*" ]
 };
 
 function exists(path) {
     return fs.stat(path) != null;
-}
-
-function remove(path) {
-    if (exists(path))
-        exec.status([ "rm", "-rf", path ]);
 }
 
 // fw4 reads /usr/share/nftables.d only while it builds its ruleset, so the shipped input accept
@@ -91,8 +67,6 @@ function prerm(action) {
 function postinst() {
     exec.log("info", "Installed Forkop " + constants.FORKOP_VERSION);
     bytecode.invalidate_validation_stamp();
-    for (let path in paths.obsolete)
-        remove(path);
     restart_state_service();
     load_firewall_input_include();
     if (!exists(paths.was_running))

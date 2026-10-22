@@ -19,7 +19,6 @@ pkg.paths.firewall_init = firewall_init;
 pkg.paths.firewall_input_include = include;
 pkg.paths.rpcd_init = dir + "/rpcd";
 pkg.paths.luci_index_cache = [ dir + "/luci-indexcache*" ];
-pkg.paths.obsolete = [];
 nft.paths.rt_tables = dir + "/rt_tables";
 for (let path in [ state_init, firewall_init, include, pkg.paths.rpcd_init ])
     fs.writefile(path, "");
@@ -72,24 +71,6 @@ t.test("postinst starts again only what the upgrade stopped", () => {
     t.eq(run(() => pkg.postinst(), [ [ "nft list chain", { status: 1 } ], [ init + " start", { status: 1 } ] ]).status, 1);
     t.ok(fs.stat(pkg.paths.was_running) != null, "a failed start leaves the mark for the next attempt");
     fs.unlink(pkg.paths.was_running);
-});
-
-t.test("postinst removes what earlier releases left, nested directories included", () => {
-    let tree = dir + "/retired/providers";
-    fs.mkdir(dir + "/retired");
-    fs.mkdir(tree);
-    fs.mkdir(tree + "/byedpi");
-    fs.writefile(tree + "/byedpi/bye1.pid", "1");
-    fs.writefile(dir + "/system-info.json", "{}");
-    pkg.paths.obsolete = [ tree, dir + "/system-info.json", dir + "/never-existed" ];
-    let result = run(() => pkg.postinst(), [
-        [ "nft list chain", { status: 1 } ],
-        [ "rm -rf", (argv) => ({ status: stub.real.system("rm -rf '" + argv[2] + "'") }) ]
-    ]);
-    pkg.paths.obsolete = [];
-    t.eq(fs.stat(tree), null);
-    t.eq(fs.stat(dir + "/system-info.json"), null);
-    t.eq(length(filter(result.commands, (line) => index(line, "never-existed") >= 0)), 0);
 });
 
 t.test("postinst loads the firewall include into a running firewall that lacks it, and nowhere else", () => {
