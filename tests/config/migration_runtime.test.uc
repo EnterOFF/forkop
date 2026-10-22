@@ -134,6 +134,44 @@ t.test("steps that change nothing in a configuration move only its label and kee
     t.eq(run.logs, [ "[info] Migrated the configuration from 1.0.5 to 2.0.0; nothing but its version changed" ]);
 });
 
+function start(setup) {
+    let run = stub.capture(() => migration.start());
+    stub.restore();
+    v2.paths.leftovers = saved_leftovers;
+    return { started: run.result, stderr: run.stderr, logs: setup.logs };
+}
+
+t.test("a start migrates a configuration of a supported release and clears what 1.0.x left", () => {
+    let setup = router(RELEASED_CONFIG, server_sections());
+    let cache = setup.dir + "/cache";
+    fs.mkdir(cache);
+    v2.paths.leftovers = [ cache ];
+    let run = start(setup);
+    t.eq(run.started, true, run.stderr);
+    t.eq(filter(uci.__sections("forkop"), (section) => section[".type"] == "settings")[0].config_version, "2.0.0");
+    t.eq(length(kept_aside(setup)), 1);
+    t.eq(fs.stat(cache), null);
+
+    let current = router("current", [ { ".name": "settings", ".type": "settings", config_version: "2.0.0" } ]);
+    t.eq([ start(current).started, uci.__commits(), current.logs ], [ true, [], [] ]);
+});
+
+t.test("a start never replaces a configuration it cannot migrate, and says why once", () => {
+    for (let entry in [
+        [ { config_version: "1.0.1" }, "The configuration of version 1.0.1 cannot be migrated because Forkop migrates configurations from 1.0.2 on" ],
+        [ {}, "The configuration cannot be migrated because it names no version" ],
+        [ { config_version: "9.0.0" }, "The configuration of version 9.0.0 cannot be migrated because it was written by a newer Forkop" ]
+    ]) {
+        let original = "config settings 'settings'\n\toption marker 'kept'\n";
+        let setup = router(original, [ { ".name": "settings", ".type": "settings", ...entry[0] } ]);
+        let run = start(setup);
+        t.eq(run.started, false);
+        t.eq([ fs.readfile(setup.config), kept_aside(setup), uci.__commits() ], [ original, [], [] ], entry[1]);
+        t.eq(run.logs, [ "[error] " + entry[1] + ", so Forkop does not start. Restore a configuration of Forkop 1.0.2 or " +
+            "later, or reinstall Forkop to start from its defaults" ]);
+    }
+});
+
 t.test("a router without the file gets the defaults and says so", () => {
     let setup = router(null, null);
     let run = migrate(setup);

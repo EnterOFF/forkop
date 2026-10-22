@@ -311,6 +311,38 @@ function run() {
     return migrate_runtime(loaded.model, decision);
 }
 
+function remove_leftovers() {
+    let cleaned = true;
+    for (let release in RELEASES)
+        if (release.leftovers != null && !release.leftovers())
+            cleaned = false;
+    return cleaned;
+}
+
+// A start meets a configuration no install saw: a restored backup, or one a sysupgrade kept.
+// One of a supported release is migrated; any other stays as it is, since only an install
+// replaces a configuration.
+function start() {
+    let loaded = load_runtime();
+    if (loaded.error != null) {
+        report("error", "Failed to read the configuration: " + loaded.error);
+        return false;
+    }
+    let decision = decide(loaded.model);
+    if (decision.result == "current")
+        return true;
+    if (decision.result == "reset") {
+        let what = decision.from == "unknown" ? "The configuration" : "The configuration of version " + decision.from;
+        report("error", what + " cannot be migrated because " + RESET_REASONS[decision.reason] + ", so Forkop does not " +
+            "start. Restore a configuration of Forkop " + MIN_CONFIG_VERSION + " or later, or reinstall Forkop to start from its defaults");
+        return false;
+    }
+    if (!migrate_runtime(loaded.model, decision))
+        return false;
+    remove_leftovers();
+    return true;
+}
+
 // The installer's question before it changes anything: what this release would do to the
 // configuration at path. Reads only the file, and writes nothing anywhere.
 function check(path) {
@@ -407,15 +439,8 @@ function migrate_fixture(path) {
 
 function main(argv) {
     let mode = argv[0] ?? "";
-    if (mode == "migrate") {
-        if (!run())
-            return 1;
-        let cleaned = true;
-        for (let release in RELEASES)
-            if (release.leftovers != null && !release.leftovers())
-                cleaned = false;
-        return cleaned ? 0 : 1;
-    }
+    if (mode == "migrate")
+        return run() && remove_leftovers() ? 0 : 1;
     if (mode == "check" && argv[1] != null) {
         let verdict = check(argv[1]);
         common.write_json(verdict);
@@ -431,6 +456,6 @@ function main(argv) {
 }
 
 if (sourcepath(1) != null && sourcepath(1) != "")
-    return { paths, MIN_CONFIG_VERSION, TARGET_CONFIG_VERSION, decide, migrate, changes, run, check, main };
+    return { paths, MIN_CONFIG_VERSION, TARGET_CONFIG_VERSION, decide, migrate, changes, run, start, check, main };
 
 exit(main(ARGV));

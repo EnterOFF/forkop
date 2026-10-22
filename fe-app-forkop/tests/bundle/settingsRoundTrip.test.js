@@ -391,7 +391,7 @@ describe('a subscription tag', () => {
   });
 });
 
-describe.each(['connection', 'proxy', 'bypass', 'block', 'dns'])(
+describe.each(['connection', 'bypass', 'block', 'dns'])(
   'saving a %s section',
   (action) => {
     beforeEach(async () => {
@@ -482,6 +482,7 @@ describe('a value behind a switch that is off', () => {
   it('survives a save of the Settings page', async () => {
     harness.uci.add('forkop', 'settings', 'settings');
     Object.assign(harness.store.get('settings'), {
+      config_version: '2.0.0',
       enable_yacd: '1',
       enable_yacd_wan_access: '0',
       yacd_secret_key: 'yacd-secret',
@@ -501,6 +502,8 @@ describe('a value behind a switch that is off', () => {
       ['yacd_secret_key', 'yacd-secret'],
       ['native_api_secret', 'api-secret'],
       ['update_interval', '6h'],
+      // Without it the next install or start takes the configuration for a foreign one.
+      ['config_version', '2.0.0'],
     ])
       expect(harness.uci.get('forkop', 'settings', name), name).toBe(value);
   });

@@ -37,6 +37,7 @@ const NOT_CAPTURING = "Forkop was not fully running after the nftables rules wer
 
 let paths = {
     config: "/etc/config/forkop",
+    shipped_config: "/usr/share/forkop/default-config",
     sing_box_init: "/etc/init.d/sing-box",
     lock: "/var/run/forkop/start.lock",
     pending_reload: "/var/run/forkop/reload.pending",
@@ -69,8 +70,21 @@ function queue_reload_if_changed(fingerprint, context) {
         log("warn", "The configuration changed " + during + ", and applying it could not be queued; apply it again");
 }
 
+// A configuration restored from a backup, or kept by a sysupgrade, missed the migration the
+// package runs at its install; its version then differs from the one the package ships.
+function migrate_restored_config() {
+    let shipped = match(fs.readfile(paths.shipped_config) ?? "", /option config_version '([^']*)'/);
+    if (shipped != null && uci.get(CONFIG_NAME + ".settings.config_version") == shipped[1])
+        return true;
+    let migrated = require("config.migration").start();
+    uci.reset();
+    return migrated;
+}
+
 // The server ports open only once the configuration is known good.
 function validate() {
+    if (!migrate_restored_config())
+        return false;
     try {
         validator.check_requirements();
         server.prepare();

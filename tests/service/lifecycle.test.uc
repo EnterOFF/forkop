@@ -14,6 +14,8 @@ let nft_state = require("nft.state");
 let rulesets = require("nft.ruleset_sync");
 let health = require("service.health");
 let watch = require("service.singbox_watch");
+let migration = require("config.migration");
+let fixture = require("fixture");
 let lifecycle = require("service.lifecycle");
 
 let world = null;
@@ -37,6 +39,9 @@ function reset(options) {
     fs.writefile(lifecycle.paths.sing_box_init, "#!/bin/sh\n");
     fs.chmod(lifecycle.paths.sing_box_init, 0755);
     fs.writefile(lifecycle.paths.config, "config forkop\n");
+    lifecycle.paths.shipped_config = dir + "/default-config";
+    fs.writefile(lifecycle.paths.shipped_config, "config settings 'settings'\n\toption config_version '2.0.0'\n");
+    fixture.seed({ settings: { config_version: options?.config_version ?? "2.0.0" } });
 
     world = {
         dir,
@@ -55,6 +60,10 @@ function reset(options) {
         ...(options ?? {})
     };
 
+    migration.start = () => {
+        event("configuration migrated");
+        return !world.migration_fails;
+    };
     validator.check_requirements = () => { if (world.requirements_fail) die("requirements"); };
     validator.validate = () => { if (world.invalid) die("Section 'x' is broken. Aborted."); };
     server.prepare = () => {};
@@ -197,6 +206,20 @@ t.test("a start answers only once sing-box is ready, then turns the table on, th
     t.eq(fs.readfile(lifecycle.paths.applied_nft), world.script, "the applied table is recorded");
     t.eq(world.logs, [ "[info] Starting Forkop", "[info] Forkop started" ]);
     t.eq(result.stdout, "", "a start prints nothing");
+});
+
+t.test("a configuration restored from an older release is migrated before anything else of a start", () => {
+    reset({ config_version: "1.0.5" });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 0);
+    t.eq(world.events[0], "configuration migrated");
+    t.contains(world.events, "sing-box started");
+
+    reset({ config_version: "1.0.5", migration_fails: true });
+    result = run(() => lifecycle.start());
+    t.eq(result.result, 1);
+    t.eq(filter(world.events, (e) => e == "config checked" || e == "sing-box started"), [],
+        "a configuration it could not migrate is never validated or run");
 });
 
 t.test("a start on a router with IPv6 off says that only IPv4 is routed", () => {
