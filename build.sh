@@ -41,8 +41,18 @@ APP_DESCRIPTION="Rule-based sing-box orchestration for OpenWrt, LuCI app"
 I18N_DESCRIPTION="Translation for luci-app-forkop - Русский (Russian)"
 MAINTAINER="ushan0v <ushan0v@users.noreply.github.com>"
 PROJECT_URL="https://github.com/ushan0v/forkop"
-BACKEND_DEPENDS_IPK="libc, ca-bundle, curl, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, kmod-nft-tproxy, bind-dig, nftables, kmod-nft-nat, ip-full, dropbearconvert"
-BACKEND_DEPENDS_APK="bind-dig ca-bundle curl dropbearconvert ip-full kmod-nft-nat kmod-nft-tproxy libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci !https-dns-proxy !nextdns !luci-app-passwall !luci-app-passwall2"
+uc_constant() {
+  sed -n "s/^[[:space:]]*\(const[[:space:]]\{1,\}\)\{0,1\}$2[[:space:]]*[:=][[:space:]]*\"\([^\"]*\)\".*/\2/p" "$ROOT_DIR/forkop/files/usr/lib/$1"
+}
+SB_REQUIRED_VERSION="$(uc_constant core/constants.uc SB_REQUIRED_VERSION)"
+if [[ ! "$SB_REQUIRED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+$ ]]; then
+  echo "Cannot read SB_REQUIRED_VERSION from the sources" >&2
+  exit 1
+fi
+# Forkop runs only on its own core. A 1.0.x updater installs luci-app-forkop and forkop by
+# file and never the core: this dependency makes that fail before anything changes.
+BACKEND_DEPENDS_IPK="libc, ca-bundle, curl, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, kmod-nft-tproxy, bind-dig, nftables, kmod-nft-nat, ip-full, dropbearconvert, sing-box-forkop (>= ${SB_REQUIRED_VERSION})"
+BACKEND_DEPENDS_APK="bind-dig ca-bundle curl dropbearconvert ip-full kmod-nft-nat kmod-nft-tproxy libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci sing-box-forkop>=${SB_REQUIRED_VERSION} !https-dns-proxy !nextdns !luci-app-passwall !luci-app-passwall2"
 BACKEND_CONFLICTS_IPK="https-dns-proxy, nextdns, luci-app-passwall, luci-app-passwall2"
 # The app calls the backend's ubus object, so it needs a backend at least as new;
 # the feed Makefile's DEPENDS cannot express a version.
@@ -349,7 +359,7 @@ write_i18n_ipk_control() {
   cat > "$control_dir/control" <<EOF
 Package: luci-i18n-forkop-ru
 Version: ${RELEASE_VERSION}
-Depends: libc, luci-app-forkop
+Depends: libc, luci-app-forkop (>= ${RELEASE_VERSION})
 License: GPL-2.0-or-later
 Section: luci
 URL: ${PROJECT_URL}
@@ -607,9 +617,14 @@ verify_ipk_metadata() {
   tar -xzf "$tmp_dir/control.tar.gz" -C "$tmp_dir"
   grep -q "^Package: ${expected_package}$" "$tmp_dir/control"
   grep -q "^Version: ${expected_version}$" "$tmp_dir/control"
-  if [[ "$expected_package" == "forkop" ]]; then
-    grep -q "^Conflicts: ${BACKEND_CONFLICTS_IPK}$" "$tmp_dir/control"
-  fi
+  case "$expected_package" in
+    forkop)
+      grep -q "^Conflicts: ${BACKEND_CONFLICTS_IPK}$" "$tmp_dir/control"
+      grep -q "^Depends: .*sing-box-forkop (>= ${SB_REQUIRED_VERSION})" "$tmp_dir/control"
+      ;;
+    luci-app-forkop) grep -q "^Depends: .*forkop (>= ${expected_version})" "$tmp_dir/control" ;;
+    luci-i18n-forkop-ru) grep -q "^Depends: .*luci-app-forkop (>= ${expected_version})" "$tmp_dir/control" ;;
+  esac
   rm -rf "$tmp_dir"
 }
 
@@ -624,11 +639,16 @@ verify_apk_metadata() {
   "$apk_bin" adbdump "$package_file" > "$dump_file"
   grep -q "^  name: ${expected_package}$" "$dump_file"
   grep -q "^  version: ${expected_version}$" "$dump_file"
-  if [[ "$expected_package" == "forkop" ]]; then
-    for conflict in https-dns-proxy nextdns luci-app-passwall luci-app-passwall2; do
-      grep -q "^[[:space:]]*- '!${conflict}'$" "$dump_file"
-    done
-  fi
+  case "$expected_package" in
+    forkop)
+      for conflict in https-dns-proxy nextdns luci-app-passwall luci-app-passwall2; do
+        grep -q "^[[:space:]]*- '!${conflict}'$" "$dump_file"
+      done
+      grep -q "^[[:space:]]*- sing-box-forkop>=${SB_REQUIRED_VERSION}$" "$dump_file"
+      ;;
+    luci-app-forkop) grep -q "^[[:space:]]*- forkop>=${expected_version}$" "$dump_file" ;;
+    luci-i18n-forkop-ru) grep -q "^[[:space:]]*- luci-app-forkop>=${expected_version}$" "$dump_file" ;;
+  esac
   rm -f "$dump_file"
 }
 
@@ -701,26 +721,28 @@ main() {
   write_app_ipk_control "$app_control" "$app_size"
   write_i18n_ipk_control "$i18n_control" "$i18n_size"
 
+  # 1.0.x updaters install <name>_<version>.<ext> by exact name, and opkg reports success when it
+  # skips a file whose dependencies fail; without that name they stop before downloading anything.
   build_ipk_package \
     "$ipkg_build_bin" \
     "forkop" \
     "$backend_root" \
     "$backend_control" \
-    "$output_dir/forkop_${RELEASE_VERSION}.ipk"
+    "$output_dir/forkop_${RELEASE_VERSION}_all.ipk"
 
   build_ipk_package \
     "$ipkg_build_bin" \
     "luci-app-forkop" \
     "$app_root" \
     "$app_control" \
-    "$output_dir/luci-app-forkop_${RELEASE_VERSION}.ipk"
+    "$output_dir/luci-app-forkop_${RELEASE_VERSION}_all.ipk"
 
   build_ipk_package \
     "$ipkg_build_bin" \
     "luci-i18n-forkop-ru" \
     "$i18n_root" \
     "$i18n_control" \
-    "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}.ipk"
+    "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}_all.ipk"
 
   generate_apk_metadata_files "forkop" "$backend_root" "/etc/config/forkop"
   generate_apk_metadata_files "luci-app-forkop" "$app_root"
@@ -738,7 +760,7 @@ main() {
     "$backend_root" \
     "$apk_scripts" \
     "backend" \
-    "$output_dir/forkop_${RELEASE_VERSION}.apk" \
+    "$output_dir/forkop_${RELEASE_VERSION}_all.apk" \
     "$MAINTAINER"
 
   build_apk_package \
@@ -750,7 +772,7 @@ main() {
     "$app_root" \
     "$apk_scripts" \
     "app" \
-    "$output_dir/luci-app-forkop_${RELEASE_VERSION}.apk" \
+    "$output_dir/luci-app-forkop_${RELEASE_VERSION}_all.apk" \
     "$MAINTAINER"
 
   build_apk_package \
@@ -758,19 +780,19 @@ main() {
     "luci-i18n-forkop-ru" \
     "$APK_INTERNAL_VERSION" \
     "$I18N_DESCRIPTION" \
-    "libc luci-app-forkop" \
+    "libc luci-app-forkop>=${RELEASE_VERSION}" \
     "$i18n_root" \
     "$apk_scripts" \
     "i18n" \
-    "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}.apk" \
+    "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}_all.apk" \
     "$MAINTAINER"
 
-  verify_ipk_metadata "$output_dir/forkop_${RELEASE_VERSION}.ipk" "forkop" "$RELEASE_VERSION"
-  verify_ipk_metadata "$output_dir/luci-app-forkop_${RELEASE_VERSION}.ipk" "luci-app-forkop" "$RELEASE_VERSION"
-  verify_ipk_metadata "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}.ipk" "luci-i18n-forkop-ru" "$RELEASE_VERSION"
-  verify_apk_metadata "$apk_bin" "$output_dir/forkop_${RELEASE_VERSION}.apk" "forkop" "$APK_INTERNAL_VERSION"
-  verify_apk_metadata "$apk_bin" "$output_dir/luci-app-forkop_${RELEASE_VERSION}.apk" "luci-app-forkop" "$APK_INTERNAL_VERSION"
-  verify_apk_metadata "$apk_bin" "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}.apk" "luci-i18n-forkop-ru" "$APK_INTERNAL_VERSION"
+  verify_ipk_metadata "$output_dir/forkop_${RELEASE_VERSION}_all.ipk" "forkop" "$RELEASE_VERSION"
+  verify_ipk_metadata "$output_dir/luci-app-forkop_${RELEASE_VERSION}_all.ipk" "luci-app-forkop" "$RELEASE_VERSION"
+  verify_ipk_metadata "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}_all.ipk" "luci-i18n-forkop-ru" "$RELEASE_VERSION"
+  verify_apk_metadata "$apk_bin" "$output_dir/forkop_${RELEASE_VERSION}_all.apk" "forkop" "$APK_INTERNAL_VERSION"
+  verify_apk_metadata "$apk_bin" "$output_dir/luci-app-forkop_${RELEASE_VERSION}_all.apk" "luci-app-forkop" "$APK_INTERNAL_VERSION"
+  verify_apk_metadata "$apk_bin" "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}_all.apk" "luci-i18n-forkop-ru" "$APK_INTERNAL_VERSION"
 
   cleanup_work_dir
   print_summary "$output_dir"

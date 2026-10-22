@@ -35,8 +35,10 @@ function build_sh_variable(name) {
     t.fail("build.sh has no " + name);
 }
 
+// The names a list holds, without the version an IPK `name (>= v)` or an APK `name>=v` sets.
 function words(value) {
-    return filter(split(trim(value), /[ ,]+/), (word) => word != "");
+    value = replace(value, /\([^)]*\)/g, "");
+    return filter(map(split(trim(value), /[ ,]+/), (word) => replace(word, /[<>=~].*$/, "")), (word) => word != "");
 }
 
 function sorted(list) {
