@@ -7,7 +7,11 @@ usage() {
   cat <<EOF
 Usage: $(basename "$0") <version> [output-directory]
 
-Build Forkop IPK and APK packages. The version must use x.y.z format.
+Build Forkop IPK and APK packages and the other files of its release: install.sh,
+release.json and SHA256SUMS. The version must use x.y.z format.
+
+INSTALL_COMMAND, when set, goes into release.json as install_command: the release installs
+only with that command, and the Components tab shows it instead of installing the release.
 EOF
 }
 
@@ -45,8 +49,10 @@ uc_constant() {
   sed -n "s/^[[:space:]]*\(const[[:space:]]\{1,\}\)\{0,1\}$2[[:space:]]*[:=][[:space:]]*\"\([^\"]*\)\".*/\2/p" "$ROOT_DIR/forkop/files/usr/lib/$1"
 }
 SB_REQUIRED_VERSION="$(uc_constant core/constants.uc SB_REQUIRED_VERSION)"
-if [[ ! "$SB_REQUIRED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+$ ]]; then
-  echo "Cannot read SB_REQUIRED_VERSION from the sources" >&2
+MIN_CONFIG_VERSION="$(uc_constant config/migration.uc MIN_CONFIG_VERSION)"
+if [[ ! "$SB_REQUIRED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+$ ]] ||
+  [[ ! "$MIN_CONFIG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Cannot read SB_REQUIRED_VERSION or MIN_CONFIG_VERSION from the sources" >&2
   exit 1
 fi
 # Forkop runs only on its own core. A 1.0.x updater installs luci-app-forkop and forkop by
@@ -656,13 +662,43 @@ cleanup_work_dir() {
   rm -rf "$BUILD_DIR/manual" "$BUILD_DIR/ipk-build.log"
 }
 
+# release.json is the release's manifest for install.sh and the Components tab;
+# install.sh documents its fields.
+write_release_files() {
+  local output_dir="$1"
+  local install_command=""
+
+  if [[ -n "${INSTALL_COMMAND:-}" ]]; then
+    install_command="${INSTALL_COMMAND//\\/\\\\}"
+    install_command=",
+  \"install_command\": \"${install_command//\"/\\\"}\""
+  fi
+  install -m 0644 "$ROOT_DIR/install.sh" "$output_dir/install.sh"
+  cat > "$output_dir/release.json" <<EOF
+{
+  "schema": 1,
+  "name": "forkop",
+  "version": "${RELEASE_VERSION}",
+  "tag": "${RELEASE_VERSION}",
+  "page": "${PROJECT_URL}/releases/tag/${RELEASE_VERSION}",
+  "requires": { "sing-box-forkop": "${SB_REQUIRED_VERSION}" },
+  "min_config_version": "${MIN_CONFIG_VERSION}"${install_command}
+}
+EOF
+  (
+    cd "$output_dir"
+    sha256sum forkop_* luci-app-forkop_* luci-i18n-forkop-ru_* install.sh release.json > SHA256SUMS
+  )
+}
+
 print_summary() {
   local output_dir="$1"
 
   echo "Build root: $ROOT_DIR"
   echo "Output dir: $output_dir"
   echo "Artifacts:"
-  find "$output_dir" -maxdepth 1 -type f \( -name '*.ipk' -o -name '*.apk' \) | sort
+  find "$output_dir" -maxdepth 1 -type f \( -name '*.ipk' -o -name '*.apk' -o -name install.sh \
+    -o -name release.json -o -name SHA256SUMS \) | sort
 }
 
 main() {
@@ -696,7 +732,8 @@ main() {
   fi
   output_dir="$OUTPUT_DIR"
   mkdir -p "$output_dir"
-  rm -f "$output_dir"/forkop_* "$output_dir"/luci-app-forkop_* "$output_dir"/luci-i18n-forkop-ru_*
+  rm -f "$output_dir"/forkop_* "$output_dir"/luci-app-forkop_* "$output_dir"/luci-i18n-forkop-ru_* \
+    "$output_dir/install.sh" "$output_dir/release.json" "$output_dir/SHA256SUMS"
 
   ipk_archive="$(download_sdk_archive "$IPK_SDK_URL")"
   apk_archive="$(download_sdk_archive "$APK_SDK_URL")"
@@ -794,6 +831,7 @@ main() {
   verify_apk_metadata "$apk_bin" "$output_dir/luci-app-forkop_${RELEASE_VERSION}_all.apk" "luci-app-forkop" "$APK_INTERNAL_VERSION"
   verify_apk_metadata "$apk_bin" "$output_dir/luci-i18n-forkop-ru_${RELEASE_VERSION}_all.apk" "luci-i18n-forkop-ru" "$APK_INTERNAL_VERSION"
 
+  write_release_files "$output_dir"
   cleanup_work_dir
   print_summary "$output_dir"
 }
