@@ -10,15 +10,21 @@
 ### Установка
 
 ```sh
-sh <(wget -O - https://raw.githubusercontent.com/ushan0v/forkop/main/install.sh)
+sh <(wget -O - https://github.com/ushan0v/forkop/releases/latest/download/install.sh)
 ```
+
+Та же команда обновляет Forkop и его ядро sing-box-forkop. С Forkop 1.0.x на 2.0 переходят только ею: кнопка обновления во вкладке «Компоненты» 1.0.x откажет, ничего не изменив. Установщик переносит настройки и заменяет прежнее ядро, а прежде чем удалить что-то мешающее, один раз спрашивает согласия.
 
 <details>
-<summary><sub>Альтернативный способ установки</sub></summary>
+<summary><sub>Параметры установщика</sub></summary>
 
-```sh
-sh <(wget -O - https://forkop.sourceforge.io/install.sh)
-```
+Параметры пишутся после команды, например `sh <(wget -O - …/install.sh) --variant tiny`.
+
+* `--variant base|full|tiny` — сборка ядра: base по умолчанию, tiny для маленькой флешки, full со всеми протоколами;
+* `--core-only` — обновить только ядро;
+* `--dry-run` — проверить всё и показать план, ничего не меняя;
+* `--from <папка>` — поставить заранее скачанные пакеты, без доступа к GitHub;
+* `--uninstall` — удалить Forkop и ядро, с `--purge` — вместе с настройками.
 
 </details>
 
