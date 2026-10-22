@@ -185,21 +185,6 @@ function server_from_uri(tag_name, value, detour, ip_only) {
     return result;
 }
 
-function uri_from_legacy_options(dns_type, value) {
-    let scheme = dns_type == "doh" ? "https" : (dns_type == "dot" ? "tls" : (dns_type == "udp" ? "udp" : ""));
-    if (scheme == "")
-        return as_string(value);
-
-    let server = runtime_url.host(value);
-    let port = runtime_url.port(value);
-    let authority = index(server, ":") >= 0 ? "[" + server + "]" : server;
-    if (port != "")
-        authority += ":" + port;
-
-    let path = scheme == "https" ? runtime_url.path(value) : "";
-    return scheme == "udp" ? authority : scheme + "://" + authority + path;
-}
-
 function add_server_group(result, values, canonical_tag, strategy, create_server) {
     if (length(values) == 1) {
         let server = create_server(canonical_tag, values[0]);
@@ -278,6 +263,5 @@ return {
     default_domain_resolver,
     parse_server_uri,
     static_hosts,
-    uri_from_legacy_options,
     server_list
 };

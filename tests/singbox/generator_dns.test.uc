@@ -28,7 +28,7 @@ t.test("several DNS servers become native fallback groups with their own query m
             dns_detour_enabled: "1", dns_detour_section: "proxy"
         },
         section: [ {
-            ".name": "proxy", enabled: "1", action: "outbound",
+            ".name": "proxy", enabled: "1", action: "connection",
             outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"fixture\"}" ], destinations: "example.org"
         } ]
     });

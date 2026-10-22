@@ -55,7 +55,7 @@ t.test("tunnels become native endpoints with the fields their kind allows", () =
         settings: settings({ cache_path: "/tmp/sing-box/cache.db" }),
         section: [
             { ".name": "tunnels", enabled: "1", action: "connection" },
-            { ".name": "control", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}" }
+            { ".name": "control", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ] }
         ],
         tunnel: [
             {
@@ -169,8 +169,8 @@ t.test("list update settings reach remote rule sets, and ports constrain the who
     let defaults = build({
         settings: settings(),
         section: [ {
-            ".name": "proxy", enabled: "1", action: "outbound",
-            outbound_json: "{\"type\":\"direct\"}", rule_set: [ "https://example.com/rules.srs" ]
+            ".name": "proxy", enabled: "1", action: "connection",
+            outbound_jsons: [ "{\"type\":\"direct\"}" ], rule_set: [ "https://example.com/rules.srs" ]
         } ]
     });
     t.eq(q.first_remote_ruleset(defaults).update_interval, "1d");
@@ -190,8 +190,8 @@ t.test("server inbounds carry their protocol options and their clients", () => {
     let server = build({
         settings: settings(),
         section: [ {
-            ".name": "proxy", enabled: "1", action: "outbound",
-            outbound_json: "{\"type\":\"direct\"}", destinations: "example.org"
+            ".name": "proxy", enabled: "1", action: "connection",
+            outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org"
         } ],
         server: [
             { ".name": "unfinished", protocol: "shadowsocks", shadowsocks_method: "2022-blake3-aes-128-gcm", listen: "0.0.0.0", routing_mode: "direct" },
@@ -321,7 +321,7 @@ function matcher_fixture() {
     return build({
         settings: settings({ dns_strategy: "prefer_ipv6" }),
         section: [
-            { ".name": "detour", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "detour.example" },
+            { ".name": "detour", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "detour.example" },
             { ".name": "bypass", enabled: "1", action: "bypass", destinations: "example.org", source_ip_cidr: [ "10.0.0.3/32" ], ports: [ "443" ] },
             { ".name": "bypass_ruleset", enabled: "1", action: "bypass", rule_set: [ "https://example.com/bypass-port.srs" ], source_ip_cidr: [ "10.0.0.4/32" ], ports: [ "8443" ] },
             {
@@ -329,10 +329,10 @@ function matcher_fixture() {
                 destinations: "commented.example # ignored.example\nfull:exact-comment.example // ignored-full.example\n" +
                     "full:source-priority.test\nkeyword:clip\nproxy.example.org сайт.рф, full:пример.испытание\n" +
                     "keyword:пример\nregex:^сайт[.]рф$\n77.111.247.0/24 #77.111.247.19\n198.51.100.0/24 //203.0.113.0/24",
-                source_ip_cidr: "10.0.0.2/32 #10.0.0.99\n2001:db8::2/128 //2001:db8::99/128\n@system",
-                ports_text: "80 # 443\n8080 // 8443"
+                source_ip_cidr: [ "10.0.0.2/32", "2001:db8::2/128", "@system" ],
+                ports: [ "80", "8080" ]
             },
-            { ".name": "proxy_global", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "example.org" },
+            { ".name": "proxy_global", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org" },
             { ".name": "bypass_global", enabled: "1", action: "bypass", destinations: "full:source-priority.test" }
         ],
         connection_link: fixture.links("proxy", [ "socks5://127.0.0.1:1080" ], { detour_section: "detour" }),
@@ -449,11 +449,11 @@ t.test("route rules carry devices, addresses and ports, and never the System sen
     t.excludes(sprintf("%J", m), "@system");
 
     let commented = q.route_rule(m, (r) => r.outbound == "proxy" && has(r.ip_cidr, "77.111.247.0/24") && has(r.ip_cidr, "198.51.100.0/24"));
-    t.ok(has(commented.port, 80) && has(commented.port, 8080), "comment-aware port matcher");
+    t.eq(commented.port, [ 80, 8080 ]);
     t.ok(has(commented.domain_suffix, "proxy.example.org"), "the addresses share the rule with the domains next to them");
     t.eq(filter(m.dns.rules, (r) => index(sprintf("%J", r), "77.111.247.0/24") >= 0), [], "an address never reaches a DNS rule");
     let text = sprintf("%J", commented);
-    for (let dropped in [ "#77.111.247.19", "203.0.113.0/24", "10.0.0.99", "2001:db8::99/128", "443" ])
+    for (let dropped in [ "#77.111.247.19", "203.0.113.0/24" ])
         t.excludes(text, dropped, "comments are left out of the rule");
 });
 
@@ -546,7 +546,7 @@ t.test("ports on their own select traffic in one rule", () => {
 
 t.test("a range of one port is a port, since the core refuses a range without a colon", () => {
     let d = build({ settings: settings(), section: [ { ".name": "proxy", enabled: "1", action: "connection",
-        outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org", ports: [ "443-443", "443", "1000-2000", "x" ], ports_text: "80, 1000-2000" } ] });
+        outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org", ports: [ "443-443", "443", "1000-2000", "x", "80", "1000-2000" ] } ] });
     let rule = q.route_rule(d, (r) => r.outbound == "proxy" && has(r.domain_suffix, "example.org"));
     t.eq([ rule.port, rule.port_range ], [ [ 443, 80 ], [ "1000:2000" ] ]);
 });
@@ -614,7 +614,7 @@ t.test("a URLTest group filters its members and becomes the selector default", (
     let u = build({
         settings: settings(),
         section: [ {
-            ".name": "proxy", enabled: "1", action: "proxy",
+            ".name": "proxy", enabled: "1", action: "connection",
             outbound_jsons: [
                 "{\"type\":\"http\",\"tag\":\"Keep\",\"server\":\"127.0.0.1\",\"server_port\":18081}",
                 "{\"type\":\"http\",\"tag\":\"Drop\",\"server\":\"127.0.0.1\",\"server_port\":18082}"
@@ -636,7 +636,7 @@ t.test("manual links stay verbatim in parser outbounds, JSON outbounds keep thei
     let manual = build({
         settings: settings(),
         section: [ {
-            ".name": "proxy", enabled: "1", action: "proxy",
+            ".name": "proxy", enabled: "1", action: "connection",
             destinations: "example.org"
         } ],
         connection_link: fixture.links("proxy", [
@@ -705,8 +705,8 @@ t.test("downloads through a section get service inbounds and rule-set detours", 
         settings: settings({ download_lists_via_proxy: "1", download_lists_via_proxy_section: "proxy" }),
         section: [
             {
-                ".name": "proxy", enabled: "1", action: "outbound",
-                outbound_json: "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1080}",
+                ".name": "proxy", enabled: "1", action: "connection",
+                outbound_jsons: [ "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1080}" ],
                 destinations: "example.org", community_lists: [ "discord" ],
                 rule_set: [ "https://example.com/rules.srs" ], rule_set_with_subnets: [ "https://example.com/mixed.txt" ]
             }
@@ -719,8 +719,8 @@ t.test("downloads through a section get service inbounds and rule-set detours", 
     t.eq([ text_ruleset.format, text_ruleset.update_interval, text_ruleset.http_client.detour ], [ "auto", "1d", "proxy" ]);
 
     let sections = [ {
-        ".name": "proxy", enabled: "1", action: "outbound",
-        outbound_json: "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1080}",
+        ".name": "proxy", enabled: "1", action: "connection",
+        outbound_jsons: [ "{\"type\":\"socks\",\"server\":\"127.0.0.1\",\"server_port\":1080}" ],
         community_lists: [ "discord" ], rule_set: [ "https://example.com/rules.srs" ]
     } ];
     let direct = build({ settings: settings(), section: sections });
@@ -739,7 +739,7 @@ t.test("WARP profile requests go through the chosen section: the tunnel names it
     let data = (extra) => ({
         settings: settings(extra),
         section: [
-            { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "example.org" },
+            { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org" },
             { ".name": "tunnels", enabled: "1", action: "connection" }
         ],
         tunnel: [ {
@@ -761,8 +761,8 @@ t.test("WARP profile requests go through the chosen section: the tunnel names it
 
 t.test("the Clash API dashboard downloads its interface direct, wherever the lists download", () => {
     let sections = [
-        { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "example.org" },
-        { ".name": "lists_proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "lists.example" }
+        { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org" },
+        { ".name": "lists_proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "lists.example" }
     ];
     let through_section = build({
         settings: settings({ enable_yacd: "1", download_lists_via_proxy: "1", download_lists_via_proxy_section: "lists_proxy" }),
@@ -781,14 +781,14 @@ t.test("fully routed devices follow their section at its priority", () => {
     let f = build({
         settings: settings(),
         section: [
-            { ".name": "proxy_high", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "forced-higher.test" },
+            { ".name": "proxy_high", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "forced-higher.test" },
             {
                 ".name": "bypass", enabled: "1", action: "bypass",
                 fully_routed_ips: [ "192.168.1.20/32", "192.168.1.30/32", "2001:db8::20/128", "@system" ],
                 destinations: "example.org"
             },
             {
-                ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}",
+                ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ],
                 fully_routed_ips: [ "192.168.1.40/32" ], destinations: "proxy.example.org\nforced-lower.test"
             }
         ]
@@ -819,7 +819,7 @@ t.test("fully routed devices follow their section at its priority", () => {
 t.test("mwan3 turns off interface detection unless an output interface is pinned", () => {
     let base = {
         settings: settings(),
-        section: [ { ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}", destinations: "example.org" } ]
+        section: [ { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org" } ]
     };
     let auto = build(base, true);
     t.eq([ auto.route.auto_detect_interface, auto.route.default_interface ], [ false, null ]);
@@ -832,7 +832,7 @@ t.test("universal rule sets are native, independently tagged and shared by route
     let l = build({
         settings: settings(),
         section: [ {
-            ".name": "proxy", enabled: "1", action: "outbound", outbound_json: "{\"type\":\"direct\"}",
+            ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ],
             destinations: "example.org",
             rule_set_with_subnets: [ "/tmp/with-subnets.json", "/tmp/domain-ip.lst", "https://example.com/domain-ip.txt" ]
         } ]

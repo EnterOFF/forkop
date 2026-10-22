@@ -230,7 +230,7 @@ function rule_action(section) {
 }
 
 function rule_action_supported(action) {
-    return contains([ "connection", "proxy", "outbound", "vpn", "bypass", "block", "dns" ], as_string(action));
+    return contains([ "connection", "bypass", "block", "dns" ], as_string(action));
 }
 
 function find_section(sections, name) {
@@ -653,23 +653,9 @@ function outbound_json_object(value) {
 }
 
 // sing-box judges a JSON field and logs what it refuses; Forkop needs an object and its tag.
-function validate_outbound_json_rule(section) {
-    let name = section_name(section);
-    let outbound_json = option(section, "outbound_json", "");
-
-    if (outbound_json == "")
-        fail_validation("Section '" + section_label(name) + "' has empty outbound_json");
-
-    if (outbound_json_object(outbound_json) == null)
-        fail_validation("Section '" + section_label(name) + "' must contain a JSON object");
-}
-
 function validate_outbound_json_values(section) {
     let name = section_name(section);
-    let values = connections.outbound_jsons(section);
-    let require_user_tag = length(list_option(section, "outbound_jsons")) > 0;
-
-    for (let value in values) {
+    for (let value in connections.outbound_jsons(section)) {
         if (as_string(value) == "")
             fail_validation("Section '" + section_label(name) + "' has empty JSON outbound");
 
@@ -677,7 +663,7 @@ function validate_outbound_json_values(section) {
         if (outbound == null)
             fail_validation("Section '" + section_label(name) + "' has a JSON outbound that is not a JSON object");
 
-        if (trim(as_string(outbound.tag || "")) == "" && require_user_tag)
+        if (trim(as_string(outbound.tag || "")) == "")
             fail_validation("Section '" + section_label(name) + "' has JSON outbound without a non-empty tag");
     }
 }
@@ -1124,9 +1110,6 @@ function validate_rule(section, sections, context) {
         validate_section_child_names(section);
         validate_interface_domain_resolvers(section, sections, context);
     }
-
-    if (action == "outbound")
-        validate_outbound_json_rule(section);
 
     validate_common_rule_references(section);
     if (connections.is_connections_action(action) && !connections.has_connection_sources(section))

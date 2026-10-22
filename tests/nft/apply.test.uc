@@ -118,12 +118,12 @@ t.test("the excluded System device keeps the router's own traffic and lookups ou
 function priority_sections() {
     return [
         { ".name": "bypass_first", action: "bypass", destinations: "198.51.100.0/24", fully_routed_ips: [ "192.168.1.10/32", "2001:db8::10/128", "@system" ] },
-        { ".name": "wide_proxy", action: "proxy", destinations: "0.0.0.0/0", fully_routed_ips: [ "192.168.1.20/32", "2001:db8::20/128", "@system" ] },
+        { ".name": "wide_proxy", action: "connection", destinations: "0.0.0.0/0", fully_routed_ips: [ "192.168.1.20/32", "2001:db8::20/128", "@system" ] },
         { ".name": "port_bypass", action: "bypass", ports: [ "8443" ] },
-        { ".name": "system_filter", action: "proxy", destinations: "203.0.113.0/24", source_ip_cidr: [ "@system" ] },
-        { ".name": "client_filter", action: "proxy", destinations: "192.0.2.0/24", source_ip_cidr: [ "192.168.1.50/32" ] },
-        { ".name": "builtin_subnets", action: "proxy", community_lists: [ "discord" ] },
-        { ".name": "ip_and_ports", action: "proxy", destinations: "203.0.113.0/24", ports: [ "8080" ] }
+        { ".name": "system_filter", action: "connection", destinations: "203.0.113.0/24", source_ip_cidr: [ "@system" ] },
+        { ".name": "client_filter", action: "connection", destinations: "192.0.2.0/24", source_ip_cidr: [ "192.168.1.50/32" ] },
+        { ".name": "builtin_subnets", action: "connection", community_lists: [ "discord" ] },
+        { ".name": "ip_and_ports", action: "connection", destinations: "203.0.113.0/24", ports: [ "8080" ] }
     ];
 }
 
@@ -173,14 +173,14 @@ t.test("section rules keep configuration order and reach only the traffic their 
 
 t.test("the sets are filled in the same transaction from what the configuration lists", () => {
     let lines = script_lines({ settings: {}, section: [
-        { ".name": "disabled", enabled: "0", action: "proxy", destinations: "192.0.2.1", ports: [ "53" ] },
-        { ".name": "inline", action: "proxy", destinations: "198.51.100.1\nexample.org\n203.0.113.0/24, 2001:db8::1", source_ip_cidr: [ "192.168.1.60/32" ],
+        { ".name": "disabled", enabled: "0", action: "connection", destinations: "192.0.2.1", ports: [ "53" ] },
+        { ".name": "inline", action: "connection", destinations: "198.51.100.1\nexample.org\n203.0.113.0/24, 2001:db8::1", source_ip_cidr: [ "192.168.1.60/32" ],
             ports: [ "80", "443-444" ], fully_routed_ips: [ "192.168.1.20/32", "192.168.1.20/32", "2001:db8::20/128", "@system" ] },
         { ".name": "inline_no_ports", action: "bypass", destinations: "198.51.100.200 2001:db8::200", fully_routed_ips: [ "192.168.1.21/32" ] },
-        { ".name": "ports_only", action: "proxy", ports: [ "53", "853" ], ports_text: "5353, 853" },
-        { ".name": "ports_with_domain", action: "proxy", destinations: "example.org", ports: [ "8443" ] },
+        { ".name": "ports_only", action: "connection", ports: [ "53", "853", "5353", "853" ] },
+        { ".name": "ports_with_domain", action: "connection", destinations: "example.org", ports: [ "8443" ] },
         { ".name": "dns_only", action: "dns", destinations: "dns-only.example\n192.0.2.53", fully_routed_ips: [ "192.168.1.53/32" ] },
-        { ".name": "vpn", action: "proxy", fully_routed_ips: [ "@system" ] }
+        { ".name": "vpn", action: "connection", fully_routed_ips: [ "@system" ] }
     ] });
     has(lines, "add element inet ForkopTable forkop_rule_inline_subnets { 198.51.100.1,203.0.113.0/24 }", "addresses and ports are not multiplied");
     has(lines, "add element inet ForkopTable forkop_rule_inline_subnets6 { 2001:db8::1 }");
@@ -206,23 +206,23 @@ t.test("the script is the same for the same configuration and moves with anythin
     let baseline = script();
     t.eq(script(), baseline);
     for (let section in [
-        { ".name": "s", action: "proxy" },
-        { ".name": "s", action: "proxy", destinations: "a.example\nb.example" },
-        { ".name": "s", action: "proxy", label: "Renamed" },
-        { ".name": "s", enabled: "0", action: "proxy", destinations: "192.0.2.0/24" },
-        { ".name": "s", action: "proxy", rule_set: "https://example.com/domains.lst" }
+        { ".name": "s", action: "connection" },
+        { ".name": "s", action: "connection", destinations: "a.example\nb.example" },
+        { ".name": "s", action: "connection", label: "Renamed" },
+        { ".name": "s", enabled: "0", action: "connection", destinations: "192.0.2.0/24" },
+        { ".name": "s", action: "connection", rule_set: "https://example.com/domains.lst" }
     ])
         t.eq(script([ section ]), baseline, "nothing of " + sprintf("%J", section) + " reaches nft");
     for (let section in [
-        { ".name": "s", action: "proxy", destinations: "192.0.2.0/24" },
-        { ".name": "s", action: "proxy", ports: "443" },
-        { ".name": "s", action: "proxy", rule_set_with_subnets: "https://example.com/subnets.srs" },
-        { ".name": "s", action: "proxy", community_lists: "telegram" },
+        { ".name": "s", action: "connection", destinations: "192.0.2.0/24" },
+        { ".name": "s", action: "connection", ports: "443" },
+        { ".name": "s", action: "connection", rule_set_with_subnets: "https://example.com/subnets.srs" },
+        { ".name": "s", action: "connection", community_lists: "telegram" },
         { ".name": "s", action: "bypass", fully_routed_ips: "192.168.1.10/32" }
     ])
         t.ok(script([ section ]) != baseline, sprintf("%J", section) + " reaches nft");
     t.ok(script(null, { source_network_interfaces: "br-lan tun0" }) != baseline);
-    t.ok(script([ { ".name": "s", action: "proxy", destinations: "192.0.2.0/24" } ]) != script([ { ".name": "s", action: "proxy", destinations: "198.51.100.0/24" } ]),
+    t.ok(script([ { ".name": "s", action: "connection", destinations: "192.0.2.0/24" } ]) != script([ { ".name": "s", action: "connection", destinations: "198.51.100.0/24" } ]),
         "the elements are part of the table");
 });
 
@@ -308,8 +308,8 @@ t.test("IPv6 left on some interfaces but off on lo is refused, since that traffi
 
 t.test("a rebuilt table keeps what the rule-set worker wrote and defines everything else again", () => {
     fixture.seed({ settings: {}, section: [
-        { ".name": "fed", action: "proxy", community_lists: [ "telegram" ], destinations: "192.0.2.0/24" },
-        { ".name": "own", action: "proxy", destinations: "198.51.100.0/24" }
+        { ".name": "fed", action: "connection", community_lists: [ "telegram" ], destinations: "192.0.2.0/24" },
+        { ".name": "own", action: "connection", destinations: "198.51.100.0/24" }
     ] });
     let result = nft.build();
     let fed = [ "subnets", "subnets6", "ip_ports", "ip6_ports", "proto_ports", "proto6_ports" ];

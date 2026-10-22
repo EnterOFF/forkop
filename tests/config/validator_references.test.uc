@@ -94,12 +94,12 @@ function download_through(target, sections) {
 }
 
 t.test("downloads go through an enabled section with servers", () => {
-    v.accepts({ ...download_through("proxy", [ section("proxy", "proxy") ]), connection_link: served([ "proxy" ]) });
-    v.accepts(download_through("outbound", [ section("outbound", "outbound", { outbound_json: "{\"type\":\"direct\"}" }) ]));
-    v.accepts({ ...download_through("vpn", [ section("vpn", "vpn") ]), section_interface: [ { ".name": "vpn_wg0", section: "vpn", name: "wg0" } ] });
-    v.refuses(download_through("", [ section("proxy", "proxy") ]), "no download section is selected");
-    v.refuses(download_through("missing", [ section("proxy", "proxy") ]), "points to section 'missing', which does not exist");
-    v.refuses({ ...download_through("proxy", [ section("proxy", "proxy", { enabled: "0" }) ]), connection_link: served([ "proxy" ]) },
+    v.accepts({ ...download_through("proxy", [ section("proxy", "connection") ]), connection_link: served([ "proxy" ]) });
+    v.accepts(download_through("outbound", [ section("outbound", "connection", { outbound_jsons: [ "{\"type\":\"direct\",\"tag\":\"Direct\"}" ] }) ]));
+    v.accepts({ ...download_through("vpn", [ section("vpn", "connection") ]), section_interface: [ { ".name": "vpn_wg0", section: "vpn", name: "wg0" } ] });
+    v.refuses(download_through("", [ section("proxy", "connection") ]), "no download section is selected");
+    v.refuses(download_through("missing", [ section("proxy", "connection") ]), "points to section 'missing', which does not exist");
+    v.refuses({ ...download_through("proxy", [ section("proxy", "connection", { enabled: "0" }) ]), connection_link: served([ "proxy" ]) },
         "points to section 'proxy', which is disabled");
     v.refuses(download_through("bypass", [ section("bypass", "bypass") ]), "whose action is 'bypass'");
 });

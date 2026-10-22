@@ -56,7 +56,7 @@ const LINKS = [
 t.test("a URLTest keeps connections unless told otherwise, the selector interrupts them", () => {
     let config = build({
         settings: { log_level: "warn" },
-        section: [ { ".name": "proxy", enabled: "1", action: "proxy" } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "connection" } ],
         connection_link: fixture.links("proxy", LINKS),
         urltest: [ {
             ".name": "proxy_fastest", section: "proxy", name: "Fastest", check_interval: "3m", tolerance: "50",
@@ -72,7 +72,7 @@ t.test("a URLTest keeps connections unless told otherwise, the selector interrup
 t.test("each URLTest group carries its own settings, in list order in the selector", () => {
     let config = build({
         settings: { log_level: "warn" },
-        section: [ { ".name": "proxy", enabled: "1", action: "proxy" } ],
+        section: [ { ".name": "proxy", enabled: "1", action: "connection" } ],
         connection_link: fixture.links("proxy", LINKS),
         urltest: [
             {

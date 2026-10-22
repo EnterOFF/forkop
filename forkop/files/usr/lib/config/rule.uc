@@ -186,17 +186,11 @@ function append_unique_port(result, seen, item) {
     push(result, normalized);
 }
 
-function rule_ports_csv_value(list_values, text_value) {
+function rule_ports_csv_value(values) {
     let result = [];
     let seen = {};
-    let normalized_list = replace(as_string(list_values), /[[:space:]]+/g, "\n");
-
-    for (let item in split(normalized_list, "\n"))
+    for (let item in values)
         append_unique_port(result, seen, item);
-
-    for (let item in text_list_values(text_value, "comma-space"))
-        append_unique_port(result, seen, item);
-
     return join(",", result);
 }
 

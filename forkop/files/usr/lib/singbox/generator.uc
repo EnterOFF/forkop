@@ -1176,13 +1176,6 @@ function json_outbound_reference_tag(reference, tag_map) {
         return tag_map[reference];
     if (connections.section_exists(reference))
         return outbound_tag(reference);
-
-    let suffix = "-out";
-    if (length(reference) > length(suffix) && substr(reference, -length(suffix)) == suffix) {
-        let section_name = substr(reference, 0, length(reference) - length(suffix));
-        if (connections.section_exists(section_name))
-            return outbound_tag(section_name);
-    }
     return reference;
 }
 
@@ -1214,7 +1207,6 @@ function prepare_json_connection_outbounds(section) {
     let prepared = [];
     let outbounds = [];
     let tag_map = {};
-    let legacy_tags = [];
 
     for (let i = 0; i < length(items); i++) {
         let outbound = parse_outbound_json(items[i]);
@@ -1222,10 +1214,8 @@ function prepare_json_connection_outbounds(section) {
             runtime_generate_unsupported("JSON outbound is invalid");
 
         let display_name = connections.outbound_json_display_name(outbound, i + 1);
-        let legacy_tag = section[".name"] + "-json-" + (i + 1) + "-out";
         let tag_name = child_outbound_tag(section, display_name);
         tag_map[display_name] = tag_name;
-        push(legacy_tags, [ legacy_tag, tag_name ]);
 
         outbound.tag = tag_name;
         push(outbounds, outbound);
@@ -1234,10 +1224,6 @@ function prepare_json_connection_outbounds(section) {
             displayName: display_name
         });
     }
-
-    for (let entry in legacy_tags)
-        if (!tag_map[entry[0]])
-            tag_map[entry[0]] = entry[1];
 
     rewrite_json_outbound_references(outbounds, tag_map);
     return prepared;

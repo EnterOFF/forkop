@@ -32,14 +32,14 @@ t.test("accepts valid", () => {
             {
                 ".name": "detour",
                 "enabled": "1",
-                "action": "outbound",
-                "outbound_json": "{\"type\":\"direct\"}",
+                "action": "connection",
+                "outbound_jsons": [ "{\"type\":\"direct\",\"tag\":\"Direct\"}" ],
                 "destinations": "detour.example"
             },
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
+                "action": "connection",
                 "ports": [
                     "80",
                     "1000-2000"
@@ -725,7 +725,7 @@ t.test("bad port", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
+                "action": "connection",
                 "ports": [
                     "70000"
                 ]
@@ -741,7 +741,7 @@ t.test("bad subscription", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "subscription_url": [
@@ -762,7 +762,7 @@ t.test("bad local subscription", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "subscription_url": [
@@ -816,7 +816,7 @@ t.test("bad URLTest tolerance", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "urltest": [
@@ -837,7 +837,7 @@ t.test("bad URLTest expected status", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "urltest": [
@@ -858,7 +858,7 @@ t.test("URLTest interval longer than idle timeout", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "urltest": [
@@ -879,7 +879,7 @@ t.test("a URLTest interval that is not a duration names its option", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "urltest": [
@@ -1368,12 +1368,12 @@ t.test("bad detour", () => {
             {
                 ".name": "first",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             },
             {
                 ".name": "second",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "connection_link": [
@@ -1390,7 +1390,7 @@ t.test("bad list reference", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy",
+                "action": "connection",
                 "rule_set": [
                     "ftp://example.com/list.lst"
                 ]
@@ -1406,7 +1406,7 @@ t.test("bad filter regex", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "urltest": [
@@ -1428,7 +1428,7 @@ t.test("bad filter mode", () => {
             {
                 ".name": "proxy",
                 "enabled": "1",
-                "action": "proxy"
+                "action": "connection"
             }
         ],
         "urltest": [

@@ -19,7 +19,7 @@ function runtime_tags_config() {
                     "{\"type\":\"socks\",\"tag\":\"austria\",\"server\":\"127.0.0.1\",\"server_port\":1203}",
                     "{\"type\":\"direct\",\"tag\":\"direct-out\"}",
                     "{\"type\":\"socks\",\"tag\":\"json-hop\",\"server\":\"127.0.0.1\",\"server_port\":1202}",
-                    "{\"type\":\"selector\",\"tag\":\"json-group\",\"outbounds\":[\"proxy-json-4-out\",\"direct-out\"],\"default\":\"json-hop\"}",
+                    "{\"type\":\"selector\",\"tag\":\"json-group\",\"outbounds\":[\"json-hop\",\"direct-out\"],\"default\":\"json-hop\"}",
                     "{\"type\":\"direct\",\"tag\":\"service-mixed-in\"}"
                 ],
                 destinations: "example.org"

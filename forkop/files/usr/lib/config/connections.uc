@@ -52,17 +52,7 @@ function list_contains(values, value) {
 }
 
 function device_matchers(section, key) {
-    let raw = raw_option(section, key);
-    let values = type(raw) == "array"
-        ? raw
-        : rule_config.text_list_values(raw, "comma-space");
-    let text_values = rule_config.text_list_values(option(section, key + "_text", ""), "comma-space");
-
-    if (bool_option(section, key + "_text_mode", false) || bool_option(section, "conditions_text_mode", false))
-        values = text_values;
-    else if (length(values) == 0)
-        values = text_values;
-
+    let values = list_value(section, key);
     let result = { selected: length(values) > 0, system: false, ips: [] };
     let seen = {};
     for (let value in values) {
@@ -86,13 +76,6 @@ function excluded_devices(settings) {
         router: index(values, SYSTEM_DEVICE_VALUE) >= 0,
         addresses: filter(values, (value) => value != SYSTEM_DEVICE_VALUE)
     };
-}
-
-function whitespace_list_value(section, key) {
-    let value = raw_option(section, key);
-    if (type(value) == "array")
-        return value;
-    return common.list_option(section, key);
 }
 
 function section_name(section) {
@@ -221,14 +204,8 @@ function child_values(parent, type_name, value_key) {
     return result;
 }
 
-function is_legacy_connection_action(action) {
-    action = as_string(action);
-    return action == "proxy" || action == "outbound" || action == "vpn";
-}
-
 function is_connections_action(action) {
-    action = as_string(action);
-    return action == "connection" || is_legacy_connection_action(action);
+    return as_string(action) == "connection";
 }
 
 // A subscription is its item, not its address: two of them may fetch one address.
@@ -258,13 +235,7 @@ function interfaces(section) {
 }
 
 function outbound_jsons(section) {
-    let result = list_value(section, "outbound_jsons");
-    if (length(result) == 0) {
-        let value = option(section, "outbound_json", "");
-        if (value != "")
-            push(result, value);
-    }
-    return result;
+    return list_value(section, "outbound_jsons");
 }
 
 function child_order_sort(left, right) {
@@ -422,15 +393,15 @@ function fallback_levels(group_id) {
 }
 
 function community_lists(section) {
-    return whitespace_list_value(section, "community_lists");
+    return list_value(section, "community_lists");
 }
 
 function rule_sets(section) {
-    return whitespace_list_value(section, "rule_set");
+    return list_value(section, "rule_set");
 }
 
 function rule_sets_with_subnets(section) {
-    return whitespace_list_value(section, "rule_set_with_subnets");
+    return list_value(section, "rule_set_with_subnets");
 }
 
 function destinations(section) {
@@ -462,7 +433,7 @@ function download_via_proxy_section(settings, purpose) {
 }
 
 function rule_ports_csv(section) {
-    return rule_config.rule_ports_csv_value(option(section, "ports", ""), option(section, "ports_text", ""));
+    return rule_config.rule_ports_csv_value(list_value(section, "ports"));
 }
 
 function has_dns_matchers(section) {
@@ -702,10 +673,7 @@ function fallback_level_mode(group_id, value) {
 }
 
 function fallback_level_include_outbounds(group_id, value) {
-    let child = fallback_level_child(group_id, value);
-    return raw_option(child, "include_outbounds") != null
-        ? list_value(child, "include_outbounds")
-        : list_value(child, "server_name");
+    return list_value(fallback_level_child(group_id, value), "include_outbounds");
 }
 
 function fallback_level_include_regex(group_id, value) {
