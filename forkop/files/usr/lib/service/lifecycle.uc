@@ -209,7 +209,9 @@ function stop_runtime(keep_watcher) {
     rulesets.stop_worker();
     if (!cleanup_network())
         ok = false;
-    if (((fs.stat(paths.sing_box_init)?.mode ?? 0) & 0111) != 0 && exec.run([ paths.sing_box_init, "stop" ]) != 0) {
+    // The init script's stop has procd delete the service, and ubus complains of one it lacks.
+    let held = ((fs.stat(paths.sing_box_init)?.mode ?? 0) & 0111) != 0 && health.sing_box_service_registered();
+    if (held && exec.run([ paths.sing_box_init, "stop" ]) != 0) {
         log("error", "Failed to stop sing-box");
         ok = false;
     }

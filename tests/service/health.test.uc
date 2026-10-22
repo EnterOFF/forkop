@@ -33,6 +33,18 @@ t.test("sing-box is ready once every inbound Forkop routes to listens", () => {
     t.ok(!listening(TCP, TCP6, ""), "without the source DNS inbound over UDP");
 });
 
+t.test("procd holds the sing-box service while it lists it, running or not, and when it does not answer", () => {
+    let ubus = require("ubus");
+    let held = (reply) => {
+        ubus.__on("service.list", reply);
+        return health.sing_box_service_registered();
+    };
+    t.ok(!held({}));
+    t.ok(held({ "sing-box": { instances: { instance1: { running: false } } } }));
+    t.ok(held(null));
+    ubus.__reset();
+});
+
 t.test("a process age is measured on the kernel tick scale and never runs backwards", () => {
     t.eq(health.process_age_seconds_from_ticks(786161359, 786162159), 8);
     t.eq(health.process_age_seconds_from_ticks(786162159, 786161359), null);

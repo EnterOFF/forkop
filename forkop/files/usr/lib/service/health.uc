@@ -62,29 +62,27 @@ function ubus_connect() {
     return ubus_connection;
 }
 
-function sing_box_service_pid_from_cli() {
-    let data = command_output_from_args([ "ubus", "call", "service", "list", "{\"name\":\"sing-box\"}" ]);
+// procd's entry for the sing-box service: {} when it holds none, null when it did not answer.
+function sing_box_service_list() {
+    let connection = ubus_connect();
     try {
-        return sing_box_service_pid_from_value(json(data));
+        return connection == null
+            ? json(command_output_from_args([ "ubus", "call", "service", "list", "{\"name\":\"sing-box\"}" ]))
+            : connection.call("service", "list", { name: "sing-box" });
     }
     catch (e) {
-        return 0;
+        return null;
     }
 }
 
 function sing_box_service_pid_runtime() {
-    let connection = ubus_connect();
-    if (connection == null)
-        return sing_box_service_pid_from_cli();
+    return sing_box_service_pid_from_value(sing_box_service_list());
+}
 
-    try {
-        return sing_box_service_pid_from_value(
-            connection.call("service", "list", { name: "sing-box" })
-        );
-    }
-    catch (e) {
-        return 0;
-    }
+// Running or not; a service procd gave no answer about counts as held.
+function sing_box_service_registered() {
+    let value = sing_box_service_list();
+    return type(value) != "object" || value["sing-box"] != null;
 }
 
 function path_basename(path) {
@@ -245,6 +243,7 @@ return {
     service_status_text,
     sing_box_service_pid_from_value,
     sing_box_service_pid_runtime,
+    sing_box_service_registered,
     pid_is_sing_box,
     start_ticks,
     process_usage,

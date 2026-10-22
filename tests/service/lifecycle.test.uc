@@ -48,6 +48,7 @@ function reset(options) {
         events: [],
         logs: [],
         pid: 0,
+        registered: false,
         ticks: 100,
         ports: false,
         network: false,
@@ -93,6 +94,7 @@ function reset(options) {
         nft_state[name] = () => false;
     nft_state.ipv6_enabled = () => !world.ipv6_off;
     health.sing_box_service_pid_runtime = () => world.pid;
+    health.sing_box_service_registered = () => world.registered;
     health.pid_is_sing_box = (pid) => pid == world.pid && pid > 0 && !world.forked;
     health.start_ticks = (pid) => pid == world.pid ? world.ticks : null;
     health.sing_box_runtime_ports_ready = () => world.ports;
@@ -118,6 +120,7 @@ function reset(options) {
         [ "netstat -lnt", () => ({ stdout: world.netstat ?? "" }) ],
         [ dir + "/sing-box start", () => {
             event("sing-box started");
+            world.registered = true;
             world.pid = 4242;
             world.ticks = 100;
             world.ports = true;
@@ -135,6 +138,7 @@ function reset(options) {
             event("sing-box stopped");
             if (world.stop_fails)
                 return { status: 1 };
+            world.registered = false;
             world.pid = 0;
             world.ports = false;
             return {};
@@ -181,6 +185,7 @@ function started() {
 
 function running(options) {
     reset(options);
+    world.registered = true;
     world.pid = 4242;
     world.ticks = 100;
     world.ports = true;
@@ -235,6 +240,12 @@ t.test("a start of a running Forkop does nothing", () => {
     t.contains(world.logs, "[info] Forkop is already running");
 });
 
+
+t.test("a start that fails before sing-box ran stops no sing-box service, which procd does not hold", () => {
+    reset({ config_fails: true });
+    t.eq(run(() => lifecycle.start()).result, 1);
+    t.eq(filter(world.events, (e) => e == "sing-box stopped"), []);
+});
 t.test("a configuration the validator refuses stops a start before anything runs, and says why on stderr", () => {
     reset({ invalid: true });
     let result = run(() => lifecycle.start());
