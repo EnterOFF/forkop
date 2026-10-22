@@ -22,6 +22,21 @@ t.test("a connection section without a single source does not count as usable", 
     }), "no usable sections or servers");
 });
 
+t.test("sing-box has something to run in a section that needs no source, one with a source, or an enabled server", () => {
+    let runnable = (data) => {
+        fixture.seed({ settings: fixture.settings(), ...data });
+        return generator.runnable();
+    };
+    let link = fixture.links("main", [ "vless://u@a.example:443#A" ]);
+    t.ok(!runnable({}), "the configuration the package ships");
+    t.ok(!runnable({ section: [ { ".name": "main", action: "connection" } ] }), "a connection section without a source");
+    t.ok(!runnable({ section: [ { ".name": "main", action: "connection", enabled: "0" } ], connection_link: link }), "a disabled section");
+    t.ok(runnable({ section: [ { ".name": "main", action: "connection" } ], connection_link: link }));
+    t.ok(runnable({ section: [ { ".name": "ads", action: "block", destinations: "ads.example" } ] }));
+    t.ok(!runnable({ server: [ { ".name": "in", protocol: "vless" } ] }), "a server never switched on");
+    t.ok(runnable({ server: [ { ".name": "in", protocol: "vless", enabled: "1" } ] }));
+});
+
 t.test("a disabled section is left out", () => {
     let config = build({
         settings: fixture.settings(),

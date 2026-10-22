@@ -8,6 +8,7 @@ let fs = require("fs");
 let repo = require("repo");
 let validator = require("config.validator");
 let server = require("server.service");
+let generator = require("singbox.generator");
 let runtime = require("singbox.runtime");
 let nft = require("nft.apply");
 let nft_state = require("nft.state");
@@ -22,6 +23,7 @@ let world = null;
 let real_sleep = global.sleep;
 
 const CHANGED_TABLE = "table inet ForkopTable\nadd rule inet ForkopTable mangle jump x\n";
+const NOTHING_TO_RUN = "[warn] Forkop has nothing to run: no section with servers and no VPN server is enabled. Set up a section or a VPN server, then start Forkop";
 
 function event(name) {
     push(world.events, name);
@@ -70,6 +72,7 @@ function reset(options) {
     server.prepare = () => {};
     server.remove_orphans = () => { world.orphans_removed = true; };
     server.sync_firewall = (clear) => event(clear ? "firewall closed" : "firewall opened");
+    generator.runnable = () => !world.nothing_to_run;
     runtime.configure_service = () => {};
     runtime.write_config = (checked) => {
         event(checked ? "config checked" : "config written");
@@ -240,12 +243,37 @@ t.test("a start of a running Forkop does nothing", () => {
     t.contains(world.logs, "[info] Forkop is already running");
 });
 
+t.test("a start with nothing to run warns once, runs nothing and succeeds", () => {
+    reset({ nothing_to_run: true });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 0);
+    t.eq(world.logs, [ "[info] Starting Forkop", NOTHING_TO_RUN ]);
+    t.eq(filter(world.events, (e) => e == "config checked" || e == "sing-box started" || e == "nft applied"), []);
+    t.eq([ result.stdout, result.stderr ], [ "", "" ]);
+});
+
+t.test("a start with nothing to run takes down what an earlier run left", () => {
+    running({ nothing_to_run: true, capture: false });
+    t.eq(run(() => lifecycle.start()).result, 0);
+    t.contains(world.events, "nft table deleted");
+    t.contains(world.events, "sing-box stopped");
+    t.eq(filter(world.events, (e) => e == "sing-box started"), []);
+});
+
+t.test("a stopped Forkop with nothing to run is not started by a reload", () => {
+    reset({ nothing_to_run: true });
+    let result = run(() => lifecycle.reload("interface_up:wwan"));
+    t.eq(result.result, 0);
+    t.eq(world.logs, [ "[info] Reapplying configuration: interface 'wwan' came up", NOTHING_TO_RUN ]);
+    t.eq(filter(world.events, (e) => e == "sing-box started"), []);
+});
 
 t.test("a start that fails before sing-box ran stops no sing-box service, which procd does not hold", () => {
     reset({ config_fails: true });
     t.eq(run(() => lifecycle.start()).result, 1);
     t.eq(filter(world.events, (e) => e == "sing-box stopped"), []);
 });
+
 t.test("a configuration the validator refuses stops a start before anything runs, and says why on stderr", () => {
     reset({ invalid: true });
     let result = run(() => lifecycle.start());

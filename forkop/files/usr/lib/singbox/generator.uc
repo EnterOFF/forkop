@@ -1696,6 +1696,12 @@ function enabled_servers() {
     return result;
 }
 
+// Whether the configuration gives sing-box a section or a server to run.
+function runnable() {
+    connections.load();
+    return length(runtime_sections(enabled_sections())) > 0 || length(enabled_servers()) > 0;
+}
+
 function section_by_name(sections, name) {
     name = as_string(name);
     for (let section in sections)
@@ -1839,4 +1845,4 @@ function build(context) {
     return strip_internal_fields(config);
 }
 
-return { build };
+return { build, runnable };

@@ -10,6 +10,7 @@ let uci = require("core.uci");
 let validator = require("config.validator");
 let server = require("server.service");
 let tailscale = require("singbox.tailscale");
+let generator = require("singbox.generator");
 let runtime = require("singbox.runtime");
 let nft = require("nft.apply");
 let nft_state = require("nft.state");
@@ -34,6 +35,7 @@ const EXEC_GRACE = 3;
 const MAX_READY_WAIT = 300;
 const STOP_TIMEOUT = 15;
 const NOT_CAPTURING = "Forkop was not fully running after the nftables rules were applied";
+const NOTHING_TO_RUN = "Forkop has nothing to run: no section with servers and no VPN server is enabled. Set up a section or a VPN server, then start Forkop";
 
 let paths = {
     config: "/etc/config/forkop",
@@ -83,8 +85,6 @@ function migrate_restored_config() {
 
 // The server ports open only once the configuration is known good.
 function validate() {
-    if (!migrate_restored_config())
-        return false;
     try {
         validator.check_requirements();
         server.prepare();
@@ -227,6 +227,16 @@ function cleanup_failed_runtime(keep_watcher) {
     return stop_runtime(keep_watcher);
 }
 
+// A Forkop not set up yet has not failed: the action succeeds, so the WAN coming up does not
+// retry it.
+function nothing_to_run() {
+    if (generator.runnable())
+        return false;
+    log("warn", NOTHING_TO_RUN);
+    cleanup_failed_runtime();
+    return true;
+}
+
 let start_fingerprint = "";
 
 // Every step that gives up logs one error line, which the page raises as an alert.
@@ -324,6 +334,12 @@ function start() {
             return 0;
         }
         log("info", "Starting Forkop");
+        if (!migrate_restored_config()) {
+            cleanup_failed_runtime();
+            return 1;
+        }
+        if (nothing_to_run())
+            return 0;
         if (health.sing_box_service_running() && (!cleanup_failed_runtime() || health.sing_box_service_running())) {
             log("error", "A sing-box left from an earlier run could not be stopped; not starting a second one");
             return 1;
@@ -459,13 +475,15 @@ function reload_announcement(reason, forced) {
 function reload_runtime(reason) {
     let forced = reason != "on_config_change" && reason != "pending";
     log("info", reload_announcement(reason, forced));
-    if (!validate())
+    if (!migrate_restored_config() || !validate())
         return reload_failed(false);
     // After validation, which writes the defaults a new server needs, so this reload's own
     // writing is not taken for somebody else's change.
     let fingerprint = config_fingerprint();
 
     if (!forkop_running()) {
+        if (nothing_to_run())
+            return 0;
         if (!restart_runtime())
             return reload_failed(true);
         log("info", "Configuration applied");

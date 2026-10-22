@@ -45,6 +45,8 @@ t.test("the reason Forkop is down is the first error of the last action, not wha
     t.eq(checks.last_error(join("\n", [ line("info", "Starting Forkop"), line("error", "first try"), line("info", "Starting Forkop"),
         line("error", "second try") ])), "second try", "the last attempt, not an earlier one");
     t.eq(checks.last_error("Mon Oct 19 16:51:18 2026 daemon.err sing-box[1]: FATAL[0000] start service"), "", "the core's own lines are not Forkop's");
+    t.eq(checks.last_error(join("\n", [ line("info", "Starting Forkop"), line("error", "an earlier failure"), line("info", "Starting Forkop"),
+        line("warn", "Forkop has nothing to run") ])), "Forkop has nothing to run", "an action that did not fail, by its last warning");
 });
 
 t.test("the service check finds running cores other than Forkop's, and nothing Forkop runs for a moment", () => {

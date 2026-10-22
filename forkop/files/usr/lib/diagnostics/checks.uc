@@ -61,19 +61,24 @@ function uptime_seconds() {
 }
 
 // The first error since Forkop's last info line: every action opens and closes with one, and
-// the later errors are mostly the cleanup's.
+// the later errors are mostly the cleanup's. Without an error, the last warning is the reason.
 function last_error(log) {
-    let result = null;
+    let error = null;
+    let warning = null;
     for (let line in split(log ?? "", "\n")) {
         let entry = match(line, /forkop(\[[0-9]+\])?: \[([a-z]+)\] (.*)$/);
         if (entry == null)
             continue;
-        if (entry[2] == "info")
-            result = null;
-        else if (entry[2] == "error" && result == null)
-            result = entry[3];
+        if (entry[2] == "info") {
+            error = null;
+            warning = null;
+        }
+        else if (entry[2] == "error" && error == null)
+            error = entry[3];
+        else if (entry[2] == "warn")
+            warning = entry[3];
     }
-    return result ?? "";
+    return error ?? warning ?? "";
 }
 
 function meminfo() {
