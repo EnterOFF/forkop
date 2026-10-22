@@ -84,7 +84,7 @@ function reset(options) {
         nft_state[name] = () => false;
     nft_state.ipv6_enabled = () => !world.ipv6_off;
     health.sing_box_service_pid_runtime = () => world.pid;
-    health.pid_is_sing_box = (pid) => pid == world.pid && pid > 0;
+    health.pid_is_sing_box = (pid) => pid == world.pid && pid > 0 && !world.forked;
     health.start_ticks = (pid) => pid == world.pid ? world.ticks : null;
     health.sing_box_runtime_ports_ready = () => world.ports;
     health.forkop_runtime_network_configured = () => world.network && world.capture;
@@ -451,6 +451,18 @@ t.test("a core procd is about to respawn pauses the capture until the new one li
     t.eq(run(() => lifecycle.crash_resume()).result, 0);
     t.eq(world.events, [ "capture resumed" ], "resumed only once the respawned core listens");
     t.contains(world.logs, "[info] sing-box restarted; traffic capture resumed");
+});
+
+t.test("the crash resume waits for a core procd has forked but not yet run", () => {
+    running({ capture: false, forked: true });
+    world.on_sleep = () => { world.forked = false; };
+    t.eq(run(() => lifecycle.crash_resume()).result, 0);
+    t.eq(world.events, [ "capture resumed" ]);
+
+    running({ capture: false, forked: true });
+    t.eq(run(() => lifecycle.crash_resume()).result, 0);
+    t.eq(world.events, [], "a child that never becomes sing-box");
+    t.ok(world.slept < 10, "is given up after a few looks");
 });
 
 t.test("the crash pause says so when the kernel killed the core for memory", () => {

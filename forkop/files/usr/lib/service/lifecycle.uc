@@ -29,6 +29,8 @@ const LOCK_TIMEOUT = 360;
 const START_READY_WINDOW = 8;
 const RELOAD_READY_WINDOW = 2;
 const READY_HOLD = 2;
+// procd announces an instance right after its fork, before the child has run sing-box.
+const EXEC_GRACE = 3;
 const MAX_READY_WAIT = 300;
 const STOP_TIMEOUT = 15;
 const NOT_CAPTURING = "Forkop was not fully running after the nftables rules were applied";
@@ -99,7 +101,7 @@ function wait_ready(window, hold, with_network) {
                 if (ticks != null)
                     pid = found;
             }
-            if (pid <= 0 && waited >= window)
+            if (pid <= 0 && waited >= window && (found <= 0 || waited >= EXEC_GRACE))
                 return false;
         }
         else if (health.start_ticks(pid) != ticks)
