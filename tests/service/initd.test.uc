@@ -144,7 +144,7 @@ t.test("a failed start leaves a retry for the next WAN-up, and a good one clears
     stub.capture(() => initd.start("triggered"));
     t.matches(fs.readfile(initd.paths.start_retry), /^reason=wan_retry_failed\n/);
     lifecycle_status = 0;
-    t.eq(stub.capture(() => initd.start("")).stdout, "Start Forkop\n");
+    t.eq(stub.capture(() => initd.start("")).stdout, "", "at boot procd would write it into the syslog beside the log's own line");
     t.ok(fs.stat(initd.paths.start_retry) == null);
     stub.restore();
 });

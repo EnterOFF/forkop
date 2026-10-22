@@ -70,7 +70,6 @@ function registered() {
 }
 
 function start(reason) {
-    print("Start Forkop\n");
     let job = begin("start");
     let status = lifecycle().start();
     if (status == 0)

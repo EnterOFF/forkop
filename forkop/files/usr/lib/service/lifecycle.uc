@@ -49,7 +49,7 @@ let paths = {
     rc_dir: "/etc/rc.d"
 };
 
-// procd drops the output of what it runs, so an error goes to stderr as well as the log.
+// An error goes to stderr as well, for whoever runs the init script in a terminal.
 function log(level, message) {
     exec.log(level, message);
     if (level == "error")
