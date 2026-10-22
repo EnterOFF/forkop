@@ -82,11 +82,12 @@ t.test("a notification from procd runs the cleanup, and a repeated one does not"
     t.eq(cleanups, [ "137", "137" ]);
 });
 
-t.test("a core procd respawns pauses the capture on its exit and resumes it on its start", () => {
+t.test("a core procd respawns pauses the capture on its exit, naming the pid it ran as, and resumes it on its start", () => {
     let steps = [];
+    let pid = 4242;
     ubus.__reset();
-    ubus.__on("service.list", () => ({}));
-    let step = (argv) => { push(steps, argv[1]); return {}; };
+    ubus.__on("service.list", () => ({ "sing-box": { instances: { instance1: { running: true, pid } } } }));
+    let step = (argv) => { push(steps, join(" ", slice(argv, 1))); return {}; };
     stub.commands([ [ "/usr/bin/forkop sing_box_crash_pause", step ], [ "/usr/bin/forkop sing_box_crash_resume", step ] ]);
     fs.unlink(watch.paths.pending_cleanup);
     let uloop = require("uloop");
@@ -94,13 +95,15 @@ t.test("a core procd respawns pauses the capture on its exit and resumes it on i
     uloop.__on_run(() => {
         ubus.__notify("service", "instance.stop", service("sing-box"));
         ubus.__notify("service", "instance.respawn", service("sing-box"));
+        pid = 4343;
         ubus.__notify("service", "instance.start", service("sing-box"));
+        ubus.__notify("service", "instance.stop", service("sing-box"));
         ubus.__notify("service", "instance.stop", service("dnsmasq"));
     });
     t.eq(watch.monitor(), 0);
     uloop.__on_run(null);
     stub.restore();
-    t.eq(steps, [ "sing_box_crash_pause", "sing_box_crash_resume" ]);
+    t.eq(steps, [ "sing_box_crash_pause 4242", "sing_box_crash_resume", "sing_box_crash_pause 4343" ]);
 });
 
 t.test("a stop that arrives while the watcher starts up ends it as soon as its loop runs", () => {

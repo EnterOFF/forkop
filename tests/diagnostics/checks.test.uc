@@ -47,17 +47,6 @@ t.test("the reason Forkop is down is the first error of the last action, not wha
     t.eq(checks.last_error("Mon Oct 19 16:51:18 2026 daemon.err sing-box[1]: FATAL[0000] start service"), "", "the core's own lines are not Forkop's");
 });
 
-t.test("an OOM kill counts for a day after it happened", () => {
-    let kernel = join("\n", [
-        "[ 4126.069190] Out of memory: Killed process 28544 (nft) total-vm:46892kB, anon-rss:42648kB",
-        "[100000.181460] Out of memory: Killed process 14882 (sing-box) total-vm:1387484kB",
-        "[100500.000000] Memory cgroup out of memory: Killed process 22905 (sing-box) total-vm:1378332kB",
-        "[100600.000000] usb 1-1: new device"
-    ]);
-    t.eq(checks.oom_kills(kernel, 100700), [ { process: "sing-box", seconds_ago: 700 }, { process: "sing-box", seconds_ago: 200 } ]);
-    t.eq(length(checks.oom_kills(kernel, 90000)), 1, "a kill counts from its own stamp");
-});
-
 t.test("the service check finds running cores other than Forkop's, and nothing Forkop runs for a moment", () => {
     let proc = dir + "/proc";
     for (let process in [ [ "100", [ "/usr/bin/sing-box", "run", "-c", "/etc/sing-box/config.json" ] ],
@@ -77,8 +66,7 @@ t.test("the service check finds running cores other than Forkop's, and nothing F
     health.process_age_seconds = () => 42;
     stub.commands([
         [ /'logread'/, { stdout: "Mon Oct 19 16:51:18 2026 user.info forkop: [info] Starting Forkop\nMon Oct 19 16:51:18 2026 user.err forkop: [error] Clash API address 192.168.1.1:9090 is already in use by another process\n" } ],
-        [ /'nft' '-t' 'list' 'ruleset'/, { stdout: "table inet other {\n\tchain c {\n\t\ttype filter hook prerouting priority mangle; policy accept;\n\t\tmeta l4proto tcp tproxy ip to :7893\n\t}\n}\n" } ],
-        [ /'dmesg'/, { stdout: "[100000.1] Out of memory: Killed process 14882 (sing-box) total-vm:1387484kB\n" } ]
+        [ /'nft' '-t' 'list' 'ruleset'/, { stdout: "table inet other {\n\tchain c {\n\t\ttype filter hook prerouting priority mangle; policy accept;\n\t\tmeta l4proto tcp tproxy ip to :7893\n\t}\n}\n" } ]
     ]);
     let packages = require("core.packages");
     packages.paths.sing_box_version = dir + "/no-such-version";
@@ -89,7 +77,7 @@ t.test("the service check finds running cores other than Forkop's, and nothing F
     t.eq(value.core, { version: "", variant: "", problem: "" }, "no sing-box-forkop package recorded a version");
     t.eq(value.last_error, "Clash API address 192.168.1.1:9090 is already in use by another process");
     t.eq(value.conflicts, [ { table: "inet other", kind: "tproxy" } ]);
-    t.eq([ value.memory, value.oom, value.router_uptime ], [ { total_kb: 239540, available_kb: 45536 }, [ { process: "sing-box", seconds_ago: 700 } ], 100700 ]);
+    t.eq([ value.memory, value.router_uptime ], [ { total_kb: 239540, available_kb: 45536 }, 100700 ]);
 });
 
 t.test("the core check names the package's version and variant and why Forkop cannot run on its tags", () => {

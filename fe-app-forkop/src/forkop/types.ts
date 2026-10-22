@@ -357,7 +357,6 @@ export namespace Forkop {
     foreign_sing_box: number[];
     conflicts: Array<{ table: string; kind: 'tproxy' | 'dns' }>;
     memory: { total_kb: number; available_kb: number };
-    oom: Array<{ process: string; seconds_ago: number }>;
     router_uptime: number;
   }
 

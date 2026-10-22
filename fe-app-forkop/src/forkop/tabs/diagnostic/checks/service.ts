@@ -86,22 +86,6 @@ function memoryItem(data: Forkop.ServiceCheckResult) {
     formatMegabytes(data.memory.total_kb),
   );
 
-  if (data.oom.length) {
-    const counts = new Map<string, number>();
-    for (const kill of data.oom) {
-      counts.set(kill.process, (counts.get(kill.process) || 0) + 1);
-    }
-    const killed = [...counts]
-      .map(([name, count]) => (count > 1 ? `${name} ×${count}` : name))
-      .join(', ');
-
-    return finding(
-      'warning',
-      key,
-      _('ran out in the last day: the kernel killed %s').format(killed),
-    );
-  }
-
   if (
     data.memory.total_kb > 0 &&
     data.memory.available_kb < data.memory.total_kb * LOW_MEMORY_SHARE

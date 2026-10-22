@@ -7,6 +7,7 @@ let exec = require("core.exec");
 let constants = require("core.constants");
 let library = require("core.library");
 let worker = require("service.worker");
+let health = require("service.health");
 
 let paths = {
     pid: "/var/run/forkop/sing-box-watch.pid",
@@ -24,13 +25,14 @@ function spec() {
     };
 }
 
-function crash_step(event) {
+// procd's stop notification carries no pid, so the watcher keeps the one it saw running.
+function crash_step(event, core_pid) {
     if (event?.data?.service != "sing-box")
         return null;
     if (event.type == "instance.stop")
-        return "sing_box_crash_pause";
+        return [ "sing_box_crash_pause", "" + core_pid ];
     if (event.type == "instance.start")
-        return "sing_box_crash_resume";
+        return [ "sing_box_crash_resume" ];
     return null;
 }
 
@@ -68,13 +70,17 @@ function monitor() {
     if (connection == null)
         return 1;
 
+    let services = () => connection.call("service", "list", { name: "sing-box" });
     let status = 0;
     let last_event = "";
+    let core_pid = 0;
     let subscriber = connection.subscriber(function(notification) {
         let event = { type: notification.type, data: notification.data };
-        let step = crash_step(event);
+        if (event.type == "instance.start" && event.data?.service == "sing-box")
+            core_pid = health.sing_box_service_pid_from_value(services());
+        let step = crash_step(event, core_pid);
         if (step != null)
-            exec.ok([ constants.FORKOP_BIN, step ]);
+            exec.ok([ constants.FORKOP_BIN, ...step ]);
         if (!should_cleanup(event) || cleanup_event_key(event) == last_event)
             return;
         last_event = cleanup_event_key(event);
@@ -86,8 +92,10 @@ function monitor() {
     if (subscriber == null || !subscriber.subscribe("service") || !worker.announce(me))
         return 1;
 
+    let state = services();
+    core_pid = health.sing_box_service_pid_from_value(state);
     let pending = fs.readfile(paths.pending_cleanup);
-    let exit_code = pending != null ? trim(pending) : failed_exit_code(connection.call("service", "list", { name: "sing-box" }));
+    let exit_code = pending != null ? trim(pending) : failed_exit_code(state);
     if (exit_code != null && !cleanup(exit_code)) {
         worker.retire(me);
         return 1;

@@ -377,16 +377,33 @@ function capture(active) {
     return exec.ok(nft.capture_command(active));
 }
 
+// The kernel logs "Killed process <pid> (<name>)" for each process the OOM killer ends.
+function last_oom_kill(kernel_log) {
+    let pid = 0;
+    for (let line in split(kernel_log ?? "", "\n")) {
+        let kill = match(line, /Killed process ([0-9]+) \(/);
+        if (kill != null)
+            pid = int(kill[1]);
+    }
+    return pid;
+}
+
+function crash_reason(pid) {
+    return pid > 0 && last_oom_kill(exec.output([ "dmesg" ])) == pid
+        ? "The router ran out of memory and the kernel killed sing-box"
+        : "sing-box exited unexpectedly";
+}
+
 // procd brings a crashed sing-box back a few seconds later; until the new one listens the
 // capture pauses, as during a reload. An action holding the lifecycle lock owns the runtime,
 // so neither step waits for one.
-function crash_pause() {
+function crash_pause(pid) {
     let owner = common.own_pid();
     if (!lock.acquire(paths.lock, owner))
         return 0;
     if (fs.stat(paths.planned_stop) == null && nft_state.table_present(NFT_TABLE) && !health.sing_box_service_running()) {
         if (capture(false))
-            log("warn", "sing-box exited unexpectedly; the capture is paused until procd restarts it");
+            log("warn", crash_reason(int(pid)) + "; the capture is paused until procd restarts it");
         else
             log("error", "Failed to pause the traffic capture after sing-box exited");
     }

@@ -105,6 +105,7 @@ function reset(options) {
     stub.commands([
         stub.logger(world.logs),
         [ "pgrep", () => ({ status: world.stray_sing_box ? 0 : 1 }) ],
+        [ "dmesg", () => ({ stdout: world.kernel_log ?? "" }) ],
         [ "netstat -lnt", () => ({ stdout: world.netstat ?? "" }) ],
         [ dir + "/sing-box start", () => {
             event("sing-box started");
@@ -450,6 +451,22 @@ t.test("a core procd is about to respawn pauses the capture until the new one li
     t.eq(run(() => lifecycle.crash_resume()).result, 0);
     t.eq(world.events, [ "capture resumed" ], "resumed only once the respawned core listens");
     t.contains(world.logs, "[info] sing-box restarted; traffic capture resumed");
+});
+
+t.test("the crash pause says so when the kernel killed the core for memory", () => {
+    let oom = (pid) => "[2093230.465149] Out of memory: Killed process " + pid + " (sing-box) total-vm:1386056kB, anon-rss:79772kB, file-rss:0kB\n";
+    crashed({ kernel_log: oom(17203) + "[2093231.000000] br-lan: port 1(lan2) entered disabled state\n" + oom(8632) });
+    run(() => lifecycle.crash_pause("8632"));
+    t.contains(world.logs, "[warn] The router ran out of memory and the kernel killed sing-box; the capture is paused until procd restarts it");
+
+    crashed({ kernel_log: oom(8632) + oom(17203) });
+    run(() => lifecycle.crash_pause("8632"));
+    t.contains(world.logs, "[warn] sing-box exited unexpectedly; the capture is paused until procd restarts it",
+        "an older kill of an earlier process with the same pid");
+
+    crashed({ kernel_log: oom(8632) });
+    run(() => lifecycle.crash_pause(""));
+    t.contains(world.logs, "[warn] sing-box exited unexpectedly; the capture is paused until procd restarts it", "a watcher that saw no core");
 });
 
 t.test("the crash pause leaves alone what a lifecycle action or a live core owns", () => {

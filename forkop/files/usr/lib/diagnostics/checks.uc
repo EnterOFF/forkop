@@ -24,7 +24,6 @@ let clash_api = require("singbox.clash_api");
 
 const CONFIG_NAME = constants.FORKOP_CONFIG_NAME;
 const STABLE_MIN_AGE = 2;
-const OOM_WINDOW = 86400;
 const DNS_INBOUND = singbox_constants.DNS_INBOUND_ADDRESS;
 const FAKEIP_DOMAIN = singbox_constants.FAKEIP_TEST_DOMAIN;
 const IP_DOMAIN = singbox_constants.CHECK_PROXY_IP_DOMAIN;
@@ -83,20 +82,6 @@ function meminfo() {
     return { total_kb: value("MemTotal"), available_kb: value("MemAvailable") };
 }
 
-// The kernel log stamps count seconds since boot.
-function oom_kills(kernel_log, uptime) {
-    let result = [];
-    for (let line in split(kernel_log ?? "", "\n")) {
-        let kill = match(line, /^\[[ \t]*([0-9]+)(\.[0-9]+)?\].*Killed process [0-9]+ \(([^)]+)\)/);
-        if (kill == null)
-            continue;
-        let ago = uptime - int(kill[1]);
-        if (ago >= 0 && ago <= OOM_WINDOW)
-            push(result, { process: kill[3], seconds_ago: ago });
-    }
-    return result;
-}
-
 // Forkop itself runs `sing-box check` and `sing-box version` briefly; those hold no port.
 function sing_box_cores() {
     let result = [];
@@ -122,7 +107,6 @@ function service() {
     let running = health.forkop_stably_running(constants.RT_TABLE_NAME, constants.NFT_TABLE_NAME, constants.NFT_FAKEIP_MARK, STABLE_MIN_AGE);
     let pid = health.sing_box_service_pid_runtime();
     let own = pid > 0 && health.pid_is_sing_box(pid) ? pid : 0;
-    let router_uptime = uptime_seconds();
     return {
         running,
         uptime: own > 0 ? (health.process_age_seconds(own) ?? -1) : -1,
@@ -131,8 +115,7 @@ function service() {
         foreign_sing_box: filter(sing_box_cores(), (found) => found != own),
         conflicts: conflicts.find(output([ "nft", "-t", "list", "ruleset" ])),
         memory: meminfo(),
-        oom: oom_kills(output([ "dmesg" ]), router_uptime),
-        router_uptime
+        router_uptime: uptime_seconds()
     };
 }
 
@@ -411,4 +394,4 @@ function servers() {
     return { wan, behind_cgnat, items };
 }
 
-return { paths, last_error, oom_kills, dig_result, core, service, dns, traffic, servers };
+return { paths, last_error, dig_result, core, service, dns, traffic, servers };

@@ -18,7 +18,6 @@ function service(
     foreign_sing_box: [],
     conflicts: [],
     memory: { total_kb: 239540, available_kb: 45476 },
-    oom: [],
     router_uptime: 1902323,
     ...overrides,
   };
@@ -122,20 +121,12 @@ describe('the service check', () => {
     ]);
   });
 
-  it('warns about memory once the kernel killed for it, or when it is nearly gone', () => {
+  it('warns about memory only while it is nearly gone', () => {
     const memory = (overrides: Partial<Forkop.ServiceCheckResult>) =>
       presentService(service(overrides)).find((item) => item.key === 'Memory');
-    expect(
-      memory({
-        oom: [
-          { process: 'sing-box', seconds_ago: 100 },
-          { process: 'sing-box', seconds_ago: 50 },
-          { process: 'nft', seconds_ago: 10 },
-        ],
-      }),
-    ).toMatchObject({
-      state: 'warning',
-      value: 'ran out in the last day: the kernel killed sing-box ×2, nft',
+    expect(memory({})).toMatchObject({
+      state: 'success',
+      value: '44 MB of 234 MB free',
     });
     expect(
       memory({ memory: { total_kb: 131072, available_kb: 10240 } }),

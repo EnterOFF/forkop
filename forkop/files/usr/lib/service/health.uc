@@ -243,6 +243,7 @@ function service_status_text(running, enabled) {
 return {
     paths,
     service_status_text,
+    sing_box_service_pid_from_value,
     sing_box_service_pid_runtime,
     pid_is_sing_box,
     start_ticks,
