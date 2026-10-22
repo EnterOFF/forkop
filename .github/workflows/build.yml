@@ -1,68 +1,36 @@
 name: Build packages
+
+# Run by hand (Actions, Build packages, Run workflow) from an X.Y.Z tag: it builds the release's
+# packages and drafts its GitHub release with them, install.sh, release.json and SHA256SUMS.
+# Publishing the draft by hand makes it the latest release, the one install.sh installs and every
+# Forkop's update check offers.
 on:
-  push:
-    tags:
-      - '*'
   workflow_dispatch:
     inputs:
-      release_tag:
-        description: Release tag to build and publish
-        required: true
+      install_command:
+        description: "Only for a release the Components tab must not install itself: the command that installs it"
         type: string
-      release_notes:
-        description: 'Optional release notes/comment (use \n for line breaks; Markdown is preserved)'
-        required: false
-        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
-  preparation:
-    name: Setup build version
+  build:
+    name: Build the release packages
     runs-on: ubuntu-24.04
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      commitish: ${{ steps.version.outputs.commitish }}
-      release_notes: ${{ steps.version.outputs.release_notes }}
     steps:
       - uses: actions/checkout@v5.0.0
-        with:
-          fetch-depth: 0
-      - id: version
-        shell: bash
+
+      - name: Check the tag
         env:
-          INPUT_VERSION: ${{ inputs.release_tag || '' }}
-          INPUT_RELEASE_NOTES: ${{ inputs.release_notes || '' }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          if [ -n "$INPUT_VERSION" ]; then
-            VERSION="$INPUT_VERSION"
-          else
-            VERSION=$(git describe --tags --exact-match 2>/dev/null || true)
-          fi
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Release version must use x.y.z format, got: ${VERSION:-<empty>}" >&2
+          if [ "$REF_TYPE" != tag ] || ! [[ "$REF_NAME" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::A release is built from its X.Y.Z tag: choose the tag in Use workflow from"
             exit 1
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "commitish=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-          python3 - <<'PY'
-          import os
-          import uuid
-
-          notes = os.environ['INPUT_RELEASE_NOTES']
-          notes = notes.replace('\r\n', '\n').replace('\r', '\n').replace('\\n', '\n')
-          delimiter = f'ghadelimiter_{uuid.uuid4().hex}'
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f'release_notes<<{delimiter}\n{notes}\n{delimiter}\n')
-          PY
-
-  build:
-    name: Build Forkop release packages
-    runs-on: ubuntu-24.04
-    needs: preparation
-    steps:
-      - uses: actions/checkout@v5.0.0
 
       - name: Install build dependencies
         run: |
@@ -70,47 +38,46 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential curl fakeroot file gawk git patch perl tar unzip util-linux xz-utils zstd
 
-      - name: Build release artifacts
-        shell: bash
-        run: |
-          VERSION="${{ needs.preparation.outputs.version }}"
-          ./build.sh "$VERSION" "$PWD/filtered-bin/release"
+      - name: Build
+        env:
+          INSTALL_COMMAND: ${{ inputs.install_command }}
+          TAG: ${{ github.ref_name }}
+        run: ./build.sh "$TAG" "$PWD/release"
 
-      - name: Upload build artifacts
+      - name: Upload the release files
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: release-files-${{ needs.preparation.outputs.version }}
-          path: ./filtered-bin/release/*
+          name: release
+          path: release/*
           retention-days: 1
           if-no-files-found: error
 
   release:
-    name: Create Release
+    name: Draft the release
+    needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-    needs:
-      - preparation
-      - build
     steps:
-      - uses: actions/checkout@v5.0.0
-      - name: Create release dir
-        run: mkdir -p ./filtered-bin/release
-
-      - name: Download release artifacts
+      - name: Download the release files
         uses: actions/download-artifact@v4
         with:
-          name: release-files-${{ needs.preparation.outputs.version }}
-          path: ./filtered-bin/release
+          name: release
+          path: release
 
-      - name: Release
-        uses: softprops/action-gh-release@v2.4.0
-        with:
-          files: ./filtered-bin/release/*.*
-          draft: false
-          prerelease: false
-          make_latest: true
-          name: ${{ needs.preparation.outputs.version }}
-          tag_name: ${{ needs.preparation.outputs.version }}
-          target_commitish: ${{ needs.preparation.outputs.commitish }}
-          body: ${{ needs.preparation.outputs.release_notes }}
+      - name: Draft the release
+        env:
+          GH_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if draft=$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$draft" != true ]; then
+              echo "::error::The release $TAG is published already: its files stay as they are"
+              exit 1
+            fi
+          else
+            gh release create "$TAG" --draft --verify-tag --title "$TAG" --notes ""
+          fi
+          gh release upload "$TAG" --clobber -- release/*
