@@ -5,15 +5,7 @@ import {
 } from '../../cbi/choices';
 
 function isDownloadSectionAction(action: unknown) {
-  switch (action) {
-    case 'connection':
-    case 'proxy':
-    case 'outbound':
-    case 'vpn':
-      return true;
-    default:
-      return false;
-  }
+  return action === 'connection';
 }
 
 function refreshDownloadSectionChoices(option: CBIOption) {

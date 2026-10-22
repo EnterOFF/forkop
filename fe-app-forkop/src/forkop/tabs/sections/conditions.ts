@@ -1,5 +1,3 @@
-import { FORKOP_UCI_PACKAGE } from '../../../constants';
-import { parseValueList } from '../../../helpers/parseValueList';
 import { message } from '../../../validators/messages';
 import type { Check } from '../../../validators/types';
 import { validateDomain } from '../../../validators/validateDomain';
@@ -185,23 +183,13 @@ interface ConditionFieldConfig {
   dynamicValidate?: OptionValidator;
 }
 
-// An older layout stored the list in a single text option, which is read when the list is empty
-// and unset on every save.
 function configureConditionListStorage(o: CBIOption, key: string) {
   o.load = function (section_id: string) {
-    const values = getConfigListValues(section_id, key);
-    if (values.length) {
-      return values;
-    }
-
-    const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-    return legacyText ? parseValueList(`${legacyText}`) : [];
+    return getConfigListValues(section_id, key);
   };
 
   o.write = function (section_id: string, value: unknown) {
     writeListOption(section_id, key, value);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text_mode`);
   };
 }
 

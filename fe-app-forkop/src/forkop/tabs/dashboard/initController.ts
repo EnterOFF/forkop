@@ -788,8 +788,8 @@ function applyLatencyResult(
   });
 }
 
-// A group sweep has the same ceiling everywhere; a single node uses the section's own timeout.
-// Results need no message: only a controller that gave no answer is reported.
+// A group sweep has the same ceiling everywhere. Results need no message: only a controller that
+// gave no answer is reported.
 async function handleTestLatency(
   latencyType: 'group' | 'proxy',
   section: Forkop.OutboundGroup,
@@ -809,10 +809,7 @@ async function handleTestLatency(
     const response =
       latencyType === 'group'
         ? await CustomForkopMethods.getClashApiGroupLatency(tag)
-        : await CustomForkopMethods.getClashApiProxyLatency(
-            tag,
-            section.latencyTestTimeout,
-          );
+        : await CustomForkopMethods.getClashApiProxyLatency(tag);
     if (!response.success) {
       if (response.status === undefined) {
         answered = false;

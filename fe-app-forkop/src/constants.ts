@@ -24,7 +24,7 @@ export const RESERVED_RUNTIME_TAGS = new Set([
 ]);
 
 // Actions whose section can carry another section's traffic.
-export const DETOUR_TARGET_ACTIONS = ['connection', 'proxy', 'outbound', 'vpn'];
+export const DETOUR_TARGET_ACTIONS = ['connection'];
 
 export const TAILSCALE_CONTROL_URL = 'https://controlplane.tailscale.com';
 

@@ -38,7 +38,7 @@ var RESERVED_RUNTIME_TAGS = /* @__PURE__ */ new Set([
   "service-warp-in",
   "direct-out"
 ]);
-var DETOUR_TARGET_ACTIONS = ["connection", "proxy", "outbound", "vpn"];
+var DETOUR_TARGET_ACTIONS = ["connection"];
 var TAILSCALE_CONTROL_URL = "https://controlplane.tailscale.com";
 var DEFAULT_LATENCY_TEST_URL = "https://www.gstatic.com/generate_204";
 var LATENCY_TEST_URL_OPTIONS = [
@@ -1301,12 +1301,12 @@ function renderDefaultState({
     const canCopyLink = Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
     const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
     const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
-    const canChooseOutbound = section2.withTagSelect && outbound.runtimeAvailable !== false && hasGroupMembers && !outbound.selected;
+    const canChooseOutbound = section2.withTagSelect && hasGroupMembers && !outbound.selected;
     const showLatency = hasGroupMembers;
     const latencyType = groupInfo ? "group" : "proxy";
     const latencyTarget = outbound.code;
     const outboundLatencyFetching = latencyFetchingTargets.has(latencyTarget);
-    const canTestOutboundLatency = showLatency && outbound.runtimeAvailable !== false && !outboundLatencyFetching;
+    const canTestOutboundLatency = showLatency && !outboundLatencyFetching;
     const className = [
       "fkp_dashboard-page__outbound-grid__item",
       outbound.selected ? "fkp_dashboard-page__outbound-grid__item--active" : "",
@@ -2837,7 +2837,7 @@ function hydrateConfigSections(configSections) {
       next.urltests = urltestItems.map((item) => item[".name"]);
       urltestItems.forEach((item) => {
         settings[item[".name"]] = {
-          display_name: item.name || item.display_name,
+          display_name: item.name,
           urltest_check_interval: item.check_interval,
           urltest_tolerance: item.tolerance,
           urltest_testing_url: item.testing_url,
@@ -2891,20 +2891,16 @@ function getManualProxyLinks(section2) {
   return section2.connection_links || [];
 }
 function getConnectionInterfaces(section2) {
-  const values = getListValues(section2.interfaces);
-  return values.length ? values : getListValues(section2.interface);
+  return getListValues(section2.interfaces);
 }
 function getConnectionTunnels(section2) {
   return getListValues(section2.tunnels);
 }
 function getJsonOutbounds(section2) {
-  const values = getListValues(section2.outbound_jsons);
-  return values.length ? values : getListValues(section2.outbound_json);
+  return getListValues(section2.outbound_jsons);
 }
 function isConnectionAction(action) {
-  return Boolean(
-    action && ["connection", "proxy", "outbound", "vpn"].includes(action)
-  );
+  return action === "connection";
 }
 function hasRemoteLists(section2) {
   return section2[".type"] === "section" && section2.enabled !== "0" && (getListValues(section2.community_lists).length > 0 || [
@@ -2918,15 +2914,11 @@ function hasSubscriptionSources(section2) {
 function getSubscriptionSourceCount(section2) {
   return (section2.subscriptions || []).length;
 }
-function hasConfiguredUrlTestList(section2) {
-  return getListValues(section2.urltests).length > 0;
-}
 function hasConfiguredFallbackList(section2) {
   return getListValues(section2.fallback_groups).length > 0;
 }
 function getUrlTestIds(section2) {
-  const values = getListValues(section2.urltests);
-  return values.length ? values : section2.urltest_enabled === "1" ? ["urltest"] : [];
+  return getListValues(section2.urltests);
 }
 function isUrlTestEnabled(section2) {
   return getUrlTestIds(section2).length > 0;
@@ -2957,14 +2949,6 @@ function getSectionProxyConfigType(section2) {
     return "selector";
   }
   return void 0;
-}
-function getJsonOutboundDisplayName(section2) {
-  try {
-    const parsedOutbound = JSON.parse(section2.outbound_json || "{}");
-    return parsedOutbound?.tag ? decodeURIComponent(parsedOutbound.tag) : "";
-  } catch (_error) {
-    return "";
-  }
 }
 function buildManualLinkByCode(section2, selectorCodes) {
   const available = new Set(selectorCodes);
@@ -3044,12 +3028,8 @@ function itemSettingNumber(settings, key, fallback) {
 function getChildTag(section2, displayName) {
   return `${getDisplayName(section2)}/${displayName}`;
 }
-function getUrlTestDisplayName(section2, id, settings) {
-  return itemSettingString(
-    settings,
-    "display_name",
-    id === "urltest" && !hasConfiguredUrlTestList(section2) ? "Fastest" : id
-  );
+function getUrlTestDisplayName(id, settings) {
+  return itemSettingString(settings, "display_name", id);
 }
 var URLTEST_DEFAULTS = {
   testing_url: DEFAULT_LATENCY_TEST_URL,
@@ -3073,7 +3053,7 @@ function getUrlTestConfigs(section2) {
   const settingsMap = itemSettingsMap(section2.urltest_settings);
   return getUrlTestIds(section2).map((id) => {
     const settings = settingsMap[id] || {};
-    const displayName = getUrlTestDisplayName(section2, id, settings);
+    const displayName = getUrlTestDisplayName(id, settings);
     return {
       id,
       code: getChildTag(section2, displayName),
@@ -3522,48 +3502,6 @@ async function getDashboardSections() {
         ),
         subscriptionMetadata,
         outbounds
-      };
-    }
-    if (sectionAction === "vpn") {
-      const outbound = proxies.find((proxy) => proxy.code === displayName);
-      return {
-        withTagSelect: false,
-        code: outbound?.code || displayName,
-        sectionName,
-        displayName,
-        action: sectionAction,
-        latencyTestTimeout: "10000",
-        outbounds: [
-          {
-            code: outbound?.code || displayName,
-            displayName: section2.interface || outbound?.value?.name || "",
-            latency: outbound?.value?.history?.[0]?.delay || 0,
-            type: outbound?.value?.type || "",
-            selected: true,
-            canCopyLink: false,
-            runtimeAvailable: Boolean(outbound)
-          }
-        ]
-      };
-    }
-    if (sectionAction === "outbound") {
-      const outbound = proxies.find((proxy) => proxy.code === displayName);
-      return {
-        withTagSelect: false,
-        code: outbound?.code || displayName,
-        sectionName,
-        displayName,
-        action: sectionAction,
-        outbounds: [
-          {
-            code: outbound?.code || displayName,
-            displayName: getJsonOutboundDisplayName(section2) || outbound?.value?.name || "",
-            latency: outbound?.value?.history?.[0]?.delay || 0,
-            type: outbound?.value?.type || "",
-            selected: true,
-            canCopyLink: false
-          }
-        ]
       };
     }
     return {
@@ -5677,10 +5615,7 @@ async function handleTestLatency(latencyType, section2, tag, requestKey) {
   void renderSectionsWidget();
   restartSectionsRefresh();
   try {
-    const response = latencyType === "group" ? await CustomForkopMethods.getClashApiGroupLatency(tag) : await CustomForkopMethods.getClashApiProxyLatency(
-      tag,
-      section2.latencyTestTimeout
-    );
+    const response = latencyType === "group" ? await CustomForkopMethods.getClashApiGroupLatency(tag) : await CustomForkopMethods.getClashApiProxyLatency(tag);
     if (!response.success) {
       if (response.status === void 0) {
         answered = false;
@@ -7849,11 +7784,7 @@ function probeResult(response) {
 }
 function target(section2) {
   if (!section2.withTagSelect) {
-    return {
-      code: section2.code,
-      node: "",
-      timeout: section2.latencyTestTimeout
-    };
+    return { code: section2.code, node: "" };
   }
   const node = section2.outbounds.find((item) => item.selected) ?? section2.outbounds.find((item) => item.type?.toLowerCase() === "urltest") ?? section2.outbounds[0];
   return { code: node?.code || section2.code, node: node?.displayName || "" };
@@ -7868,7 +7799,7 @@ function presentSection(section2, node, probe) {
       node ? `${node} \xB7 ${formatMs(probe.delay)}` : formatMs(probe.delay)
     );
   }
-  if (section2.action === "vpn" && section2.outbounds[0]?.runtimeAvailable && probe.failure !== "unavailable") {
+  if (section2.proxyConfigType === "interface" && (probe.failure === "timeout" || probe.failure === "error")) {
     return finding(
       "warning",
       key,
@@ -7904,11 +7835,8 @@ async function runSectionsCheck() {
   }
   const items = await Promise.all(
     sections.data.map(async (section2) => {
-      const { code, node, timeout } = target(section2);
-      const response = await CustomForkopMethods.getClashApiProxyLatency(
-        code,
-        ...timeout ? [timeout] : []
-      );
+      const { code, node } = target(section2);
+      const response = await CustomForkopMethods.getClashApiProxyLatency(code);
       return presentSection(section2, node, probeResult(response));
     })
   );
@@ -14245,14 +14173,7 @@ function validateSubscriptionUrlEntry(_section_id, value) {
 
 // src/forkop/tabs/sections/constants.ts
 var RULE_SET_ITEM_SETTINGS_KEY = "rule_set_settings";
-var ROUTING_ACTIONS = [
-  "connection",
-  "proxy",
-  "outbound",
-  "vpn",
-  "bypass",
-  "block"
-];
+var ROUTING_ACTIONS = ["connection", "bypass", "block"];
 var JSON_ENDPOINT_PLACEHOLDER = [
   "{",
   '  "type": "wireguard",',
@@ -18262,13 +18183,8 @@ function getActionOptionLabel(action) {
       return "Connection";
     case "dns":
       return "DNS";
-    case "vpn":
-      return "VPN";
-    case "outbound":
-      return _("JSON outbound");
-    case "proxy":
     default:
-      return "Proxy";
+      return `${action}`;
   }
 }
 function getRuleActionDisplayValue(section_id) {
@@ -18292,11 +18208,6 @@ function populateActionOptionValues(option2, currentAction) {
   if (stored && !option2.keylist.includes(stored)) {
     option2.value(stored, getActionOptionLabel(stored));
   }
-}
-
-// src/helpers/parseValueList.ts
-function parseValueList(value) {
-  return value.split(/\n/).map((line) => line.split("//")[0].split("#")[0]).join(" ").split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);
 }
 
 // src/forkop/tabs/sections/conditions.ts
@@ -18410,17 +18321,10 @@ function validatePortCondition(_section_id, value) {
 }
 function configureConditionListStorage(o, key) {
   o.load = function(section_id) {
-    const values = getConfigListValues(section_id, key);
-    if (values.length) {
-      return values;
-    }
-    const legacyText = uci.get(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-    return legacyText ? parseValueList(`${legacyText}`) : [];
+    return getConfigListValues(section_id, key);
   };
   o.write = function(section_id, value) {
     writeListOption(section_id, key, value);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text`);
-    uci.unset(FORKOP_UCI_PACKAGE, section_id, `${key}_text_mode`);
   };
 }
 function addDynamicConditionField(section2, config) {
@@ -22402,7 +22306,7 @@ function addUrlTestItemOptions(itemSection, options = {}) {
   const parentSectionForItem = typeof options.parentSectionId === "function" ? options.parentSectionId : parentSectionIdForItem;
   let o = itemSection.option(form.Value, "name", _("Group name"));
   o.load = function(itemId) {
-    return optionMapValue(this, itemId, "name") || optionMapValue(this, itemId, "display_name") || "";
+    return optionMapValue(this, itemId, "name") || "";
   };
   o.validate = childItemNameCheck(options);
   o = itemSection.option(
@@ -22473,8 +22377,6 @@ function showUrlTestSettingsModal(_section_id, itemValue, option2, widget, itemN
     afterSave: (itemId, inputValue, settings, existing) => {
       const displayName = `${settings.name || inputValue || ""}`.trim();
       if (existing) {
-        uci.unset(FORKOP_UCI_PACKAGE, itemId, "id");
-        uci.unset(FORKOP_UCI_PACKAGE, itemId, "display_name");
         updateDynamicListItemLabel(itemNode, displayName);
         return;
       }
@@ -22492,7 +22394,7 @@ function validateUrlTestItemsBeforeSave(section_id, values, option2) {
     const itemId = `${value || ""}`;
     let name = "";
     if (isExistingChildItem(section_id, itemId, "urltest")) {
-      name = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "name") || uci.get(FORKOP_UCI_PACKAGE, itemId, "display_name") || ""}`;
+      name = `${uci.get(FORKOP_UCI_PACKAGE, itemId, "name") || ""}`;
     } else if (store2[itemId]) {
       name = `${store2[itemId].name || ""}`;
     }
@@ -26930,15 +26832,7 @@ function configureServerSection(sectionRef) {
 
 // src/forkop/tabs/settings/sectionChoices.ts
 function isDownloadSectionAction(action) {
-  switch (action) {
-    case "connection":
-    case "proxy":
-    case "outbound":
-    case "vpn":
-      return true;
-    default:
-      return false;
-  }
+  return action === "connection";
 }
 function refreshDownloadSectionChoices(option2) {
   const sections = option2.map?.data?.state?.values?.[FORKOP_UCI_PACKAGE] ?? {};

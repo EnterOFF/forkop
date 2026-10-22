@@ -86,11 +86,7 @@ function addUrlTestItemOptions(
 
   let o = itemSection.option(form.Value, 'name', _('Group name'));
   o.load = function (itemId: string) {
-    return (
-      optionMapValue(this, itemId, 'name') ||
-      optionMapValue(this, itemId, 'display_name') ||
-      ''
-    );
+    return optionMapValue(this, itemId, 'name') || '';
   };
   o.validate = childItemNameCheck(options);
 
@@ -186,8 +182,6 @@ export function showUrlTestSettingsModal(
       const displayName = `${settings.name || inputValue || ''}`.trim();
 
       if (existing) {
-        uci.unset(FORKOP_UCI_PACKAGE, itemId, 'id');
-        uci.unset(FORKOP_UCI_PACKAGE, itemId, 'display_name');
         updateDynamicListItemLabel(itemNode, displayName);
         return;
       }
@@ -213,11 +207,7 @@ export function validateUrlTestItemsBeforeSave(
     let name = '';
 
     if (isExistingChildItem(section_id, itemId, 'urltest')) {
-      name = `${
-        uci.get(FORKOP_UCI_PACKAGE, itemId, 'name') ||
-        uci.get(FORKOP_UCI_PACKAGE, itemId, 'display_name') ||
-        ''
-      }`;
+      name = `${uci.get(FORKOP_UCI_PACKAGE, itemId, 'name') || ''}`;
     } else if (store[itemId]) {
       name = `${store[itemId].name || ''}`;
     }

@@ -189,7 +189,7 @@ function hydrateConfigSections(configSections: Forkop.ConfigSection[]) {
       next.urltests = urltestItems.map((item) => item['.name']);
       urltestItems.forEach((item) => {
         settings[item['.name']] = {
-          display_name: item.name || item.display_name,
+          display_name: item.name,
           urltest_check_interval: item.check_interval,
           urltest_tolerance: item.tolerance,
           urltest_testing_url: item.testing_url,
@@ -253,8 +253,7 @@ function getManualProxyLinks(section: Forkop.ConfigSection) {
 }
 
 function getConnectionInterfaces(section: Forkop.ConfigSection) {
-  const values = getListValues(section.interfaces);
-  return values.length ? values : getListValues(section.interface);
+  return getListValues(section.interfaces);
 }
 
 function getConnectionTunnels(section: Forkop.ConfigSection) {
@@ -262,14 +261,11 @@ function getConnectionTunnels(section: Forkop.ConfigSection) {
 }
 
 function getJsonOutbounds(section: Forkop.ConfigSection) {
-  const values = getListValues(section.outbound_jsons);
-  return values.length ? values : getListValues(section.outbound_json);
+  return getListValues(section.outbound_jsons);
 }
 
 function isConnectionAction(action?: string) {
-  return Boolean(
-    action && ['connection', 'proxy', 'outbound', 'vpn'].includes(action),
-  );
+  return action === 'connection';
 }
 
 // A rule set named by a path is read from the router's disk, so only URLs and built-in lists count.
@@ -293,21 +289,12 @@ function getSubscriptionSourceCount(section: Forkop.ConfigSection) {
   return (section.subscriptions || []).length;
 }
 
-function hasConfiguredUrlTestList(section: Forkop.ConfigSection) {
-  return getListValues(section.urltests).length > 0;
-}
-
 function hasConfiguredFallbackList(section: Forkop.ConfigSection) {
   return getListValues(section.fallback_groups).length > 0;
 }
 
 function getUrlTestIds(section: Forkop.ConfigSection) {
-  const values = getListValues(section.urltests);
-  return values.length
-    ? values
-    : section.urltest_enabled === '1'
-      ? ['urltest']
-      : [];
+  return getListValues(section.urltests);
 }
 
 function isUrlTestEnabled(section: Forkop.ConfigSection) {
@@ -356,15 +343,6 @@ function getSectionProxyConfigType(section: Forkop.ConfigSection) {
   }
 
   return undefined;
-}
-
-function getJsonOutboundDisplayName(section: Forkop.ConfigSection) {
-  try {
-    const parsedOutbound = JSON.parse(section.outbound_json || '{}');
-    return parsedOutbound?.tag ? decodeURIComponent(parsedOutbound.tag) : '';
-  } catch (_error) {
-    return '';
-  }
 }
 
 function buildManualLinkByCode(
@@ -497,16 +475,8 @@ function getChildTag(section: Forkop.ConfigSection, displayName: string) {
   return `${getDisplayName(section)}/${displayName}`;
 }
 
-function getUrlTestDisplayName(
-  section: Forkop.ConfigSection,
-  id: string,
-  settings: ItemSettings | undefined,
-) {
-  return itemSettingString(
-    settings,
-    'display_name',
-    id === 'urltest' && !hasConfiguredUrlTestList(section) ? 'Fastest' : id,
-  );
+function getUrlTestDisplayName(id: string, settings: ItemSettings | undefined) {
+  return itemSettingString(settings, 'display_name', id);
 }
 
 // What an unset group option means; config/connections.uc gives the generated configuration the
@@ -536,7 +506,7 @@ function getUrlTestConfigs(section: Forkop.ConfigSection): UrlTestConfig[] {
 
   return getUrlTestIds(section).map((id) => {
     const settings = settingsMap[id] || {};
-    const displayName = getUrlTestDisplayName(section, id, settings);
+    const displayName = getUrlTestDisplayName(id, settings);
 
     return {
       id,
@@ -1142,55 +1112,6 @@ export async function getDashboardSections(): Promise<IGetDashboardSectionsRespo
         ),
         subscriptionMetadata,
         outbounds,
-      };
-    }
-
-    if (sectionAction === 'vpn') {
-      const outbound = proxies.find((proxy) => proxy.code === displayName);
-
-      return {
-        withTagSelect: false,
-        code: outbound?.code || displayName,
-        sectionName,
-        displayName,
-        action: sectionAction,
-        latencyTestTimeout: '10000',
-        outbounds: [
-          {
-            code: outbound?.code || displayName,
-            displayName: section.interface || outbound?.value?.name || '',
-            latency: outbound?.value?.history?.[0]?.delay || 0,
-            type: outbound?.value?.type || '',
-            selected: true,
-            canCopyLink: false,
-            runtimeAvailable: Boolean(outbound),
-          },
-        ],
-      };
-    }
-
-    if (sectionAction === 'outbound') {
-      const outbound = proxies.find((proxy) => proxy.code === displayName);
-
-      return {
-        withTagSelect: false,
-        code: outbound?.code || displayName,
-        sectionName,
-        displayName,
-        action: sectionAction,
-        outbounds: [
-          {
-            code: outbound?.code || displayName,
-            displayName:
-              getJsonOutboundDisplayName(section) ||
-              outbound?.value?.name ||
-              '',
-            latency: outbound?.value?.history?.[0]?.delay || 0,
-            type: outbound?.value?.type || '',
-            selected: true,
-            canCopyLink: false,
-          },
-        ],
       };
     }
 

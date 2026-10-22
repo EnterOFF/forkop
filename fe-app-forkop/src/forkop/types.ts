@@ -123,8 +123,6 @@ export namespace Forkop {
     link?: string;
     canCopyLink?: boolean;
     subscriptionTag?: string;
-    // Set only for a section standing for a single outbound: whether the runtime carries it.
-    runtimeAvailable?: boolean;
     urlTestInfo?: UrlTestInfo;
     fallbackInfo?: FallbackInfo;
   }
@@ -180,8 +178,6 @@ export namespace Forkop {
     sectionName: string;
     displayName: string;
     action?: ConfigSection['action'];
-    // For testing this section's own outbound one node at a time; group sweeps share one ceiling.
-    latencyTestTimeout?: string;
     proxyConfigType?: ProxyConfigType;
     subscriptionSourceCount?: number;
     subscriptionProviderTags?: string[];
@@ -216,13 +212,7 @@ export namespace Forkop {
     sourceSection?: string;
   }
 
-  type RuleAction =
-    | 'connection'
-    | 'proxy'
-    | 'outbound'
-    | 'vpn'
-    | 'bypass'
-    | 'block';
+  type RuleAction = 'connection' | 'bypass' | 'block';
   type ProxyConfigType =
     | 'urltest'
     | 'selector'
@@ -258,7 +248,6 @@ export namespace Forkop {
     rule_set_with_subnets?: string[];
     ports?: string[];
     update_interval?: string;
-    proxy_string?: string;
     connection_links?: Array<{ name: string; uri: string }>;
     subscriptions?: Array<{
       tag: string;
@@ -273,17 +262,11 @@ export namespace Forkop {
     fallback_group_settings?: string;
     subscription_update_enabled?: '0' | '1';
     subscription_update_interval?: string;
-    urltest_enabled?: '0' | '1';
     urltest_server_filter_mode?: 'all' | 'exclude' | 'include';
-    urltest_filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
-    urltest_exclude_countries?: string[];
     urltest_exclude_outbounds?: string[];
     urltest_exclude_regex?: string | string[];
-    urltest_include_countries?: string[];
     urltest_include_outbounds?: string[];
     urltest_include_regex?: string | string[];
-    outbound_json?: string;
-    interface?: string;
     section?: string;
     protocol?: string;
     server?: string;
@@ -299,16 +282,12 @@ export namespace Forkop {
     idle_timeout?: string;
     interrupt_exist_connections?: '0' | '1';
     server_filter_mode?: 'all' | 'exclude' | 'include' | 'direct';
-    filter_mode?: 'disabled' | 'exclude' | 'include' | 'mixed';
-    include_countries?: string[];
     include_outbounds?: string[];
     include_regex?: string | string[];
-    exclude_countries?: string[];
     exclude_outbounds?: string[];
     exclude_regex?: string | string[];
     group?: string;
     order?: string;
-    direct?: '0' | '1';
     health_check_url?: string;
     health_check_interval?: string;
     health_check_timeout?: string;

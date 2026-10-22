@@ -259,9 +259,7 @@ describe('the dashboard toolbar', () => {
 
     first.resolve({ success: true, data: {} });
     await vi.advanceTimersByTimeAsync(0);
-    expect(mocks.getClashApiProxyLatency.mock.calls).toEqual([
-      ['single/Node', undefined],
-    ]);
+    expect(mocks.getClashApiProxyLatency.mock.calls).toEqual([['single/Node']]);
     expect(mocks.getClashApiGroupLatency).toHaveBeenCalledTimes(1);
 
     second.resolve({ success: true, data: { delay: 50 } });

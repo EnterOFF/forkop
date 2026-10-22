@@ -21,21 +21,20 @@ function sections(data: unknown[]) {
   mocks.getDashboardSections.mockResolvedValue({ success: true, data });
 }
 
-const vpnSection = {
-  withTagSelect: false,
+const interfaceSection = {
+  withTagSelect: true,
   code: 'AWG',
   sectionName: 'awg',
   displayName: 'AWG',
-  action: 'vpn',
-  latencyTestTimeout: '10000',
+  action: 'connection',
+  proxyConfigType: 'interface',
   outbounds: [
     {
-      code: 'AWG',
+      code: 'AWG/awg1',
       displayName: 'awg1',
       latency: 0,
       type: 'Direct',
       selected: true,
-      runtimeAvailable: true,
     },
   ],
 };
@@ -45,7 +44,6 @@ const selectorSection = {
   code: 'main',
   sectionName: 'main',
   displayName: 'Main',
-  latencyTestTimeout: '7000',
   outbounds: [
     {
       code: 'Main/a',
@@ -117,8 +115,8 @@ describe('the sections check', () => {
     expect(result.items[0].value).toBe('Selected: no answer in time');
   });
 
-  it('keeps a VPN interface that cannot reach the test address a warning, on the section timeout', async () => {
-    sections([vpnSection]);
+  it('keeps an interface that cannot reach the test address a warning', async () => {
+    sections([interfaceSection]);
     mocks.getClashApiProxyLatency.mockResolvedValue({
       success: false,
       error: 'An error occurred in the delay test',
@@ -127,7 +125,7 @@ describe('the sections check', () => {
 
     const result = await runSectionsCheck();
 
-    expect(mocks.getClashApiProxyLatency).toHaveBeenCalledWith('AWG', '10000');
+    expect(mocks.getClashApiProxyLatency).toHaveBeenCalledWith('AWG/awg1');
     expect(result.items).toEqual([
       expect.objectContaining({
         state: 'warning',
@@ -138,7 +136,7 @@ describe('the sections check', () => {
   });
 
   it('tests every section at once', async () => {
-    sections([selectorSection, vpnSection]);
+    sections([selectorSection, interfaceSection]);
     let pending = 0;
     let most = 0;
     mocks.getClashApiProxyLatency.mockImplementation(async () => {

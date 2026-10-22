@@ -323,18 +323,12 @@ function renderDefaultState({
     // A group with no members cannot dial: there is nothing to measure or select.
     const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
     const canChooseOutbound =
-      section.withTagSelect &&
-      outbound.runtimeAvailable !== false &&
-      hasGroupMembers &&
-      !outbound.selected;
+      section.withTagSelect && hasGroupMembers && !outbound.selected;
     const showLatency = hasGroupMembers;
     const latencyType: 'group' | 'proxy' = groupInfo ? 'group' : 'proxy';
     const latencyTarget = outbound.code;
     const outboundLatencyFetching = latencyFetchingTargets.has(latencyTarget);
-    const canTestOutboundLatency =
-      showLatency &&
-      outbound.runtimeAvailable !== false &&
-      !outboundLatencyFetching;
+    const canTestOutboundLatency = showLatency && !outboundLatencyFetching;
     const className = [
       'fkp_dashboard-page__outbound-grid__item',
       outbound.selected

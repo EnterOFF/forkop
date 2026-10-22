@@ -495,42 +495,6 @@ describe('getDashboardSections', () => {
     ]);
   });
 
-  it('finds the URLTest of an older section under a translated page', async () => {
-    vi.stubGlobal('_', (text: string) =>
-      text === 'Fastest' ? 'Самый быстрый' : text,
-    );
-    mocks.getConfigSections.mockResolvedValue([
-      section({ urltest_enabled: '1' }),
-      ...links([['Node A', 'vless://a@example.com:443#Node A']]),
-    ]);
-    setClashProxies({
-      Office: proxy('Selector', {
-        name: 'Office',
-        now: 'Office/Fastest',
-        all: ['Office/Fastest', 'Office/Node A'],
-      }),
-      'Office/Fastest': proxy('URLTest', {
-        name: 'Office/Fastest',
-        now: 'Office/Node A',
-        all: ['Office/Node A'],
-      }),
-      'Office/Node A': proxy('VLESS'),
-    });
-
-    const result = await getDashboardSections();
-    vi.unstubAllGlobals();
-
-    expect(result.data[0].outbounds[0]).toMatchObject({
-      code: 'Office/Fastest',
-      type: 'URLTest',
-      urlTestInfo: {
-        selectedName: 'Node A',
-        url: 'https://www.gstatic.com/generate_204',
-        tolerance: 50,
-      },
-    });
-  });
-
   it('hydrates readable URLTest and Fallback groups from UCI and Clash API', async () => {
     mocks.getConfigSections.mockResolvedValue([
       section(),
@@ -1268,7 +1232,6 @@ describe('getDashboardSections', () => {
     const { data } = await getDashboardSections();
 
     expect(data[0].outbounds).toHaveLength(members.length);
-    expect(data[0].latencyTestTimeout).toBeUndefined();
   });
 
   it('surfaces a narrowed summary failure instead of an empty widget', async () => {

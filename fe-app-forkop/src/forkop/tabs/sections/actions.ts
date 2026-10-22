@@ -22,13 +22,8 @@ function getActionOptionLabel(action: string) {
       return 'Connection';
     case 'dns':
       return 'DNS';
-    case 'vpn':
-      return 'VPN';
-    case 'outbound':
-      return _('JSON outbound');
-    case 'proxy':
     default:
-      return 'Proxy';
+      return `${action}`;
   }
 }
 
