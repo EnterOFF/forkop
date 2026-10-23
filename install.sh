@@ -103,7 +103,8 @@ warn() { # warn CODE TEXT
 
 detail() { # a line under the one before
 	log "   $1"
-	printf '    %s\n' "$1" 2>/dev/null
+	printf '    %s
+' "$1" 2>/dev/null
 }
 
 fail() { # fail EXIT CODE TEXT [HINT]...
@@ -155,7 +156,8 @@ usage_error() {
 	*) message=$(t 'Unknown option: %s' 'Неизвестный параметр: %s' "${BAD_ARG#unknown:}") ;;
 	esac
 	say '[x]' "$C_ERR" "$message" >&2
-	printf '    %s\n' "$(t 'Options: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en' 'Параметры: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en')" >&2
+	printf '    %s
+' "$(t 'Options: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en' 'Параметры: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en')" >&2
 	exit 2
 }
 
@@ -1238,6 +1240,8 @@ install_dependencies() {
 	# shellcheck disable=SC2086
 	run "$PM" "$([ "$PM" = apk ] && echo add || echo install)" $DEPS_MISSING ||
 		fail 3 dependencies "$(t 'Cannot install the dependencies; forkop and sing-box-forkop were not touched' 'Не удалось установить зависимости, forkop и sing-box-forkop не тронуты')" "$(network_hint)"
+	# shellcheck disable=SC2086
+	pulled_in $DEPS_MISSING
 	refresh_db
 }
 
@@ -1322,9 +1326,71 @@ gone() { # gone LINES: each "name version" of LINES no longer installed
 	done
 }
 
+dropped() { # dropped LINES: "name version" of each package installed before and gone now, but those of LINES
+	awk -F '\t' -v planned="$1" '
+		BEGIN { n = split(planned, a, "\n"); for (i = 1; i <= n; i++) { split(a[i], f, " "); skip[f[1]] = 1 } }
+		FILENAME == ARGV[1] { now[$1] = 1; next }
+		!($1 in now) && !($1 in skip) { print $1 " " $2 }' "$WORK/db" "$WORK/db.before" | sort
+}
+
+orphans() { # orphans NAME...: those of NAMES opkg pulled in beside the image that nothing installed needs
+	local rom=/rom/usr/lib/opkg/status
+	[ -f "$rom" ] || rom=/dev/null
+	awk -F '\t' -v want=" $* " '
+		function names(s, out,    n, i, a, w) {
+			gsub(/\([^)]*\)/, "", s); gsub(/[,|]/, " ", s)
+			n = split(s, a, " ")
+			for (i = 1; i <= n; i++) { w = a[i]; sub(/[<>=~].*/, "", w); if (w != "") out[w] = 1 }
+		}
+		FILENAME == ARGV[1] { if (/^Package: /) image[substr($0, 10)] = 1; next }
+		FILENAME == ARGV[2] { if (/^Package: /) p = substr($0, 10); else if ($0 == "Auto-Installed: yes") auto[p] = 1; next }
+		{ installed[$1] = 1; provides[$1] = $4; names($3, needed) }
+		END {
+			n = split(want, w, " ")
+			for (i = 1; i <= n; i++) {
+				x = w[i]
+				if (!(x in installed) || !(x in auto) || (x in image) || (x in needed)) continue
+				split("", p); names(provides[x], p); busy = 0
+				for (y in p) if (y in needed) busy = 1
+				if (!busy) printf "%s ", x
+			}
+		}' "$rom" /usr/lib/opkg/status "$WORK/db"
+}
+
+# what the packages that went pulled in: opkg's upgrade drops only its first level, apk all of it
+drop_dependencies() {
+	local names
+	refresh_db
+	# shellcheck disable=SC2046
+	names=$(orphans $(awk -F '\t' -v ours=" $OUR_PACKAGES " '
+		FILENAME == ARGV[1] { now[$1] = 1; next }
+		index(ours, " " $1 " ") || !($1 in now) { print $3 }' "$WORK/db" "$WORK/db.before" |
+		while IFS= read -r depends; do dep_names "$depends"; done | sort -u))
+	[ -n "$names" ] || return 0
+	# shellcheck disable=SC2086
+	capture "$WORK/autoremove" opkg remove --autoremove $names || log "opkg did not remove all of $names"
+}
+
+# a package opkg installs by name is the person's: the dependencies count as pulled in, like apk's
+pulled_in() {
+	[ "$PM" = opkg ] && [ -n "$*" ] || return 0
+	if awk -v names=" $* " '
+		/^Package: / { ours = index(names, " " $2 " ") > 0; auto = 0 }
+		ours && $0 == "Status: install user installed" { $0 = "Status: install ok installed" }
+		ours && $0 == "Auto-Installed: yes" { auto = 1 }
+		ours && $0 == "" { if (!auto) print "Auto-Installed: yes"; ours = 0 }
+		{ print }
+		END { if (ours && !auto) print "Auto-Installed: yes" }' /usr/lib/opkg/status >/usr/lib/opkg/status.forkop; then
+		mv /usr/lib/opkg/status.forkop /usr/lib/opkg/status
+	else
+		rm -f /usr/lib/opkg/status.forkop
+	fi
+}
+
 transaction() {
 	local out="$WORK/transaction" name status=0 order before
 	before=$(removals)
+	cp "$WORK/db" "$WORK/db.before"
 	set --
 	for name in "$FILE_CORE" "$FILE_FORKOP" "$FILE_APP" "$FILE_I18N"; do [ -z "$name" ] || set -- "$@" "$name"; done
 	if [ "$PM" = apk ]; then
@@ -1348,9 +1414,11 @@ transaction() {
 		fi
 		# shellcheck disable=SC2086
 		[ "$status" != 0 ] || [ "$#" = 0 ] || capture "$out" opkg install --force-overwrite --force-space $OPKG_FLAGS "$@" || status=$?
+		[ "$status" != 0 ] || drop_dependencies
 	fi
 	refresh_db
 	gone "$before"
+	gone "$(dropped "$before")"
 	check_installed "$status"
 }
 
@@ -1540,14 +1608,20 @@ uninstall() {
 	[ ! -x /etc/init.d/forkop ] || deadline 90 /etc/init.d/forkop stop >>"$LOG" 2>&1
 	# a core that stays goes on running for what needs it
 	[ -n "$users" ] || [ ! -x /etc/init.d/sing-box ] || deadline 30 /etc/init.d/sing-box stop >>"$LOG" 2>&1
+	cp "$WORK/db" "$WORK/db.before"
 	# shellcheck disable=SC2086
 	if [ "$PM" = apk ]; then
 		capture "$out" apk del $APK_OFFLINE $packages
 	else
-		capture "$out" opkg remove $packages
+		capture "$out" opkg remove $packages && drop_dependencies
 	fi
+	# opkg leaves the directories it emptied
+	find /usr/lib/forkop /usr/share/forkop /usr/share/sing-box-forkop /www/luci-static/resources/view/forkop -type d 2>/dev/null |
+		sort -r | while read -r dir; do rmdir "$dir" 2>/dev/null; done
 	refresh_db
-	gone "$(printf '%s' "$before" | sort)"
+	before=$(printf '%s' "$before" | sort)
+	gone "$before"
+	gone "$(dropped "$before")"
 	for name in $packages; do
 		[ -z "$(pkg_version "$name")" ] ||
 			fail 3 transaction "$(t '%s was not removed: %s' 'Пакет %s не удалён: %s' "$name" "$(pm_errors "$out")")"
