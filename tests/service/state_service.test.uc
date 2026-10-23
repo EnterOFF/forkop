@@ -146,6 +146,26 @@ t.test("the first log answer says where the log stands and carries none of it", 
     t.eq(reply, { cursor: 2 });
 });
 
+t.test("the Logs tab gets the whole log, read again only once a line arrived past its cursor", () => {
+    let service = fresh_service();
+    let exec = require("core.exec");
+    let real_parallel = exec.capture_parallel;
+    let full_reads = 0;
+    exec.capture_parallel = (commands) => map(commands, (argv) =>
+        argv[0] == "logread" && argv[1] == "-e" ? { status: 0, stdout: "whole log " + ++full_reads + "\n" } : die("unexpected " + join(" ", argv)));
+    stub.commands([ [ "logread -l", { stdout: "forkop: first\n" } ] ]);
+    let log_text = (args) => service.object_methods().log_text.call({ args });
+    let first = log_text({});
+    let same = log_text({ cursor: first.cursor });
+    service.remember_log_line("forkop: second");
+    let moved = log_text({ cursor: first.cursor });
+    let fresh_page = log_text({});
+    stub.restore();
+    exec.capture_parallel = real_parallel;
+    t.eq([ first.text, same, moved.text, moved.cursor - first.cursor, fresh_page.text, full_reads ],
+        [ "whole log 1\n", { cursor: first.cursor, unchanged: true }, "whole log 2\n", 1, "whole log 3\n", 3 ]);
+});
+
 t.test("the new lines of a tail are the ones after the last line already held", () => {
     let cases = [
         [ [ "a", "b" ], [ "a", "b", "c" ], [ "c" ], "only the lines after the held ones" ],

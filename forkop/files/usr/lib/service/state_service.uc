@@ -362,6 +362,20 @@ function object_methods() {
             },
             args: { ubus_rpc_session: "" }
         },
+        // The whole log the Logs tab shows, read again only once a line arrived past the caller's
+        // cursor: the tab asks every two seconds, and the read is what costs. Through a file, as a
+        // log longer than a pipe holds would be cut by logread's exit.
+        log_text: {
+            call: function(request) {
+                log_interest();
+                poll_log(false);
+                if (request.args.cursor != null && int(request.args.cursor) == log_cursor)
+                    return { cursor: log_cursor, unchanged: true };
+                let read = exec.capture_parallel([ [ "logread", "-e", LOG_PATTERN ] ])[0];
+                return { cursor: log_cursor, text: read.status == 0 ? read.stdout : "" };
+            },
+            args: { cursor: 0, ubus_rpc_session: "" }
+        },
         // Installed versions and the device, held until the installed packages change.
         system_info: {
             call: function(request) {

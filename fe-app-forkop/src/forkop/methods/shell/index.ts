@@ -7,6 +7,7 @@ const UI_ACTION_RPC_TIMEOUT_MS = 15000;
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
 // Covers only the state service still computing its first answer.
 const SYSTEM_INFO_UBUS_TIMEOUT_MS = 5000;
+const LOG_TEXT_UBUS_TIMEOUT_MS = 5000;
 // The router-side Clash transport gives an update a minute; LuCI aborts an RPC after twenty
 // seconds unless the timeout is raised.
 const CLASH_API_TRANSPORT_TIMEOUT_MS = 65000;
@@ -14,27 +15,45 @@ const CLASH_API_TRANSPORT_TIMEOUT_MS = 65000;
 const DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1000;
 
 let checkLogsRequest: Promise<Forkop.MethodResponse<string>> | null = null;
+let servedLog: { cursor: number; text: string } | null = null;
 
-// A log with no Forkop line yet is empty, not a failed read.
+type LogTextReply = { cursor?: number; unchanged?: boolean; text?: string };
+
+// The state service reads the log again only once a line arrived past the cursor it handed out;
+// the CLI answers when the service does not run. A log with no Forkop line yet is empty, not a
+// failed read.
+async function readLogs(): Promise<Forkop.MethodResponse<string>> {
+  const served = await callUbus<LogTextReply>({
+    object: 'forkop',
+    method: 'log_text',
+    params: servedLog ? { cursor: servedLog.cursor } : {},
+    timeoutMs: LOG_TEXT_UBUS_TIMEOUT_MS,
+  });
+  const reply = served.success ? served.data : null;
+  if (typeof reply?.cursor === 'number') {
+    const text = reply.unchanged ? servedLog?.text : reply.text;
+    if (typeof text === 'string') {
+      servedLog = { cursor: reply.cursor, text };
+      return { success: true, data: text };
+    }
+  }
+
+  servedLog = null;
+  const response = await executeShellCommand({
+    command: '/usr/bin/forkop',
+    args: [Forkop.AvailableMethods.CHECK_LOGS],
+    timeout: 15000,
+  });
+  return response.code
+    ? { success: false, error: response.stderr || response.stdout || '' }
+    : { success: true, data: response.stdout };
+}
+
 function checkLogs() {
   if (!checkLogsRequest) {
-    checkLogsRequest = executeShellCommand({
-      command: '/usr/bin/forkop',
-      args: [Forkop.AvailableMethods.CHECK_LOGS],
-      timeout: 15000,
-    })
-      .then(
-        (response): Forkop.MethodResponse<string> =>
-          response.code
-            ? {
-                success: false,
-                error: response.stderr || response.stdout || '',
-              }
-            : { success: true, data: response.stdout },
-      )
-      .finally(() => {
-        checkLogsRequest = null;
-      });
+    checkLogsRequest = readLogs().finally(() => {
+      checkLogsRequest = null;
+    });
   }
 
   return checkLogsRequest;

@@ -13,6 +13,7 @@
           "state_wait",
           "system_info",
           "logs",
+          "log_text",
           "usage",
           "refresh"
         ],

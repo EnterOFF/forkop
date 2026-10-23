@@ -2286,21 +2286,37 @@ async function callUbusOnce({
 var UI_ACTION_RPC_TIMEOUT_MS = 15e3;
 var GET_UI_STATE_RPC_TIMEOUT_MS = 3e3;
 var SYSTEM_INFO_UBUS_TIMEOUT_MS = 5e3;
+var LOG_TEXT_UBUS_TIMEOUT_MS = 5e3;
 var CLASH_API_TRANSPORT_TIMEOUT_MS = 65e3;
 var DIAGNOSTIC_CHECK_RPC_TIMEOUT_MS = 3 * 60 * 1e3;
 var checkLogsRequest = null;
+var servedLog = null;
+async function readLogs() {
+  const served = await callUbus({
+    object: "forkop",
+    method: "log_text",
+    params: servedLog ? { cursor: servedLog.cursor } : {},
+    timeoutMs: LOG_TEXT_UBUS_TIMEOUT_MS
+  });
+  const reply = served.success ? served.data : null;
+  if (typeof reply?.cursor === "number") {
+    const text8 = reply.unchanged ? servedLog?.text : reply.text;
+    if (typeof text8 === "string") {
+      servedLog = { cursor: reply.cursor, text: text8 };
+      return { success: true, data: text8 };
+    }
+  }
+  servedLog = null;
+  const response = await executeShellCommand({
+    command: "/usr/bin/forkop",
+    args: [Forkop.AvailableMethods.CHECK_LOGS],
+    timeout: 15e3
+  });
+  return response.code ? { success: false, error: response.stderr || response.stdout || "" } : { success: true, data: response.stdout };
+}
 function checkLogs() {
   if (!checkLogsRequest) {
-    checkLogsRequest = executeShellCommand({
-      command: "/usr/bin/forkop",
-      args: [Forkop.AvailableMethods.CHECK_LOGS],
-      timeout: 15e3
-    }).then(
-      (response) => response.code ? {
-        success: false,
-        error: response.stderr || response.stdout || ""
-      } : { success: true, data: response.stdout }
-    ).finally(() => {
+    checkLogsRequest = readLogs().finally(() => {
       checkLogsRequest = null;
     });
   }
