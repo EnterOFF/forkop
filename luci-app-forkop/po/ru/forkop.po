@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-23 20:30+0300\n"
-"PO-Revision-Date: 2026-10-23 20:30+0300\n"
+"POT-Creation-Date: 2026-10-23 20:35+0300\n"
+"PO-Revision-Date: 2026-10-23 20:35+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1001,9 +1001,6 @@ msgstr "Системные логи Forkop"
 msgid "Forkop transparent proxy"
 msgstr "прозрачный прокси Forkop"
 
-msgid "Forkop, its page and its core, sing-box-forkop, will be removed from the router."
-msgstr "С роутера будут удалены Forkop, его страница и ядро sing-box-forkop."
-
 msgid "form-entry: format FORM:NAME=VALUE"
 msgstr "form-entry: формат ФОРМА:ИМЯ=ЗНАЧЕНИЕ"
 
@@ -1339,6 +1336,9 @@ msgstr "JSON outbound"
 
 msgid "JSON outbound: %s"
 msgstr "JSON outbound: %s"
+
+msgid "Keep settings"
+msgstr "Сохранить настройки"
 
 msgid "Key"
 msgstr "Ключ"
@@ -1949,6 +1949,9 @@ msgstr "Отказываться от обмена ключами TLS 1.2 без
 msgid "remote: no server"
 msgstr "remote: не указан сервер"
 
+msgid "Remove"
+msgstr "Удалить"
+
 msgid "Remove Forkop"
 msgstr "Удалить Forkop"
 
@@ -1967,8 +1970,8 @@ msgstr "Удалять устройство из сети после отклю�
 msgid "Remove the key passphrase: openssl pkey -in key.pem -out plain.pem"
 msgstr "Снимите пароль с ключа: openssl pkey -in key.pem -out plain.pem"
 
-msgid "Remove the settings too"
-msgstr "Удалить и настройки"
+msgid "Remove with settings"
+msgstr "Удалить с настройками"
 
 msgid "Rename servers"
 msgstr "Переименование серверов"
@@ -2827,9 +2830,6 @@ msgstr "YAML не поддерживается"
 
 msgid "Yes"
 msgstr "Да"
-
-msgid "Yes, remove"
-msgstr "Да, удалить"
 
 msgid "yesterday %s"
 msgstr "вчера %s"

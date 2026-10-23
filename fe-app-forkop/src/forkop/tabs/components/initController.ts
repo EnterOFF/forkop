@@ -24,6 +24,7 @@ import {
   InstallerAfterRun,
   InstallerRunState,
 } from './installerRun';
+import { removedPackages, renderRemoveDialog } from './removeDialog';
 import { pageRoot } from './render';
 import { formatRunTime } from './runTime';
 import { createTerminal } from './terminal';
@@ -269,47 +270,13 @@ export function initController(): void {
   }
 
   function openRemoveDialog() {
-    const purge = E('input', {
-      type: 'checkbox',
-      class: 'cbi-input-checkbox',
-    }) as HTMLInputElement;
-    ui.showModal(_('Remove Forkop?'), [
-      E(
-        'p',
-        {},
-        _(
-          'Forkop, its page and its core, sing-box-forkop, will be removed from the router.',
-        ),
+    ui.showModal(
+      _('Remove Forkop?'),
+      renderRemoveDialog(
+        removedPackages(store.get().diagnosticsSystemInfo),
+        (purge) => void run.start('uninstall', '', purge),
       ),
-      E('label', { class: 'fkp_components-page__checkbox' }, [
-        purge,
-        E('span', {}, _('Remove the settings too')),
-      ]),
-      E('div', { class: 'button-row' }, [
-        E(
-          'button',
-          {
-            type: 'button',
-            class: 'btn cbi-button',
-            click: () => ui.hideModal(),
-          },
-          _('Cancel'),
-        ),
-        ' ',
-        E(
-          'button',
-          {
-            type: 'button',
-            class: 'btn cbi-button cbi-button-negative',
-            click: () => {
-              ui.hideModal();
-              void run.start('uninstall', '', purge.checked);
-            },
-          },
-          _('Yes, remove'),
-        ),
-      ]),
-    ]);
+    );
   }
 
   const run = createInstallerRun({

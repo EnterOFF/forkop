@@ -3468,6 +3468,83 @@ function createInstallerRun(options) {
   };
 }
 
+// src/forkop/tabs/components/removeDialog.ts
+function removedPackages(info) {
+  if (!info.loaded) {
+    return ["Forkop", "sing-box-forkop"];
+  }
+  const packages = [
+    info.forkop_version ? `Forkop ${info.forkop_version}` : "Forkop"
+  ];
+  const version = info.sing_box_version;
+  if (version === "not installed") {
+    return packages;
+  }
+  let core = "sing-box-forkop";
+  if (version && version !== "unknown") {
+    core += ` ${version}`;
+  }
+  if (info.sing_box_variant) {
+    core += ` (${info.sing_box_variant})`;
+  }
+  packages.push(core);
+  return packages;
+}
+function renderRemoveDialog(packages, onRemove) {
+  const keep = textE("input", {
+    type: "checkbox",
+    class: "cbi-input-checkbox"
+  });
+  keep.checked = true;
+  const remove = textE(
+    "button",
+    {
+      type: "button",
+      class: "btn cbi-button cbi-button-negative",
+      click: () => {
+        ui.hideModal();
+        onRemove(!keep.checked);
+      }
+    },
+    _("Remove")
+  );
+  keep.addEventListener(
+    "change",
+    () => remove.replaceChildren(
+      keep.checked ? _("Remove") : _("Remove with settings")
+    )
+  );
+  return [
+    textE(
+      "ul",
+      {},
+      packages.map((name) => textE("li", {}, name))
+    ),
+    textE("div", { class: "fkp-partial-modal__footer" }, [
+      textE("label", { class: "fkp-partial-modal__checkbox" }, [
+        keep,
+        textE(
+          "span",
+          { class: "fkp-partial-modal__checkbox-text" },
+          _("Keep settings")
+        )
+      ]),
+      textE("div", { class: "fkp_components-page__remove-buttons" }, [
+        textE(
+          "button",
+          {
+            type: "button",
+            class: "btn cbi-button",
+            click: () => ui.hideModal()
+          },
+          _("Cancel")
+        ),
+        remove
+      ])
+    ])
+  ];
+}
+
 // src/forkop/tabs/components/runTime.ts
 var DAY_MS = 24 * 60 * 60 * 1e3;
 var twoDigits = (value) => String(value).padStart(2, "0");
@@ -4186,47 +4263,13 @@ function initController() {
     }
   }
   function openRemoveDialog() {
-    const purge = textE("input", {
-      type: "checkbox",
-      class: "cbi-input-checkbox"
-    });
-    ui.showModal(_("Remove Forkop?"), [
-      textE(
-        "p",
-        {},
-        _(
-          "Forkop, its page and its core, sing-box-forkop, will be removed from the router."
-        )
-      ),
-      textE("label", { class: "fkp_components-page__checkbox" }, [
-        purge,
-        textE("span", {}, _("Remove the settings too"))
-      ]),
-      textE("div", { class: "button-row" }, [
-        textE(
-          "button",
-          {
-            type: "button",
-            class: "btn cbi-button",
-            click: () => ui.hideModal()
-          },
-          _("Cancel")
-        ),
-        " ",
-        textE(
-          "button",
-          {
-            type: "button",
-            class: "btn cbi-button cbi-button-negative",
-            click: () => {
-              ui.hideModal();
-              void run.start("uninstall", "", purge.checked);
-            }
-          },
-          _("Yes, remove")
-        )
-      ])
-    ]);
+    ui.showModal(
+      _("Remove Forkop?"),
+      renderRemoveDialog(
+        removedPackages(store.get().diagnosticsSystemInfo),
+        (purge) => void run.start("uninstall", "", purge)
+      )
+    );
   }
   const run = createInstallerRun({
     api: installerApi,
@@ -4460,17 +4503,10 @@ controls at least, growing with its output up to its limit. */
     height: 15px;
 }
 
-.fkp_components-page__checkbox {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 1em;
-    cursor: pointer;
-    user-select: none;
-}
-
-.fkp_components-page__checkbox input {
-    margin: 0;
+.fkp_components-page__remove-buttons {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
 }
 
 .fkp_terminal {

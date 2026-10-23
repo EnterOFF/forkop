@@ -196,17 +196,10 @@ controls at least, growing with its output up to its limit. */
     height: 15px;
 }
 
-.fkp_components-page__checkbox {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 1em;
-    cursor: pointer;
-    user-select: none;
-}
-
-.fkp_components-page__checkbox input {
-    margin: 0;
+.fkp_components-page__remove-buttons {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
 }
 
 .fkp_terminal {
