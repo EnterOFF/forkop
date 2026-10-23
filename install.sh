@@ -311,6 +311,12 @@ run() { # run COMMAND...: its output into the log
 	"$@" >>"$LOG" 2>&1
 }
 
+# apk and opkg set their own SIGINT handler: in a session of their own Ctrl+C and hangups miss them
+# shellcheck disable=SC2317
+detached() {
+	if command -v setsid >/dev/null 2>&1; then setsid "$@"; else "$@"; fi
+}
+
 capture() { # capture FILE COMMAND...: its output into FILE and the log
 	local file="$1" status
 	shift
@@ -1238,7 +1244,7 @@ install_dependencies() {
 	[ -n "$DEPS_MISSING" ] || return 0
 	step dependencies "$(t 'Installing dependencies: %s' 'Установка зависимостей: %s' "$(commas "$DEPS_MISSING")")"
 	# shellcheck disable=SC2086
-	run "$PM" "$([ "$PM" = apk ] && echo add || echo install)" $DEPS_MISSING ||
+	run detached "$PM" "$([ "$PM" = apk ] && echo add || echo install)" $DEPS_MISSING ||
 		fail 3 dependencies "$(t 'Cannot install the dependencies; forkop and sing-box-forkop were not touched' 'Не удалось установить зависимости, forkop и sing-box-forkop не тронуты')" "$(network_hint)"
 	# shellcheck disable=SC2086
 	pulled_in $DEPS_MISSING
@@ -1368,7 +1374,7 @@ drop_dependencies() {
 		while IFS= read -r depends; do dep_names "$depends"; done | sort -u))
 	[ -n "$names" ] || return 0
 	# shellcheck disable=SC2086
-	capture "$WORK/autoremove" opkg remove --autoremove $names || log "opkg did not remove all of $names"
+	capture "$WORK/autoremove" detached opkg remove --autoremove $names || log "opkg did not remove all of $names"
 }
 
 # a package opkg installs by name is the person's: the dependencies count as pulled in, like apk's
@@ -1397,7 +1403,7 @@ transaction() {
 		for name in $(apk_constraints); do set -- "$@" "$name"; done
 		# the dependencies are in: the feed indexes would take RAM and the network while Forkop is down
 		# shellcheck disable=SC2086
-		capture "$out" apk add --allow-untrusted $APK_OFFLINE "$@" || status=$?
+		capture "$out" detached apk add --allow-untrusted $APK_OFFLINE "$@" || status=$?
 		# shellcheck disable=SC2046
 		world_drop $(apk_constraints)
 	else
@@ -1406,14 +1412,14 @@ transaction() {
 			order=$(removal_order "$REMOVE_PKGS")
 			# what still needs a foreign core's sing-box gets it from sing-box-forkop within this run
 			# shellcheck disable=SC2086
-			capture "$out.remove" opkg --force-depends remove $order || status=$?
+			capture "$out.remove" detached opkg --force-depends remove $order || status=$?
 		fi
 		if [ "$status" = 0 ] && [ "$CORE_REINSTALL" = 1 ] && [ -n "$FILE_CORE" ]; then
-			capture "$out.core" opkg install --force-reinstall --force-overwrite --force-space "$FILE_CORE" || status=$?
+			capture "$out.core" detached opkg install --force-reinstall --force-overwrite --force-space "$FILE_CORE" || status=$?
 			shift
 		fi
 		# shellcheck disable=SC2086
-		[ "$status" != 0 ] || [ "$#" = 0 ] || capture "$out" opkg install --force-overwrite --force-space $OPKG_FLAGS "$@" || status=$?
+		[ "$status" != 0 ] || [ "$#" = 0 ] || capture "$out" detached opkg install --force-overwrite --force-space $OPKG_FLAGS "$@" || status=$?
 		[ "$status" != 0 ] || drop_dependencies
 	fi
 	refresh_db
@@ -1611,9 +1617,9 @@ uninstall() {
 	cp "$WORK/db" "$WORK/db.before"
 	# shellcheck disable=SC2086
 	if [ "$PM" = apk ]; then
-		capture "$out" apk del $APK_OFFLINE $packages
+		capture "$out" detached apk del $APK_OFFLINE $packages
 	else
-		capture "$out" opkg remove $packages && drop_dependencies
+		capture "$out" detached opkg remove $packages && drop_dependencies
 	fi
 	# opkg leaves the directories it emptied
 	find /usr/lib/forkop /usr/share/forkop /usr/share/sing-box-forkop /www/luci-static/resources/view/forkop -type d 2>/dev/null |
