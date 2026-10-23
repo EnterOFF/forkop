@@ -239,11 +239,11 @@ function routing(ip_state) {
     let logs = [];
     let handlers = [
         stub.logger(logs),
-        [ "/usr/libexec/ip-full route list table forkop", { stdout: ip_state?.route4 ?? "" } ],
-        [ "/usr/libexec/ip-full -6 route list table forkop", { stdout: ip_state?.route6 ?? "" } ],
-        [ "/usr/libexec/ip-full -4 rule list table forkop", { stdout: ip_state?.rule4 ?? "" } ],
-        [ "/usr/libexec/ip-full -6 rule list table forkop", { stdout: ip_state?.rule6 ?? "" } ],
-        [ /'\/usr\/libexec\/ip-full'.* 'add' /, {} ],
+        [ "/sbin/ip route list table forkop", { stdout: ip_state?.route4 ?? "" } ],
+        [ "/sbin/ip -6 route list table forkop", { stdout: ip_state?.route6 ?? "" } ],
+        [ "/sbin/ip -4 rule list table forkop", { stdout: ip_state?.rule4 ?? "" } ],
+        [ "/sbin/ip -6 rule list table forkop", { stdout: ip_state?.rule6 ?? "" } ],
+        [ /'\/sbin\/ip'.* 'add' /, {} ],
         [ "nft -t list table inet ForkopTable", { status: 1 } ],
         [ /^'nft' '-f' '-'/, { status: ip_state?.nft_status ?? 0 } ]
     ];
@@ -259,8 +259,8 @@ t.test("applying the table sets up its routing once and hands nft the whole scri
     stub.restore();
     t.eq(fs.readfile(nft.paths.rt_tables), "105 forkop\n");
     let commands = map(calls, (c) => join(" ", c.argv));
-    for (let line in [ "/usr/libexec/ip-full route add local 0.0.0.0/0 dev lo table forkop", "/usr/libexec/ip-full -6 route add local ::/0 dev lo table forkop",
-        "/usr/libexec/ip-full -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105", "/usr/libexec/ip-full -6 rule add fwmark 0x04000000/0x04000000 table forkop priority 105" ])
+    for (let line in [ "/sbin/ip route add local 0.0.0.0/0 dev lo table forkop", "/sbin/ip -6 route add local ::/0 dev lo table forkop",
+        "/sbin/ip -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105", "/sbin/ip -6 rule add fwmark 0x04000000/0x04000000 table forkop priority 105" ])
         t.contains(commands, line);
     let transactions = filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f");
     t.eq(length(transactions), 1, "one transaction");
@@ -287,8 +287,8 @@ t.test("a router with IPv6 off everywhere, or a kernel without IPv6, gets IPv4 r
         let calls = stub.calls();
         stub.restore();
         let commands = map(calls, (c) => join(" ", c.argv));
-        t.contains(commands, "/usr/libexec/ip-full route add local 0.0.0.0/0 dev lo table forkop");
-        t.contains(commands, "/usr/libexec/ip-full -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105");
+        t.contains(commands, "/sbin/ip route add local 0.0.0.0/0 dev lo table forkop");
+        t.contains(commands, "/sbin/ip -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105");
         t.eq(filter(commands, (line) => index(line, " -6 ") >= 0), [], "nothing is asked of IPv6");
         t.eq(length(filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f")), 1, "the table is applied");
     }

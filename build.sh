@@ -57,8 +57,9 @@ if [[ ! "$SB_REQUIRED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+$ ]] ||
 fi
 # Forkop runs only on its own core. A 1.0.x updater installs luci-app-forkop and forkop by
 # file and never the core: this dependency makes that fail before anything changes.
-BACKEND_DEPENDS_IPK="libc, ca-bundle, ucode, ucode-mod-fs, ucode-mod-resolv, ucode-mod-socket, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, uclient-fetch, kmod-nft-tproxy, nftables, kmod-nft-nat, ip-full, dropbearconvert, sing-box-forkop (>= ${SB_REQUIRED_VERSION})"
-BACKEND_DEPENDS_APK="ca-bundle dropbearconvert ip-full kmod-nft-nat kmod-nft-tproxy libc nftables uclient-fetch ucode ucode-mod-fs ucode-mod-resolv ucode-mod-socket ucode-mod-ubus ucode-mod-uci ucode-mod-uloop sing-box-forkop>=${SB_REQUIRED_VERSION}"
+# APK says ip: apk refuses ip-tiny beside ip-full, yet takes it for ip; opkg takes ip-full for ip
+BACKEND_DEPENDS_IPK="libc, ca-bundle, ucode, ucode-mod-fs, ucode-mod-resolv, ucode-mod-socket, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, uclient-fetch, kmod-nft-tproxy, nftables, kmod-nft-nat, ip-tiny, dropbearconvert, sing-box-forkop (>= ${SB_REQUIRED_VERSION})"
+BACKEND_DEPENDS_APK="ca-bundle dropbearconvert ip kmod-nft-nat kmod-nft-tproxy libc nftables uclient-fetch ucode ucode-mod-fs ucode-mod-resolv ucode-mod-socket ucode-mod-ubus ucode-mod-uci ucode-mod-uloop sing-box-forkop>=${SB_REQUIRED_VERSION}"
 # The app calls the backend's ubus object, so it needs a backend at least as new;
 # the feed Makefile's DEPENDS cannot express a version.
 APP_DEPENDS_IPK="libc, luci-base, forkop (>= ${RELEASE_VERSION})"

@@ -2,9 +2,8 @@ let fs = require("fs");
 let common = require("core.common");
 let constants = require("core.constants");
 
-// The full iproute2: BusyBox ip neither reports nor removes the Forkop table
-// entries reliably.
-const IP_BIN = "/usr/libexec/ip-full";
+// iproute2, which the dependency puts at /sbin/ip: BusyBox ip mishandles Forkop's table entries
+const IP_BIN = "/sbin/ip";
 const PAUSE_CHAIN = constants.NFT_PAUSE_CHAIN_NAME;
 
 let paths = {
