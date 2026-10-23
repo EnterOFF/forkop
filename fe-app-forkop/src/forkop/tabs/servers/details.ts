@@ -17,6 +17,7 @@ import {
 } from './protocols';
 import { qrCode } from './qr';
 import { E } from '../../../helpers/element';
+import { MONOSPACE_FONT } from '../../../constants';
 
 function svgEl(
   tag: string,
@@ -147,7 +148,7 @@ export function injectDetailsStyles() {
         '.fkp-details__file{display:flex;align-items:center;gap:6px;box-sizing:border-box;min-inline-size:0;min-block-size:30px;padding:0 8px;border:1px solid var(--border-color-high,rgba(128,128,128,.4));border-radius:3px;background:var(--background-color-low,rgba(128,128,128,.08))}',
         '.fkp-details__file > svg{flex:none;color:var(--text-color-medium,#888)}',
         '.fkp-details__file > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-        '.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}',
+        `.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:${MONOSPACE_FONT};font-size:12px}`,
         '.fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}',
         '.fkp-details__empty{color:var(--text-color-medium,#666)}',
         // The theme lays a modal button row out space-between with an auto margin on the first button;

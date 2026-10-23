@@ -1,5 +1,12 @@
 // language=CSS
+import { MONOSPACE_FONT } from '../../constants';
+
 export const styles = `
+
+.fkp-partial-modal__content,
+.fkp-partial-modal__content code {
+    font-family: ${MONOSPACE_FONT};
+}
 
 .fkp-partial-modal__content {
     max-height: 70vh;

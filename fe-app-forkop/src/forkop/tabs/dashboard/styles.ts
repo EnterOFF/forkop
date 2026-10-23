@@ -1,5 +1,8 @@
 // language=CSS
-import { FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX } from '../../../constants';
+import {
+  FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX,
+  MONOSPACE_FONT,
+} from '../../../constants';
 
 export const styles = `
 @font-face {
@@ -300,7 +303,7 @@ dropdown does; it carries the section's own outline and header band. */
     flex: 1 1 auto;
     min-width: 0;
     color: var(--text-color-highest, inherit);
-    font-family: monospace;
+    font-family: ${MONOSPACE_FONT};
     font-size: 1.05em;
     overflow-wrap: anywhere;
     user-select: all;

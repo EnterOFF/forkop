@@ -1,5 +1,8 @@
 // language=CSS
-import { FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX } from '../../../constants';
+import {
+  FORKOP_UCI_PACKAGE as FORKOP_CBI_PREFIX,
+  MONOSPACE_FONT,
+} from '../../../constants';
 
 export const styles = `
 #cbi-${FORKOP_CBI_PREFIX}-logs,
@@ -117,6 +120,7 @@ fill the column. */
     overscroll-behavior: contain;
     contain: inline-size;
     border-radius: 4px;
+    font-family: ${MONOSPACE_FONT};
     white-space: pre;
     overflow-wrap: normal;
     word-break: normal;

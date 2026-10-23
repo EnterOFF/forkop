@@ -77,6 +77,7 @@ var DOMAIN_LIST_OPTIONS = {
   cloudfront: "CloudFront ASN"
 };
 var COMMAND_TIMEOUT = 1e4;
+var MONOSPACE_FONT = 'ui-monospace, "Cascadia Mono", "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace';
 
 // src/helpers/element.ts
 function element(...args) {
@@ -1698,6 +1699,11 @@ var styles = `
 
 // src/partials/modal/styles.ts
 var styles2 = `
+
+.fkp-partial-modal__content,
+.fkp-partial-modal__content code {
+    font-family: ${MONOSPACE_FONT};
+}
 
 .fkp-partial-modal__content {
     max-height: 70vh;
@@ -6885,7 +6891,7 @@ dropdown does; it carries the section's own outline and header band. */
     flex: 1 1 auto;
     min-width: 0;
     color: var(--text-color-highest, inherit);
-    font-family: monospace;
+    font-family: ${MONOSPACE_FONT};
     font-size: 1.05em;
     overflow-wrap: anywhere;
     user-select: all;
@@ -11845,6 +11851,7 @@ fill the column. */
     overscroll-behavior: contain;
     contain: inline-size;
     border-radius: 4px;
+    font-family: ${MONOSPACE_FONT};
     white-space: pre;
     overflow-wrap: normal;
     word-break: normal;
@@ -20327,7 +20334,7 @@ function injectMaterialStyles() {
       { id: STYLE_ID },
       [
         ".fkp-material{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:4px;align-items:start;max-inline-size:100%}",
-        ".fkp-material textarea{box-sizing:border-box;inline-size:100% !important;resize:vertical !important;font-family:monospace;font-size:12px}",
+        `.fkp-material textarea{box-sizing:border-box;inline-size:100% !important;resize:vertical !important;font-family:${MONOSPACE_FONT};font-size:12px}`,
         ".fkp-material > button{display:block;text-align:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important}",
         ".fkp-material > button > svg{vertical-align:middle}"
       ].join("\n")
@@ -24918,7 +24925,7 @@ function injectDetailsStyles() {
         ".fkp-details__file{display:flex;align-items:center;gap:6px;box-sizing:border-box;min-inline-size:0;min-block-size:30px;padding:0 8px;border:1px solid var(--border-color-high,rgba(128,128,128,.4));border-radius:3px;background:var(--background-color-low,rgba(128,128,128,.08))}",
         ".fkp-details__file > svg{flex:none;color:var(--text-color-medium,#888)}",
         ".fkp-details__file > span{min-inline-size:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}",
-        ".fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:monospace;font-size:12px}",
+        `.fkp-details__value{inline-size:100% !important;max-inline-size:100% !important;min-inline-size:0;box-sizing:border-box;margin:0 !important;float:none !important;font-family:${MONOSPACE_FONT};font-size:12px}`,
         ".fkp-details__action{display:inline-flex;align-items:center;justify-content:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important;line-height:1}",
         ".fkp-details__empty{color:var(--text-color-medium,#666)}",
         // The theme lays a modal button row out space-between with an auto margin on the first button;

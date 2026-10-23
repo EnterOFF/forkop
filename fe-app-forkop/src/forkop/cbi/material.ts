@@ -4,6 +4,7 @@ import type { MaterialKind } from '../../helpers/material';
 import { isCertificate } from '../../helpers/pem';
 import { configureTextareaOption } from './annotatedTextarea';
 import { message } from '../../validators/messages';
+import { MONOSPACE_FONT } from '../../constants';
 
 type FormValue = (name: string) => unknown;
 
@@ -17,7 +18,7 @@ export function injectMaterialStyles() {
       { id: STYLE_ID },
       [
         '.fkp-material{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:4px;align-items:start;max-inline-size:100%}',
-        '.fkp-material textarea{box-sizing:border-box;inline-size:100% !important;resize:vertical !important;font-family:monospace;font-size:12px}',
+        `.fkp-material textarea{box-sizing:border-box;inline-size:100% !important;resize:vertical !important;font-family:${MONOSPACE_FONT};font-size:12px}`,
         '.fkp-material > button{display:block;text-align:center;inline-size:2.5em !important;min-inline-size:0;padding:0 !important;margin:0 !important;float:none !important}',
         '.fkp-material > button > svg{vertical-align:middle}',
       ].join('\n'),

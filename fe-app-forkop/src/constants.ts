@@ -67,3 +67,7 @@ export const DOMAIN_LIST_OPTIONS = {
 };
 
 export const COMMAND_TIMEOUT = 10000;
+
+// The theme's own monospace stack falls back to Courier New on Windows and Linux.
+export const MONOSPACE_FONT =
+  'ui-monospace, "Cascadia Mono", "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace';
