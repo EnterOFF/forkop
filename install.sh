@@ -93,7 +93,7 @@ info() { # a fact worth knowing: what goes in, what came out
 
 removed() { # a package or file that is gone
 	log "removed: $1"
-	say '[-]' "$C_ERR" "$1"
+	say '[-]' "$C_ERR" "$(t 'Removed %s' 'Удалён %s' "$1")"
 }
 
 warn() { # warn CODE TEXT
@@ -101,10 +101,9 @@ warn() { # warn CODE TEXT
 	say '[!]' "$C_WARN" "$2"
 }
 
-detail() { # a line under the one before
+detail() { # a hint under the line before: what to do or where to look
 	log "   $1"
-	printf '    %s
-' "$1" 2>/dev/null
+	say '[!]' "$C_WARN" "$1"
 }
 
 fail() { # fail EXIT CODE TEXT [HINT]...
@@ -156,8 +155,7 @@ usage_error() {
 	*) message=$(t 'Unknown option: %s' 'Неизвестный параметр: %s' "${BAD_ARG#unknown:}") ;;
 	esac
 	say '[x]' "$C_ERR" "$message" >&2
-	printf '    %s
-' "$(t 'Options: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en' 'Параметры: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en')" >&2
+	detail "$(t 'Options: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en' 'Параметры: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en')" >&2
 	exit 2
 }
 
@@ -960,7 +958,7 @@ get_package() { # get_package forkop|core FILE: GOT is FILE of that release, che
 			fail 1 checksum "$(t '%s is damaged: its SHA256 sum does not match' 'Файл %s повреждён: сумма SHA256 не совпадает' "$2")"
 		fi
 	fi
-	info "$2"
+	info "$(t 'Downloaded %s' 'Загружен %s' "$2")"
 	GOT=$file
 }
 
