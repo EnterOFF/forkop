@@ -106,6 +106,16 @@ function installer() {
     return require("service.installer");
 }
 
+function installer_log() {
+    let log = installer().log_text();
+    if (log == null) {
+        warn("install.sh has left no log\n");
+        return 1;
+    }
+    print(log);
+    return 0;
+}
+
 const COMMANDS = {
     start: { help: "Start Forkop service", run: init_script("start") },
     stop: { help: "Stop Forkop service", run: init_script("stop") },
@@ -138,6 +148,7 @@ const COMMANDS = {
     installer_start: { args: 4, usage: "<update|variant|uninstall> <variant> <purge> <lang>", help: "Run install.sh in the background for the Components tab", run: reply((action, variant, purge, lang) => installer().start(action, variant, purge, lang)) },
     installer_status: { args: 1, usage: "[offset]", help: "Show the Components tab's run of install.sh in JSON format", run: json((offset) => installer().status(offset)) },
     installer_run: { args: 1, run: (args) => installer().run(args[0]) },
+    installer_log: { help: "Print the log of install.sh's last run", run: installer_log },
     generate_reality_keypair: { help: "Generate a sing-box Reality key pair in JSON format", run: reply(() => require("server.service").reality_keypair()) },
     generate_warp_profile: { help: "Generate a Cloudflare WARP profile in JSON format", run: warp_profile },
     package_prerm: { args: 1, run: (args) => require("service.package").prerm(args[0]) },

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-23 19:19+0300\n"
-"PO-Revision-Date: 2026-10-23 19:19+0300\n"
+"POT-Creation-Date: 2026-10-23 19:23+0300\n"
+"PO-Revision-Date: 2026-10-23 19:23+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1180,6 +1180,9 @@ msgstr "insecure: ещё MD5 и короткие ключи"
 
 msgid "Installed versions"
 msgstr "Установленные версии"
+
+msgid "Installer log"
+msgstr "Журнал установщика"
 
 msgid "Installer output"
 msgstr "Вывод установщика"
@@ -2806,6 +2809,9 @@ msgstr "Да"
 
 msgid "Yes, remove"
 msgstr "Да, удалить"
+
+msgid "yesterday %s"
+msgstr "вчера %s"
 
 msgid "Your own certificate"
 msgstr "Свой сертификат"

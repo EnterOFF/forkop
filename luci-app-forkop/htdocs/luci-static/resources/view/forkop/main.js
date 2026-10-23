@@ -1590,6 +1590,7 @@ var Forkop;
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
     AvailableMethods2["INSTALLER_START"] = "installer_start";
     AvailableMethods2["INSTALLER_STATUS"] = "installer_status";
+    AvailableMethods2["INSTALLER_LOG"] = "installer_log";
   })(AvailableMethods = Forkop2.AvailableMethods || (Forkop2.AvailableMethods = {}));
 })(Forkop || (Forkop = {}));
 
@@ -3120,6 +3121,17 @@ var installerApi = {
     }
     return snapshot;
   },
+  async log() {
+    const response = await executeShellCommand({
+      command: "/usr/bin/forkop",
+      args: [Forkop.AvailableMethods.INSTALLER_LOG],
+      timeout: STATUS_TIMEOUT_MS
+    });
+    if ((response.code ?? 0) !== 0) {
+      throw new Error(response.stderr || _("Failed to execute"));
+    }
+    return response.stdout;
+  },
   async read(id, offset) {
     const reply = await callUbus({
       object: INSTALLER_OBJECT,
@@ -3253,6 +3265,9 @@ var INITIAL = {
   interrupted: false,
   stopping: false,
   changed: false,
+  startedAt: null,
+  finishedAt: null,
+  log: false,
   lost: false,
   after: null
 };
@@ -3311,7 +3326,10 @@ function createInstallerRun(options) {
       exit: snapshot.exit ?? null,
       interrupted: Boolean(snapshot.interrupted),
       stopping: Boolean(snapshot.stop_requested) || stopAsked,
-      changed: Boolean(snapshot.changed)
+      changed: Boolean(snapshot.changed),
+      startedAt: snapshot.started_at ?? null,
+      finishedAt: snapshot.finished_at ?? null,
+      log: Boolean(snapshot.log)
     };
     if (snapshot.running) {
       watched = true;
@@ -3394,6 +3412,9 @@ function createInstallerRun(options) {
           interrupted: false,
           stopping: false,
           changed: false,
+          startedAt: null,
+          finishedAt: null,
+          log: false,
           after: null
         };
         watched = true;
@@ -3431,6 +3452,23 @@ function createInstallerRun(options) {
       readNow();
     }
   };
+}
+
+// src/forkop/tabs/components/runTime.ts
+var DAY_MS = 24 * 60 * 60 * 1e3;
+var twoDigits = (value) => String(value).padStart(2, "0");
+var startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+function formatRunTime(seconds3, now = /* @__PURE__ */ new Date()) {
+  const at = new Date(seconds3 * 1e3);
+  const time = `${twoDigits(at.getHours())}:${twoDigits(at.getMinutes())}`;
+  const days = Math.round((startOfDay(now) - startOfDay(at)) / DAY_MS);
+  if (days === 0) {
+    return time;
+  }
+  if (days === 1) {
+    return _("yesterday %s").format(time);
+  }
+  return `${twoDigits(at.getDate())}.${twoDigits(at.getMonth() + 1)} ${time}`;
 }
 
 // src/forkop/tabs/components/terminalScreen.ts
@@ -3997,9 +4035,21 @@ function initController() {
     },
     [renderCircleStopIcon24()]
   );
+  const logButton = textE(
+    "button",
+    {
+      type: "button",
+      class: "btn cbi-button fkp_components-page__icon-button",
+      title: _("Installer log"),
+      "aria-label": _("Installer log"),
+      click: () => void openLog()
+    },
+    [renderFileTextIcon24()]
+  );
   const runSide = textE("div", { class: "fkp_components-page__run-side" }, [
     runStatus,
     stopButton,
+    logButton,
     copyButton
   ]);
   part(root, "components-run").append(
@@ -4018,9 +4068,13 @@ function initController() {
     runSide.hidden = !state.id && !state.starting;
     stopButton.hidden = !state.running || !state.id;
     stopButton.disabled = state.stopping;
+    logButton.hidden = !state.log;
     terminal.setInput(state.running && state.interactive);
+    const live = state.starting || state.running;
+    const at = live ? state.startedAt : state.finishedAt;
     const drawn = JSON.stringify([
-      state.starting || state.running,
+      live,
+      at,
       state.exit,
       state.interrupted,
       state.stopping,
@@ -4035,9 +4089,30 @@ function initController() {
     const after = state.after ? ` \xB7 ${AFTER_RUN_TEXTS[state.after]()}` : "";
     runStatus.className = `fkp_components-page__run-status fkp_components-page__run-status--${status.tone}`;
     runStatus.replaceChildren(
+      ...at === null ? [] : [
+        textE(
+          "span",
+          { class: "fkp_components-page__run-time" },
+          formatRunTime(at)
+        )
+      ],
       status.icon(),
       textE("span", {}, status.text + after)
     );
+  }
+  async function openLog() {
+    logButton.disabled = true;
+    try {
+      const text8 = await installerApi.log();
+      ui.showModal(_("Installer log"), renderModal(text8, "forkop-install-log"));
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : String(error),
+        "error"
+      );
+    } finally {
+      logButton.disabled = false;
+    }
   }
   let actionsDrawn = "";
   function renderActions(state) {
@@ -4335,6 +4410,11 @@ controls at least, growing with its output up to its limit. */
     gap: 6px;
     min-width: 0;
     color: var(--text-color-medium, inherit);
+}
+
+.fkp_components-page__run-status .fkp_components-page__run-time {
+    color: var(--text-color-medium, inherit);
+    font-variant-numeric: tabular-nums;
 }
 
 .fkp_components-page__run-status--success {

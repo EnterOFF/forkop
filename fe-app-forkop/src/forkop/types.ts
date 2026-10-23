@@ -114,6 +114,7 @@ export namespace Forkop {
     UI_ACTION_ACK = 'ui_action_ack',
     INSTALLER_START = 'installer_start',
     INSTALLER_STATUS = 'installer_status',
+    INSTALLER_LOG = 'installer_log',
   }
 
   export interface Outbound {
@@ -448,6 +449,10 @@ export namespace Forkop {
     interrupted?: boolean;
     stop_requested?: boolean;
     changed?: boolean;
+    started_at?: number | null;
+    finished_at?: number | null;
+    // install.sh wrote its log during this run
+    log?: boolean;
     offset?: number;
     next?: number;
     data?: string;

@@ -28,6 +28,10 @@ export interface InstallerRunState {
   // a stop was asked, from this page, another one or Ctrl+C in the terminal
   stopping: boolean;
   changed: boolean;
+  // router seconds
+  startedAt: number | null;
+  finishedAt: number | null;
+  log: boolean;
   lost: boolean;
   // what the page does once the run it watched has ended
   after: InstallerAfterRun | null;
@@ -44,6 +48,9 @@ const INITIAL: InstallerRunState = {
   interrupted: false,
   stopping: false,
   changed: false,
+  startedAt: null,
+  finishedAt: null,
+  log: false,
   lost: false,
   after: null,
 };
@@ -123,6 +130,9 @@ export function createInstallerRun(options: {
       interrupted: Boolean(snapshot.interrupted),
       stopping: Boolean(snapshot.stop_requested) || stopAsked,
       changed: Boolean(snapshot.changed),
+      startedAt: snapshot.started_at ?? null,
+      finishedAt: snapshot.finished_at ?? null,
+      log: Boolean(snapshot.log),
     };
     if (snapshot.running) {
       watched = true;
@@ -216,6 +226,9 @@ export function createInstallerRun(options: {
           interrupted: false,
           stopping: false,
           changed: false,
+          startedAt: null,
+          finishedAt: null,
+          log: false,
           after: null,
         };
         watched = true;

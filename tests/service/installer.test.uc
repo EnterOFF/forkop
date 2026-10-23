@@ -19,6 +19,7 @@ function fresh() {
     installer.paths.start_lock = dir + "/start.lock";
     installer.paths.cli = system + "/forkop";
     installer.paths.proc = system + "/proc";
+    installer.paths.install_log = system + "/forkop-install.log";
     installer.paths.ptmx = "/dev/ptmx";
     installer.paths.package_databases = [ system + "/installed" ];
     fs.writefile(system + "/installed", "forkop 2.0.0\n");
@@ -65,12 +66,35 @@ let cyrillic = "ж";
 let euro = "€";
 let emoji = "😀";
 
-t.test("install.sh gets the language, then what the run does; a bare --variant goes last", () => {
-    t.eq(installer.install_arguments("update", "", false, "ru"), [ "--lang", "ru" ]);
-    t.eq(installer.install_arguments("variant", "", false, "en"), [ "--lang", "en", "--variant" ]);
-    t.eq(installer.install_arguments("variant", "tiny", false, "ru"), [ "--lang", "ru", "--variant", "tiny" ]);
-    t.eq(installer.install_arguments("uninstall", "", false, "ru"), [ "--lang", "ru", "--uninstall" ]);
-    t.eq(installer.install_arguments("uninstall", "", true, "ru"), [ "--lang", "ru", "--uninstall", "--purge" ]);
+t.test("the page learns when the run began and ended, and whether install.sh left this run's log", () => {
+    fresh();
+    let now = common.now_seconds();
+    write_state({ child_pid: "4242", started_at: now - 30, finished_at: now, exit: 0 });
+    t.eq([ installer.status(0).started_at, installer.status(0).finished_at, installer.status(0).log ], [ now - 30, now, false ]);
+    fs.writefile(installer.paths.install_log, "install.sh --lang ru --quiet\n");
+    t.eq(installer.status(0).log, true);
+    write_state({ child_pid: null, started_at: now - 30, finished_at: now, exit: 1 });
+    t.eq(installer.status(0).log, false, "a run that never started install.sh");
+    write_state({ child_pid: "4242", started_at: now + 3600, finished_at: now + 3600, exit: 0 });
+    t.eq(installer.status(0).log, false, "the log of an earlier install.sh");
+});
+
+t.test("the command line prints install.sh's log, and says when there is none", () => {
+    fresh();
+    fs.writefile(installer.paths.install_log, "$ apk add forkop.apk\nOK: 83.7 MiB in 199 packages\n");
+    let printed = stub.capture(() => require("service.cli").main([ "installer_log" ], "/lib"));
+    t.eq([ printed.result, printed.stdout ], [ 0, "$ apk add forkop.apk\nOK: 83.7 MiB in 199 packages\n" ]);
+    fs.unlink(installer.paths.install_log);
+    let missing = stub.capture(() => require("service.cli").main([ "installer_log" ], "/lib"));
+    t.eq([ missing.result, missing.stderr ], [ 1, "install.sh has left no log\n" ]);
+});
+
+t.test("install.sh gets the language and --quiet, then what the run does; a bare --variant goes last", () => {
+    t.eq(installer.install_arguments("update", "", false, "ru"), [ "--lang", "ru", "--quiet" ]);
+    t.eq(installer.install_arguments("variant", "", false, "en"), [ "--lang", "en", "--quiet", "--variant" ]);
+    t.eq(installer.install_arguments("variant", "tiny", false, "ru"), [ "--lang", "ru", "--quiet", "--variant", "tiny" ]);
+    t.eq(installer.install_arguments("uninstall", "", false, "ru"), [ "--lang", "ru", "--quiet", "--uninstall" ]);
+    t.eq(installer.install_arguments("uninstall", "", true, "ru"), [ "--lang", "ru", "--quiet", "--uninstall", "--purge" ]);
 });
 
 t.test("a run that may ask takes the terminal as its controlling one, a removal takes none", () => {
@@ -258,7 +282,7 @@ t.test("the runner downloads install.sh, runs it in a terminal and records how i
         t.eq([ pump.executable, pump.args[0], pump.args[3] ], [ "setsid", "sh", installer.paths.output ]);
         t.eq(child.executable, "/bin/sh");
         t.matches(child.args[3], /^\/dev\/pts\/[0-9]+$/, "install.sh gets the new terminal");
-        t.eq(slice(child.args, 4), [ installer.paths.script, "--lang", "ru" ]);
+        t.eq(slice(child.args, 4), [ installer.paths.script, "--lang", "ru", "--quiet" ]);
         t.eq(child.env.TERM, "xterm");
         t.eq(state().child_pid, "" + child.pid);
 
@@ -291,7 +315,7 @@ t.test("a removal skips the release check, asks nothing and takes the run's file
     run_with({ action: "uninstall", purge: true, interactive: false }, () => {
         uloop.__exit(0, 0);
         let child = uloop.__processes()[2];
-        t.eq(slice(child.args, 4), [ installer.paths.script, "--lang", "ru", "--uninstall", "--purge" ]);
+        t.eq(slice(child.args, 4), [ installer.paths.script, "--lang", "ru", "--quiet", "--uninstall", "--purge" ]);
         t.contains(child.args[1], "</dev/null");
         t.eq(ubus.__invoke("forkop.installer", "input", { id: "run-1", data: "y\r" }).replied, { accepted: false });
         fs.unlink(installer.paths.cli);

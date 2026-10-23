@@ -296,6 +296,38 @@ describe('following a run of install.sh', () => {
     expect(page.state()).toMatchObject({ running: true, stopping: false });
   });
 
+  it('keeps when the run began and ended, and whether it left a log', async () => {
+    const page = setup();
+    page.api.status.mockImplementation(async (offset: number) => ({
+      ...snapshotOf(page.router, offset),
+      started_at: 1792767700,
+      finished_at: null,
+      log: false,
+    }));
+    page.router.alive = false;
+    page.run.setShown(true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(page.state()).toMatchObject({
+      startedAt: 1792767700,
+      finishedAt: null,
+      log: false,
+    });
+    page.api.status.mockImplementation(async (offset: number) => ({
+      ...snapshotOf(page.router, offset),
+      running: false,
+      exit: 0,
+      started_at: 1792767700,
+      finished_at: 1792767760,
+      log: true,
+    }));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(page.state()).toMatchObject({
+      running: false,
+      finishedAt: 1792767760,
+      log: true,
+    });
+  });
+
   it('shows a stop asked from the terminal or another page', async () => {
     const page = setup({ stopRequested: true });
     page.run.setShown(true);

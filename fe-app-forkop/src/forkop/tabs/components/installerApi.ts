@@ -79,6 +79,18 @@ export const installerApi = {
     return snapshot;
   },
 
+  async log(): Promise<string> {
+    const response = await executeShellCommand({
+      command: '/usr/bin/forkop',
+      args: [Forkop.AvailableMethods.INSTALLER_LOG],
+      timeout: STATUS_TIMEOUT_MS,
+    });
+    if ((response.code ?? 0) !== 0) {
+      throw new Error(response.stderr || _('Failed to execute'));
+    }
+    return response.stdout;
+  },
+
   async read(id: string, offset: number): Promise<InstallerRead> {
     const reply = await callUbus<Forkop.InstallerSnapshot>({
       object: INSTALLER_OBJECT,

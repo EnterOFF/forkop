@@ -7,12 +7,13 @@ import {
   renderCircleXIcon24,
   renderCopyIcon24,
   renderDownloadIcon24,
+  renderFileTextIcon24,
   renderLayersIcon24,
   renderLoaderCircleIcon24,
   renderSquareTerminalIcon24,
   renderTrashIcon24,
 } from '../../../icons';
-import { renderButton } from '../../../partials';
+import { renderButton, renderModal } from '../../../partials';
 import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { store } from '../../services/store.service';
 import { ensureSystemInfo } from '../../services/systemInfo.service';
@@ -24,6 +25,7 @@ import {
   InstallerRunState,
 } from './installerRun';
 import { pageRoot } from './render';
+import { formatRunTime } from './runTime';
 import { createTerminal } from './terminal';
 
 let controllerInitialized = false;
@@ -111,9 +113,21 @@ export function initController(): void {
     },
     [renderCircleStopIcon24()],
   ) as HTMLButtonElement;
+  const logButton = E(
+    'button',
+    {
+      type: 'button',
+      class: 'btn cbi-button fkp_components-page__icon-button',
+      title: _('Installer log'),
+      'aria-label': _('Installer log'),
+      click: () => void openLog(),
+    },
+    [renderFileTextIcon24()],
+  ) as HTMLButtonElement;
   const runSide = E('div', { class: 'fkp_components-page__run-side' }, [
     runStatus,
     stopButton,
+    logButton,
     copyButton,
   ]);
   part(root, 'components-run').append(
@@ -134,9 +148,13 @@ export function initController(): void {
     runSide.hidden = !state.id && !state.starting;
     stopButton.hidden = !state.running || !state.id;
     stopButton.disabled = state.stopping;
+    logButton.hidden = !state.log;
     terminal.setInput(state.running && state.interactive);
+    const live = state.starting || state.running;
+    const at = live ? state.startedAt : state.finishedAt;
     const drawn = JSON.stringify([
-      state.starting || state.running,
+      live,
+      at,
       state.exit,
       state.interrupted,
       state.stopping,
@@ -151,9 +169,33 @@ export function initController(): void {
     const after = state.after ? ` · ${AFTER_RUN_TEXTS[state.after]()}` : '';
     runStatus.className = `fkp_components-page__run-status fkp_components-page__run-status--${status.tone}`;
     runStatus.replaceChildren(
+      ...(at === null
+        ? []
+        : [
+            E(
+              'span',
+              { class: 'fkp_components-page__run-time' },
+              formatRunTime(at),
+            ),
+          ]),
       status.icon(),
       E('span', {}, status.text + after),
     );
+  }
+
+  async function openLog() {
+    logButton.disabled = true;
+    try {
+      const text = await installerApi.log();
+      ui.showModal(_('Installer log'), renderModal(text, 'forkop-install-log'));
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : String(error),
+        'error',
+      );
+    } finally {
+      logButton.disabled = false;
+    }
   }
 
   // Redrawn only when they change: a button replaced between press and release loses the click.

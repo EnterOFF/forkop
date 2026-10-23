@@ -162,6 +162,11 @@ controls at least, growing with its output up to its limit. */
     color: var(--text-color-medium, inherit);
 }
 
+.fkp_components-page__run-status .fkp_components-page__run-time {
+    color: var(--text-color-medium, inherit);
+    font-variant-numeric: tabular-nums;
+}
+
 .fkp_components-page__run-status--success {
     color: var(--success-color-high, green);
 }

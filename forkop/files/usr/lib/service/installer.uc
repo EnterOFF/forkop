@@ -45,6 +45,7 @@ let paths = {
     manifest: "/var/run/forkop-installer/release.json",
     start_lock: "/var/run/forkop-installer/start.lock",
     cli: "/usr/bin/forkop",
+    install_log: "/tmp/forkop-install.log",
     proc: "/proc",
     ptmx: "/dev/ptmx",
     exe: "/proc/self/exe",
@@ -176,6 +177,16 @@ function read_output(offset) {
     return substr(data, 0, whole_characters(data));
 }
 
+// install.sh empties its log as it starts, so a log no older than the run's start is this run's.
+function has_log(state) {
+    let stat = fs.stat(paths.install_log);
+    return state.child_pid != null && stat != null && stat.mtime >= int(state.started_at ?? 0);
+}
+
+function log_text() {
+    return fs.readfile(paths.install_log);
+}
+
 // The run as the page shows it, with its output from offset on.
 function snapshot(state, offset) {
     if (state == null)
@@ -195,6 +206,9 @@ function snapshot(state, offset) {
         interrupted: state.interrupted === true,
         stop_requested: state.stop_requested === true,
         changed: state.changed === true,
+        started_at: state.started_at,
+        finished_at: state.finished_at,
+        log: has_log(state),
         offset,
         next: offset + length(data),
         data
@@ -205,9 +219,10 @@ function status(offset) {
     return snapshot(current(), offset);
 }
 
-// install.sh's options for a run; a bare --variant asks for the build and goes last.
+// install.sh's options for a run; a bare --variant asks for the build and goes last. The page
+// offers the log behind a button, so the package manager's output stays in it.
 function install_arguments(action, variant, purge, lang) {
-    let argv = [ "--lang", lang ];
+    let argv = [ "--lang", lang, "--quiet" ];
     if (action == "uninstall") {
         push(argv, "--uninstall");
         if (purge)
@@ -684,6 +699,7 @@ return {
     active,
     running,
     snapshot,
+    log_text,
     status,
     whole_characters,
     install_arguments,
