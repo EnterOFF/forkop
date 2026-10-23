@@ -51,7 +51,7 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
     before(lines, T + "proxy iifname lo meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1604 counter accept",
         T + "proxy meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1602 counter", "System TProxy classification");
     has(lines, T + "proxy iifname lo meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip6 to [::1]:1604 counter accept");
-    has(lines, T + "mangle_output meta mark 0x08000000 counter return");
+    has(lines, T + "mangle_output meta mark & 0x08000000 == 0x08000000 counter return", "sing-box's own traffic, whatever bits mwan3 adds");
     before(lines, T + "mangle_output meta l4proto { tcp, udp } th dport 53 return", T + "mangle_output jump priority_output_rules",
         "the resolver reaches its upstream directly");
     has(lines, T + "mangle_output jump priority_output_rules");

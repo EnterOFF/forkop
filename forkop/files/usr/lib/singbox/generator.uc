@@ -221,7 +221,7 @@ function apply_matchers(rule, matchers) {
         rule[key] = value;
 }
 
-function base_config(settings, service_address, runtime_context) {
+function base_config(settings, service_address) {
     let log_level = option(settings, "log_level", "warn");
     let rewrite_ttl = int_option(settings, "dns_rewrite_ttl", "60");
     let cache_path = option(settings, "cache_path", "/tmp/sing-box/cache.db");
@@ -251,7 +251,6 @@ function base_config(settings, service_address, runtime_context) {
         inet6_range: runtime_constants.FAKEIP_INET6_RANGE
     });
 
-    runtime_context = object_or_empty(runtime_context);
     let inbounds = [
         { type: "tproxy", tag: runtime_constants.TPROXY_INBOUND_TAG, listen: runtime_constants.TPROXY_INBOUND_ADDRESS, listen_port: runtime_constants.TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
         { type: "tproxy", tag: runtime_constants.TPROXY_INBOUND6_TAG, listen: runtime_constants.TPROXY_INBOUND6_ADDRESS, listen_port: runtime_constants.TPROXY_INBOUND_PORT, tcp_fast_open: true, udp_fragment: true },
@@ -262,7 +261,7 @@ function base_config(settings, service_address, runtime_context) {
         { type: "direct", tag: runtime_constants.SYSTEM_DNS_INBOUND_TAG, listen: runtime_constants.SYSTEM_DNS_INBOUND_ADDRESS, listen_port: runtime_constants.SYSTEM_DNS_INBOUND_PORT }
     ];
 
-    runtime_context.default_domain_resolver = runtime_dns.default_domain_resolver(settings);
+    let runtime_context = { default_domain_resolver: runtime_dns.default_domain_resolver(settings) };
 
     return {
         log: {
@@ -1710,14 +1709,6 @@ function section_by_name(sections, name) {
     return null;
 }
 
-function has_direct_tailscale_server(servers) {
-    for (let server in servers)
-        if (option(server, "protocol", "vless") == "tailscale" &&
-            option(server, "routing_mode", "rules") == "direct")
-            return true;
-    return false;
-}
-
 // "rules" clones the shared set onto the inbound and is handled by the caller.
 function server_route_rule(sections, routing_mode, routing_section_name, label) {
     if (routing_mode == "direct")
@@ -1808,7 +1799,7 @@ function add_server_routes(config, servers, sections) {
 }
 
 // Throws with the reason when the configuration cannot be expressed.
-// context: { service_address, mwan3_active }
+// context: { service_address }
 function build(context) {
     context = object_or_empty(context);
     connections.load();
@@ -1820,10 +1811,7 @@ function build(context) {
     if (length(sections) == 0 && length(servers) == 0)
         runtime_generate_unsupported("no usable sections or servers");
 
-    let config = base_config(settings, context.service_address, {
-        mwan3_active: !!context.mwan3_active,
-        direct_server_route: has_direct_tailscale_server(servers)
-    });
+    let config = base_config(settings, context.service_address);
     add_source_aware_dns_support(config);
     let static_hosts = static_hosts_config();
     add_static_hosts_support(config, static_hosts);

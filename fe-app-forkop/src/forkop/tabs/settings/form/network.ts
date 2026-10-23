@@ -72,7 +72,7 @@ export function addNetworkOptions(section: CBISection) {
     form.Flag,
     'enable_output_network_interface',
     _('Enable Output Network Interface'),
-    _('Detected automatically by default'),
+    _("By default the router's routes choose it"),
   );
   o.default = '0';
   o.rmempty = false;

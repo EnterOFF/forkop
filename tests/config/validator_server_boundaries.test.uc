@@ -236,7 +236,7 @@ function configuration(srv, clients) {
 function core_check(name, data) {
     fixture.seed(v.with_dns(data));
     let path = dir + "/config.json";
-    fs.writefile(path, sprintf("%J\n", generator.build({ service_address: "127.0.0.1", mwan3_active: false })));
+    fs.writefile(path, sprintf("%J\n", generator.build({ service_address: "127.0.0.1" })));
     let status = stub.real.system(sprintf("'%s' check -c '%s' >'%s/check.log' 2>&1", core, path, dir));
     if (status != 0)
         t.fail(name + ": recorded as accepted, but the core refuses it: " + trim(fs.readfile(dir + "/check.log") ?? ""));

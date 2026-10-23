@@ -5,9 +5,9 @@ let generator = require("singbox.generator");
 
 let has = q.has;
 
-function build(data, mwan3_active) {
+function build(data) {
     fixture.seed(data);
-    return generator.build({ service_address: "127.0.0.1", mwan3_active: !!mwan3_active });
+    return generator.build({ service_address: "127.0.0.1" });
 }
 
 function settings(extra) {
@@ -254,7 +254,6 @@ t.test("server inbounds carry their protocol options and their clients", () => {
     t.eq(tailnet.type, "tailscale");
     t.eq(tailnet.detour, "proxy");
     t.eq(tailnet.advertise_exit_node, true);
-    t.eq(server.route.auto_detect_interface, false, "a direct Tailscale server does not pin LAN routes to the WAN");
     t.ok(q.route_rule(server, (r) => r.action == "sniff" && r.inbound == "tailnet") != null,
         "the Tailscale endpoint is sniffed, so the shared rules see the domain of a peer's flow to an address");
     t.eq(q.dns_server(server, (s) => s.type == "tailscale"), null,
@@ -816,16 +815,16 @@ t.test("fully routed devices follow their section at its priority", () => {
     t.excludes(sprintf("%J", f), "@system");
 });
 
-t.test("mwan3 turns off interface detection unless an output interface is pinned", () => {
+t.test("sing-box's own connections follow the routes unless an output interface is pinned", () => {
     let base = {
         settings: settings(),
         section: [ { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org" } ]
     };
-    let auto = build(base, true);
-    t.eq([ auto.route.auto_detect_interface, auto.route.default_interface ], [ false, null ]);
+    let routed = build(base);
+    t.eq([ routed.route.auto_detect_interface, routed.route.default_interface, routed.route.default_mark ], [ null, null, 0x08000000 ]);
     base.settings.output_network_interface = "wan2";
-    let pinned = build(base, true);
-    t.eq([ pinned.route.auto_detect_interface, pinned.route.default_interface ], [ false, "wan2" ]);
+    let pinned = build(base);
+    t.eq([ pinned.route.auto_detect_interface, pinned.route.default_interface ], [ null, "wan2" ]);
 });
 
 t.test("universal rule sets are native, independently tagged and shared by route and DNS", () => {

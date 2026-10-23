@@ -11,10 +11,6 @@ function as_string(value) {
     return value == null ? "" : "" + value;
 }
 
-function bool_value(value) {
-    return value === true || value == "1" || value == "true" || value == "yes" || value == "on";
-}
-
 function tproxy_inbounds() {
     return [
         runtime_constants.TPROXY_INBOUND_TAG,
@@ -24,10 +20,10 @@ function tproxy_inbounds() {
     ];
 }
 
+// No auto_detect_interface: it binds sing-box's own connections to the device of the default route,
+// past every other route (a host route, policy routing, mwan3). default_mark keeps them out of the capture.
 function config(settings, runtime) {
     let output_network_interface = option(settings, "output_network_interface", "");
-    let mwan3_active = type(runtime) == "object" && bool_value(runtime.mwan3_active);
-    let direct_server_route = type(runtime) == "object" && bool_value(runtime.direct_server_route);
     let sniff_inbounds = tproxy_inbounds();
     push(sniff_inbounds, runtime_constants.DNS_INBOUND_TAG, runtime_constants.SOURCE_DNS_INBOUND_TAG, runtime_constants.SYSTEM_DNS_INBOUND_TAG);
     let result = {
@@ -37,7 +33,6 @@ function config(settings, runtime) {
         ],
         rule_set: [],
         final: runtime_constants.DIRECT_OUTBOUND_TAG,
-        auto_detect_interface: output_network_interface == "" && !mwan3_active && !direct_server_route,
         default_domain_resolver: type(runtime) == "object" && as_string(runtime.default_domain_resolver) != ""
             ? as_string(runtime.default_domain_resolver)
             : runtime_constants.DNS_SERVER_TAG,

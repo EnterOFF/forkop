@@ -68,8 +68,8 @@ function listen_address(values) {
     return address;
 }
 
-// While mwan3 has an enabled interface and runs or will start, it owns egress routing and
-// sing-box leaves the interface choice to it.
+// While mwan3 has an enabled interface and runs or will start, it owns egress routing, which a
+// pinned output interface bypasses.
 function mwan3_active() {
     if (((fs.stat("/etc/init.d/mwan3")?.mode ?? 0) & 0111) == 0 || (fs.stat("/etc/config/mwan3")?.size ?? 0) == 0)
         return false;
@@ -108,9 +108,8 @@ function write_config(checked) {
     if (!common.ensure_dir(cache_dir))
         die("Failed to create " + cache_dir + " for the sing-box cache file");
 
-    let mwan3 = mwan3_active();
     let output_interface = common.option(values, "output_network_interface", "");
-    if (mwan3 && output_interface != "")
+    if (output_interface != "" && mwan3_active())
         exec.log("warn", "mwan3 is active, but the output interface is set to '" + output_interface + "': sing-box sends its traffic out of it, past mwan3");
 
     let address = listen_address(values);
@@ -119,7 +118,7 @@ function write_config(checked) {
 
     let text;
     try {
-        text = sprintf("%J\n", generator.build({ service_address: address, mwan3_active: mwan3 }));
+        text = sprintf("%J\n", generator.build({ service_address: address }));
     }
     catch (e) {
         die("Failed to generate the sing-box configuration: " + e.message);
