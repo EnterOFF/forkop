@@ -7,7 +7,8 @@
 #
 # Options: --variant base|full|tiny, the core's build (the installed one, or base, by default),
 # with no value asked for at the terminal; --uninstall [--purge], with --purge the settings too;
-# --lang ru|en, ru by default.
+# --quiet, the package manager's output in the log alone, as the page has it; --lang ru|en, ru
+# by default.
 # Exit codes: 0 done or nothing to do, 1 failed before anything changed, 2 bad options, 3 failed
 # after changes began, 4 installed but Forkop did not start.
 # Colors follow whether stdout is a terminal, questions whether /dev/tty opens: a page that runs it
@@ -48,7 +49,7 @@ APK_OFFLINE="--no-network --repositories-file /dev/null"
 # The defaults a package manager leaves beside a config it keeps.
 CONFFILE_COPIES="/etc/config/forkop-opkg /etc/config/forkop.apk-new /etc/config/sing-box-opkg /etc/config/sing-box.apk-new /etc/sing-box/config.json-opkg /etc/sing-box/config.json.apk-new"
 
-MODE=install VARIANT='' ASK_VARIANT=0 PURGE=0 LANG_OPT='' BAD_ARG=''
+MODE=install VARIANT='' ASK_VARIANT=0 PURGE=0 QUIET=0 LANG_OPT='' BAD_ARG=''
 RU=0 INTERACTIVE=0 ASKED=0 PROMPTING=0 ANSWER='' C_STEP='' C_OK='' C_WARN='' C_ERR='' C_BOLD='' C_OFF=''
 WORK='' LOCKED=0
 PM='' PM_DB='' EXT='' ARCH='' RELEASE='' FLASH_MOUNT=/ FLASH_FS=''
@@ -155,7 +156,7 @@ usage_error() {
 	*) message=$(t 'Unknown option: %s' 'Неизвестный параметр: %s' "${BAD_ARG#unknown:}") ;;
 	esac
 	say '[x]' "$C_ERR" "$message" >&2
-	detail "$(t 'Options: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en' 'Параметры: --variant [base|full|tiny], --uninstall [--purge], --lang ru|en')" >&2
+	detail "$(t 'Options: --variant [base|full|tiny], --uninstall [--purge], --quiet, --lang ru|en' 'Параметры: --variant [base|full|tiny], --uninstall [--purge], --quiet, --lang ru|en')" >&2
 	exit 2
 }
 
@@ -304,9 +305,8 @@ deadline() { # deadline SECONDS COMMAND...: the command's status, 124 once it ra
 	wait "$pid"
 }
 
-run() { # run COMMAND...: its output into the log
-	log "\$ $*"
-	"$@" >>"$LOG" 2>&1
+run() { # run COMMAND...: as perform, for a command whose output nothing reads
+	perform "$WORK/run.out" "$@"
 }
 
 # apk and opkg set their own SIGINT handler: in a session of their own Ctrl+C and hangups miss them
@@ -321,6 +321,26 @@ capture() { # capture FILE COMMAND...: its output into FILE and the log
 	log "\$ $*"
 	"$@" >"$file" 2>&1
 	status=$?
+	cat "$file" >>"$LOG" 2>/dev/null
+	return "$status"
+}
+
+# A lost terminal fails only the echo: the pipe is drained, so the package manager never stalls.
+perform() { # perform FILE COMMAND...: as capture, and on the terminal
+	local file="$1" status line
+	shift
+	if [ "$QUIET" = 1 ]; then
+		capture "$file" "$@"
+		return
+	fi
+	log "\$ $*"
+	: >"$file"
+	{ "$@" 2>&1; echo "$?" >"$file.status"; } | while IFS= read -r line || [ -n "$line" ]; do
+		printf '%s\n' "$line" >>"$file"
+		printf '%s\n' "$line" 2>/dev/null
+	done
+	read -r status <"$file.status" 2>/dev/null || status=1
+	rm -f "$file.status"
 	cat "$file" >>"$LOG" 2>/dev/null
 	return "$status"
 }
@@ -1390,7 +1410,7 @@ drop_dependencies() {
 		while IFS= read -r depends; do dep_names "$depends"; done | sort -u))
 	[ -n "$names" ] || return 0
 	# shellcheck disable=SC2086
-	capture "$WORK/autoremove" detached opkg remove --autoremove $names || log "opkg did not remove all of $names"
+	perform "$WORK/autoremove" detached opkg remove --autoremove $names || log "opkg did not remove all of $names"
 }
 
 # a package opkg installs by name is the person's: the dependencies count as pulled in, like apk's
@@ -1419,7 +1439,7 @@ transaction() {
 		for name in $(apk_constraints); do set -- "$@" "$name"; done
 		# the dependencies are in: the feed indexes would take RAM and the network while Forkop is down
 		# shellcheck disable=SC2086
-		capture "$out" detached apk add --allow-untrusted $APK_OFFLINE "$@" || status=$?
+		perform "$out" detached apk add --allow-untrusted $APK_OFFLINE "$@" || status=$?
 		# shellcheck disable=SC2046
 		world_drop $(apk_constraints)
 	else
@@ -1428,14 +1448,14 @@ transaction() {
 			order=$(removal_order "$REMOVE_PKGS")
 			# what still needs a foreign core's sing-box gets it from sing-box-forkop within this run
 			# shellcheck disable=SC2086
-			capture "$out.remove" detached opkg --force-depends remove $order || status=$?
+			perform "$out.remove" detached opkg --force-depends remove $order || status=$?
 		fi
 		if [ "$status" = 0 ] && [ "$CORE_REINSTALL" = 1 ] && [ -n "$FILE_CORE" ]; then
-			capture "$out.core" detached opkg install --force-reinstall --force-overwrite --force-space "$FILE_CORE" || status=$?
+			perform "$out.core" detached opkg install --force-reinstall --force-overwrite --force-space "$FILE_CORE" || status=$?
 			shift
 		fi
 		# shellcheck disable=SC2086
-		[ "$status" != 0 ] || [ "$#" = 0 ] || capture "$out" detached opkg install --force-overwrite --force-space $OPKG_FLAGS "$@" || status=$?
+		[ "$status" != 0 ] || [ "$#" = 0 ] || perform "$out" detached opkg install --force-overwrite --force-space $OPKG_FLAGS "$@" || status=$?
 		[ "$status" != 0 ] || drop_dependencies
 	fi
 	refresh_db
@@ -1637,9 +1657,9 @@ uninstall() {
 	cp "$WORK/db" "$WORK/db.before"
 	# shellcheck disable=SC2086
 	if [ "$PM" = apk ]; then
-		capture "$out" detached apk del $APK_OFFLINE $packages
+		perform "$out" detached apk del $APK_OFFLINE $packages
 	else
-		capture "$out" detached opkg remove $packages && drop_dependencies
+		perform "$out" detached opkg remove $packages && drop_dependencies
 	fi
 	# opkg leaves the directories it emptied
 	find /usr/lib/forkop /usr/share/forkop /usr/share/sing-box-forkop /www/luci-static/resources/view/forkop -type d 2>/dev/null |
@@ -1686,6 +1706,7 @@ parse_args() { # BAD_ARG names the first mistake, reported once the language is 
 		--lang=*) LANG_OPT=${1#*=} ;;
 		--uninstall) MODE=uninstall ;;
 		--purge) PURGE=1 ;;
+		--quiet) QUIET=1 ;;
 		*) BAD_ARG="unknown:$1" && return ;;
 		esac
 		shift
