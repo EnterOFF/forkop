@@ -68,6 +68,7 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
         [ "GET", "/tailscale", "" ],
         [ "GET", "/proxies/proxy-out/delay?url=https%3A%2F%2Flatency.example%2Fgenerate_204&timeout=5000", "" ],
         [ "GET", "/proxies/main-out/exit?timeout=8000", "" ],
+        [ "GET", "/tailscale/home%2Ftailnet/ping?address=fd7a%3A115c%3Aa1e0%3A%3A2&timeout=5000", "" ],
         [ "PUT", "/proxies/main-out", "{\"name\":\"main-1-out\"}" ],
         [ "PUT", "/proxies/fallback-out", "{\"name\":\"\"}" ],
         [ "PUT", "/providers/rules", "" ],
@@ -81,12 +82,14 @@ t.test("the pages' own requests pass, with their methods and bodies", () => {
     t.eq(map(requests, (request) => request.line), [
         "GET /providers/proxies HTTP/1.0", "GET /tailscale HTTP/1.0",
         "GET /proxies/proxy-out/delay?url=https%3A%2F%2Flatency.example%2Fgenerate_204&timeout=5000 HTTP/1.0",
-        "GET /proxies/main-out/exit?timeout=8000 HTTP/1.0", "PUT /proxies/main-out HTTP/1.0", "PUT /proxies/fallback-out HTTP/1.0",
+        "GET /proxies/main-out/exit?timeout=8000 HTTP/1.0",
+        "GET /tailscale/home%2Ftailnet/ping?address=fd7a%3A115c%3Aa1e0%3A%3A2&timeout=5000 HTTP/1.0",
+        "PUT /proxies/main-out HTTP/1.0", "PUT /proxies/fallback-out HTTP/1.0",
         "PUT /providers/rules HTTP/1.0", "PUT /providers/proxies/main%2Fsub1 HTTP/1.0", "DELETE /connections/abc-123 HTTP/1.0"
     ]);
-    t.eq([ requests[4].body, requests[4].headers["content-type"], requests[4].headers["content-length"] ],
+    t.eq([ requests[5].body, requests[5].headers["content-type"], requests[5].headers["content-length"] ],
         [ "{\"name\":\"main-1-out\"}", "application/json", "21" ]);
-    t.eq([ requests[6].body, requests[6].headers["content-length"] ], [ "", null ], "a request without a body sends none");
+    t.eq([ requests[7].body, requests[7].headers["content-length"] ], [ "", null ], "a request without a body sends none");
 });
 
 t.test("the reply is handed back as the controller sent it, its status and its body", () => {
@@ -146,6 +149,9 @@ t.test("anything else is refused before it reaches the controller", () => {
         [ "GET", "/proxies/main-out/delay?url=x&timeout=abc", "" ], [ "DELETE", "/connections", "{\"all\":true}" ],
         [ "GET", "/proxies/main-out/exit", "" ], [ "GET", "/proxies/main-out/exit?timeout=5000&url=https%3A%2F%2Fexample.com", "" ],
         [ "GET", "/group/main/exit?timeout=5000", "" ], [ "GET", "/tailscale?tag=x", "" ], [ "PUT", "/tailscale", "" ],
+        [ "GET", "/tailscale/tailnet/ping?address=100.64.0.2", "" ], [ "GET", "/tailscale/tailnet/ping?address=phone&timeout=5000", "" ],
+        [ "GET", "/tailscale/tailnet/ping?address=100.64.0.2&timeout=5000&size=1200", "" ],
+        [ "PUT", "/tailscale/tailnet/ping?address=100.64.0.2&timeout=5000", "" ],
         [ "PUT", "/providers/rules", "{\"name\":\"geosite\"}" ], [ "PUT", "/providers/rules/geosite", "" ],
         [ "GET", "/proxies HTTP/1.0\r\nX-Injected: 1", "" ] ]) {
         let result = call([ "clash_api", ...request ]);
@@ -178,6 +184,7 @@ t.test("read deadlines are short while probes through an outbound and updates re
         [ "GET", "/connections", 5 ],
         [ "GET", "/group/main/delay?url=https%3A%2F%2Fexample.com&timeout=40000", 50 ],
         [ "GET", "/proxies/main-out/exit?timeout=8000", 18 ],
+        [ "GET", "/tailscale/home%2Ftailnet/ping?address=100.64.0.2&timeout=5000", 15 ],
         [ "PUT", "/providers/rules", 60 ]
     ])
         t.eq(clash.budget(pair[0], pair[1]), pair[2], pair[0] + " " + pair[1]);

@@ -406,6 +406,22 @@ export function getClashApiTailscale() {
   );
 }
 
+const TAILSCALE_PING_TIMEOUT_MS = '5000';
+
+export function pingClashApiTailscalePeer(tag: string, address: string) {
+  const params = new URLSearchParams({
+    address,
+    timeout: TAILSCALE_PING_TIMEOUT_MS,
+  });
+
+  return requestClashApi<ClashAPI.TailscalePong>(
+    `/tailscale/${encodeURIComponent(tag)}/ping?${params}`,
+    undefined,
+    latencyRequestTimeout(TAILSCALE_PING_TIMEOUT_MS),
+    { keepsRunningAfterTimeout: true },
+  );
+}
+
 export function getClashApiProxyProviders() {
   return requestClashApi<ClashAPI.ProxyProviders>(
     '/providers/proxies',

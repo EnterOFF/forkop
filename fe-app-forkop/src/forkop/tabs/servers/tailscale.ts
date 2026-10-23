@@ -1,5 +1,10 @@
 import { E } from '../../../helpers/element';
 import { pageLanguage, relativeTime } from '../../../helpers/relativeTime';
+import {
+  renderLoaderCircleIcon24,
+  renderRotateCcwIcon24,
+} from '../../../icons';
+import { latencyClassName } from '../../helpers/latencyClassName';
 import { CustomForkopMethods } from '../../methods';
 import { ClashAPI } from '../../types';
 import {
@@ -19,6 +24,18 @@ type Tone = 'ok' | 'warn' | 'error' | 'muted';
 type EndpointLoad =
   | { endpoint: ClashAPI.TailscaleEndpoint }
   | { endpoint?: undefined; error?: string };
+
+interface PeerPing {
+  pending: boolean;
+  pong?: ClashAPI.TailscalePong;
+  error?: string;
+}
+
+// The last ping of each device by the address it was pinged at, kept across the refreshes.
+interface PeerPings {
+  results: Map<string, PeerPing>;
+  ping: (address: string) => void;
+}
 
 function injectStyles() {
   injectDetailsStyles();
@@ -52,7 +69,16 @@ function injectStyles() {
         '.fkp-ts__device-name{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;flex:1 1 auto;min-inline-size:0}',
         '.fkp-ts__device-name b{overflow-wrap:anywhere}',
         '.fkp-ts__device-name > svg{flex:none;inline-size:14px;block-size:14px;color:var(--text-color-medium,#888)}',
+        '.fkp-ts__dot{flex:none;inline-size:8px;block-size:8px;border-radius:50%;background:var(--success-color-medium,green)}',
+        '.fkp-ts__who{display:inline-flex;align-items:center;gap:6px}',
+        '.fkp-ts__who > svg{flex:none;inline-size:14px;block-size:14px;color:var(--text-color-medium,#888)}',
         '.fkp-ts__device-meta{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;flex:0 1 auto;margin-left:auto}',
+        '.fkp-ts__chip{padding:0 6px;border:1px solid currentColor;border-radius:4px;font-size:12px;line-height:18px;color:var(--text-color-medium,#888)}',
+        '.fkp-ts__chip--active{color:var(--success-color-medium,green)}',
+        // The dashboard's latency button, coloured by its classes: the theme draws .btn as a framed button.
+        '.btn.fkp-ts__ping{display:inline-flex;align-items:center;gap:4px;margin:0 !important;padding:0 !important;border:none !important;background:transparent !important;box-shadow:none !important;font:inherit;line-height:inherit}',
+        '.btn.fkp-ts__ping:hover,.btn.fkp-ts__ping:focus-visible{opacity:.7}',
+        '.fkp-ts__ping svg{flex:none;inline-size:14px;block-size:14px}',
       ].join('\n'),
     ),
   );
@@ -120,6 +146,36 @@ function approval(approved: boolean) {
       );
 }
 
+function onlineDot() {
+  return E('span', {
+    class: 'fkp-ts__dot',
+    title: _('Online now'),
+    'aria-label': _('Online now'),
+  });
+}
+
+// A device of the tailnet as its row in the list starts.
+function renderDevice(name: string, isOnline = false) {
+  return E('span', { class: 'fkp-ts__who' }, [
+    iconSvg('user'),
+    name,
+    ...(isOnline ? [onlineDot()] : []),
+  ]);
+}
+
+function renderExitNodeInUse(endpoint: ClashAPI.TailscaleEndpoint) {
+  const exitNode = endpoint.peers.find((peer) => peer.exitNode);
+  if (exitNode) {
+    return [
+      renderDevice(exitNode.name, exitNode.online),
+      ...(exitNode.online ? [] : [text('error', _('Offline'))]),
+    ];
+  }
+  return endpoint.exitNode
+    ? [renderDevice(endpoint.exitNode), text('warn', _('Not in use'))]
+    : [text('warn', _('Not set'))];
+}
+
 function renderKeyExpiry(keyExpiry?: number) {
   if (!keyExpiry) {
     return text('muted', _('Does not expire'));
@@ -129,9 +185,9 @@ function renderKeyExpiry(keyExpiry?: number) {
     : E('span', {}, _('Expires %s').format(formatDate(keyExpiry)));
 }
 
-// Each address copies itself when clicked.
-function renderAddresses(addresses: string[]) {
-  return addresses.flatMap((address, index) => [
+// Each value copies itself when clicked.
+function renderCopyable(values: string[]) {
+  return values.flatMap((value, index) => [
     ...(index ? [text('muted', '·')] : []),
     E(
       'a',
@@ -141,10 +197,10 @@ function renderAddresses(addresses: string[]) {
         title: _('Copy'),
         click: (ev: Event) => {
           ev.preventDefault();
-          copyWithToast(address);
+          copyWithToast(value);
         },
       },
-      address,
+      value,
     ),
   ]);
 }
@@ -158,16 +214,23 @@ function renderParams(endpoint: ClashAPI.TailscaleEndpoint) {
   const params = [param(_('Status'), renderStatus(endpoint))];
 
   if (endpoint.name) {
-    params.push(param(_('Name in the console'), [endpoint.name]));
+    params.push(param(_('Name in the console'), [renderDevice(endpoint.name)]));
   }
   if (endpoint.addresses.length) {
-    params.push(param(_('Addresses'), renderAddresses(endpoint.addresses)));
+    params.push(param(_('Addresses'), renderCopyable(endpoint.addresses)));
   }
   if (endpoint.tailnet) {
-    params.push(param(_('Tailnet'), [endpoint.tailnet]));
+    params.push(param(_('Tailnet'), renderCopyable([endpoint.tailnet])));
   }
-  if (endpoint.advertisesExitNode && running) {
-    params.push(param(_('Exit node'), [approval(endpoint.exitNodeApproved)]));
+  if (running) {
+    params.push(
+      param(
+        _('Exit node'),
+        endpoint.advertisesExitNode
+          ? [approval(endpoint.exitNodeApproved)]
+          : renderExitNodeInUse(endpoint),
+      ),
+    );
   }
   if (endpoint.routes.length) {
     params.push(
@@ -200,42 +263,97 @@ function renderParams(endpoint: ClashAPI.TailscaleEndpoint) {
   return E('dl', { class: 'fkp-ts__params' }, params);
 }
 
-function renderPeerMeta(peer: ClashAPI.TailscalePeer) {
-  if (!peer.online) {
-    return [
-      text(
-        'muted',
-        peer.lastSeen
-          ? _('Offline, seen %s').format(relativeTime(peer.lastSeen))
-          : _('Offline'),
-      ),
-    ];
-  }
-  return [text('ok', _('Online now'))];
+function formatLatency(latency: number) {
+  return latency < 1 ? '<1ms' : `${Math.round(latency)}ms`;
 }
 
-function renderPeer(peer: ClashAPI.TailscalePeer, showUser: boolean) {
+// The dashboard's latency button: the last answer, N/A before one and after a failure.
+function renderPing(address: string, pings: PeerPings) {
+  const result = pings.results.get(address);
+  const pending = Boolean(result?.pending);
+  return E(
+    'button',
+    {
+      type: 'button',
+      class: `btn fkp-ts__ping ${latencyClassName(result?.pong?.latency ?? 0)}`,
+      title: result?.error || _('Ping the device'),
+      'aria-label': _('Ping the device'),
+      'aria-busy': pending ? 'true' : undefined,
+      disabled: pending ? true : undefined,
+      click: () => pings.ping(address),
+    },
+    [
+      pending ? renderLoaderCircleIcon24() : renderRotateCcwIcon24(),
+      E(
+        'span',
+        {},
+        result?.pong ? formatLatency(result.pong.latency) : _('N/A'),
+      ),
+    ],
+  );
+}
+
+// How long ago, as the dashboard ages a subscription, and the moment on hover.
+function renderLastSeen(lastSeen: number) {
+  return text(
+    'muted',
+    relativeTime(lastSeen, 'short'),
+    _('Last online %s').format(
+      new Date(lastSeen * 1000).toLocaleString(pageLanguage(), {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }),
+    ),
+  );
+}
+
+function renderPeerMeta(peer: ClashAPI.TailscalePeer, pings: PeerPings) {
+  if (!peer.online) {
+    return [
+      peer.lastSeen
+        ? renderLastSeen(peer.lastSeen)
+        : text('muted', _('Offline')),
+    ];
+  }
+  return peer.addresses[0] ? [renderPing(peer.addresses[0], pings)] : [];
+}
+
+function renderPeer(peer: ClashAPI.TailscalePeer, pings: PeerPings) {
   return E('div', { class: 'fkp-ts__device', title: peer.dnsName || '' }, [
     E('div', { class: 'fkp-ts__device-name' }, [
       iconSvg('user'),
       E('b', {}, peer.name),
+      ...(peer.online ? [onlineDot()] : []),
       ...(peer.addresses[0] ? [text('muted', peer.addresses[0])] : []),
-      ...(showUser && peer.user ? [text('muted', peer.user)] : []),
+      ...(peer.exitNodeOption || peer.exitNode
+        ? [
+            E(
+              'span',
+              {
+                class: peer.exitNode
+                  ? 'fkp-ts__chip fkp-ts__chip--active'
+                  : 'fkp-ts__chip',
+              },
+              _('Exit node'),
+            ),
+          ]
+        : []),
+      ...(peer.subnets?.length
+        ? [text('muted', peer.subnets.join(', '), _('Subnets'))]
+        : []),
     ]),
-    E('div', { class: 'fkp-ts__device-meta' }, renderPeerMeta(peer)),
+    E('div', { class: 'fkp-ts__device-meta' }, renderPeerMeta(peer, pings)),
   ]);
 }
 
-function renderPeers(peers: ClashAPI.TailscalePeer[]) {
-  const showUser = new Set(peers.map((peer) => peer.user)).size > 1;
-
+function renderPeers(peers: ClashAPI.TailscalePeer[], pings: PeerPings) {
   return E('div', {}, [
     E('div', { class: 'fkp-ts__devices-title' }, _('Devices')),
     peers.length
       ? E(
           'div',
           { class: 'fkp-ts__devices' },
-          peers.map((peer) => renderPeer(peer, showUser)),
+          peers.map((peer) => renderPeer(peer, pings)),
         )
       : E(
           'div',
@@ -245,35 +363,31 @@ function renderPeers(peers: ClashAPI.TailscalePeer[]) {
   ]);
 }
 
-function renderUnavailable(sectionId: string, load: EndpointLoad) {
-  let message: string;
-  if (load.endpoint === undefined && load.error) {
-    message = _('Failed to get the Tailscale state: %s').format(load.error);
-  } else if (option(sectionId, 'enabled') === '0') {
-    message = _('The server is disabled.');
-  } else {
-    message = _(
-      'The server is not running yet. Apply the settings, or start Forkop.',
-    );
-  }
-  return E('div', { class: 'fkp-details__empty' }, message);
-}
-
-export function renderTailscaleContent(sectionId: string, load: EndpointLoad) {
+export function renderTailscaleContent(
+  load: EndpointLoad,
+  notRunning: string,
+  pings: PeerPings,
+) {
   if (!load.endpoint) {
-    return [renderUnavailable(sectionId, load)];
+    return [
+      E(
+        'div',
+        { class: 'fkp-details__empty' },
+        load.error
+          ? _('Failed to get the Tailscale state: %s').format(load.error)
+          : notRunning,
+      ),
+    ];
   }
   return [
     renderParams(load.endpoint),
     ...(load.endpoint.state === 'Running'
-      ? [renderPeers(load.endpoint.peers)]
+      ? [renderPeers(load.endpoint.peers, pings)]
       : []),
   ];
 }
 
-export async function loadTailscaleEndpoint(
-  tag: string,
-): Promise<EndpointLoad> {
+async function loadTailscaleEndpoint(tag: string): Promise<EndpointLoad> {
   const response = await CustomForkopMethods.getClashApiTailscale();
   if (!response.success) {
     return { error: response.error };
@@ -282,27 +396,81 @@ export async function loadTailscaleEndpoint(
   return endpoint ? { endpoint } : {};
 }
 
-// Refreshed while the dialog stays open: a device coming online, an approval in the console.
-export function showTailscaleDetailsModal(sectionId: string) {
+async function pingPeer(tag: string, address: string): Promise<PeerPing> {
+  const response = await CustomForkopMethods.pingClashApiTailscalePeer(
+    tag,
+    address,
+  );
+  if (response.success) {
+    return { pending: false, pong: response.data };
+  }
+  return {
+    pending: false,
+    error: response.status === 504 ? _('no answer') : response.error,
+  };
+}
+
+// Refreshed while the dialog shows: a device coming online, an approval in the console. LuCI
+// hides a closed dialog without removing it, so the overlay tells whether it still shows.
+export function showTailscaleDetailsModal(
+  title: string,
+  tag: string,
+  notRunning: string,
+) {
   injectStyles();
-  const tag = getServerName(sectionId);
   const content = E('div', { class: 'fkp-details' }, [
     E('em', { class: 'spinning' }, _('Loading…')),
   ]);
-  ui.showModal(_('Server details: %s').format(tag), [
-    content,
-    renderCloseRow(),
-  ]);
+  ui.showModal(title, [content, renderCloseRow()]);
+
+  const shows = () =>
+    content.isConnected &&
+    document.body.classList.contains('modal-overlay-active');
+  let load: EndpointLoad | undefined;
+  const pings: PeerPings = {
+    results: new Map(),
+    ping: (address) => {
+      pings.results.set(address, {
+        ...pings.results.get(address),
+        pending: true,
+      });
+      render();
+      void pingPeer(tag, address).then((result) => {
+        pings.results.set(address, result);
+        render();
+      });
+    },
+  };
+  const render = () => {
+    if (load && shows()) {
+      dom.content(content, renderTailscaleContent(load, notRunning, pings));
+    }
+  };
 
   let timer = 0;
-  const refresh = () =>
-    loadTailscaleEndpoint(tag).then((load) => {
-      if (!document.body.contains(content)) {
-        window.clearInterval(timer);
-        return;
-      }
-      dom.content(content, renderTailscaleContent(sectionId, load));
+  const refresh = () => {
+    if (!shows()) {
+      window.clearInterval(timer);
+      return;
+    }
+    void loadTailscaleEndpoint(tag).then((next) => {
+      load = next;
+      render();
     });
-  void refresh();
+  };
+  refresh();
   timer = window.setInterval(refresh, REFRESH_INTERVAL_MS);
+}
+
+export function showTailscaleServerDetailsModal(sectionId: string) {
+  const tag = getServerName(sectionId);
+  showTailscaleDetailsModal(
+    _('Server details: %s').format(tag),
+    tag,
+    option(sectionId, 'enabled') === '0'
+      ? _('The server is disabled.')
+      : _(
+          'The server is not running yet. Apply the settings, or start Forkop.',
+        ),
+  );
 }

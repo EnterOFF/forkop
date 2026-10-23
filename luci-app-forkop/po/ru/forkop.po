@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-23 19:27+0300\n"
-"PO-Revision-Date: 2026-10-23 19:27+0300\n"
+"POT-Creation-Date: 2026-10-23 20:30+0300\n"
+"PO-Revision-Date: 2026-10-23 20:30+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -1358,6 +1358,9 @@ msgstr "key без cert"
 msgid "LAN subnets that tailnet devices can reach"
 msgstr "LAN-подсети, доступные устройствам сети"
 
+msgid "Last online %s"
+msgstr "Последний раз в сети %s"
+
 msgid "Latency difference"
 msgstr "Разница задержки"
 
@@ -1655,6 +1658,9 @@ msgstr "Не проверено: Clash API не ответил"
 msgid "not in the running configuration"
 msgstr "нет в рабочей конфигурации"
 
+msgid "Not in use"
+msgstr "Не используется"
+
 msgid "Not installed"
 msgstr "Не установлено"
 
@@ -1666,6 +1672,9 @@ msgstr "Не запущено"
 
 msgid "not running: %s"
 msgstr "не запущен: %s"
+
+msgid "Not set"
+msgstr "Не задан"
 
 msgid "not started"
 msgstr "не запущен"
@@ -1693,9 +1702,6 @@ msgstr "Выключено"
 
 msgid "Offline"
 msgstr "Не в сети"
-
-msgid "Offline, seen %s"
-msgstr "Не в сети, был %s"
 
 msgid "OIDC access token"
 msgstr "Токен доступа OIDC"
@@ -1846,6 +1852,9 @@ msgstr "ping в профиле"
 
 msgid "Ping interval, seconds"
 msgstr "Интервал ping, секунд"
+
+msgid "Ping the device"
+msgstr "Пинговать устройство"
 
 msgid "PKCS#12 is not supported: export the certificate and the key as PEM"
 msgstr "PKCS#12 не поддерживается: экспортируйте сертификат и ключ в PEM"
@@ -2351,6 +2360,9 @@ msgstr "Остановка..."
 msgid "Straight from the router, without a proxy or tunnel"
 msgstr "Прямо с роутера, без прокси и туннелей"
 
+msgid "Subnets"
+msgstr "Подсети"
+
 msgid "Subscription"
 msgstr "Подписка"
 
@@ -2391,7 +2403,10 @@ msgid "System information"
 msgstr "Системная информация"
 
 msgid "Tailnet"
-msgstr "Сеть Tailscale"
+msgstr "Сеть"
+
+msgid "Tailscale details"
+msgstr "Детали Tailscale"
 
 msgid "TAP (layer 2) is not supported, only TUN"
 msgstr "TAP (уровень 2) не поддерживается, только TUN"
@@ -2518,6 +2533,9 @@ msgstr "Допустимые алгоритмы подписи и размеры
 
 msgid "The subnets that go through this peer"
 msgstr "Подсети, которые пойдут через этого пира"
+
+msgid "The tunnel is not running yet. Apply the settings, or start Forkop."
+msgstr "Туннель ещё не запущен. Примените настройки или запустите Forkop."
 
 msgid "The username goes in its own field"
 msgstr "Имя пользователя — в отдельном поле"

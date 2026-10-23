@@ -1,33 +1,70 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
-vi.mock('../../../methods', () => ({ CustomForkopMethods: {} }));
+const mocks = vi.hoisted(() => ({
+  getClashApiTailscale: vi.fn(),
+  pingClashApiTailscalePeer: vi.fn(),
+  showModal: vi.fn(),
+}));
+vi.mock('../../../methods', () => ({
+  CustomForkopMethods: {
+    getClashApiTailscale: mocks.getClashApiTailscale,
+    pingClashApiTailscalePeer: mocks.pingClashApiTailscalePeer,
+  },
+}));
 vi.mock('../details', () => ({
   iconSvg: () => ({ tag: 'svg', attrs: {}, children: [] }),
   injectDetailsStyles: () => {},
   renderCloseRow: () => ({ tag: 'div', attrs: {}, children: [] }),
   copyWithToast: () => {},
 }));
+vi.mock('../../../../icons', () => ({
+  renderLoaderCircleIcon24: () => ({ tag: 'svg', attrs: {}, children: [] }),
+  renderRotateCcwIcon24: () => ({ tag: 'svg', attrs: {}, children: [] }),
+}));
 
 interface Tree {
   tag: string;
-  attrs: Record<string, string>;
+  attrs: Record<string, unknown>;
   children: unknown;
+  isConnected: boolean;
 }
 
-let render: typeof import('../tailscale').renderTailscaleContent;
+let module: typeof import('../tailscale');
 const options: Record<string, string> = {};
+let overlayShown = true;
 beforeAll(async () => {
   vi.stubGlobal('_', (text: string) => text);
   vi.stubGlobal('E', (tag: string, attrs: unknown, children: unknown) => ({
     tag,
     attrs: attrs || {},
     children,
+    isConnected: true,
   }));
+  vi.stubGlobal('dom', {
+    content: (node: Tree, children: unknown) => {
+      node.children = children;
+    },
+  });
+  vi.stubGlobal('ui', { showModal: mocks.showModal });
   vi.stubGlobal('uci', {
     get: (_config: string, _section: string, name: string) => options[name],
   });
-  vi.stubGlobal('document', { documentElement: { lang: 'en' } });
-  ({ renderTailscaleContent: render } = await import('../tailscale'));
+  vi.stubGlobal('window', globalThis);
+  vi.stubGlobal('document', {
+    documentElement: { lang: 'en' },
+    getElementById: () => ({}),
+    body: { classList: { contains: () => overlayShown } },
+  });
+  module = await import('../tailscale');
 });
 afterAll(() => vi.unstubAllGlobals());
 
@@ -61,11 +98,25 @@ function stateClasses(node: unknown): string[] {
     return [];
   }
   const tree = node as Tree;
-  const own = /fkp-ts--(\w+)/.exec(tree.attrs.class || '');
+  const own = /fkp-ts--(\w+)/.exec(`${tree.attrs.class || ''}`);
   return [
     ...(own ? [`${own[1]}:${texts(tree.children).join('')}`] : []),
     ...stateClasses(tree.children),
   ];
+}
+
+function findAll(node: unknown, className: string): Tree[] {
+  if (Array.isArray(node)) {
+    return node.flatMap((child) => findAll(child, className));
+  }
+  if (!node || typeof node !== 'object') {
+    return [];
+  }
+  const tree = node as Tree;
+  const own = `${tree.attrs.class || ''}`.split(' ').includes(className)
+    ? [tree]
+    : [];
+  return [...own, ...findAll(tree.children, className)];
 }
 
 const endpoint = (fields: object) => ({
@@ -81,18 +132,36 @@ const endpoint = (fields: object) => ({
   ...fields,
 });
 
-describe('the Tailscale server dialog', () => {
+const tunnel = (fields: object) =>
+  endpoint({ tag: 'home/tailnet', advertisesExitNode: false, ...fields });
+
+const peer = (fields: object) => ({
+  name: 'phone',
+  addresses: ['100.64.0.2'],
+  online: true,
+  exitNodeOption: false,
+  exitNode: false,
+  ...fields,
+});
+
+const noPings = () => ({ results: new Map(), ping: () => {} });
+
+function render(load: object, pings = noPings()) {
+  return module.renderTailscaleContent(load, 'not running', pings);
+}
+
+describe('the Tailscale dialog', () => {
   it('tells a live session from one the coordination server lost', () => {
-    expect(stateClasses(render('srv', { endpoint: endpoint({}) }))).toContain(
+    expect(stateClasses(render({ endpoint: endpoint({}) }))).toContain(
       'ok:Online',
     );
     expect(
-      stateClasses(render('srv', { endpoint: endpoint({ connected: false }) })),
+      stateClasses(render({ endpoint: endpoint({ connected: false }) })),
     ).toContain('error:No connection to the coordination server');
   });
 
   it('offers the sign-in link while the device waits for it', () => {
-    const content = render('srv', {
+    const content = render({
       endpoint: endpoint({
         state: 'NeedsLogin',
         authURL: 'https://login.tailscale.com/a/1',
@@ -103,36 +172,63 @@ describe('the Tailscale server dialog', () => {
   });
 
   it('names the device as the tailnet does, its addresses on one line', () => {
-    const lines = texts(
-      render('srv', {
-        endpoint: endpoint({
-          name: 'forkop-3',
-          addresses: ['100.64.0.1', 'fd7a::1'],
-        }),
+    const content = render({
+      endpoint: endpoint({
+        name: 'forkop-3',
+        addresses: ['100.64.0.1', 'fd7a::1'],
+        tailnet: 'hs.example.net',
       }),
-    );
-    expect(lines).toContain('forkop-3');
-    expect(lines).toEqual(expect.arrayContaining(['100.64.0.1', 'fd7a::1']));
+    });
+    expect(findAll(content, 'fkp-ts__who').map(texts)).toEqual([['forkop-3']]);
+    // Each a link that copies it, the name of the tailnet too.
+    expect(findAll(content, 'fkp-ts__address').map(texts)).toEqual([
+      ['100.64.0.1'],
+      ['fd7a::1'],
+      ['hs.example.net'],
+    ]);
   });
 
-  it('says when a device was last online', () => {
-    const peer = { name: 'phone', addresses: [], exitNodeOption: false };
-    const states = (fields: object) =>
-      stateClasses(
-        render('srv', {
-          endpoint: endpoint({ peers: [{ ...peer, ...fields }] }),
-        }),
-      );
-    expect(states({ online: true })).toContain('ok:Online now');
-    expect(states({ online: false })).toContain('muted:Offline');
+  it('marks a device online by its name, and says when one was last online', () => {
+    const content = (fields: object) =>
+      render({ endpoint: endpoint({ peers: [peer(fields)] }) });
+    const online = content({ online: true });
     expect(
-      states({ online: false, lastSeen: Date.now() / 1000 - 7200 }),
-    ).toContain('muted:Offline, seen 2 hours ago');
+      findAll(online, 'fkp-ts__dot').map((dot) => dot.attrs.title),
+    ).toEqual(['Online now']);
+    expect(texts(findAll(online, 'fkp-ts__device-meta'))).toEqual(['N/A']);
+    expect(findAll(content({ online: false }), 'fkp-ts__dot')).toEqual([]);
+    expect(stateClasses(content({ online: false }))).toContain('muted:Offline');
+
+    const lastSeen = Math.round(Date.now() / 1000 - 7200);
+    const [age] = findAll(
+      findAll(content({ online: false, lastSeen }), 'fkp-ts__device-meta'),
+      'fkp-ts--muted',
+    );
+    expect(texts(age)).toEqual(['2 hr. ago']);
+    expect(age.attrs.title).toBe(
+      `Last online ${new Date(lastSeen * 1000).toLocaleString('en', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      })}`,
+    );
+  });
+
+  it('names no owner of a device, however many the tailnet has', () => {
+    const content = render({
+      endpoint: endpoint({
+        peers: [
+          { ...peer({ name: 'phone' }), user: 'rem' },
+          { ...peer({ name: 'tv' }), user: 'ultra' },
+        ],
+      }),
+    });
+    expect(texts(content)).not.toEqual(expect.arrayContaining(['rem']));
+    expect(texts(content)).not.toEqual(expect.arrayContaining(['ultra']));
   });
 
   it('marks the exit node and each route by their approval', () => {
     const states = stateClasses(
-      render('srv', {
+      render({
         endpoint: endpoint({
           exitNodeApproved: false,
           routes: [
@@ -151,15 +247,202 @@ describe('the Tailscale server dialog', () => {
     ]);
   });
 
-  it('explains a server the core does not run', () => {
-    expect(texts(render('srv', {}))).toEqual([
-      'The server is not running yet. Apply the settings, or start Forkop.',
+  it('names the exit node a tunnel uses, or the one it waits for', () => {
+    const exitNode = (fields: object) => {
+      const params = render({ endpoint: tunnel(fields) })[0] as unknown as Tree;
+      const row = (params.children as Tree[]).find(
+        (item) => texts(item)[0] === 'Exit node',
+      );
+      // What the row says, then how many devices it names and how many of them are online.
+      return [
+        texts(row).slice(1).join(' '),
+        findAll(row, 'fkp-ts__who').length,
+        findAll(row, 'fkp-ts__dot').length,
+      ];
+    };
+    expect(
+      exitNode({
+        exitNode: 'router',
+        peers: [peer({ name: 'router', exitNode: true })],
+      }),
+    ).toEqual(['router', 1, 1]);
+    expect(
+      exitNode({
+        peers: [peer({ name: 'router', exitNode: true, online: false })],
+      }),
+    ).toEqual(['router Offline', 1, 0]);
+    expect(exitNode({ exitNode: 'router', peers: [peer({})] })).toEqual([
+      'router Not in use',
+      1,
+      0,
     ]);
-    options.enabled = '0';
-    expect(texts(render('srv', {}))).toEqual(['The server is disabled.']);
-    delete options.enabled;
-    expect(texts(render('srv', { error: 'timeout' }))).toEqual([
+    expect(exitNode({})).toEqual(['Not set', 0, 0]);
+    expect(stateClasses(render({ endpoint: tunnel({}) }))).toContain(
+      'warn:Not set',
+    );
+  });
+
+  it('marks the devices that can be an exit node and the subnets each shares', () => {
+    const content = render({
+      endpoint: tunnel({
+        peers: [
+          peer({ name: 'router', exitNodeOption: true, exitNode: true }),
+          peer({ name: 'nas', subnets: ['192.168.10.0/24', 'fd00:10::/64'] }),
+        ],
+      }),
+    });
+    const [router, nas] = findAll(content, 'fkp-ts__device');
+    expect(findAll(router, 'fkp-ts__chip--active').map(texts)).toEqual([
+      ['Exit node'],
+    ]);
+    expect(texts(nas)).toContain('192.168.10.0/24, fd00:10::/64');
+    expect(findAll(nas, 'fkp-ts__chip')).toEqual([]);
+  });
+
+  it('offers a ping to an online device only', () => {
+    const content = render({
+      endpoint: tunnel({
+        peers: [peer({ name: 'phone' }), peer({ name: 'tv', online: false })],
+      }),
+    });
+    const [phone, tv] = findAll(content, 'fkp-ts__device');
+    expect(findAll(phone, 'fkp-ts__ping').map(texts)).toEqual([['N/A']]);
+    expect(findAll(tv, 'fkp-ts__ping')).toEqual([]);
+  });
+
+  it('explains an endpoint the core does not report', () => {
+    expect(texts(render({}))).toEqual(['not running']);
+    expect(texts(render({ error: 'timeout' }))).toEqual([
       'Failed to get the Tailscale state: timeout',
     ]);
+  });
+});
+
+describe('the open Tailscale dialog', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    overlayShown = true;
+    mocks.showModal.mockReset();
+    mocks.getClashApiTailscale.mockReset().mockResolvedValue({
+      success: true,
+      data: { endpoints: [tunnel({ peers: [peer({ name: 'phone' })] })] },
+    });
+    mocks.pingClashApiTailscalePeer.mockReset();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  async function open() {
+    module.showTailscaleDetailsModal(
+      'Tailscale details: tailnet',
+      'home/tailnet',
+      'not running',
+    );
+    await vi.advanceTimersByTimeAsync(0);
+    const [title, children] = mocks.showModal.mock.calls[0];
+    return { title, content: (children as Tree[])[0] };
+  }
+
+  it('pings a device and shows how long the answer took', async () => {
+    const answers: Array<(value: object) => void> = [];
+    mocks.pingClashApiTailscalePeer.mockImplementation(
+      () => new Promise((resolve) => answers.push(resolve)),
+    );
+    const { content } = await open();
+    const button = () => findAll(content, 'fkp-ts__ping')[0];
+
+    (button().attrs.click as () => void)();
+    expect(mocks.pingClashApiTailscalePeer).toHaveBeenCalledWith(
+      'home/tailnet',
+      '100.64.0.2',
+    );
+    expect([button().attrs['aria-busy'], texts(button())]).toEqual([
+      'true',
+      ['N/A'],
+    ]);
+    expect(button().attrs.class).toContain('latency--empty');
+
+    answers[0]({ success: true, data: { latency: 12.4 } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(texts(findAll(content, 'fkp-ts__device-meta'))).toEqual(['12ms']);
+    expect(button().attrs.class).toContain('latency--green');
+
+    // The ping outlives the refresh that redraws the list, and the next one keeps it while it runs.
+    await vi.advanceTimersByTimeAsync(5000);
+    (button().attrs.click as () => void)();
+    expect([button().attrs['aria-busy'], texts(button())]).toEqual([
+      'true',
+      ['12ms'],
+    ]);
+  });
+
+  it('shows N/A for a device that did not answer, and why on hover', async () => {
+    const { content } = await open();
+    const button = () => findAll(content, 'fkp-ts__ping')[0];
+
+    mocks.pingClashApiTailscalePeer.mockResolvedValue({
+      success: false,
+      error: 'Timeout',
+      status: 504,
+    });
+    (button().attrs.click as () => void)();
+    await vi.advanceTimersByTimeAsync(0);
+    expect([button().attrs.title, texts(button())]).toEqual([
+      'no answer',
+      ['N/A'],
+    ]);
+
+    mocks.pingClashApiTailscalePeer.mockResolvedValue({
+      success: false,
+      error: 'no matching peer',
+      status: 503,
+    });
+    (button().attrs.click as () => void)();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(button().attrs.title).toBe('no matching peer');
+
+    mocks.pingClashApiTailscalePeer.mockResolvedValue({
+      success: true,
+      data: { latency: 0.4 },
+    });
+    (button().attrs.click as () => void)();
+    await vi.advanceTimersByTimeAsync(0);
+    expect([button().attrs.title, texts(button())]).toEqual([
+      'Ping the device',
+      ['<1ms'],
+    ]);
+  });
+
+  it('stops asking the core once the dialog is closed', async () => {
+    await open();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(mocks.getClashApiTailscale).toHaveBeenCalledTimes(2);
+
+    overlayShown = false;
+    await vi.advanceTimersByTimeAsync(25000);
+    expect(mocks.getClashApiTailscale).toHaveBeenCalledTimes(2);
+  });
+
+  it('tells a disabled server from one not running yet', async () => {
+    mocks.getClashApiTailscale.mockResolvedValue({
+      success: true,
+      data: { endpoints: [] },
+    });
+    options.label = 'office';
+    options.enabled = '0';
+    module.showTailscaleServerDetailsModal('srv');
+    delete options.enabled;
+    module.showTailscaleServerDetailsModal('srv');
+    delete options.label;
+    await vi.advanceTimersByTimeAsync(0);
+
+    const [disabled, stopped] = mocks.showModal.mock.calls;
+    expect(disabled[0]).toBe('Server details: office');
+    expect(texts((disabled[1] as Tree[])[0])).toEqual([
+      'The server is disabled.',
+    ]);
+    expect(texts((stopped[1] as Tree[])[0])).toEqual([
+      'The server is not running yet. Apply the settings, or start Forkop.',
+    ]);
+    expect(mocks.getClashApiTailscale).toHaveBeenCalledTimes(2);
   });
 });

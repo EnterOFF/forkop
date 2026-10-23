@@ -61,11 +61,14 @@ export namespace ClashAPI {
   export interface TailscalePeer {
     name: string;
     dnsName?: string;
-    user?: string;
     addresses: string[];
+    // What the tailnet reaches through this device, exit routes aside.
+    subnets?: string[];
     online: boolean;
     lastSeen?: number;
     exitNodeOption: boolean;
+    // The device the endpoint sends internet traffic through now.
+    exitNode: boolean;
   }
 
   export interface TailscaleEndpoint {
@@ -78,6 +81,8 @@ export namespace ClashAPI {
     tailnet?: string;
     addresses: string[];
     keyExpiry?: number;
+    // The exit node the endpoint's settings name, a device name or an address.
+    exitNode?: string;
     advertisesExitNode: boolean;
     exitNodeApproved: boolean;
     routes: Array<{ prefix: string; approved: boolean }>;
@@ -87,6 +92,11 @@ export namespace ClashAPI {
 
   export interface Tailscale {
     endpoints: TailscaleEndpoint[];
+  }
+
+  // A disco ping's round trip in milliseconds.
+  export interface TailscalePong {
+    latency: number;
   }
 }
 

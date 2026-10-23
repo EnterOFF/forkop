@@ -61,6 +61,8 @@ function allowed(method, path, body) {
             return false;
         if (target[0] == "proxies" && target[2] == "exit")
             return match(substr(path, query), /^\?timeout=[0-9]+$/) != null;
+        if (target[0] == "tailscale" && target[2] == "ping")
+            return match(substr(path, query), /^\?address=[0-9A-Fa-f.:%]+&timeout=[0-9]+$/) != null;
         return target[2] == "delay" && (target[0] == "proxies" || target[0] == "group") &&
             match(substr(path, query), /^\?url=[^&]+&timeout=[0-9]+$/) != null;
     }
@@ -168,7 +170,7 @@ function exchange(api, method, path, options) {
 
 // How long a request may take: a probe through an outbound runs as long as it asked for.
 function budget(method, path) {
-    let probe = match(path, /\/(delay\?url=[^&]+&|exit\?)timeout=([0-9]+)$/);
+    let probe = match(path, /\/(delay\?url=[^&]+&|exit\?|ping\?address=[^&]+&)timeout=([0-9]+)$/);
     return method != "GET" ? 60 : probe ? min(60, int((int(probe[2]) + 999) / 1000) + 10) : 5;
 }
 

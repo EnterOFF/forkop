@@ -5,7 +5,7 @@ import { listClients, removeServerClients } from './clients';
 import { DEFAULT_PROTOCOL } from './constants';
 import { iconSvg, showServerDetailsModal } from './details';
 import { preloadServerModalData } from './network';
-import { showTailscaleDetailsModal } from './tailscale';
+import { showTailscaleServerDetailsModal } from './tailscale';
 import {
   defaultSecurity,
   getProtocol,
@@ -29,7 +29,7 @@ function renderServerRowActions(sectionRef: CBISection, sectionId: string) {
   const protocol = getProtocol(sectionId);
   const showDetails =
     protocol === 'tailscale'
-      ? () => showTailscaleDetailsModal(sectionId)
+      ? () => showTailscaleServerDetailsModal(sectionId)
       : usesClients(protocol) && (linkScheme(protocol) || usesProfile(protocol))
         ? () => showServerDetailsModal(sectionId, listClients(sectionId))
         : null;
