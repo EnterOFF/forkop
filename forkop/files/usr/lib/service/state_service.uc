@@ -48,11 +48,6 @@ let paths = {
     package_databases: [ "/usr/lib/opkg/status", "/lib/apk/db/installed" ]
 };
 
-function monotonic_ms() {
-    let c = clock(true);
-    return c[0] * 1000 + int(c[1] / 1000000);
-}
-
 function path_signature(path) {
     let stat = fs.stat(path);
     if (stat == null)
@@ -177,7 +172,7 @@ function wake_log_waiters() {
 // The interval is the log's clock and reads on every tick; a request reads only
 // when the last read is older than an interval.
 function poll_log(force) {
-    let now = monotonic_ms();
+    let now = common.monotonic_ms();
     if (!force && now - last_log_poll_ms < LOG_POLL_MS)
         return false;
 
@@ -190,12 +185,12 @@ function poll_log(force) {
 }
 
 function log_interest() {
-    last_log_interest_ms = monotonic_ms();
+    last_log_interest_ms = common.monotonic_ms();
 }
 
 function log_is_watched() {
     return length(filter(waiters, follows_log)) > 0 ||
-        monotonic_ms() - last_log_interest_ms < LOG_INTEREST_MS;
+        common.monotonic_ms() - last_log_interest_ms < LOG_INTEREST_MS;
 }
 
 function package_db_signature() {
@@ -263,7 +258,7 @@ function apply_settled_running(payload) {
         health.sing_box_service_running(),
         prev_running,
         down_since_ms,
-        monotonic_ms(),
+        common.monotonic_ms(),
         DOWN_GRACE_MS
     );
     down_since_ms = settled.down_since_ms;
@@ -297,13 +292,13 @@ function recompute() {
 
     state = { revision: state.revision + 1, payload, text };
     // Every change restarts the settle window.
-    settle_until_ms = monotonic_ms() + SETTLE_MS;
+    settle_until_ms = common.monotonic_ms() + SETTLE_MS;
     wake_waiters();
     return true;
 }
 
 function tick() {
-    let now = monotonic_ms();
+    let now = common.monotonic_ms();
     let signature = watch_signature();
     let due_sweep = now - last_sweep_ms >= SWEEP_INTERVAL_MS;
     // A pending down-flip needs the close cadence too, so the grace expires on a look rather than
@@ -426,7 +421,7 @@ function run() {
         subscriber.subscribe("service");
 
     recompute();
-    last_sweep_ms = monotonic_ms();
+    last_sweep_ms = common.monotonic_ms();
     refresh_system_info();
 
     uloop.interval(WATCH_INTERVAL_MS, function() {

@@ -119,6 +119,11 @@ function now_seconds() {
     return clock()[0];
 }
 
+function monotonic_ms() {
+    let now = clock(true);
+    return now[0] * 1000 + int(now[1] / 1000000);
+}
+
 function strip_internal_fields(value) {
     if (type(value) == "array") {
         for (let i = 0; i < length(value); i++)
@@ -257,6 +262,7 @@ return {
     own_pid,
     pid_alive,
     now_seconds,
+    monotonic_ms,
     strip_internal_fields,
     duration_to_seconds,
     parse_number,
