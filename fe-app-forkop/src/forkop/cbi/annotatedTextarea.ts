@@ -2,6 +2,7 @@ import { addAnnotationIssue, finalizeAnnotations } from './annotations';
 import type { Annotation, AnnotationMap } from './annotations';
 import { escapeHtml } from '../../helpers/escapeHtml';
 import { message } from '../../validators/messages';
+import { validateSavedSize } from '../../validators/validateSavedSize';
 
 const ANNOTATED_TEXTAREA_STYLE_ID = 'fkp-annotated-textarea-styles';
 
@@ -362,12 +363,27 @@ export function configureTextareaOption(
   analyzer?: TextAnalyzer | null,
 ) {
   const originalRenderWidget = option.renderWidget;
+  // Taken at render, where LuCI binds the check to the widget, so a check set after this call counts.
+  let validate = option.validate;
+  const validateWithSize = function (
+    this: CBIOption,
+    section_id: string,
+    value: string,
+  ) {
+    const size = validateSavedSize(value);
+    if (size !== true) return size;
+    return validate ? validate.call(this, section_id, value) : true;
+  };
 
   option.renderWidget = function (
     section_id: string,
     option_index: string,
     cfgvalue: unknown,
   ) {
+    if (this.validate !== validateWithSize) {
+      validate = this.validate;
+      this.validate = validateWithSize;
+    }
     const node = originalRenderWidget.call(
       this,
       section_id,

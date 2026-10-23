@@ -317,6 +317,9 @@ msgstr "Применение..."
 msgid "Approved"
 msgstr "Одобрено"
 
+msgid "At most %d KB, this is %d KB"
+msgstr "Не больше %d КБ, здесь %d КБ"
+
 msgid "At most one IPv4 subnet"
 msgstr "Не больше одной подсети IPv4"
 

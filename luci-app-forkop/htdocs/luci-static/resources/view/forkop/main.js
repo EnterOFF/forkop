@@ -13275,6 +13275,14 @@ function finalizeAnnotations(annotationMap) {
   })).sort((left, right) => left.start - right.start || left.end - right.end);
 }
 
+// src/validators/validateSavedSize.ts
+var MAX_SAVED_KB = 96;
+function validateSavedSize(value) {
+  const bytes = new TextEncoder().encode(JSON.stringify(`${value ?? ""}`));
+  const kilobytes = Math.ceil(bytes.length / 1024);
+  return kilobytes <= MAX_SAVED_KB ? true : _("At most %d KB, this is %d KB").format(MAX_SAVED_KB, kilobytes);
+}
+
 // src/forkop/cbi/annotatedTextarea.ts
 var ANNOTATED_TEXTAREA_STYLE_ID = "fkp-annotated-textarea-styles";
 function ensureAnnotatedTextareaStyles() {
@@ -13540,7 +13548,17 @@ function analyzeTextListValue(value, validateItem, options = {}) {
 }
 function configureTextareaOption(option2, analyzer) {
   const originalRenderWidget = option2.renderWidget;
+  let validate = option2.validate;
+  const validateWithSize = function(section_id, value) {
+    const size = validateSavedSize(value);
+    if (size !== true) return size;
+    return validate ? validate.call(this, section_id, value) : true;
+  };
   option2.renderWidget = function(section_id, option_index, cfgvalue) {
+    if (this.validate !== validateWithSize) {
+      validate = this.validate;
+      this.validate = validateWithSize;
+    }
     const node = originalRenderWidget.call(
       this,
       section_id,
