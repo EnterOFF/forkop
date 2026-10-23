@@ -292,6 +292,23 @@ t.test("lists no release ever applied go with a warning", () => {
     t.contains(out.warnings, "Removed 'remote_domain_lists' from section 'Main': no Forkop release ever applied it; add those lists as rule sets");
 });
 
+t.test("built-in lists 2.0.0 carries go under their new names, the others stay as the files 1.0.5 used", () => {
+    let itdog = "https://github.com/itdoginfo/allow-domains/releases/latest/download/";
+    let out = migrated(released({ section: [
+        { ".name": "main", action: "connection",
+            community_lists: [ "russia_inside", "youtube", "twitter", "meta", "geoblock", "hodca", "ads_hagezi_pro" ],
+            rule_set: [ "https://x.example/a.srs", "google_ai" ], rule_set_with_subnets: [ "hetzner" ] },
+        { ".name": "dns", action: "dns", community_lists: "meta ukraine_inside" }
+    ] }));
+    let section = by_name(out.config.section);
+    t.eq(section.main.community_lists, [ "youtube", "x", "ru_blocked_geo", "ads", "gemini" ]);
+    t.eq(section.main.rule_set, [ "https://x.example/a.srs", itdog + "russia_inside.srs", itdog + "hodca.srs" ]);
+    t.eq(section.main.rule_set_with_subnets, [ itdog + "hetzner.srs", itdog + "meta.srs" ], "with the subnets 1.0.5 applied");
+    t.eq(section.dns.community_lists, [ "ua_blocked" ]);
+    t.eq(section.dns.rule_set, [ itdog + "meta.srs" ], "a DNS section matched the list's domains only");
+    t.eq(out.warnings, []);
+});
+
 t.test("the Dashboard filter goes, with a warning only where it narrowed the section", () => {
     let out = migrated(released({ section: [
         { ".name": "on", label: "On", action: "connection", dashboard_filter_mode: "include", dashboard_include_outbounds: [ "A" ],

@@ -18,7 +18,7 @@ const SNAPSHOT = {
     enabled: '1',
     action: 'block',
     label: 'Block',
-    community_lists: ['ads_hagezi_pro'],
+    community_lists: ['ads'],
   },
   bypass_rule: {
     '.type': 'section',

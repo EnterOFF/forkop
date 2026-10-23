@@ -561,7 +561,9 @@ export function createSectionContent(section: CBISection) {
     form.DynamicList,
     'community_lists',
     _('Built-in lists'),
-    _('Ready-made lists of services from the community'),
+    _('Ready-made lists of domains and subnets from %s').format(
+      '<a href="https://github.com/ushan0v/forkop-lists" target="_blank">forkop-lists</a>',
+    ),
   );
   builtInRulesetOption.modalonly = true;
   builtInRulesetOption.placeholder = _('Service list');

@@ -194,23 +194,6 @@ function rule_ports_csv_value(values) {
     return join(",", result);
 }
 
-let community_subnet_lists = {
-    twitter: true,
-    meta: true,
-    telegram: true,
-    cloudflare: true,
-    hetzner: true,
-    ovh: true,
-    digitalocean: true,
-    cloudfront: true,
-    discord: true,
-    roblox: true
-};
-
-function community_service_has_subnet_list(value) {
-    return community_subnet_lists[as_string(value)] == true;
-}
-
 return {
     text_list_values,
     normalize_port_condition_value,
@@ -218,5 +201,4 @@ return {
     destination_conditions,
     normalize_domain_subnet_value,
     rule_ports_csv_value,
-    community_service_has_subnet_list,
 };

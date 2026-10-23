@@ -1,36 +1,34 @@
-const SRS_MAIN_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download";
-const SRS_ADS_HAGEZI_PRO_URL = "https://github.com/zxc-rv/ad-filter/releases/latest/download/adlist.srs";
-const SRS_SUPERCELL_URL = "https://raw.githubusercontent.com/ushan0v/sing-box-supercell-ruleset/main/supercell.srs";
-const SRS_GITHUB_URL = "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/sing/geo/geosite/github.srs";
+// The lists of github.com/ushan0v/forkop-lists by the name a section stores; a release names
+// each file after its list, "-" for "_". subnets: the list carries addresses the core exports
+// for nftables.
+const LISTS_URL = "https://github.com/ushan0v/forkop-lists/releases/latest/download";
 
 const COMMUNITY_SERVICES = {
-    russia_inside: true,
-    russia_outside: true,
-    ukraine_inside: true,
-    geoblock: true,
-    block: true,
-    porn: true,
-    news: true,
-    anime: true,
-    youtube: true,
-    hdrezka: true,
-    tiktok: true,
-    google_ai: true,
-    google_play: true,
-    hodca: true,
-    discord: true,
-    meta: true,
-    twitter: true,
-    cloudflare: true,
-    cloudfront: true,
-    digitalocean: true,
-    hetzner: true,
-    ovh: true,
-    telegram: true,
-    roblox: true,
-    ads_hagezi_pro: true,
-    supercell: true,
-    github: true
+    ru_blocked_all: { subnets: true },
+    ru_blocked_rkn: { subnets: true },
+    ru_blocked_geo: { subnets: true },
+    ru_only: {},
+    ua_blocked: {},
+    ai: { subnets: true },
+    chatgpt: {},
+    claude: { subnets: true },
+    cloudflare: { subnets: true },
+    discord: { subnets: true },
+    facebook: {},
+    gemini: {},
+    github: {},
+    google_play: {},
+    instagram: {},
+    roblox: { subnets: true },
+    spotify: {},
+    supercell: {},
+    telegram: { subnets: true },
+    tiktok: {},
+    twitch: {},
+    whatsapp: { subnets: true },
+    x: { subnets: true },
+    youtube: {},
+    ads: {}
 };
 
 function as_string(value) {
@@ -38,18 +36,15 @@ function as_string(value) {
 }
 
 function is_community(name) {
-    return COMMUNITY_SERVICES[as_string(name)] === true;
+    return type(COMMUNITY_SERVICES[as_string(name)]) == "object";
+}
+
+function community_has_subnets(name) {
+    return is_community(name) && COMMUNITY_SERVICES[as_string(name)].subnets == true;
 }
 
 function community_url(name) {
-    name = as_string(name);
-    if (name == "ads_hagezi_pro")
-        return SRS_ADS_HAGEZI_PRO_URL;
-    if (name == "supercell")
-        return SRS_SUPERCELL_URL;
-    if (name == "github")
-        return SRS_GITHUB_URL;
-    return SRS_MAIN_URL + "/" + name + ".srs";
+    return LISTS_URL + "/" + replace(as_string(name), /_/g, "-") + ".srs";
 }
 
 // Twelve hex digits naming a rule set reference too long for a tag: two multiplicative hashes
@@ -90,6 +85,7 @@ function custom_reference_tag(reference) {
 return {
     COMMUNITY_SERVICES,
     is_community,
+    community_has_subnets,
     community_url,
     community_tag,
     custom_reference_tag

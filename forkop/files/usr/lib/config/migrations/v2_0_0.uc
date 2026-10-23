@@ -258,6 +258,63 @@ function migrate_settings(config, ctx) {
     ]);
 }
 
+// ------------------------------------------------------------------------- built-in lists
+
+// 1.0.x took its built-in lists from itdog and a few other repositories, 2.0.0 from
+// forkop-lists. A list 2.0.0 carries on under another name is renamed; one it dropped becomes
+// the file 1.0.x downloaded, a rule set of the section, with the subnets 1.0.x applied of it.
+const KEPT_LISTS = {
+    geoblock: "ru_blocked_geo", ukraine_inside: "ua_blocked", google_ai: "gemini", twitter: "x",
+    ads_hagezi_pro: "ads", telegram: "telegram", youtube: "youtube", discord: "discord", tiktok: "tiktok",
+    github: "github", google_play: "google_play", roblox: "roblox", supercell: "supercell", cloudflare: "cloudflare"
+};
+// Whether 1.0.x applied the subnets of a dropped list.
+const DROPPED_LISTS = {
+    russia_inside: false, russia_outside: false, block: false, porn: false, news: false, anime: false,
+    hdrezka: false, hodca: false, meta: true, hetzner: true, ovh: true, digitalocean: true, cloudfront: true
+};
+const DROPPED_LISTS_URL = "https://github.com/itdoginfo/allow-domains/releases/latest/download/";
+
+function push_unique(values, value) {
+    if (!(value in values))
+        push(values, value);
+}
+
+function migrate_builtin_lists(config) {
+    for (let section in model.of_type(config, "section")) {
+        let dns = model.value(section, "action") == "dns";
+        let lists = [];
+        let named = [];
+        let sets = { rule_set: [], rule_set_with_subnets: [] };
+
+        // 1.0.x also took a built-in list's name as a rule set; 2.0.0 keeps lists in their own option.
+        for (let key in keys(sets))
+            for (let value in model.list(section, key)) {
+                if (KEPT_LISTS[value] != null)
+                    push_unique(named, KEPT_LISTS[value]);
+                else
+                    push_unique(sets[key], DROPPED_LISTS[value] != null ? DROPPED_LISTS_URL + value + ".srs" : value);
+            }
+        for (let name in model.list(section, "community_lists")) {
+            if (DROPPED_LISTS[name] != null)
+                push_unique(sets[DROPPED_LISTS[name] && !dns ? "rule_set_with_subnets" : "rule_set"],
+                    DROPPED_LISTS_URL + name + ".srs");
+            else
+                push_unique(lists, KEPT_LISTS[name] ?? name);
+        }
+        for (let name in named)
+            push_unique(lists, name);
+
+        sets.community_lists = lists;
+        for (let key in keys(sets)) {
+            if (length(sets[key]) > 0)
+                section[key] = sets[key];
+            else
+                delete section[key];
+        }
+    }
+}
+
 // -------------------------------------------------------------------------------- sections
 
 const SUBNET_LIST_OPTIONS = [ "local_domain_lists", "local_subnet_lists", "remote_domain_lists", "remote_subnet_lists", "subnet", "subnet_text" ];
@@ -1588,6 +1645,7 @@ return {
         remove_dpi_sections,
         migrate_settings,
         migrate_section_options,
+        migrate_builtin_lists,
         migrate_conditions,
         migrate_json_outbounds,
         migrate_links,

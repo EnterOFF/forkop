@@ -3,7 +3,6 @@
 
 let common = require("core.common");
 let connections = require("config.connections");
-let rule_config = require("config.rule");
 let runtime_rulesets = require("singbox.rulesets");
 
 let as_string = common.as_string;
@@ -62,7 +61,7 @@ function subnet_source_tags(section) {
 
     for (let community in connections.community_lists(section)) {
         let tag = runtime_rulesets.community_tag(name, community);
-        if (rule_config.community_service_has_subnet_list(community) && !seen[tag]) {
+        if (runtime_rulesets.community_has_subnets(community) && !seen[tag]) {
             seen[tag] = true;
             push(result, tag);
         }

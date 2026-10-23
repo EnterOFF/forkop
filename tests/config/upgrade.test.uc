@@ -94,15 +94,20 @@ t.test("1.0.5: each section routes what it routed, and the DPI sections route no
     t.eq([ own.domain, own.domain_keyword, own.ip_cidr, own.port, own.port_range ],
         [ [ "exact.example.org" ], [ "tracker" ], [ "203.0.113.0/24" ], [ 443 ], [ "8000:8100" ] ]);
     let lists = sb.route_rule(built105, (item) => item.type == "logical" && sb.has(item.rules[0].inbound, "tproxy-in") &&
-        sb.has(item.rules[0].rule_set, "main-russia_inside-community-ruleset"));
+        sb.has(item.rules[0].rule_set, "main-youtube-community-ruleset"));
     t.eq([ lists.outbound, lists.rules[0].rule_set, lists.rules[1].port ], [ "Main proxy", [
-        "main-russia_inside-community-ruleset", "main-youtube-community-ruleset", "inline-custom-3d6e62992dfe-ruleset",
+        "main-youtube-community-ruleset", "inline-custom-3d6e62992dfe-ruleset", "inline-custom-0bd84540f447-ruleset",
         "inline-custom-27c02d3e0dd3-ruleset" ], [ 443 ] ]);
     t.eq(sb.ruleset(built105, "inline-custom-27c02d3e0dd3-ruleset").url, "https://example.com/with-subnets.json");
+    t.eq(sb.ruleset(built105, "inline-custom-0bd84540f447-ruleset").url,
+        "https://github.com/itdoginfo/allow-domains/releases/latest/download/russia_inside.srs",
+        "Russia inside stays the list 1.0.5 downloaded");
+    t.eq(sb.ruleset(built105, "main-youtube-community-ruleset").url,
+        "https://github.com/ushan0v/forkop-lists/releases/latest/download/youtube.srs");
     t.ok(rule(built105, "Backup", (item) => item.rule_set == "backup-telegram-community-ruleset"), "Backup keeps Telegram");
     let bypass = rule(built105, "direct-out", (item) => item.source_ip_cidr != null);
     t.eq([ bypass.ip_cidr, bypass.source_ip_cidr ], [ [ "192.168.100.0/24" ], [ "192.168.1.50", "192.168.1.51" ] ]);
-    t.ok(sb.route_rule(built105, (item) => item.action == "reject" && item.rule_set == "ads-ads_hagezi_pro-community-ruleset"),
+    t.ok(sb.route_rule(built105, (item) => item.action == "reject" && item.rule_set == "ads-ads-community-ruleset"),
         "Ads are still refused");
     t.eq(filter(sb.tags(built105.outbounds), (tag) => index(tag, "DPI") >= 0 || index(tag, "TV") == 0), [],
         "neither the DPI sections nor the disabled one have an outbound");

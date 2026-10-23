@@ -109,8 +109,9 @@ function with_rule_sets(key, values) {
 }
 
 t.test("community lists name a known service", () => {
-    v.accepts(with_rule_sets("community_lists", [ "twitter", "telegram" ]));
+    v.accepts(with_rule_sets("community_lists", [ "x", "telegram" ]));
     v.refuses(with_rule_sets("community_lists", [ "unknown" ]), "names an unknown built-in list 'unknown'");
+    v.refuses(with_rule_sets("community_lists", [ "russia_inside" ]), "names an unknown built-in list 'russia_inside'");
 });
 
 t.test("rule sets are community names, http(s) URLs or absolute paths, never YAML", () => {

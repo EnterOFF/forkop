@@ -48,33 +48,31 @@ var LATENCY_TEST_URL_OPTIONS = [
   "https://connectivity-check.ubuntu.com"
 ];
 var DOMAIN_LIST_OPTIONS = {
-  russia_inside: "Russia inside",
-  russia_outside: "Russia outside",
-  ukraine_inside: "Ukraine",
-  geoblock: "Geo Block",
-  block: "Block",
-  porn: "Porn",
-  news: "News",
-  anime: "Anime",
-  youtube: "Youtube",
-  discord: "Discord",
-  meta: "Meta",
-  twitter: "Twitter (X)",
-  hdrezka: "HDRezka",
-  tiktok: "Tik-Tok",
-  telegram: "Telegram",
+  ru_blocked_all: "RU Blocked (All)",
+  ru_blocked_rkn: "RU Blocked (RKN)",
+  ru_blocked_geo: "RU Blocked (Geo)",
+  ru_only: "RU Only",
+  ua_blocked: "UA Blocked",
+  ai: "AI",
+  chatgpt: "ChatGPT",
+  claude: "Claude",
   cloudflare: "Cloudflare",
-  google_ai: "Google AI",
-  google_play: "Google Play",
-  hodca: "H.O.D.C.A",
-  roblox: "Roblox",
-  ads_hagezi_pro: "Ads (Hagezi Pro)",
-  supercell: "Supercell",
+  discord: "Discord",
+  facebook: "Facebook",
+  gemini: "Gemini",
   github: "GitHub",
-  hetzner: "Hetzner ASN",
-  ovh: "OVH ASN",
-  digitalocean: "Digital Ocean ASN",
-  cloudfront: "CloudFront ASN"
+  google_play: "Google Play",
+  instagram: "Instagram",
+  roblox: "Roblox",
+  spotify: "Spotify",
+  supercell: "Supercell",
+  telegram: "Telegram",
+  tiktok: "TikTok",
+  twitch: "Twitch",
+  whatsapp: "WhatsApp",
+  x: "X (Twitter)",
+  youtube: "YouTube",
+  ads: "Ads"
 };
 var COMMAND_TIMEOUT = 1e4;
 var MONOSPACE_FONT = 'ui-monospace, "Cascadia Mono", "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace';
@@ -27299,7 +27297,9 @@ function createSectionContent(section2) {
     form.DynamicList,
     "community_lists",
     _("Built-in lists"),
-    _("Ready-made lists of services from the community")
+    _("Ready-made lists of domains and subnets from %s").format(
+      '<a href="https://github.com/ushan0v/forkop-lists" target="_blank">forkop-lists</a>'
+    )
   );
   builtInRulesetOption.modalonly = true;
   builtInRulesetOption.placeholder = _("Service list");
