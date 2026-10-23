@@ -137,10 +137,13 @@ function clients_of(name) {
     return filter(section_names("server_client"), (client) => get(client, "server") == name);
 }
 
+// ucode's ?. stops a member access on null, never the call after it.
 function random_bytes(count) {
     let random = fs.open("/dev/urandom", "r");
-    let bytes = random?.read(count);
-    random?.close();
+    if (random == null)
+        return null;
+    let bytes = random.read(count);
+    random.close();
     return length(bytes ?? "") == count ? bytes : null;
 }
 

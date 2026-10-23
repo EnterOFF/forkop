@@ -317,6 +317,21 @@ t.test("an OpenVPN server gets its certificate, its tls-crypt key and one certif
         "a client that has a certificate keeps it and gets its fingerprint");
 });
 
+t.test("a router whose random source does not open says which key it could not make", () => {
+    fresh_paths();
+    let real_open = fs.open;
+    fs.open = (path, ...rest) => path == "/dev/urandom" ? null : real_open(path, ...rest);
+    let failure = null;
+    try {
+        prepared(openvpn_configuration());
+    }
+    catch (e) {
+        failure = e.message;
+    }
+    fs.open = real_open;
+    t.eq(failure, "Failed to generate the tls-crypt key of server 'Office'");
+});
+
 t.test("an OpenVPN server prepared once keeps every certificate and key it was given", () => {
     fresh_paths();
     prepared(openvpn_configuration());
