@@ -19,11 +19,23 @@ pkg.paths.firewall_init = firewall_init;
 pkg.paths.firewall_input_include = include;
 pkg.paths.rpcd_init = dir + "/rpcd";
 pkg.paths.luci_index_cache = [ dir + "/luci-indexcache*" ];
+pkg.paths.runtime = [ dir + "/run", dir + "/internal-change" ];
 nft.paths.rt_tables = dir + "/rt_tables";
 for (let path in [ state_init, firewall_init, include, pkg.paths.rpcd_init ])
     fs.writefile(path, "");
 
 const RT_TABLES = "100 main\n105 forkop\n1105 forkopx\n200 custom\n";
+
+function leave_runtime() {
+    fs.mkdir(dir + "/run");
+    fs.mkdir(dir + "/run/bytecode");
+    fs.writefile(dir + "/run/bytecode/manifest", "4\n");
+    fs.writefile(dir + "/internal-change", "1\n");
+}
+
+function runtime_left() {
+    return map(pkg.paths.runtime, (path) => fs.stat(path) != null);
+}
 
 function run(fn, handlers) {
     stub.commands([ ...(handlers ?? []), [ () => true, {} ] ]);
@@ -33,8 +45,9 @@ function run(fn, handlers) {
     return { status, commands };
 }
 
-t.test("a removal takes autostart away, stops the service and only then drops the routing table name", () => {
+t.test("a removal takes autostart away, stops the service, then drops the routing table name and what it kept in RAM", () => {
     fs.writefile(nft.paths.rt_tables, RT_TABLES);
+    leave_runtime();
     let named_at_stop = null;
     let result = run(() => pkg.prerm("remove"), [
         [ init + " stop", () => { named_at_stop = index(fs.readfile(nft.paths.rt_tables), "105 forkop\n") >= 0; return {}; } ]
@@ -43,14 +56,17 @@ t.test("a removal takes autostart away, stops the service and only then drops th
     t.eq(result.commands, [ init + " disable", state_init + " disable", state_init + " stop", init + " stop" ]);
     t.ok(named_at_stop, "the stop still finds the table name it removes routes by");
     t.eq(fs.readfile(nft.paths.rt_tables), "100 main\n1105 forkopx\n200 custom\n");
+    t.eq(runtime_left(), [ false, false ]);
 });
 
-t.test("an upgrade keeps autostart and the table name and remembers a running service", () => {
+t.test("an upgrade keeps autostart, the table name and the runtime files and remembers a running service", () => {
     fs.writefile(nft.paths.rt_tables, RT_TABLES);
+    leave_runtime();
     let result = run(() => pkg.prerm("upgrade"), [ [ init + " status", { status: 0 } ] ]);
     t.eq(result.commands, [ init + " status", init + " stop" ]);
     t.eq(fs.readfile(pkg.paths.was_running), "1\n");
     t.eq(fs.readfile(nft.paths.rt_tables), RT_TABLES);
+    t.eq(runtime_left(), [ true, true ]);
 
     run(() => pkg.prerm("upgrade"), [ [ init + " status", { status: 3 } ] ]);
     t.eq(fs.stat(pkg.paths.was_running), null, "a stopped service is not started after the upgrade");

@@ -1,6 +1,7 @@
 // The package scripts on a live router; they skip an image build themselves.
 
 let fs = require("fs");
+let common = require("core.common");
 let exec = require("core.exec");
 let constants = require("core.constants");
 let bytecode = require("core.bytecode");
@@ -14,7 +15,8 @@ let paths = {
     firewall_init: "/etc/init.d/firewall",
     firewall_input_include: "/usr/share/nftables.d/chain-pre/input/forkop.nft",
     rpcd_init: "/etc/init.d/rpcd",
-    luci_index_cache: [ "/var/luci-indexcache*", "/tmp/luci-indexcache*" ]
+    luci_index_cache: [ "/var/luci-indexcache*", "/tmp/luci-indexcache*" ],
+    runtime: [ "/var/run/forkop", "/var/run/forkop.internal-config-change" ]
 };
 
 function exists(path) {
@@ -42,7 +44,8 @@ function restart_state_service() {
 }
 
 // A removal takes autostart away first: while /etc/rc.d/S99forkop exists, a WAN-up trigger can
-// start the service mid-removal. The routing table name goes after the stop that needs it.
+// start the service mid-removal. The routing table name goes after the stop that needs it, and
+// what the service kept in RAM, its precompiled library included, goes last.
 function prerm(action) {
     let upgrade = action == "upgrade";
     fs.unlink(paths.was_running);
@@ -57,9 +60,12 @@ function prerm(action) {
     }
     exec.ok([ paths.init, "stop" ]);
     bytecode.invalidate_validation_stamp();
-    if (!upgrade && !require("nft.apply").remove_rt_table_entry())
-        return 1;
-    return 0;
+    if (upgrade)
+        return 0;
+    let name_removed = require("nft.apply").remove_rt_table_entry();
+    for (let path in paths.runtime)
+        common.remove_tree(path);
+    return name_removed ? 0 : 1;
 }
 
 // The firewall include lets an isolated zone reach the TPROXY inbound, so it loads before the
