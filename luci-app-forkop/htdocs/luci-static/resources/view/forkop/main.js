@@ -19339,7 +19339,7 @@ function isSubscriptionAddress(link) {
 }
 function validateProxyUrl(url) {
   const link = url.trim();
-  const match = /^([a-z0-9+]+):\/\/(\S+)$/u.exec(link);
+  const match = /^([a-z0-9+]+):\/\/([^\s#]+)(?:#\P{Cc}*)?$/u.exec(link);
   if (!match || !NATIVE_PROXY_SCHEMES.has(match[1])) {
     return _("Unsupported link");
   }

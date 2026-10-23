@@ -103,6 +103,21 @@ describe('validateProxyUrl', () => {
 
   it('rejects whitespace and empty payloads before they reach the core', () => {
     expect(validateProxyUrl('vless://')).not.toBe(true);
+    expect(validateProxyUrl('vless://#name')).not.toBe(true);
     expect(validateProxyUrl('vless://uuid @example.com:443')).not.toBe(true);
+    expect(
+      validateProxyUrl('vless://uuid@example.com:443?path=/a b#name'),
+    ).not.toBe(true);
+    expect(validateProxyUrl('vless://uuid@example.com:443#a\tb')).not.toBe(
+      true,
+    );
+  });
+
+  it.each([
+    'vless://uuid@example.com:443?security=none#My Server',
+    'trojan://password@[2001:db8::1]:443#🇩🇪 Germany 1',
+    'ss://YWVzLTI1Ni1nY206cGFzcw@example.com:8388#a  b ',
+  ])('takes a name with spaces, as the core does: %s', (url) => {
+    expect(validateProxyUrl(url)).toBe(true);
   });
 });
