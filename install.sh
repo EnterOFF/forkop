@@ -7,8 +7,8 @@
 #
 # Options: --variant base|full|tiny, the core's build (the installed one, or base, by default),
 # with no value asked for at the terminal; --uninstall [--purge], with --purge the settings too;
-# --quiet, the package manager's output in the log alone, as the page has it; --lang ru|en, ru
-# by default.
+# --quiet, the package manager's output in the log alone, as the page has it; --lang ru|en, by
+# default LuCI's language, Russian while that is auto, since a console has no browser to follow.
 # Exit codes: 0 done or nothing to do, 1 failed before anything changed, 2 bad options, 3 failed
 # after changes began, 4 installed but Forkop did not start.
 # Colors follow whether stdout is a terminal, questions whether /dev/tty opens: a page that runs it
@@ -624,7 +624,11 @@ network_hint() {
 # --- the system -----------------------------------------------------------------------------
 
 pick_language() {
-	[ "$LANG_OPT" = en ] || RU=1
+	local lang="$LANG_OPT"
+	[ -n "$lang" ] || lang=$(uci -q get luci.main.lang 2>/dev/null)
+	case "$lang" in
+	'' | auto | ru | ru_* | ru-*) RU=1 ;;
+	esac
 }
 
 setup_output() {
