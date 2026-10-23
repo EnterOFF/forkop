@@ -330,9 +330,18 @@ export namespace Forkop {
     uptime: number;
     // The error logged since the last start or stop that went through.
     last_error: string;
-    // The installed core: no version when it is not sing-box-forkop, and why Forkop cannot run
-    // on its tags.
-    core: { version: string; variant: string; problem: string };
+    // The core as its binary reports itself: `binary` its version, `version` that version when it
+    // is sing-box-forkop's, the package's variant while the binary is that build, and why Forkop
+    // cannot run on it.
+    core: {
+      installed: boolean;
+      binary: string;
+      version: string;
+      variant: string;
+      outdated: boolean;
+      required: string;
+      problem: string;
+    };
     foreign_sing_box: number[];
     conflicts: Array<{ table: string; kind: 'tproxy' | 'dns' }>;
     memory: { total_kb: number; available_kb: number };

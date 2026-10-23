@@ -1734,7 +1734,6 @@ function has_outbound_section() {
 // Whether the installed system can run Forkop at all. Throws with the reason.
 function check_requirements() {
     let ctx = context_from_runtime();
-    let sing_box_version = packages.sing_box_version();
 
     // Without IPv6 in the kernel no IPv6 socket opens, the TProxy inbound on ::1 among them.
     if (nft_state.ipv6_interfaces() == null)
@@ -1743,10 +1742,14 @@ function check_requirements() {
 
     if (!command_exists("sing-box"))
         die("Binary 'sing-box' is not available. Reinstall sing-box-forkop");
-    if (sing_box_version == "")
-        die("Failed to read sing-box-forkop version. Reinstall sing-box-forkop");
-    else if (!core_version.version_at_least(sing_box_version, ctx.sing_box_required_version))
-        die("Package 'sing-box-forkop' version (" + sing_box_version + ") is lower than the required minimum (" + ctx.sing_box_required_version + "). Update sing-box-forkop");
+    // what the binary reports: a package's version file outlives a binary copied over it
+    let binary_version = features.version();
+    if (binary_version == "")
+        die("Failed to read the version sing-box reports. Reinstall sing-box-forkop");
+    if (packages.forkop_core_version(binary_version) == "")
+        die("sing-box " + binary_version + " is not sing-box-forkop, the core Forkop runs on. Install sing-box-forkop");
+    if (!core_version.version_at_least(binary_version, ctx.sing_box_required_version))
+        die("sing-box-forkop " + binary_version + " is older than the required minimum (" + ctx.sing_box_required_version + "). Update sing-box-forkop");
 
     let problem = features.core_problem(ctx.core_tags);
     if (problem != "")

@@ -33,12 +33,34 @@ function forkopItem(data: Forkop.ServiceCheckResult) {
   );
 }
 
+// A core that answers no version is one Forkop's start cannot read either: its reason says so.
 function coreItem(data: Forkop.ServiceCheckResult) {
   const key = _('Core');
-  const { version, variant, problem } = data.core;
+  const { installed, binary, version, variant, outdated, required, problem } =
+    data.core;
 
-  if (!version) {
+  if (!installed) {
     return finding('error', key, _('sing-box-forkop is not installed'));
+  }
+  if (!binary) {
+    return finding('error', key, problem);
+  }
+  if (!version) {
+    return finding(
+      'error',
+      key,
+      _('sing-box %s, not sing-box-forkop').format(binary),
+    );
+  }
+  if (outdated) {
+    return finding(
+      'error',
+      key,
+      _('sing-box-forkop %s is outdated: %s or newer is needed').format(
+        version,
+        required,
+      ),
+    );
   }
   if (problem) {
     return finding('error', key, problem);

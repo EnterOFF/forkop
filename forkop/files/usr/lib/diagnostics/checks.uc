@@ -10,6 +10,7 @@ let core_url = require("core.url");
 let uci = require("core.uci");
 let netstat = require("core.netstat");
 let packages = require("core.packages");
+let core_version = require("core.version");
 let runtime_dns = require("singbox.dns");
 let singbox_constants = require("singbox.constants");
 let features = require("singbox.features");
@@ -92,13 +93,22 @@ function sing_box_cores() {
     return sort(result, (a, b) => a - b);
 }
 
-// The installed core: no version when it is not sing-box-forkop, and why Forkop cannot run on it.
+// The core that runs, as the binary reports itself: a package's files outlive a binary copied
+// over them. The variant is the package's while the binary is of its build, which a +K suffix
+// does not change.
 function core() {
-    let version = packages.sing_box_version();
+    let installed = fs.stat(features.paths.binary) != null;
+    let binary = features.version();
+    let version = packages.forkop_core_version(binary);
+    let build = (value) => split(value, "+")[0];
     return {
+        installed,
+        binary,
         version,
-        variant: packages.sing_box_variant(),
-        problem: version == "" ? "" : features.core_problem()
+        variant: version != "" && build(version) == build(packages.sing_box_version()) ? packages.sing_box_variant() : "",
+        outdated: version != "" && !core_version.version_at_least(version, constants.SB_REQUIRED_VERSION),
+        required: constants.SB_REQUIRED_VERSION,
+        problem: installed ? features.core_problem() : ""
     };
 }
 

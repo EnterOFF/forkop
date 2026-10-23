@@ -117,35 +117,54 @@ t.test("the service check finds running cores other than Forkop's, and nothing F
     let packages = require("core.packages");
     packages.paths.sing_box_version = dir + "/no-such-version";
     packages.paths.sing_box_variant = dir + "/no-such-variant";
+    require("singbox.features").paths.binary = dir + "/no-such-sing-box";
     let value = checks.service();
     stub.restore();
     t.eq([ value.running, value.uptime, value.foreign_sing_box ], [ false, 42, [ 200 ] ]);
-    t.eq(value.core, { version: "", variant: "", problem: "" }, "no sing-box-forkop package recorded a version");
+    t.eq(value.core, { installed: false, binary: "", version: "", variant: "", outdated: false,
+        required: require("core.constants").SB_REQUIRED_VERSION, problem: "" }, "no core at all");
     t.eq(value.last_error, "Clash API address 192.168.1.1:9090 is already in use by another process");
     t.eq(value.conflicts, [ { table: "inet other", kind: "tproxy" } ]);
     t.eq([ value.memory, value.router_uptime ], [ { total_kb: 239540, available_kb: 45536 }, 100700 ]);
 });
 
-t.test("the core check names the package's version and variant and why Forkop cannot run on its tags", () => {
+t.test("the core check names the version the binary reports, and the package's variant while it is that build", () => {
     let packages = require("core.packages");
     let features = require("singbox.features");
     packages.paths.sing_box_version = dir + "/version";
     packages.paths.sing_box_variant = dir + "/variant";
     features.paths.binary = dir + "/sing-box";
-    fs.writefile(packages.paths.sing_box_version, "1.14.3-r1\n");
-    fs.writefile(packages.paths.sing_box_variant, "tiny\n");
-    fs.writefile(features.paths.binary, "#!/bin/sh\n");
-    let version = (tags) => "sing-box version 1.14.3-r1\n\nTags: " + tags + "\nCGO: disabled\n";
-    let core_with = (tags) => {
-        fs.writefile(features.paths.binary, "#!/bin/sh\n# " + tags + "\n");
-        stub.commands([ [ features.paths.binary + " version", { status: 0, stdout: version(tags) } ] ]);
+    fs.writefile(packages.paths.sing_box_version, "1.14.3-r1
+");
+    fs.writefile(packages.paths.sing_box_variant, "tiny
+");
+    let core_of = (version, tags) => {
+        fs.writefile(features.paths.binary, "#!/bin/sh
+# " + version + " " + tags + "
+");
+        stub.commands([ [ features.paths.binary + " version",
+            { status: 0, stdout: "sing-box version " + version + "
+
+Tags: " + tags + "
+CGO: disabled
+" } ] ]);
         let value = checks.core();
         stub.restore();
         return value;
     };
-    t.eq(core_with("with_clash_api,with_utls,with_quic"), { version: "1.14.3-r1", variant: "tiny", problem: "" });
-    t.contains(core_with("with_utls,with_quic").problem, "sing-box was built without with_clash_api");
-    t.contains(core_with("with_clash_api,with_wireguard,with_openvpn").problem,
+    let tags = "with_clash_api,with_utls,with_quic";
+    t.eq(core_of("1.14.3-r1", tags), { installed: true, binary: "1.14.3-r1", version: "1.14.3-r1", variant: "tiny",
+        outdated: false, required: require("core.constants").SB_REQUIRED_VERSION, problem: "" });
+    t.eq(core_of("1.14.3-r1+72", tags).variant, "tiny", "a build between releases of the package's release");
+    t.eq(core_of("1.14.4-r1", tags).variant, "", "a binary of another build copied over the package's");
+
+    let foreign = core_of("1.12.22", tags);
+    t.eq([ foreign.binary, foreign.version, foreign.variant, foreign.outdated ], [ "1.12.22", "", "", false ], "not sing-box-forkop");
+    let old = core_of("1.13.18-extended-2.6.5-f165", tags);
+    t.eq([ old.version, old.outdated ], [ "1.13.18-extended-2.6.5-f165", true ], "sing-box-forkop older than Forkop needs");
+
+    t.contains(core_of("1.14.3-r1", "with_utls,with_quic").problem, "sing-box was built without with_clash_api");
+    t.contains(core_of("1.14.3-r1", "with_clash_api,with_wireguard,with_openvpn").problem,
         "sing-box was built with with_wireguard, with_openvpn but without with_gvisor");
 });
 

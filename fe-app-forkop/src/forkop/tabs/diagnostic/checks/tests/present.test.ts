@@ -14,7 +14,15 @@ function service(
     running: true,
     uptime: 8100,
     last_error: '',
-    core: { version: '1.14.3-r1', variant: 'base', problem: '' },
+    core: {
+      installed: true,
+      binary: '1.14.3-r1',
+      version: '1.14.3-r1',
+      variant: 'base',
+      outdated: false,
+      required: '1.14.3-r1',
+      problem: '',
+    },
     foreign_sing_box: [],
     conflicts: [],
     memory: { total_kb: 239540, available_kb: 45476 },
@@ -77,19 +85,46 @@ describe('the service check', () => {
     ).toBe('not running');
   });
 
-  it('fails a core that is not sing-box-forkop or one Forkop cannot run on', () => {
-    const core = (value: Forkop.ServiceCheckResult['core']) =>
-      presentService(service({ core: value })).find(
+  it('fails a core that is not sing-box-forkop, an old one, or one Forkop cannot run on', () => {
+    const core = (value: Partial<Forkop.ServiceCheckResult['core']>) =>
+      presentService(service({ core: { ...service().core, ...value } })).find(
         (item) => item.key === 'Core',
       );
-    expect(core({ version: '', variant: '', problem: '' })).toEqual({
+    expect(core({ installed: false, binary: '', version: '' })).toEqual({
       state: 'error',
       key: 'Core',
       value: 'sing-box-forkop is not installed',
     });
     expect(
       core({
-        version: '1.14.3-r1',
+        binary: '',
+        version: '',
+        problem:
+          "Failed to read the tags sing-box was built with from 'sing-box version'. Reinstall sing-box-forkop",
+      })?.value,
+    ).toBe(
+      "Failed to read the tags sing-box was built with from 'sing-box version'. Reinstall sing-box-forkop",
+    );
+    expect(core({ binary: '1.12.22', version: '', variant: '' })).toEqual({
+      state: 'error',
+      key: 'Core',
+      value: 'sing-box 1.12.22, not sing-box-forkop',
+    });
+    expect(
+      core({
+        binary: '1.13.18-extended-2.6.5-f165',
+        version: '1.13.18-extended-2.6.5-f165',
+        variant: '',
+        outdated: true,
+      }),
+    ).toEqual({
+      state: 'error',
+      key: 'Core',
+      value:
+        'sing-box-forkop 1.13.18-extended-2.6.5-f165 is outdated: 1.14.3-r1 or newer is needed',
+    });
+    expect(
+      core({
         variant: 'custom',
         problem:
           'sing-box was built with with_wireguard but without with_gvisor',
@@ -100,8 +135,14 @@ describe('the service check', () => {
       value: 'sing-box was built with with_wireguard but without with_gvisor',
     });
     expect(
-      core({ version: '1.14.3-r1+2', variant: '', problem: '' })?.value,
+      core({ binary: '1.14.3-r1+2', version: '1.14.3-r1+2', variant: '' })
+        ?.value,
     ).toBe('sing-box-forkop 1.14.3-r1+2');
+    expect(core({})).toEqual({
+      state: 'success',
+      key: 'Core',
+      value: 'sing-box-forkop 1.14.3-r1 (base)',
+    });
   });
 
   it('names every program that intercepts what Forkop does', () => {

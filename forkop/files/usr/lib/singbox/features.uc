@@ -53,7 +53,7 @@ const ENDPOINT_TYPES = {
     openconnect: "openconnect"
 };
 
-let known = { signature: null, tags: null };
+let known = { signature: null, tags: null, version: "" };
 
 function signature(stat) {
     return sprintf("%d:%d:%d", stat.inode, stat.size, stat.mtime);
@@ -68,19 +68,38 @@ function parse_tags(text) {
     return [];
 }
 
-// The tags of the installed core, or null when there is no core to ask.
-function tags() {
+function parse_version(text) {
+    for (let line in split(text ?? "", "\n")) {
+        let matched = match(trim(line), /^sing-box version[ \t]+(.+)$/);
+        if (matched)
+            return trim(matched[1]);
+    }
+    return "";
+}
+
+// What the installed core says of itself, { tags, version }, or null when there is no core to ask.
+function report_of_binary() {
     let stat = fs.stat(paths.binary);
     if (stat == null)
         return null;
     if (known.signature == signature(stat))
-        return known.tags;
+        return known;
 
     let text = exec.output([ paths.binary, "version" ]);
     if (text == null || index(text, "sing-box version") < 0)
         return null;
-    known = { signature: signature(stat), tags: parse_tags(text) };
-    return known.tags;
+    known = { signature: signature(stat), tags: parse_tags(text), version: parse_version(text) };
+    return known;
+}
+
+// The tags of the installed core, or null when there is no core to ask.
+function tags() {
+    return report_of_binary()?.tags;
+}
+
+// The version the installed core reports, "" when there is no core to ask.
+function version() {
+    return report_of_binary()?.version ?? "";
 }
 
 // The tags a feature needs that the given set, or the installed core, lacks.
@@ -252,6 +271,6 @@ function report(present) {
 
 return {
     paths, REQUIRED, FEATURES, OUTBOUND_TYPES, INBOUND_TYPES, ENDPOINT_TYPES,
-    parse_tags, tags, available, missing_tags, unavailable_reason, core_problem, type_feature, link_features,
+    parse_tags, tags, version, available, missing_tags, unavailable_reason, core_problem, type_feature, link_features,
     link_uses_xhttp_http3, report
 };

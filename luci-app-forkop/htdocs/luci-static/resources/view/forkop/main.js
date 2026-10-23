@@ -7610,9 +7610,29 @@ function forkopItem(data) {
 }
 function coreItem(data) {
   const key = _("Core");
-  const { version, variant, problem } = data.core;
-  if (!version) {
+  const { installed, binary, version, variant, outdated, required: required2, problem } = data.core;
+  if (!installed) {
     return finding("error", key, _("sing-box-forkop is not installed"));
+  }
+  if (!binary) {
+    return finding("error", key, problem);
+  }
+  if (!version) {
+    return finding(
+      "error",
+      key,
+      _("sing-box %s, not sing-box-forkop").format(binary)
+    );
+  }
+  if (outdated) {
+    return finding(
+      "error",
+      key,
+      _("sing-box-forkop %s is outdated: %s or newer is needed").format(
+        version,
+        required2
+      )
+    );
   }
   if (problem) {
     return finding("error", key, problem);

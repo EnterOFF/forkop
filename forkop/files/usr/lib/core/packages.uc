@@ -90,12 +90,16 @@ function apk_version(name) {
 }
 
 // X.Y.Z-rN for a release and X.Y.Z-rN+K between releases; the forms of the cores built on
-// sing-box-extended are read too, so an old core is reported as outdated, not as missing.
-function recorded_sing_box_version() {
-    let value = trim(fs.readfile(paths.sing_box_version) ?? "");
+// sing-box-extended count too, so an old core is reported as outdated, not as a foreign one.
+function forkop_core_version(value) {
+    value = trim(value ?? "");
     return match(value, /^[0-9]+\.[0-9]+\.[0-9]+-r[0-9]+(\+[0-9]+)?$/) ||
         match(value, /^[0-9][0-9A-Za-z._+~-]*-extended-[0-9][0-9A-Za-z._+~-]*-f[0-9]+$/) ||
         match(value, /^[0-9][0-9A-Za-z._+~-]*-forkop[.][0-9]+$/) ? value : "";
+}
+
+function recorded_sing_box_version() {
+    return forkop_core_version(fs.readfile(paths.sing_box_version));
 }
 
 // As the release spells it, with "-" where the package version carries "~".
@@ -115,4 +119,4 @@ function version(name) {
     return apk_version(name) || opkg_version(name);
 }
 
-return { paths, installed, opkg_installed, opkg_version, opkg_status_version, apk_version, version, sing_box_version, sing_box_variant };
+return { paths, installed, opkg_installed, opkg_version, opkg_status_version, apk_version, version, forkop_core_version, sing_box_version, sing_box_variant };
