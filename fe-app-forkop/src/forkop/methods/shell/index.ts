@@ -7,7 +7,7 @@ const UI_ACTION_RPC_TIMEOUT_MS = 15000;
 const GET_UI_STATE_RPC_TIMEOUT_MS = 3000;
 // Covers only the state service still computing its first answer.
 const SYSTEM_INFO_UBUS_TIMEOUT_MS = 5000;
-// The router-side Clash transport lets curl run for a minute; LuCI aborts an RPC after twenty
+// The router-side Clash transport gives an update a minute; LuCI aborts an RPC after twenty
 // seconds unless the timeout is raised.
 const CLASH_API_TRANSPORT_TIMEOUT_MS = 65000;
 // A check on a slow router takes far longer than an ordinary RPC.

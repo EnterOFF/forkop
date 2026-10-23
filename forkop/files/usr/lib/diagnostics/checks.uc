@@ -1,6 +1,7 @@
 // The Status tab checks return facts; the page judges them and words the verdict.
 
 let fs = require("fs");
+let resolv = require("resolv");
 let common = require("core.common");
 let exec = require("core.exec");
 let constants = require("core.constants");
@@ -47,13 +48,6 @@ function runtime_config() {
 
 function output(argv) {
     return exec.output(argv) ?? "";
-}
-
-function first_line(text) {
-    for (let line in split(text ?? "", "\n"))
-        if (trim(line) != "")
-            return trim(line);
-    return "";
 }
 
 function uptime_seconds() {
@@ -124,11 +118,26 @@ function service() {
     };
 }
 
+// One attempt within timeout ms: resolv counts attempts, and the version OpenWrt ships dies on 0.
 // NXDOMAIN counts as an answer; SERVFAIL or REFUSED is the server failing.
-function dig_result(text) {
-    let status = match(text ?? "", /status: ([A-Z]+)/)?.[1] ?? "";
-    let ms = match(text ?? "", /Query time: ([0-9]+) msec/)?.[1];
-    return { answered: status == "NOERROR" || status == "NXDOMAIN", status, ms: ms == null ? -1 : int(ms) };
+function lookup(name, servers, timeout) {
+    let start = common.monotonic_ms();
+    let reply = resolv.query([ name ], { type: [ "A" ], nameserver: servers, timeout, retries: 1 });
+    let ms = common.monotonic_ms() - start;
+    let status = reply == null ? "" : reply[name]?.rcode ?? "NOERROR";
+    if (status == "TIMEOUT")
+        status = "";
+    return { answered: status == "NOERROR" || status == "NXDOMAIN", status, ms: status == "" ? -1 : ms };
+}
+
+// A CNAME's target holds the records under its own name.
+function addresses(reply, types) {
+    let found = {};
+    for (let name, records in reply ?? {})
+        for (let kind in types)
+            for (let address in records?.[kind] ?? [])
+                found[address] = true;
+    return keys(found);
 }
 
 function uncached_name() {
@@ -136,20 +145,10 @@ function uncached_name() {
     return sprintf("forkop-%x%x.%s", now[0], now[1], UNCACHED_ZONE);
 }
 
-function dig_server(uri) {
+// resolv speaks plain DNS only, and takes the port after a "#".
+function plain_server(uri) {
     let parsed = runtime_dns.parse_server_uri(uri, false);
-    if (parsed.unsupported)
-        return null;
-    let argv = [ "@" + parsed.server, "-p", "" + parsed.server_port ];
-    if (parsed.type == "tcp")
-        push(argv, "+tcp");
-    else if (parsed.type == "tls")
-        push(argv, "+tls");
-    else if (parsed.type == "https")
-        push(argv, "+https=" + (parsed.path || "/dns-query"));
-    else if (parsed.type != "udp")
-        return null;
-    return argv;
+    return parsed.unsupported || parsed.type != "udp" ? null : parsed.server + "#" + parsed.server_port;
 }
 
 function bootstrap_host(values, servers, config) {
@@ -173,31 +172,27 @@ function dns() {
     let servers = runtime_dns.server_list(values, "dns_server", "77.88.8.8");
     let bootstraps = runtime_dns.server_list(values, "bootstrap_dns_server", "77.88.8.8");
     let host = bootstrap_host(values, servers, runtime_config());
-    let testable = host == "" ? [] : filter(bootstraps, (server) => dig_server(server) != null);
+    let testable = host == "" ? [] : filter(bootstraps, (server) => plain_server(server) != null);
 
-    let commands = [
-        [ "dig", "@" + DNS_INBOUND, "-p", "53", uncached_name(), "A", "+tries=1", "+timeout=4" ],
-        [ "dig", "@127.0.0.1", "-p", "53", "localhost", "A", "+tries=1", "+timeout=3" ]
-    ];
-    for (let server in testable)
-        push(commands, [ "dig", ...dig_server(server), host, "A", "+tries=1", "+timeout=3" ]);
-    let results = map(exec.capture_parallel(commands), (result) => dig_result(result.stdout));
-
+    let main = lookup(uncached_name(), [ DNS_INBOUND + "#53" ], 4000);
+    let local = lookup("localhost", [ "127.0.0.1#53" ], 3000);
     let bootstrap = null;
     if (length(testable) > 0) {
-        let answered = filter(slice(results, 2), (result) => result.answered);
-        bootstrap = {
-            servers: join(", ", testable),
-            host,
-            answered: length(answered) > 0,
-            ms: length(answered) > 0 ? answered[0].ms : -1
-        };
+        bootstrap = { servers: join(", ", testable), host, answered: false, ms: -1 };
+        for (let server in testable) {
+            let result = lookup(host, [ plain_server(server) ], 3000);
+            if (result.answered) {
+                bootstrap.answered = true;
+                bootstrap.ms = result.ms;
+                break;
+            }
+        }
     }
 
     return {
-        main: { servers: join(", ", map(servers, (server) => mask.dns_server(server))), ...results[0] },
+        main: { servers: join(", ", map(servers, (server) => mask.dns_server(server))), ...main },
         bootstrap,
-        local: results[1]
+        local
     };
 }
 
@@ -231,20 +226,18 @@ function traffic() {
         return { router: { excluded: true, dns_fakeip: false, answered: false, fakeip: false, ip: "" }, exit: null };
 
     let section = check_section(runtime_config());
-    let commands = [
-        [ "dig", "+short", "+tries=1", "+timeout=3", FAKEIP_DOMAIN, "A" ],
-        [ "curl", "--silent", "--max-time", "6", "https://" + FAKEIP_DOMAIN + "/check" ]
-    ];
+    let reply = resolv.query([ FAKEIP_DOMAIN ], { type: [ "A" ], timeout: 3000, retries: 1 });
+    let commands = [ [ "uclient-fetch", "-q", "-O", "-", "--timeout=6", "https://" + FAKEIP_DOMAIN + "/check" ] ];
     if (section != "")
-        push(commands, [ "curl", "--silent", "--max-time", "8", "https://" + IP_DOMAIN + "/check" ]);
+        push(commands, [ "uclient-fetch", "-q", "-O", "-", "--timeout=8", "https://" + IP_DOMAIN + "/check" ]);
     let results = exec.capture_parallel(commands);
-    let router = check_answer(results[1].stdout);
-    let exit = section == "" ? null : check_answer(results[2].stdout);
+    let router = check_answer(results[0].stdout);
+    let exit = section == "" ? null : check_answer(results[1].stdout);
 
     return {
         router: {
             excluded: false,
-            dns_fakeip: in_fakeip_range(first_line(results[0].stdout)),
+            dns_fakeip: in_fakeip_range(addresses(reply, [ "A" ])[0] ?? ""),
             answered: router != null,
             fakeip: router?.fakeip ?? false,
             ip: router?.ip ?? ""
@@ -282,16 +275,8 @@ function resolve_host(host) {
     host = replace(host, /^\[(.*)\]$/, "$1");
     if (host == "" || core_ip.valid_ip(host))
         return host;
-    let found = {};
-    let results = exec.capture_parallel([
-        [ "dig", "+short", "A", host, "+timeout=2", "+tries=1" ],
-        [ "dig", "+short", "AAAA", host, "+timeout=2", "+tries=1" ]
-    ]);
-    for (let result in results)
-        for (let line in split(result.stdout, "\n"))
-            if (core_ip.valid_ip(trim(line)))
-                found[trim(line)] = true;
-    return join(" ", sort(keys(found)));
+    let reply = resolv.query([ host ], { type: [ "A", "AAAA" ], timeout: 2000, retries: 1 });
+    return join(" ", sort(addresses(reply, [ "A", "AAAA" ])));
 }
 
 function firewall_opens(port, transports, input_chain) {
@@ -399,4 +384,4 @@ function servers() {
     return { wan, behind_cgnat, items };
 }
 
-return { paths, last_error, dig_result, core, service, dns, traffic, servers };
+return { paths, last_error, core, service, dns, traffic, servers };

@@ -4,6 +4,8 @@ let fs = require("fs");
 let fixture = require("fixture");
 let uci = require("uci");
 let exec = require("core.exec");
+let clash_api = require("singbox.clash_api");
+let resolv = require("resolv");
 let health = require("service.health");
 let checks = require("diagnostics.checks");
 
@@ -27,8 +29,50 @@ function parallel(answers) {
     return asked;
 }
 
-function dig_reply(status, ms) {
-    return sprintf(";; ->>HEADER<<- opcode: QUERY, status: %s, id: 1\n;; Query time: %d msec\n", status, ms);
+// What each DNS query answers, by a regexp over "name@nameservers", with the milliseconds the
+// reply takes on a clock that moves only then; a query the table does not know fails the test.
+let ticks = 0;
+function dns_replies(table) {
+    global.clock = () => [ 1000, ticks++ ];
+    return resolv.__answer((names, options) => {
+        let line = names[0] + "@" + join(",", options.nameserver ?? [ "resolv.conf" ]);
+        for (let entry in table)
+            if (match(line, entry[0]) != null) {
+                ticks += (entry[2] ?? 0) * 1000000;
+                return entry[1](names[0]);
+            }
+        die("unexpected DNS query: " + line);
+    });
+}
+
+// The core's answer about its Tailscale endpoints, or its failure for null; the returned
+// function puts the real request back.
+function tailscale(reply) {
+    let real = clash_api.request;
+    clash_api.request = (method, path) => {
+        if (reply == null)
+            die("Clash API request failed: " + method + " " + path);
+        return { status: 200, body: sprintf("%J", reply) };
+    };
+    return () => { clash_api.request = real; };
+}
+
+function rcode(status) {
+    return (name) => {
+        let reply = {};
+        if (status != "NOERROR")
+            reply[name] = { rcode: status };
+        return reply;
+    };
+}
+
+function records(kind, ...values) {
+    return (name) => {
+        let reply = {};
+        reply[name] = {};
+        reply[name][kind] = values;
+        return reply;
+    };
 }
 
 function write_config(config) {
@@ -106,78 +150,102 @@ t.test("the core check names the package's version and variant and why Forkop ca
 });
 
 t.test("a DNS reply counts when the server resolved the name, whatever the name turned out to be", () => {
-    t.eq(checks.dig_result(dig_reply("NXDOMAIN", 23)), { answered: true, status: "NXDOMAIN", ms: 23 });
-    t.eq(checks.dig_result(dig_reply("SERVFAIL", 4)), { answered: false, status: "SERVFAIL", ms: 4 });
-    t.eq(checks.dig_result(";; communications error to 127.0.0.42#53: timed out\n"), { answered: false, status: "", ms: -1 });
+    fixture.seed({ settings: { dns_server: [ "77.88.8.8" ], config_path: dir + "/config.json" } });
+    let main = (reply, ms) => {
+        dns_replies([ [ /@127\.0\.0\.42#53$/, reply, ms ], [ /^localhost@/, rcode("NOERROR") ] ]);
+        let value = checks.dns().main;
+        stub.restore();
+        return [ value.answered, value.status, value.ms ];
+    };
+    t.eq(main(rcode("NXDOMAIN"), 23), [ true, "NXDOMAIN", 23 ]);
+    t.eq(main(records("A", "203.0.113.1"), 12), [ true, "NOERROR", 12 ]);
+    t.eq(main(rcode("SERVFAIL"), 4), [ false, "SERVFAIL", 4 ]);
+    t.eq(main(rcode("TIMEOUT"), 4000), [ false, "", -1 ], "a server that never answered has no status");
+    t.eq(main(() => null, 0), [ false, "", -1 ], "nor has a query resolv refused");
 });
 
 t.test("the main DNS is asked through the core for a name no cache holds; bootstrap is skipped when nothing needs it", () => {
     fixture.seed({ settings: { dns_server: [ "77.88.8.8" ], bootstrap_dns_server: [ "77.88.8.8" ], config_path: dir + "/config.json" } });
     write_config({ outbounds: [ { type: "vless", tag: "a", server: "proxy.example" } ] });
-    let asked = parallel([ [ /@127\.0\.0\.42/, dig_reply("NOERROR", 12) ], [ /localhost/, dig_reply("NOERROR", 0) ] ]);
+    let asked = dns_replies([ [ /@127\.0\.0\.42#53$/, rcode("NOERROR"), 12 ], [ /^localhost@127\.0\.0\.1#53$/, records("A", "127.0.0.1") ] ]);
     let value = checks.dns();
+    stub.restore();
     t.eq(value.main, { servers: "77.88.8.8", answered: true, status: "NOERROR", ms: 12 });
     t.eq([ value.bootstrap, value.local.answered ], [ null, true ]);
-    t.matches(asked[0], /^dig @127\.0\.0\.42 -p 53 forkop-[0-9a-f]+\.example\.com A /);
+    t.matches(asked[0].names[0], /^forkop-[0-9a-f]+\.example\.com$/);
+    t.eq([ asked[0].options.type, asked[0].options.timeout, asked[0].options.retries ], [ [ "A" ], 4000, 1 ], "one attempt, as a page waits for it");
 });
 
 t.test("each run asks a name of its own", () => {
     fixture.seed({ settings: { config_path: dir + "/config.json" } });
-    let asked = parallel([ [ /@127\.0\.0\.42/, dig_reply("NOERROR", 1) ], [ /localhost/, dig_reply("NOERROR", 0) ] ]);
+    let asked = dns_replies([ [ /@127\.0\.0\.42#53$/, rcode("NOERROR") ], [ /^localhost@/, rcode("NOERROR") ] ]);
     checks.dns();
     checks.dns();
-    t.ok(asked[0] != asked[2], asked[0] + " and " + asked[2]);
+    stub.restore();
+    t.ok(asked[0].names[0] != asked[2].names[0], asked[0].names[0] + " and " + asked[2].names[0]);
 });
 
-t.test("bootstrap is asked directly for the main server it exists to find, over the transport it speaks", () => {
-    fixture.seed({ settings: { dns_server: [ "https://dns.example/dns-query" ],
-        bootstrap_dns_server: [ "1.1.1.1", "https://9.9.9.9/dns-query", "quic://8.8.8.8" ], config_path: dir + "/config.json" } });
-    let asked = parallel([
-        [ /@127\.0\.0\.42/, ";; communications error: timed out\n" ],
-        [ /localhost/, dig_reply("NOERROR", 0) ],
-        [ /@1\.1\.1\.1/, ";; communications error: timed out\n" ],
-        [ /@9\.9\.9\.9/, dig_reply("NOERROR", 31) ]
+t.test("bootstrap is asked directly for the main server it exists to find, where it speaks plain DNS", () => {
+    fixture.seed({ settings: { dns_server: [ "https://dns.example/dns-query" ], bootstrap_dns_server: [ "1.1.1.1",
+        "udp://[2606:4700::1111]:5353", "https://9.9.9.9/dns-query", "quic://8.8.8.8", "8.8.4.4" ], config_path: dir + "/config.json" } });
+    let asked = dns_replies([
+        [ /@127\.0\.0\.42#53$/, rcode("TIMEOUT"), 4000 ],
+        [ /^localhost@/, rcode("NOERROR") ],
+        [ /^dns\.example@1\.1\.1\.1#53$/, rcode("TIMEOUT"), 3000 ],
+        [ /^dns\.example@2606:4700::1111#5353$/, records("A", "203.0.113.7"), 31 ]
     ]);
     let value = checks.dns();
-    t.eq(value.bootstrap, { servers: "1.1.1.1, https://9.9.9.9/dns-query", host: "dns.example", answered: true, ms: 31 }, "dig speaks no QUIC");
+    stub.restore();
+    t.eq(value.bootstrap, { servers: "1.1.1.1, udp://[2606:4700::1111]:5353, 8.8.4.4", host: "dns.example", answered: true, ms: 31 },
+        "resolv speaks neither DoH nor QUIC, and the first server that answers is enough");
     t.eq(value.main.answered, false);
-    t.contains(join("\n", asked), "dig @9.9.9.9 -p 443 +https=/dns-query dns.example A");
+    t.eq(length(asked), 4, "8.8.4.4 is not asked once a server answered");
 });
 
 t.test("with DNS sent through a section, bootstrap finds the proxy servers", () => {
     fixture.seed({ settings: { dns_server: [ "8.8.8.8" ], bootstrap_dns_server: [ "77.88.8.8" ], dns_detour_enabled: "1",
         dns_detour_section: "s1", config_path: dir + "/config.json" }, section: [ { ".name": "s1", label: "Proxy" } ] });
     write_config({ outbounds: [ { type: "direct", tag: "direct-out" }, { type: "vless", tag: "a", server: "proxy.example" } ] });
-    parallel([ [ /@127\.0\.0\.42/, dig_reply("NOERROR", 1) ], [ /localhost/, dig_reply("NOERROR", 0) ], [ /@77\.88\.8\.8/, dig_reply("NOERROR", 5) ] ]);
+    dns_replies([ [ /@127\.0\.0\.42#53$/, rcode("NOERROR") ], [ /^localhost@/, rcode("NOERROR") ], [ /^proxy\.example@77\.88\.8\.8#53$/, rcode("NOERROR"), 5 ] ]);
     let value = checks.dns();
-    t.eq(value.bootstrap?.host, "proxy.example");
+    stub.restore();
+    t.eq([ value.bootstrap?.host, value.bootstrap?.ms ], [ "proxy.example", 5 ]);
 });
 
 t.test("the router's own traffic is checked the way a client's goes, and the exit through the first section", () => {
     fixture.seed({ settings: { config_path: dir + "/config.json" } });
     write_config({ route: { rules: [ { action: "sniff" }, { action: "route", inbound: [ "tproxy-in" ], outbound: "Main", domain: "ip.podkop.fyi" } ] } });
-    parallel([
-        [ /^dig \+short/, "198.18.0.7\n" ],
-        [ /fakeip\.podkop\.fyi\/check/, "{\"fakeip\": true, \"IP\": \"203.0.113.5\"}" ],
-        [ /ip\.podkop\.fyi\/check/, "{\"fakeip\": false, \"IP\": \"198.51.100.9\"}" ]
+    let lookups = dns_replies([ [ /^fakeip\.podkop\.fyi@resolv\.conf$/, records("A", "198.18.0.7") ] ]);
+    let asked = parallel([
+        [ /^uclient-fetch -q -O - --timeout=6 https:\/\/fakeip\.podkop\.fyi\/check$/, "{\"fakeip\": true, \"IP\": \"203.0.113.5\"}" ],
+        [ /^uclient-fetch -q -O - --timeout=8 https:\/\/ip\.podkop\.fyi\/check$/, "{\"fakeip\": false, \"IP\": \"198.51.100.9\"}" ]
     ]);
     t.eq(checks.traffic(), {
         router: { excluded: false, dns_fakeip: true, answered: true, fakeip: true, ip: "203.0.113.5" },
         exit: { section: "Main", answered: true, ip: "198.51.100.9" }
     });
+    t.eq([ length(lookups), length(asked) ], [ 1, 2 ]);
 
     write_config({ route: { rules: [] } });
-    let asked = parallel([ [ /^dig \+short/, "93.184.215.14\n" ], [ /fakeip\.podkop\.fyi\/check/, "<html>blocked</html>" ] ]);
+    dns_replies([ [ /^fakeip\.podkop\.fyi@/, records("A", "93.184.215.14") ] ]);
+    asked = parallel([ [ /fakeip\.podkop\.fyi\/check/, "<html>blocked</html>" ] ]);
     t.eq(checks.traffic(), { router: { excluded: false, dns_fakeip: false, answered: false, fakeip: false, ip: "" }, exit: null });
-    t.eq(length(asked), 2, "no section, no exit to check");
+    t.eq(length(asked), 1, "no section, no exit to check");
+
+    dns_replies([ [ /^fakeip\.podkop\.fyi@/, (name) => ({ "fakeip.podkop.fyi": { CNAME: [ "fake.example.net" ] }, "fake.example.net": { A: [ "198.18.0.9" ] } }) ] ]);
+    parallel([ [ /fakeip\.podkop\.fyi\/check/, "" ] ]);
+    t.eq(checks.traffic().router.dns_fakeip, true, "the address a CNAME leads to is the answer");
+    stub.restore();
 });
 
 t.test("a router excluded from routing is not checked, nor is the exit it would take", () => {
     fixture.seed({ settings: { config_path: dir + "/config.json", routing_excluded_ips: [ "192.168.1.50", "@system" ] } });
     write_config({ route: { rules: [ { action: "route", inbound: [ "tproxy-in" ], outbound: "Main", domain: "ip.podkop.fyi" } ] } });
+    let lookups = dns_replies([]);
     let asked = parallel([]);
     t.eq(checks.traffic(), { router: { excluded: true, dns_fakeip: false, answered: false, fakeip: false, ip: "" }, exit: null });
-    t.eq(asked, []);
+    stub.restore();
+    t.eq([ asked, lookups ], [ [], [] ]);
 });
 
 t.test("a server is checked for its listener, its firewall port and its public address", () => {
@@ -191,23 +259,25 @@ t.test("a server is checked for its listener, its firewall port and its public a
     ] });
     uci.__seed("firewall", []);
     write_config({ inbounds: [ { type: "vless", tag: "Main", listen: "::", listen_port: 443 }, { type: "socks", tag: "Own", listen: "127.0.0.1", listen_port: 1080 } ] });
-    parallel([ [ /AAAA vpn\.example/, "2a00:1450::7\n" ], [ /A vpn\.example/, "" ] ]);
+    let lookups = dns_replies([ [ /^vpn\.example@resolv\.conf$/, records("AAAA", "2a00:1450::7") ] ]);
     stub.commands([
         [ "ubus -S call network.interface.wan status", { stdout: "{\"ipv4-address\":[{\"address\":\"100.64.1.2\"}],\"ipv6-address\":[{\"address\":\"2a00:1450::7\"}]}" } ],
         [ "ubus -S call network.interface.wwan status", { status: 4 } ],
         [ /'ip' '-[46]' 'route'/, { stdout: "" } ],
         [ "netstat -ln", { stdout: "Proto Recv-Q Send-Q Local Address Foreign Address State\ntcp 0 0 :::443 :::* LISTEN\ntcp 0 0 127.0.0.1:1080 0.0.0.0:* LISTEN\ntcp 0 0 0.0.0.0:22 0.0.0.0:* LISTEN\n" } ],
         [ "netstat -lnp", { stdout: "Active Internet connections\nProto Recv-Q Send-Q Local Address Foreign Address State PID/Program name\nudp 0 0 0.0.0.0:8443 0.0.0.0:* 812/nginx\ntcp 0 0 0.0.0.0:22 0.0.0.0:* LISTEN 1203/dropbear\n" } ],
-        [ "nft list chain inet fw4 input", { stdout: "\t\ttcp dport 443 counter accept comment \"forkop: server ports\"\n" } ],
-        [ /\/tailscale' /, { stdout: sprintf("%J", { endpoints: [ {
-            tag: "Tail", state: "Running", connected: true, name: "router-2", advertisesExitNode: true, exitNodeApproved: false,
-            routes: [ { prefix: "192.168.1.0/24", approved: true }, { prefix: "10.0.0.0/8", approved: false } ], keyExpiry: 1000
-        } ] }) + "__FORKOP_CLASH_STATUS__200" } ]
+        [ "nft list chain inet fw4 input", { stdout: "\t\ttcp dport 443 counter accept comment \"forkop: server ports\"\n" } ]
     ]);
+    let restore = tailscale({ endpoints: [ {
+        tag: "Tail", state: "Running", connected: true, name: "router-2", advertisesExitNode: true, exitNodeApproved: false,
+        routes: [ { prefix: "192.168.1.0/24", approved: true }, { prefix: "10.0.0.0/8", approved: false } ], keyExpiry: 1000
+    } ] });
     let value = checks.servers();
+    restore();
     stub.restore();
     let main = value.items[0], busy = value.items[1], own = value.items[2], held = value.items[3], tail = value.items[4];
     t.eq(length(value.items), 5, "a disabled server is not checked");
+    t.eq([ length(lookups), lookups[0]?.options.type ], [ 1, [ "A", "AAAA" ] ], "a public name is looked up once, for both families");
     t.eq([ tail.protocol, tail.runtime, tail.state, tail.connected, tail.name, tail.exit_node_pending, tail.pending_routes, tail.key_expired ],
         [ "tailscale", true, "Running", true, "router-2", true, "10.0.0.0/8", true ],
         "a Tailscale server listens on nothing; the core reports its state in the tailnet");
@@ -225,10 +295,11 @@ t.test("a Tailscale server the core does not report is not running", () => {
         [ "ubus -S call network.interface.wan status", { stdout: "{}" } ],
         [ "ubus -S call network.interface.wwan status", { status: 4 } ],
         [ /'ip' '-[46]' 'route'/, { stdout: "" } ],
-        [ /netstat/, { stdout: "" } ],
-        [ /\/tailscale' /, { status: 7 } ]
+        [ /netstat/, { stdout: "" } ]
     ]);
+    let restore = tailscale(null);
     let item = checks.servers().items[0];
+    restore();
     stub.restore();
     t.eq([ item.label, item.runtime, item.state ], [ "Tail", false, "" ]);
 });

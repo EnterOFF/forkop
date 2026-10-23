@@ -4,6 +4,7 @@ let fs = require("fs");
 let fixture = require("fixture");
 let worker = require("service.worker");
 let rulesets = require("singbox.rulesets");
+let clash_api = require("singbox.clash_api");
 let sync = require("nft.ruleset_sync");
 
 let dir = stub.tmpdir();
@@ -227,31 +228,30 @@ t.test("a large set goes to nft in bounded lines", () => {
     t.eq(length(elements(transactions[0], "forkop_rule_large_subnets")), 300);
 });
 
-// The worker's loop with curl answering from `answers` in turn.
+// The worker's loop with the controller answering from `answers` in turn: a body, false for a
+// wait that ran out, null for a controller that is not there or answered nothing.
 function run_worker(sections, answers) {
     seed(sections);
     let calls = [];
     let sleeps = [];
     let real_sleep = global.sleep;
+    let real_exchange = clash_api.exchange;
     global.sleep = (ms) => push(sleeps, ms);
-    stub.commands([
-        [ "curl", (argv) => {
-            let header = null;
-            for (let i = 0; i < length(argv); i++)
-                if (argv[i] == "--header")
-                    header = fs.readfile(substr(argv[i + 1], 1));
-            push(calls, { url: argv[length(argv) - 1], header, secret_on_argv: index(join(" ", argv), "test-secret") >= 0 });
-            let answer = shift(answers);
-            if (type(answer) == "function")
-                answer = answer();
-            if (length(answers) == 0)
-                seed([]);
+    clash_api.exchange = (api, method, path, options) => {
+        push(calls, { url: "http://" + api.endpoint + path, method, secret: api.secret, seconds: options.seconds });
+        let answer = shift(answers);
+        if (type(answer) == "function")
+            answer = answer();
+        if (length(answers) == 0)
+            seed([]);
+        if (type(answer) != "string")
             return answer;
-        } ],
-        [ "nft -f", {} ], [ "logger", {} ], [ "ubus", {} ]
-    ]);
+        return options.decode == null ? { status: 200, body: answer } : { status: 200, value: options.decode(answer) };
+    };
+    stub.commands([ [ "nft -f", {} ], [ "logger", {} ], [ "ubus", {} ] ]);
     sync.worker();
     stub.restore();
+    clash_api.exchange = real_exchange;
     global.sleep = real_sleep;
     return { calls, sleeps };
 }
@@ -261,14 +261,14 @@ const SNAPSHOT = sprintf("%J", { revision: 5, providers: {} });
 t.test("the worker follows the provider events and asks a controller that is not there later and later", () => {
     let section = { ".name": "followed", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
     let result = run_worker([ section ], [
-        { status: 7 },
-        { stdout: SNAPSHOT },
-        { status: 28 },
-        { stdout: "{\"name\":\"x\",\"revision\":6}" },
-        { stdout: SNAPSHOT },
-        { status: 52 },
-        { status: 7 },
-        { status: 7 }
+        null,
+        SNAPSHOT,
+        false,
+        "{\"name\":\"x\",\"revision\":6}",
+        SNAPSHOT,
+        null,
+        null,
+        null
     ]);
     t.eq(map(result.calls, (call) => call.url), [
         "http://127.0.0.1:9090/providers/rules",
@@ -281,16 +281,22 @@ t.test("the worker follows the provider events and asks a controller that is not
         "http://127.0.0.1:9090/providers/rules"
     ], "a timed-out wait is waited again, an event is synced from");
     t.eq(result.sleeps, [ 3000, 3000, 6000, 12000 ], "the retry waits double while the controller does not answer, and start over once it does");
-    t.eq(length(filter(result.calls, (call) => call.secret_on_argv)), 0);
-    t.eq(uniq(map(result.calls, (call) => call.header)), [ "Authorization: Bearer test-secret\n" ]);
+    t.eq(uniq(map(result.calls, (call) => call.secret)), [ "test-secret" ], "the secret sing-box runs with");
+    t.eq(uniq(map(result.calls, (call) => call.method + " " + call.seconds)), [ "GET 10", "GET 60" ], "a snapshot within 10 s, an event within a minute");
+});
+
+t.test("a snapshot the controller refuses or sends incomplete is no snapshot", () => {
+    let section = { ".name": "refused", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
+    let result = run_worker([ section ], [ { status: 401, value: { providers: {}, revision: 1 } }, { status: 200, value: null }, SNAPSHOT, null ]);
+    t.eq(result.sleeps, [ 3000, 6000, 3000 ], "neither counts as an answer");
 });
 
 t.test("each reload of the core is followed by the same short wait, however soon it came after the last one", () => {
     let section = { ".name": "reloaded", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
     let result = run_worker([ section ], [
-        { stdout: SNAPSHOT }, { status: 52 },
-        { stdout: SNAPSHOT }, { status: 52 },
-        { stdout: SNAPSHOT }, { status: 7 }
+        SNAPSHOT, null,
+        SNAPSHOT, null,
+        SNAPSHOT, null
     ]);
     t.eq(result.sleeps, [ 3000, 3000, 3000 ], "a controller that answered again is no longer one that does not answer");
 });
@@ -299,13 +305,13 @@ t.test("a controller that stopped answering is looked up again before it is aske
     let section = { ".name": "moved", enabled: "1", action: "connection", rule_set_with_subnets: [ ALPHA ] };
     let original = fs.readfile(config_path);
     let result = run_worker([ section ], [
-        { stdout: SNAPSHOT },
+        SNAPSHOT,
         () => {
             fs.writefile(config_path, "{\"experimental\":{\"clash_api\":{\"external_controller\":\"127.0.0.1:9191\",\"secret\":\"test-secret\"}}}");
-            return { status: 52 };
+            return null;
         },
-        { stdout: SNAPSHOT },
-        { status: 7 }
+        SNAPSHOT,
+        null
     ]);
     fs.writefile(config_path, original);
     t.eq(map(result.calls, (call) => call.url), [

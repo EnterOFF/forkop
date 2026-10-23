@@ -98,15 +98,15 @@ describe('ForkopShellMethods.clashApi', () => {
   it('reports a transport failure without inventing a status', async () => {
     mocks.executeShellCommand.mockResolvedValue({
       stdout: '',
-      stderr: 'curl: (7) Failed to connect',
-      code: 7,
+      stderr: 'Clash API request failed: GET /proxies',
+      code: 1,
     });
 
     await expect(
       ForkopShellMethods.clashApi('GET', '/proxies'),
     ).resolves.toEqual({
       success: false,
-      error: 'curl: (7) Failed to connect',
+      error: 'Clash API request failed: GET /proxies',
     });
   });
 });

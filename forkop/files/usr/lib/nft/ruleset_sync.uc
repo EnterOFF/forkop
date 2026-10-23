@@ -393,21 +393,11 @@ function sync(snapshot, sections) {
     return { loaded, written };
 }
 
-// Decoded straight from curl's pipe, so a country-sized list is never held twice.
+// Decoded as it arrives, so a country-sized list is never held twice.
 function snapshot(api) {
-    return clash_api.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "10" ], "/providers/rules", (argv) => {
-        let pipe = fs.popen(exec.command_line(argv) + " 2>/dev/null", "r");
-        if (!pipe)
-            return null;
-        let value = null;
-        try {
-            value = json(pipe);
-        }
-        catch (e) {
-        }
-        let ok = pipe.close() == 0 && type(value?.providers) == "object" && type(value?.revision) == "int";
-        return ok ? value : null;
-    });
+    let reply = clash_api.exchange(api, "GET", "/providers/rules", { connect_seconds: 2, seconds: 10, decode: json });
+    let value = reply?.status == 200 ? reply.value : null;
+    return type(value?.providers) == "object" && type(value?.revision) == "int" ? value : null;
 }
 
 // The revision synced, null without a snapshot, false when no section reads a provider.
@@ -424,11 +414,10 @@ function sync_once(api) {
 
 // true on a provider change, false when the wait ran out, null when the controller is unreachable.
 function next_change(api, revision, seconds) {
-    let result = clash_api.curl(api, [ "-fsS", "--connect-timeout", "2", "--max-time", "" + seconds ],
-        "/providers/rules/events?since=" + revision, exec.capture);
-    if (result.status == 28)
+    let reply = clash_api.exchange(api, "GET", "/providers/rules/events?since=" + revision, { connect_seconds: 2, seconds });
+    if (reply === false)
         return false;
-    return result.status == 0 && type(common.parse_json(result.stdout)?.revision) == "int" ? true : null;
+    return reply?.status == 200 && type(common.parse_json(reply.body)?.revision) == "int" ? true : null;
 }
 
 function worker_spec(sources) {
