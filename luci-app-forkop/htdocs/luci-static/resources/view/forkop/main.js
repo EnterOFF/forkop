@@ -11364,7 +11364,28 @@ function renderValue(text8, className = "") {
     value
   );
 }
-function renderSource(name, detail) {
+function renderBuiltin(text8, title) {
+  return textE(
+    "span",
+    {
+      class: "fkp_monitoring-page__value fkp_monitoring-page__tag fkp_monitoring-page__tag--builtin",
+      title,
+      "data-copy-value": text8
+    },
+    text8
+  );
+}
+function renderSource({
+  sourceName: name,
+  sourceDetail: detail,
+  system
+}) {
+  if (system) {
+    return renderBuiltin(
+      name,
+      _("The router itself: its services and programs")
+    );
+  }
   const shown2 = [name, detail].filter(Boolean).join(" ") || "-";
   const muted = (text8) => textE("span", { class: "fkp_monitoring-page__muted" }, text8);
   return textE(
@@ -11377,19 +11398,11 @@ function renderSource(name, detail) {
     name ? [name, ...detail ? [" ", muted(detail)] : []] : [muted(shown2)]
   );
 }
-function renderRoute(item) {
-  if (!item.direct) {
-    return renderValue(item.route, "fkp_monitoring-page__route");
-  }
-  return textE(
-    "span",
-    {
-      class: "fkp_monitoring-page__value fkp_monitoring-page__route fkp_monitoring-page__route--direct",
-      title: _("Straight from the router, without a proxy or tunnel"),
-      "data-copy-value": item.route
-    },
-    item.route
-  );
+function renderRoute({ route, direct }) {
+  return direct ? renderBuiltin(
+    route,
+    _("Straight from the router, without a proxy or tunnel")
+  ) : renderValue(route, "fkp_monitoring-page__tag");
 }
 function renderAction(item) {
   return textE(
@@ -11417,7 +11430,7 @@ function renderRow(item, closable) {
     },
     [
       renderCell("host", [renderValue(item.host)]),
-      renderCell("source", [renderSource(item.sourceName, item.sourceDetail)]),
+      renderCell("source", [renderSource(item)]),
       renderCell("route", [renderRoute(item)]),
       renderCell("network", [
         renderValue(item.network, "fkp_monitoring-page__network")
@@ -12032,6 +12045,7 @@ function toListItem(connection) {
     host: getTargetCellParts(connection).primary,
     sourceName: source.name,
     sourceDetail: source.detail,
+    system: source.kind === "system",
     route: route?.label || "",
     direct: route?.tag === DIRECT_ROUTE_TAG,
     network: getNetwork(connection),
@@ -12845,7 +12859,7 @@ when the width runs short. */
     user-select: text;
 }
 
-.fkp_monitoring-page__route {
+.fkp_monitoring-page__tag {
     display: inline-block;
     max-width: 100%;
     box-sizing: border-box;
@@ -12857,7 +12871,7 @@ when the width runs short. */
     vertical-align: middle;
 }
 
-.fkp_monitoring-page__route--direct {
+.fkp_monitoring-page__tag--builtin {
     background: transparent;
     box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
     color: var(--text-color-medium, #bbb);

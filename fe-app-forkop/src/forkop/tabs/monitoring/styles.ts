@@ -279,7 +279,7 @@ when the width runs short. */
     user-select: text;
 }
 
-.fkp_monitoring-page__route {
+.fkp_monitoring-page__tag {
     display: inline-block;
     max-width: 100%;
     box-sizing: border-box;
@@ -291,7 +291,7 @@ when the width runs short. */
     vertical-align: middle;
 }
 
-.fkp_monitoring-page__route--direct {
+.fkp_monitoring-page__tag--builtin {
     background: transparent;
     box-shadow: inset 0 0 0 1px rgba(128, 128, 128, 0.35);
     color: var(--text-color-medium, #bbb);

@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-23 19:23+0300\n"
-"PO-Revision-Date: 2026-10-23 19:23+0300\n"
+"POT-Creation-Date: 2026-10-23 19:27+0300\n"
+"PO-Revision-Date: 2026-10-23 19:27+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -2479,6 +2479,9 @@ msgstr "Роутер выпускает ключи этого клиента п�
 
 msgid "The router itself becomes a proxy server for your devices"
 msgstr "Роутер сам становится прокси-сервером для ваших устройств"
+
+msgid "The router itself: its services and programs"
+msgstr "Сам роутер: его службы и программы"
 
 msgid "The second address of ifconfig in the profile"
 msgstr "Второй адрес ifconfig в профиле"

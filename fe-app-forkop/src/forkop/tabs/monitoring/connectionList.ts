@@ -19,6 +19,7 @@ export interface ConnectionListItem {
   host: string;
   sourceName: string;
   sourceDetail: string;
+  system: boolean;
   route: string;
   direct: boolean;
   network: string;
@@ -136,8 +137,34 @@ function renderValue(text: string, className = '') {
   );
 }
 
+// The direct route and the router itself are no section and no device, so they are drawn unlike
+// the names the user gave, which they could share.
+function renderBuiltin(text: string, title: string) {
+  return E(
+    'span',
+    {
+      class:
+        'fkp_monitoring-page__value fkp_monitoring-page__tag fkp_monitoring-page__tag--builtin',
+      title,
+      'data-copy-value': text,
+    },
+    text,
+  );
+}
+
 // The muted colour sets the name apart; a tooltip has none, so it keeps the filter's separator.
-function renderSource(name: string, detail: string) {
+function renderSource({
+  sourceName: name,
+  sourceDetail: detail,
+  system,
+}: ConnectionListItem) {
+  if (system) {
+    return renderBuiltin(
+      name,
+      _('The router itself: its services and programs'),
+    );
+  }
+
   const shown = [name, detail].filter(Boolean).join(' ') || '-';
   const muted = (text: string) =>
     E('span', { class: 'fkp_monitoring-page__muted' }, text);
@@ -153,22 +180,13 @@ function renderSource(name: string, detail: string) {
   );
 }
 
-// Direct is no section, so it is drawn unlike a section's name, which it could share.
-function renderRoute(item: ConnectionListItem) {
-  if (!item.direct) {
-    return renderValue(item.route, 'fkp_monitoring-page__route');
-  }
-
-  return E(
-    'span',
-    {
-      class:
-        'fkp_monitoring-page__value fkp_monitoring-page__route fkp_monitoring-page__route--direct',
-      title: _('Straight from the router, without a proxy or tunnel'),
-      'data-copy-value': item.route,
-    },
-    item.route,
-  );
+function renderRoute({ route, direct }: ConnectionListItem) {
+  return direct
+    ? renderBuiltin(
+        route,
+        _('Straight from the router, without a proxy or tunnel'),
+      )
+    : renderValue(route, 'fkp_monitoring-page__tag');
 }
 
 function renderAction(item: ConnectionListItem) {
@@ -200,7 +218,7 @@ function renderRow(item: ConnectionListItem, closable: boolean) {
     },
     [
       renderCell('host', [renderValue(item.host)]),
-      renderCell('source', [renderSource(item.sourceName, item.sourceDetail)]),
+      renderCell('source', [renderSource(item)]),
       renderCell('route', [renderRoute(item)]),
       renderCell('network', [
         renderValue(item.network, 'fkp_monitoring-page__network'),

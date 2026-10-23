@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   getClashApiConnections: vi.fn(),
   getConfigSections: vi.fn(),
+  deviceNames: {} as Record<string, string>,
 }));
 
 vi.mock('../../../services/socket.service', () => ({
@@ -23,7 +24,11 @@ vi.mock('../../../methods/custom/clashApi', () => ({
   resetClashApiTransport: vi.fn(),
 }));
 vi.mock('../../../cbi/localDevices', () => ({
-  loadLocalDevices: async () => ({ choices: {}, order: [], names: {} }),
+  loadLocalDevices: async () => ({
+    choices: {},
+    order: [],
+    names: mocks.deviceNames,
+  }),
 }));
 vi.mock('../../../../icons', () => ({
   renderChevronUpIcon24: () => new FakeElement('svg'),
@@ -120,6 +125,7 @@ function connection(
   id: string,
   {
     sourceIP = '192.168.1.101',
+    type = 'tproxy/tproxy-in',
     chains = ['direct-out'],
     rule = '',
     ageSeconds = 0,
@@ -135,7 +141,7 @@ function connection(
       destinationPort: '443',
       network: 'tcp',
       sourceIP,
-      type: 'tproxy/tproxy-in',
+      type,
     },
     chains,
     start: new Date(Date.now() - ageSeconds * 1000).toISOString(),
@@ -181,6 +187,20 @@ function rows() {
     );
 }
 
+function sources() {
+  return rows().map((row) => {
+    const value = row
+      .descendants()
+      .find((element) => `${element.attrs.class}`.includes('__cell--source'))
+      ?.children[0] as FakeElement;
+
+    return [
+      value.textContent,
+      `${value.attrs.class}`.includes('__tag--builtin'),
+    ];
+  });
+}
+
 function activeCount() {
   return byId('monitoring-tab-active').textContent.replace(/\D/g, '');
 }
@@ -220,6 +240,7 @@ beforeEach(async () => {
   vi.useFakeTimers();
   mocks.getClashApiConnections.mockReset();
   mocks.getConfigSections.mockReset().mockResolvedValue([]);
+  mocks.deviceNames = {};
   documentListeners.clear();
   selection = { isCollapsed: true, anchorNode: null, focusNode: null };
 
@@ -415,6 +436,26 @@ describe('the Monitoring order', () => {
     expect([hosts(), sortedColumn()]).toEqual([
       ['a.example.com', 'b.example.com'],
       'time ascending',
+    ]);
+  });
+});
+
+describe('the Monitoring sources', () => {
+  it('tells the router itself from a device named System', async () => {
+    mocks.deviceNames = { '192.168.1.101': 'System' };
+    answerWith(
+      connection('a', { ageSeconds: 2 }),
+      connection('b', {
+        sourceIP: '192.168.1.1',
+        type: 'tproxy/system-in',
+        ageSeconds: 1,
+      }),
+    );
+    await openMonitoring();
+
+    expect(sources()).toEqual([
+      ['System', true],
+      ['System 192.168.1.101', false],
     ]);
   });
 });

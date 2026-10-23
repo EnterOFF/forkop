@@ -719,6 +719,7 @@ function toListItem(connection: MonitoredConnection): ConnectionListItem {
     host: getTargetCellParts(connection).primary,
     sourceName: source.name,
     sourceDetail: source.detail,
+    system: source.kind === 'system',
     route: route?.label || '',
     direct: route?.tag === DIRECT_ROUTE_TAG,
     network: getNetwork(connection),

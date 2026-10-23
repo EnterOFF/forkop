@@ -63,6 +63,7 @@ const CONNECTION: ConnectionListItem = {
   host: 'g.whatsapp.net:5222',
   sourceName: 'POCO-F7',
   sourceDetail: '192.168.1.144',
+  system: false,
   route: 'Proxy',
   direct: false,
   network: 'tcp',
@@ -223,23 +224,37 @@ describe('the Monitoring connection list', () => {
   it('separates the detail in plain text and copies the source as it reads', () => {
     const values = sourceValues([
       { ...CONNECTION, sourceName: 'mom phone', sourceDetail: 'Server #2' },
-      { ...CONNECTION, sourceName: 'System', sourceDetail: '' },
       { ...CONNECTION, sourceName: '', sourceDetail: '192.168.1.101' },
       { ...CONNECTION, sourceName: '', sourceDetail: '' },
     ]);
 
     expect(values.map((value) => value.attrs.title)).toEqual([
       'mom phone · Server #2',
-      'System',
       '192.168.1.101',
       '-',
     ]);
     expect(values.map((value) => value.attrs['data-copy-value'])).toEqual([
       'mom phone Server #2',
-      'System',
       '192.168.1.101',
       '-',
     ]);
+  });
+
+  it('draws the router itself like the direct route and says what it is', () => {
+    const [device, system] = sourceValues([
+      { ...CONNECTION, sourceName: 'System', sourceDetail: '192.168.1.53' },
+      { ...CONNECTION, sourceName: 'System', sourceDetail: '', system: true },
+    ]);
+
+    expect(classes(device)).not.toContain('fkp_monitoring-page__tag--builtin');
+    expect(classes(system)).toContain('fkp_monitoring-page__tag--builtin');
+    expect([text(system), system.attrs['data-copy-value']]).toEqual([
+      'System',
+      'System',
+    ]);
+    expect(system.attrs.title).toBe(
+      'The router itself: its services and programs',
+    );
   });
 
   it('draws the direct route unlike a section and says what it means', () => {
@@ -257,10 +272,8 @@ describe('the Monitoring connection list', () => {
       )
       .map((cell) => draw(cell.children[0]));
 
-    expect(classes(section)).not.toContain(
-      'fkp_monitoring-page__route--direct',
-    );
-    expect(classes(direct)).toContain('fkp_monitoring-page__route--direct');
+    expect(classes(section)).not.toContain('fkp_monitoring-page__tag--builtin');
+    expect(classes(direct)).toContain('fkp_monitoring-page__tag--builtin');
     expect([text(direct), direct.attrs['data-copy-value']]).toEqual([
       'Direct',
       'Direct',
