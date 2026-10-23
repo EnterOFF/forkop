@@ -58,8 +58,7 @@ fi
 # Forkop runs only on its own core. A 1.0.x updater installs luci-app-forkop and forkop by
 # file and never the core: this dependency makes that fail before anything changes.
 BACKEND_DEPENDS_IPK="libc, ca-bundle, curl, ucode, ucode-mod-fs, ucode-mod-ubus, ucode-mod-uloop, ucode-mod-uci, kmod-nft-tproxy, bind-dig, nftables, kmod-nft-nat, ip-full, dropbearconvert, sing-box-forkop (>= ${SB_REQUIRED_VERSION})"
-BACKEND_DEPENDS_APK="bind-dig ca-bundle curl dropbearconvert ip-full kmod-nft-nat kmod-nft-tproxy libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci sing-box-forkop>=${SB_REQUIRED_VERSION} !https-dns-proxy !nextdns !luci-app-passwall !luci-app-passwall2"
-BACKEND_CONFLICTS_IPK="https-dns-proxy, nextdns, luci-app-passwall, luci-app-passwall2"
+BACKEND_DEPENDS_APK="bind-dig ca-bundle curl dropbearconvert ip-full kmod-nft-nat kmod-nft-tproxy libc nftables ucode ucode-mod-fs ucode-mod-ubus ucode-mod-uloop ucode-mod-uci sing-box-forkop>=${SB_REQUIRED_VERSION}"
 # The app calls the backend's ubus object, so it needs a backend at least as new;
 # the feed Makefile's DEPENDS cannot express a version.
 APP_DEPENDS_IPK="libc, luci-base, forkop (>= ${RELEASE_VERSION})"
@@ -283,7 +282,6 @@ write_backend_ipk_control() {
 Package: forkop
 Version: ${RELEASE_VERSION}
 Depends: ${BACKEND_DEPENDS_IPK}
-Conflicts: ${BACKEND_CONFLICTS_IPK}
 License: GPL-2.0-or-later
 Section: net
 URL: ${PROJECT_URL}
@@ -625,7 +623,6 @@ verify_ipk_metadata() {
   grep -q "^Version: ${expected_version}$" "$tmp_dir/control"
   case "$expected_package" in
     forkop)
-      grep -q "^Conflicts: ${BACKEND_CONFLICTS_IPK}$" "$tmp_dir/control"
       grep -q "^Depends: .*sing-box-forkop (>= ${SB_REQUIRED_VERSION})" "$tmp_dir/control"
       ;;
     luci-app-forkop) grep -q "^Depends: .*forkop (>= ${expected_version})" "$tmp_dir/control" ;;
@@ -647,9 +644,6 @@ verify_apk_metadata() {
   grep -q "^  version: ${expected_version}$" "$dump_file"
   case "$expected_package" in
     forkop)
-      for conflict in https-dns-proxy nextdns luci-app-passwall luci-app-passwall2; do
-        grep -q "^[[:space:]]*- '!${conflict}'$" "$dump_file"
-      done
       grep -q "^[[:space:]]*- sing-box-forkop>=${SB_REQUIRED_VERSION}$" "$dump_file"
       ;;
     luci-app-forkop) grep -q "^[[:space:]]*- forkop>=${expected_version}$" "$dump_file" ;;

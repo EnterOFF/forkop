@@ -23,7 +23,6 @@ define Package/forkop
 	SECTION:=net
 	CATEGORY:=Network
 	DEPENDS:=+ca-bundle +curl +ucode +ucode-mod-fs +ucode-mod-ubus +ucode-mod-uloop +ucode-mod-uci +kmod-nft-tproxy +bind-dig +nftables +kmod-nft-nat +ip-full +dropbearconvert +sing-box-forkop
-	CONFLICTS:=https-dns-proxy nextdns luci-app-passwall luci-app-passwall2
 	TITLE:=Forkop backend service
 	URL:=https://github.com/ushan0v/forkop
 	PKGARCH:=all

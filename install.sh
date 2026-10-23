@@ -457,7 +457,7 @@ control_of() { # control_of FILE: the package's control fields, read once per ru
 	cat "$saved" 2>/dev/null
 }
 
-read_control() { # Conflicts included for apk, which keeps them among the dependencies
+read_control() { # apk lists conflicts among the dependencies, as !name
 	local file="$1" dir="$WORK/control.$$"
 	if [ "$EXT" = apk ]; then
 		apk adbdump "$file" 2>/dev/null | awk '
@@ -474,10 +474,9 @@ read_control() { # Conflicts included for apk, which keeps them among the depend
 			}
 			list && /^    - / {
 				d = substr($0, 7); gsub(/\047/, "", d)
-				if (d ~ /^!/) conflicts = conflicts (conflicts == "" ? "" : ", ") substr(d, 2)
-				else depends = depends (depends == "" ? "" : ", ") d
+				if (d !~ /^!/) depends = depends (depends == "" ? "" : ", ") d
 			}
-			END { print "Depends: " depends; print "Conflicts: " conflicts }'
+			END { print "Depends: " depends }'
 	else
 		rm -rf "$dir" && mkdir -p "$dir" || return 1
 		tar -xzf "$file" -C "$dir" ./control.tar.gz 2>/dev/null || tar -xzf "$file" -C "$dir" control.tar.gz 2>/dev/null
@@ -490,7 +489,7 @@ field() { # field CONTROL NAME
 	printf '%s\n' "$1" | sed -n "s/^$2: *//p" | head -n 1
 }
 
-dep_names() { # the package names a Depends or Conflicts field lists
+dep_names() { # the package names a Depends field lists
 	# shellcheck disable=SC2020
 	printf '%s\n' "$1" | sed 's/([^)]*)//g' | tr ',| ' '\n\n\n' | sed 's/[<>=~].*//' | grep -v -e '^$' -e '^!'
 }
@@ -1167,12 +1166,7 @@ check_config() { # what the new package does with /etc/config/forkop, from its o
 }
 
 plan_removals() {
-	local conflicts='' name file control
-	if [ -n "$FILE_FORKOP" ]; then
-		for name in $(dep_names "$(field "$(control_of "$FILE_FORKOP")" Conflicts)"); do
-			[ -z "$(pkg_version "$name")" ] || conflicts="$conflicts $name"
-		done
-	fi
+	local name file control
 	for file in $FILE_CORE $FILE_FORKOP $FILE_APP $FILE_I18N; do
 		control=$(control_of "$file")
 		for name in $(dep_names "$(field "$control" Depends)"); do
@@ -1180,8 +1174,8 @@ plan_removals() {
 		done
 	done
 	DEPS_MISSING=${DEPS_MISSING# }
-	[ "$CORE_ACTION" = install ] || [ -n "$FOREIGN_PKGS$FOREIGN_FILES" ] || [ -n "$conflicts" ] || return 0
-	REMOVE_PKGS=$(dependents "$conflicts $FOREIGN_PKGS")
+	[ "$CORE_ACTION" = install ] || [ -n "$FOREIGN_PKGS$FOREIGN_FILES" ] || return 0
+	REMOVE_PKGS=$(dependents "$FOREIGN_PKGS")
 	REMOVE_FILES=${FOREIGN_FILES# }
 	# a core whose package stays owns these files and goes on running
 	[ "$CORE_ACTION" = install ] || [ -z "$CORE_OLD" ] || REMOVE_FILES=''
@@ -1332,8 +1326,6 @@ config_reason() {
 removal_reason() {
 	if contains "$1" "$FOREIGN_CORES $FOREIGN_PKGS"; then
 		t 'another sing-box' 'чужой sing-box'
-	elif [ -n "$FILE_FORKOP" ] && contains "$1" "$(dep_names "$(field "$(control_of "$FILE_FORKOP")" Conflicts)" | tr '\n' ' ')"; then
-		t 'does not work together with Forkop' 'не работает вместе с Forkop'
 	else
 		t 'needs what goes away' 'зависит от удаляемого'
 	fi

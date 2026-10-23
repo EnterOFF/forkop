@@ -46,8 +46,6 @@ function sorted(list) {
 }
 
 let makefile_depends = sorted(map(words(makefile_field("DEPENDS")), (word) => ltrim(word, "+")));
-let makefile_conflicts = sorted(words(makefile_field("CONFLICTS")));
-let apk_entries = words(build_sh_variable("BACKEND_DEPENDS_APK"));
 
 // OpenWrt adds libc to every package itself; the standalone packages spell it.
 function without_libc(list) {
@@ -57,14 +55,7 @@ function without_libc(list) {
 t.test("the IPK and APK packages depend on what the feed package depends on", () => {
     t.ok(length(makefile_depends) > 0);
     t.eq(sorted(without_libc(words(build_sh_variable("BACKEND_DEPENDS_IPK")))), makefile_depends, "IPK");
-    t.eq(sorted(without_libc(filter(apk_entries, (entry) => substr(entry, 0, 1) != "!"))), makefile_depends, "APK");
-});
-
-t.test("the IPK and APK packages conflict with what the feed package conflicts with", () => {
-    t.ok(length(makefile_conflicts) > 0);
-    t.eq(sorted(words(build_sh_variable("BACKEND_CONFLICTS_IPK"))), makefile_conflicts, "IPK");
-    t.eq(sorted(map(filter(apk_entries, (entry) => substr(entry, 0, 1) == "!"), (entry) => substr(entry, 1))),
-        makefile_conflicts, "APK");
+    t.eq(sorted(without_libc(words(build_sh_variable("BACKEND_DEPENDS_APK")))), makefile_depends, "APK");
 });
 
 t.test("every native ucode module the library loads is a dependency", () => {
