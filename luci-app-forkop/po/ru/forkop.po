@@ -392,6 +392,9 @@ msgstr "Сертификат центра сертификации"
 msgid "Cache File Path"
 msgstr "Путь к файлу кэша"
 
+msgid "Cancel"
+msgstr "Отмена"
+
 msgid "Cannot be this section"
 msgstr "Нельзя выбрать эту же секцию"
 
@@ -409,6 +412,9 @@ msgstr "Сертификат"
 
 msgid "Certificate profile"
 msgstr "Профиль сертификатов"
+
+msgid "Change the build"
+msgstr "Сменить сборку"
 
 msgid "Change the HTTP headers of the request"
 msgstr "Изменить HTTP-заголовки запроса"
@@ -515,6 +521,9 @@ msgstr "Имя CN (name)"
 msgid "comp-lzo: unsupported mode %s"
 msgstr "comp-lzo: режим %s не поддерживается"
 
+msgid "Components"
+msgstr "Компоненты"
+
 msgid "compress: unsupported algorithm %s"
 msgstr "compress: алгоритм %s не поддерживается"
 
@@ -598,6 +607,9 @@ msgstr "Копировать найденное"
 
 msgid "Copy proxy link"
 msgstr "Скопировать ссылку прокси"
+
+msgid "Copy the output"
+msgstr "Копировать вывод"
 
 msgid "Copy the profile"
 msgstr "Скопировать профиль"
@@ -758,6 +770,9 @@ msgstr "Домены и IP-адреса"
 msgid "Domains only"
 msgstr "Только домены"
 
+msgid "done"
+msgstr "готово"
+
 msgid "Downlink"
 msgstr "Входящий"
 
@@ -865,6 +880,9 @@ msgstr "Истекает"
 
 msgid "Expires %s"
 msgstr "Истекает %s"
+
+msgid "failed"
+msgstr "ошибка"
 
 msgid "Failed to close connection"
 msgstr "Не удалось закрыть подключение"
@@ -983,6 +1001,9 @@ msgstr "Системные логи Forkop"
 msgid "Forkop transparent proxy"
 msgstr "прозрачный прокси Forkop"
 
+msgid "Forkop, its page and its core, sing-box-forkop, will be removed from the router."
+msgstr "С роутера будут удалены Forkop, его страница и ядро sing-box-forkop."
+
 msgid "form-entry: format FORM:NAME=VALUE"
 msgstr "form-entry: формат ФОРМА:ИМЯ=ЗНАЧЕНИЕ"
 
@@ -1051,6 +1072,9 @@ msgstr "идёт мимо Forkop"
 
 msgid "goes through Forkop"
 msgstr "идёт через Forkop"
+
+msgid "going to the LuCI home page"
+msgstr "переход на главную LuCI"
 
 msgid "Group name"
 msgstr "Имя группы"
@@ -1136,6 +1160,9 @@ msgstr "Импортирован первый сервер. В профиле е
 msgid "Imported. Not carried over: %s"
 msgstr "Импортировано. Не перенесено: %s"
 
+msgid "in progress"
+msgstr "выполняется"
+
 msgid "Include by pattern"
 msgstr "Включить по шаблону"
 
@@ -1150,6 +1177,15 @@ msgstr "Учитывает установку соединения и TLS-рук
 
 msgid "insecure: also MD5 and short keys"
 msgstr "insecure: ещё MD5 и короткие ключи"
+
+msgid "Installed versions"
+msgstr "Установленные версии"
+
+msgid "Installer output"
+msgstr "Вывод установщика"
+
+msgid "installer running..."
+msgstr "работает установщик..."
 
 msgid "interface is up, no internet through it"
 msgstr "интерфейс работает, выхода в интернет через него нет"
@@ -1168,6 +1204,12 @@ msgstr "Имя интерфейса"
 
 msgid "Interrupt connections"
 msgstr "Прерывать соединения"
+
+msgid "Interrupt the installer"
+msgstr "Прервать установщик"
+
+msgid "interrupted"
+msgstr "прервано"
 
 msgid "Invalid %s"
 msgstr "Неверный %s"
@@ -1513,6 +1555,9 @@ msgstr "Нет Address или PrivateKey"
 
 msgid "no answer"
 msgstr "нет ответа"
+
+msgid "no answer from the router"
+msgstr "роутер не отвечает"
 
 msgid "no answer in time"
 msgstr "не ответил вовремя"
@@ -1892,6 +1937,12 @@ msgstr "Отказываться от обмена ключами TLS 1.2 без
 msgid "remote: no server"
 msgstr "remote: не указан сервер"
 
+msgid "Remove Forkop"
+msgstr "Удалить Forkop"
+
+msgid "Remove Forkop?"
+msgstr "Удалить Forkop?"
+
 msgid "Remove servers from the selection above"
 msgstr "Убрать серверы из выборки выше"
 
@@ -1903,6 +1954,9 @@ msgstr "Удалять устройство из сети после отклю�
 
 msgid "Remove the key passphrase: openssl pkey -in key.pem -out plain.pem"
 msgstr "Снимите пароль с ключа: openssl pkey -in key.pem -out plain.pem"
+
+msgid "Remove the settings too"
+msgstr "Удалить и настройки"
 
 msgid "Rename servers"
 msgstr "Переименование серверов"
@@ -2002,6 +2056,9 @@ msgstr "Правила"
 
 msgid "Run Diagnostic"
 msgstr "Запустить диагностику"
+
+msgid "Run the installer"
+msgstr "Запустить установщик"
 
 msgid "running"
 msgstr "работает"
@@ -2339,6 +2396,9 @@ msgstr "TAP (уровень 2) не поддерживается, только T
 msgid "TCP and UDP"
 msgstr "TCP и UDP"
 
+msgid "Terminal"
+msgstr "Терминал"
+
 msgid "Test all sections"
 msgstr "Тестировать все секции"
 
@@ -2392,6 +2452,9 @@ msgstr "Имя, которое роутер сообщает серверу"
 
 msgid "The name this device appears under in the Tailscale console"
 msgstr "Под этим именем устройство отобразится в консоли"
+
+msgid "the page reloads"
+msgstr "страница перезагрузится"
 
 msgid "The profile connects over IPsec, which OpenConnect does not speak"
 msgstr "Профиль подключается по IPsec, а OpenConnect его не поддерживает"
@@ -2740,6 +2803,9 @@ msgstr "YAML не поддерживается"
 
 msgid "Yes"
 msgstr "Да"
+
+msgid "Yes, remove"
+msgstr "Да, удалить"
 
 msgid "Your own certificate"
 msgstr "Свой сертификат"

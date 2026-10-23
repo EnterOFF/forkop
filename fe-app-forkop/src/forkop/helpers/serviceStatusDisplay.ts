@@ -12,6 +12,7 @@ const BUSY_LABELS: Record<Forkop.ServiceBusy, () => string> = {
   stop: () => _('stopping...'),
   restart: () => _('restarting...'),
   apply: () => _('applying...'),
+  install: () => _('installer running...'),
 };
 
 // While an operation runs, readiness is briefly false by design, so the operation is reported

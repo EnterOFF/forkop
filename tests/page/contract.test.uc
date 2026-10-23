@@ -12,6 +12,10 @@ let mask = require("diagnostics.mask");
 let state_service = require("service.state_service");
 let features = require("singbox.features");
 let amnezia = require("singbox.amnezia");
+let installer = require("service.installer");
+let ubus = require("ubus");
+let uloop = require("uloop");
+let stub = require("stub");
 
 let contract = json(fs.readfile(repo.path("tests/fixtures/page_contract.json")));
 
@@ -103,6 +107,26 @@ t.test("the AmneziaWG parameters are read by the kinds and sides the page writes
 t.test("the core report the page is built against is the backend's for the base build", () => {
     let base = contract.core_report_base;
     t.eq(features.report(base.tags), base);
+});
+
+t.test("the page follows a run of install.sh through the object and methods its runner publishes", () => {
+    t.eq(installer.OBJECT_NAME, contract.installer.object);
+    t.eq(installer.ACTIONS, contract.installer.actions);
+    let dir = stub.tmpdir();
+    installer.paths.state = dir + "/state.json";
+    installer.paths.output = dir + "/output";
+    installer.paths.package_databases = [];
+    fs.writefile(installer.paths.state, sprintf("%J", { schema: 1, id: "run-1", action: "update", lang: "en", interactive: true, finished_at: null }));
+    ubus.__reset();
+    uloop.__reset();
+    let methods = null;
+    uloop.__on_run(() => {
+        methods = sort(keys(ubus.__published(contract.installer.object)));
+        uloop.__exit(0, 7);
+        uloop.__fire("timer");
+    });
+    installer.run("run-1");
+    t.eq(methods, contract.installer.methods);
 });
 
 t.done();

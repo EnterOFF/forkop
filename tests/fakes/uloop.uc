@@ -6,6 +6,7 @@ let running = false;
 let on_run = null;
 let signals = {};
 let pending_signals = [];
+let processes = [];
 
 function schedule(kind, ms, callback) {
     let entry = { kind, ms, callback, cancelled: false };
@@ -43,12 +44,29 @@ function __raise(name) {
         push(pending_signals, name);
 }
 
+// A process is recorded, never started; a test ends it with __exit and its callback runs.
+function process(executable, args, env, callback) {
+    let entry = { executable, args, env, callback, pid: 40000 + length(processes), exited: false };
+    push(processes, entry);
+    return {
+        pid: function() { return entry.pid; },
+        delete: function() { return true; }
+    };
+}
+
+function __exit(index, code) {
+    let entry = processes[index];
+    entry.exited = true;
+    entry.callback(code);
+}
+
 function __reset() {
     timers = [];
     running = false;
     on_run = null;
     signals = {};
     pending_signals = [];
+    processes = [];
 }
 
 // What happens while the loop runs; run() returns once it is done.
@@ -74,9 +92,12 @@ return {
     timer: function(ms, callback) { return schedule("timer", ms, callback); },
     interval: function(ms, callback) { return schedule("interval", ms, callback); },
     signal: function(name, callback) { signals[name] = callback; return true; },
+    process,
     __fire,
     __raise,
     __reset,
     __on_run,
-    __timers: function() { return timers; }
+    __exit,
+    __timers: function() { return timers; },
+    __processes: function() { return processes; }
 };

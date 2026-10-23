@@ -1,4 +1,5 @@
 // language=CSS
+import { ComponentsTab } from './forkop/tabs/components';
 import { DashboardTab } from './forkop/tabs/dashboard';
 import { DiagnosticTab } from './forkop/tabs/diagnostic';
 import { MonitoringTab } from './forkop/tabs/monitoring';
@@ -12,6 +13,7 @@ ${DashboardTab.styles}
 ${DiagnosticTab.styles}
 ${MonitoringTab.styles}
 ${LogsTab.styles}
+${ComponentsTab.styles}
 ${PartialStyles}
 
 

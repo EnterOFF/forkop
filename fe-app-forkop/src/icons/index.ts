@@ -25,3 +25,6 @@ export * from './renderChevronUpIcon24';
 export * from './renderGaugeIcon24';
 export * from './renderGlobeIcon24';
 export * from './renderFolderOpenIcon24';
+export * from './renderLayersIcon24';
+export * from './renderTrashIcon24';
+export * from './renderSquareTerminalIcon24';

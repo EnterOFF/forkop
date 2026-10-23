@@ -88,36 +88,78 @@ function element(...args) {
 }
 var textE = element;
 
-// src/forkop/tabs/dashboard/partials/renderFlagEmojis.ts
-var FLAG_EMOJI_PATTERN = /([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a}]+\u{e007f})/gu;
-var EXACT_FLAG_EMOJI_PATTERN = /^([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a}]+\u{e007f})$/u;
-function renderFlagEmojis(value) {
-  return value.split(FLAG_EMOJI_PATTERN).filter(Boolean).map(
-    (part) => EXACT_FLAG_EMOJI_PATTERN.test(part) ? textE("span", { class: "fkp_dashboard-page__flag-emoji" }, part) : part
+// src/forkop/tabs/components/render.ts
+var pageRoot = null;
+function versionRow(name, id) {
+  return textE("div", { class: "fkp_components-page__version" }, [
+    textE("b", {}, name),
+    textE("div", { id })
+  ]);
+}
+function render() {
+  pageRoot = textE(
+    "div",
+    { id: "components-status", class: "fkp_components-page" },
+    [
+      textE("div", { class: "fkp_components-page__controls" }, [
+        textE(
+          "div",
+          {
+            class: "fkp_components-page__block fkp_components-page__block--versions"
+          },
+          [
+            textE("b", {}, _("Installed versions")),
+            versionRow("Forkop", "components-forkop-version"),
+            versionRow("sing-box-forkop", "components-core-version")
+          ]
+        ),
+        textE("div", {
+          id: "components-actions",
+          class: "fkp_components-page__block"
+        })
+      ]),
+      textE("div", { id: "components-run", class: "fkp_components-page__run" })
+    ]
   );
+  return pageRoot;
 }
 
-// src/forkop/tabs/dashboard/latencyClassName.ts
-function latencyClassName(latency) {
-  if (!latency) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--empty";
+// src/helpers/showToast.ts
+function showToast(message2, type, duration = 3e3) {
+  let container = document.querySelector(".toast-container");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "toast-container";
+    document.body.appendChild(container);
   }
-  if (latency < 800) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--green";
-  }
-  if (latency < 1500) {
-    return "fkp_dashboard-page__outbound-grid__item__latency--yellow";
-  }
-  return "fkp_dashboard-page__outbound-grid__item__latency--red";
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message2;
+  container.appendChild(toast);
+  setTimeout(() => toast.classList.add("visible"), 100);
+  setTimeout(() => {
+    toast.classList.remove("visible");
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
 }
 
-// src/forkop/tabs/dashboard/sectionLatencyTarget.ts
-function sectionLatencyTarget(section2) {
-  if (section2.withTagSelect) {
-    return { type: "group", tag: section2.code };
+// src/helpers/copyToClipboard.ts
+function copyToClipboard(text8) {
+  const textarea = document.createElement("textarea");
+  textarea.value = text8;
+  document.body.appendChild(textarea);
+  textarea.select();
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch (error) {
+    console.error("copyToClipboard", error);
   }
-  const outbound = section2.outbounds[0];
-  return outbound ? { type: "proxy", tag: outbound.code } : void 0;
+  showToast(
+    copied ? _("Copied") : _("Failed to copy!"),
+    copied ? "success" : "error"
+  );
+  document.body.removeChild(textarea);
 }
 
 // src/helpers/spinPhase.ts
@@ -862,811 +904,84 @@ function renderFolderOpenIcon24() {
   );
 }
 
-// src/helpers/isCopyableProxyLink.ts
-var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5|tt):\/\//i;
-function isCopyableProxyLink(link) {
-  return COPYABLE_PROXY_URI_RE.test((link || "").trim());
-}
-
-// src/helpers/prettyBytes.ts
-function prettyBytes(n) {
-  const UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
-  if (n < 1e3) {
-    return n + " B";
-  }
-  const exponent = Math.min(Math.floor(Math.log10(n) / 3), UNITS.length - 1);
-  n = Number((n / Math.pow(1e3, exponent)).toPrecision(3));
-  const unit = UNITS[exponent];
-  return n + " " + unit;
-}
-
-// src/helpers/relativeTime.ts
-function pageLanguage() {
-  return document.documentElement.lang || void 0;
-}
-var TIME_UNITS = [
-  ["year", 31536e3],
-  ["month", 2592e3],
-  ["day", 86400],
-  ["hour", 3600],
-  ["minute", 60]
-];
-function relativeTime(seconds3, style = "long") {
-  const difference = seconds3 - Date.now() / 1e3;
-  const format2 = new Intl.RelativeTimeFormat(pageLanguage(), {
-    numeric: "auto",
-    style
-  });
-  for (const [unit, size] of TIME_UNITS) {
-    if (Math.abs(difference) >= size) {
-      return format2.format(Math.round(difference / size), unit);
-    }
-  }
-  return format2.format(0, "minute");
-}
-
-// src/forkop/tabs/dashboard/partials/renderExitPanel.ts
-function describeCountry(code) {
-  if (!code || code === "XX") {
-    return void 0;
-  }
-  if (code === "T1") {
-    return { flag: "", name: "Tor" };
-  }
-  if (!/^[A-Z]{2}$/.test(code)) {
-    return { flag: "", name: code };
-  }
-  const flag2 = String.fromCodePoint(
-    ...[...code].map((letter) => 127462 + letter.charCodeAt(0) - 65)
-  );
-  let name = code;
-  try {
-    const lang = typeof document === "undefined" ? "" : document.documentElement?.lang;
-    name = new Intl.DisplayNames(lang ? [lang] : [], { type: "region" }).of(code) || code;
-  } catch {
-  }
-  return { flag: flag2, name };
-}
-function renderCountry(code) {
-  const country = describeCountry(code);
-  if (!country) {
-    return void 0;
-  }
-  return textE("span", { class: "fkp_dashboard-page__exit-panel__country" }, [
-    ...renderFlagEmojis(country.flag),
-    textE("span", { title: code }, country.name)
-  ]);
-}
-function renderAddressRow(label, family, onCopy) {
-  const address = family.address;
-  return [
-    textE("dt", {}, label),
-    textE(
-      "dd",
-      {},
-      address ? [
-        textE(
-          "span",
-          { class: "fkp_dashboard-page__exit-panel__address" },
-          address
-        ),
-        textE(
-          "button",
-          {
-            type: "button",
-            class: "btn fkp_dashboard-page__exit-panel__icon-button",
-            title: _("Copy address"),
-            "aria-label": _("Copy address"),
-            click: () => onCopy(address)
-          },
-          renderCopyIcon24()
-        )
-      ] : textE(
-        "span",
-        {
-          class: "fkp_dashboard-page__exit-panel__missing",
-          title: family.error || void 0
-        },
-        _("no answer")
-      )
-    )
-  ];
-}
-function renderCountryRow(report2) {
-  const primary = report2.ipv4.address ? report2.ipv4 : report2.ipv6;
-  const country = renderCountry(primary.country);
-  if (!country) {
-    return [];
-  }
-  const ipv6Country = primary === report2.ipv4 && report2.ipv6.address && report2.ipv6.country !== report2.ipv4.country ? renderCountry(report2.ipv6.country) : void 0;
-  return [
-    textE("dt", {}, _("Country")),
-    textE("dd", {}, [
-      country,
-      ...ipv6Country ? [
-        textE(
-          "span",
-          { class: "fkp_dashboard-page__exit-panel__family-note" },
-          "IPv6:"
-        ),
-        ipv6Country
-      ] : []
-    ])
-  ];
-}
-function renderReport(report2, stale, onCopy) {
-  const lookupAddress = report2.ipv4.address || report2.ipv6.address;
-  return [
-    textE(
-      "dl",
-      {
-        class: [
-          "fkp_dashboard-page__exit-panel__facts",
-          stale ? "fkp_dashboard-page__exit-panel__facts--stale" : ""
-        ].filter(Boolean).join(" ")
-      },
-      [
-        ...renderAddressRow("IPv4", report2.ipv4, onCopy),
-        ...renderAddressRow("IPv6", report2.ipv6, onCopy),
-        ...renderCountryRow(report2)
-      ]
-    ),
-    ...lookupAddress ? [
-      textE("div", { class: "fkp_dashboard-page__exit-panel__footer" }, [
-        textE(
-          "a",
-          {
-            href: `https://ipinfo.io/${lookupAddress}`,
-            target: "_blank",
-            rel: "noopener noreferrer"
-          },
-          `${_("About the address on ipinfo.io")} \u2197`
-        )
-      ])
-    ] : []
-  ];
-}
-function renderStatus(state) {
-  return state.loading ? textE("div", { class: "fkp_dashboard-page__exit-panel__status" }, [
-    renderLoaderCircleIcon24(),
-    textE("span", {}, _("Finding the exit\u2026"))
-  ]) : textE(
-    "div",
+// src/icons/renderLayersIcon24.ts
+function renderLayersIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
     {
-      class: "fkp_dashboard-page__exit-panel__status fkp_dashboard-page__exit-panel__status--error"
-    },
-    _("No answer: %s").format(state.error || _("unknown error"))
-  );
-}
-function renderExitPanel({
-  state,
-  nodeName,
-  onRefresh,
-  onCopy
-}) {
-  return textE(
-    "div",
-    {
-      class: "fkp_dashboard-page__exit-panel",
-      role: "dialog",
-      "aria-label": _("Exit IP"),
-      click: (event) => event.stopPropagation()
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-layers-icon lucide-layers"
     },
     [
-      textE("div", { class: "fkp_dashboard-page__exit-panel__header" }, [
-        textE("div", { class: "fkp_dashboard-page__exit-panel__heading" }, [
-          textE(
-            "span",
-            { class: "fkp_dashboard-page__exit-panel__caption" },
-            _("Exit through")
-          ),
-          textE(
-            "span",
-            { class: "fkp_dashboard-page__exit-panel__node" },
-            nodeName ? renderFlagEmojis(nodeName) : "\u2026"
-          )
-        ]),
-        textE(
-          "button",
-          {
-            type: "button",
-            class: "btn fkp_dashboard-page__exit-panel__icon-button",
-            title: _("Check again"),
-            "aria-label": _("Check again"),
-            "aria-busy": state.loading ? "true" : void 0,
-            disabled: state.loading ? true : void 0,
-            click: () => onRefresh()
-          },
-          state.loading ? renderLoaderCircleIcon24() : renderRotateCcwIcon24()
-        )
-      ]),
-      ...state.report ? renderReport(state.report, state.loading, onCopy) : [renderStatus(state)]
+      svgEl("path", {
+        d: "m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"
+      }),
+      svgEl("path", { d: "m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" }),
+      svgEl("path", { d: "m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" })
     ]
   );
 }
 
-// src/forkop/tabs/dashboard/partials/renderSections.ts
-function renderFailedState() {
-  return textE(
-    "div",
+// src/icons/renderTrashIcon24.ts
+function renderTrashIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
     {
-      class: "fkp_dashboard-page__outbound-section centered",
-      style: "height: 127px"
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-trash-2-icon lucide-trash-2"
     },
-    textE("span", {}, [textE("span", {}, _("Dashboard currently unavailable"))])
-  );
-}
-function renderLoadingState() {
-  return textE("div", {
-    id: "dashboard-sections-grid-skeleton",
-    class: "fkp_dashboard-page__outbound-section skeleton",
-    style: "height: 127px"
-  });
-}
-function isValidHttpUrl(url) {
-  return Boolean(url && /^https?:\/\/\S+$/i.test(url));
-}
-function formatBytes(value) {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-    return void 0;
-  }
-  return prettyBytes(value);
-}
-function formatDate(seconds3) {
-  if (typeof seconds3 !== "number" || !Number.isFinite(seconds3) || seconds3 <= 0) {
-    return void 0;
-  }
-  const date = new Date(seconds3 * 1e3);
-  if (Number.isNaN(date.getTime())) {
-    return void 0;
-  }
-  return date.toLocaleDateString(void 0, {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
-}
-var UPDATED_CLASS = "fkp_dashboard-page__subscription-meta__updated";
-function updatedLabel(seconds3) {
-  return relativeTime(Math.min(seconds3, Date.now() / 1e3), "short");
-}
-function renderUpdated(seconds3) {
-  const date = new Date(seconds3 * 1e3);
-  return textE(
-    "time",
-    {
-      class: UPDATED_CLASS,
-      dateTime: date.toISOString(),
-      title: _("Updated %s").format(
-        date.toLocaleString(pageLanguage(), {
-          dateStyle: "medium",
-          timeStyle: "short"
-        })
-      )
-    },
-    updatedLabel(seconds3)
-  );
-}
-function refreshSubscriptionAges(root) {
-  root.querySelectorAll(`time.${UPDATED_CLASS}`).forEach((node) => {
-    const label = updatedLabel(Date.parse(node.dateTime) / 1e3);
-    if (node.textContent !== label) {
-      node.textContent = label;
-    }
-  });
-}
-function getLatencySortValue(outbound) {
-  return Number.isFinite(outbound.latency) && outbound.latency > 0 ? outbound.latency : Number.POSITIVE_INFINITY;
-}
-function renderMetadataAction(label, url) {
-  if (!isValidHttpUrl(url)) {
-    return void 0;
-  }
-  return textE(
-    "a",
-    {
-      class: "fkp_dashboard-page__subscription-meta__action",
-      href: url,
-      target: "_blank",
-      rel: "noopener noreferrer",
-      title: label,
-      "aria-label": label
-    },
-    `${label} \u2197`
-  );
-}
-function renderSubscriptionMetadata(metadata) {
-  if (!metadata) {
-    return void 0;
-  }
-  const title = metadata.title || metadata.fileName;
-  const traffic = metadata.traffic;
-  const used = formatBytes(traffic?.used) || "0 B";
-  const total = traffic?.isUnlimited ? "\u221E" : formatBytes(traffic?.total) || "0 B";
-  const expire = formatDate(metadata.expire);
-  const refillDate = formatDate(metadata.refillDate);
-  const rows = [
-    traffic ? {
-      label: _("Traffic"),
-      value: `${used} / ${total}`
-    } : void 0,
-    expire ? { label: _("Expires"), value: expire } : void 0,
-    refillDate ? { label: _("Refill"), value: refillDate } : void 0
-  ].filter(Boolean);
-  const actions = [
-    renderMetadataAction(_("Profile"), metadata.webPageUrl),
-    renderMetadataAction(_("Support"), metadata.supportUrl),
-    renderMetadataAction(_("More details"), metadata.announceUrl)
-  ].filter(Boolean);
-  if (!title && !rows.length && !actions.length && !metadata.announce) {
-    return void 0;
-  }
-  const name = [
-    ...metadata.subscriptionTag ? [
-      textE(
-        "div",
-        { class: "fkp_dashboard-page__subscription-meta__heading" },
-        [
-          textE(
-            "span",
-            {
-              class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
-            },
-            metadata.subscriptionTag
-          )
-        ]
-      )
-    ] : [],
-    ...title ? [
-      textE(
-        "div",
-        { class: "fkp_dashboard-page__subscription-meta__title" },
-        title
-      )
-    ] : []
-  ];
-  return textE("div", { class: "fkp_dashboard-page__subscription-meta" }, [
-    textE("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
-      name.length ? textE(
-        "div",
-        { class: "fkp_dashboard-page__subscription-meta__name" },
-        name
-      ) : "",
-      rows.length ? textE(
-        "div",
-        { class: "fkp_dashboard-page__subscription-meta__facts" },
-        rows.map(
-          (row2) => textE(
-            "div",
-            { class: "fkp_dashboard-page__subscription-meta__fact" },
-            [
-              textE(
-                "span",
-                {
-                  class: "fkp_dashboard-page__subscription-meta__fact-key"
-                },
-                row2.label
-              ),
-              textE(
-                "span",
-                {
-                  class: "fkp_dashboard-page__subscription-meta__fact-value"
-                },
-                row2.value
-              )
-            ]
-          )
-        )
-      ) : "",
-      actions.length ? textE(
-        "div",
-        { class: "fkp_dashboard-page__subscription-meta__actions" },
-        actions
-      ) : "",
-      metadata.updatedAt ? renderUpdated(metadata.updatedAt) : ""
-    ]),
-    metadata.announce ? textE(
-      "blockquote",
-      { class: "fkp_dashboard-page__subscription-meta__announce" },
-      metadata.announce
-    ) : ""
-  ]);
-}
-function renderDefaultState({
-  section: section2,
-  onChooseOutbound,
-  onCopyOutbound,
-  onShowUrlTestInfo,
-  onShowFallbackInfo,
-  onTestLatency,
-  onTestOutboundLatency,
-  onSortByLatencyChange,
-  onCollapsedChange,
-  latencyFetching,
-  latencyFetchingTargets = /* @__PURE__ */ new Set(),
-  sortByLatency,
-  collapsible,
-  collapsed,
-  exitPanel: exitPanel2,
-  onToggleExit,
-  onRefreshExit,
-  onCopyExitAddress
-}) {
-  function testLatency() {
-    const target2 = sectionLatencyTarget(section2);
-    if (target2) {
-      onTestLatency(target2.tag);
-    }
-  }
-  function renderOutbound(outbound) {
-    const canCopyLink = Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
-    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
-    const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
-    const canChooseOutbound = section2.withTagSelect && hasGroupMembers && !outbound.selected;
-    const showLatency = hasGroupMembers;
-    const latencyType = groupInfo ? "group" : "proxy";
-    const latencyTarget = outbound.code;
-    const outboundLatencyFetching = latencyFetchingTargets.has(latencyTarget);
-    const canTestOutboundLatency = showLatency && !outboundLatencyFetching;
-    const className = [
-      "fkp_dashboard-page__outbound-grid__item",
-      outbound.selected ? "fkp_dashboard-page__outbound-grid__item--active" : "",
-      canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--selectable" : "",
-      section2.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : ""
-    ].filter(Boolean).join(" ");
-    const latencyClass = latencyClassName(outbound.latency);
-    const latencyValue = outbound.latency ? `${outbound.latency}ms` : _("N/A");
-    const latency = showLatency ? textE(
-      "button",
-      {
-        type: "button",
-        class: `btn fkp_dashboard-page__outbound-grid__item__latency ${latencyClass}`,
-        title: _("Test latency"),
-        "aria-label": _("Test latency"),
-        "aria-busy": outboundLatencyFetching ? "true" : void 0,
-        disabled: canTestOutboundLatency ? void 0 : true,
-        click: (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          if (canTestOutboundLatency) {
-            onTestOutboundLatency(latencyType, latencyTarget);
-          }
-        }
-      },
-      [
-        outboundLatencyFetching ? renderLoaderCircleIcon24() : renderRotateCcwIcon24(),
-        textE(
-          "span",
-          {
-            class: "fkp_dashboard-page__outbound-grid__item__latency-value"
-          },
-          latencyValue
-        )
-      ]
-    ) : void 0;
-    return textE(
-      "div",
-      {
-        class: className,
-        "aria-disabled": section2.withTagSelect && !canChooseOutbound ? "true" : void 0,
-        click: () => canChooseOutbound && window.getSelection()?.isCollapsed !== false && onChooseOutbound(section2.sectionName, section2.code, outbound.code)
-      },
-      [
-        textE("div", { class: "fkp_dashboard-page__outbound-grid__item__header" }, [
-          textE("b", {}, [
-            ...outbound.subscriptionTag ? [
-              textE(
-                "span",
-                {
-                  class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
-                },
-                outbound.subscriptionTag
-              )
-            ] : [],
-            ...renderFlagEmojis(outbound.displayName)
-          ]),
-          ...canCopyLink ? [
-            textE(
-              "button",
-              {
-                type: "button",
-                class: "btn fkp_dashboard-page__outbound-grid__item__copy-button",
-                title: _("Copy proxy link"),
-                "aria-label": _("Copy proxy link"),
-                click: (event) => {
-                  event.stopPropagation();
-                  onCopyOutbound(section2, outbound);
-                }
-              },
-              renderCopyIcon24()
-            )
-          ] : [],
-          ...outbound.urlTestInfo ? [
-            textE(
-              "button",
-              {
-                type: "button",
-                class: "btn fkp_dashboard-page__outbound-grid__item__copy-button",
-                title: _("URLTest details"),
-                "aria-label": _("URLTest details"),
-                click: (event) => {
-                  event.stopPropagation();
-                  onShowUrlTestInfo(outbound);
-                }
-              },
-              renderInfoIcon24()
-            )
-          ] : [],
-          ...outbound.fallbackInfo ? [
-            textE(
-              "button",
-              {
-                type: "button",
-                class: "btn fkp_dashboard-page__outbound-grid__item__copy-button",
-                title: _("Fallback details"),
-                "aria-label": _("Fallback details"),
-                click: (event) => {
-                  event.stopPropagation();
-                  onShowFallbackInfo(outbound);
-                }
-              },
-              renderInfoIcon24()
-            )
-          ] : []
-        ]),
-        textE("div", { class: "fkp_dashboard-page__outbound-grid__item__footer" }, [
-          textE(
-            "div",
-            { class: "fkp_dashboard-page__outbound-grid__item__type" },
-            [outbound.fallbackInfo ? _("Fallback") : outbound.type].filter(
-              Boolean
-            )
-          ),
-          ...latency ? [latency] : []
-        ])
-      ]
-    );
-  }
-  const metadataNodes = (section2.subscriptionMetadata || []).map((metadata) => renderSubscriptionMetadata(metadata)).filter(Boolean);
-  const outbounds = sortByLatency ? [...section2.outbounds].sort(
-    (left, right) => getLatencySortValue(left) - getLatencySortValue(right)
-  ) : section2.outbounds;
-  const latencySortAction = section2.outbounds.length > 1 ? textE(
-    "button",
-    {
-      type: "button",
-      class: [
-        "btn fkp_dashboard-page__outbound-section__sort-by-latency",
-        sortByLatency ? "fkp_dashboard-page__outbound-section__sort-by-latency--active" : ""
-      ].filter(Boolean).join(" "),
-      title: _("Sort by latency"),
-      "aria-label": _("Sort by latency"),
-      "aria-pressed": sortByLatency ? "true" : "false",
-      click: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onSortByLatencyChange?.(section2.sectionName, !sortByLatency);
-      }
-    },
-    renderListFilterIcon24()
-  ) : void 0;
-  const exitAction = onToggleExit && sectionLatencyTarget(section2) ? textE(
-    "button",
-    {
-      type: "button",
-      class: [
-        "btn fkp_dashboard-page__outbound-section__exit",
-        exitPanel2 ? "fkp_dashboard-page__outbound-section__exit--open" : ""
-      ].filter(Boolean).join(" "),
-      title: _("Check IP"),
-      "aria-label": _("Check IP"),
-      "aria-haspopup": "dialog",
-      "aria-expanded": exitPanel2 ? "true" : "false",
-      click: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onToggleExit();
-      }
-    },
-    renderGlobeIcon24()
-  ) : void 0;
-  const collapseLabel = collapsed ? _("Expand section") : _("Collapse section");
-  const collapseAction = collapsible ? textE(
-    "button",
-    {
-      type: "button",
-      class: [
-        "btn fkp_dashboard-page__outbound-section__collapse",
-        collapsed ? "fkp_dashboard-page__outbound-section__collapse--collapsed" : ""
-      ].filter(Boolean).join(" "),
-      title: collapseLabel,
-      "aria-label": collapseLabel,
-      "aria-expanded": collapsed ? "false" : "true",
-      click: (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onCollapsedChange?.(section2.sectionName, !collapsed);
-      }
-    },
-    renderChevronUpIcon24()
-  ) : void 0;
-  const selected = section2.withTagSelect && (collapsed || section2.outbounds.length > 1) ? section2.outbounds.find((outbound) => outbound.selected) : void 0;
-  const current = selected ? textE("span", { class: "fkp_dashboard-page__outbound-section__current" }, [
-    textE(
-      "span",
-      { class: "fkp_dashboard-page__outbound-section__current-name" },
-      renderFlagEmojis(selected.displayName)
-    ),
-    ...selected.latency ? [
-      textE(
-        "span",
-        { class: latencyClassName(selected.latency) },
-        `${selected.latency}ms`
-      )
-    ] : []
-  ]) : void 0;
-  const headerFold = collapsible ? {
-    class: "fkp_dashboard-page__outbound-section__title-section fkp_dashboard-page__outbound-section__title-section--foldable",
-    click: () => {
-      if (window.getSelection()?.isCollapsed !== false) {
-        onCollapsedChange?.(section2.sectionName, !collapsed);
-      }
-    }
-  } : { class: "fkp_dashboard-page__outbound-section__title-section" };
-  return textE("div", { class: "fkp_dashboard-page__outbound-section" }, [
-    textE("div", headerFold, [
-      textE("div", { class: "fkp_dashboard-page__outbound-section__heading" }, [
-        ...collapseAction ? [collapseAction] : [],
-        textE(
-          "div",
-          {
-            class: "fkp_dashboard-page__outbound-section__title-section__title"
-          },
-          section2.displayName
-        ),
-        ...current ? [current] : [],
-        // Beside the node it describes, far from the look-alike latency test.
-        ...exitAction ? [exitAction] : []
-      ]),
-      textE(
-        "div",
-        {
-          class: "fkp_dashboard-page__outbound-section__title-section__actions"
-        },
-        [
-          ...latencySortAction ? [latencySortAction] : [],
-          textE(
-            "button",
-            {
-              type: "button",
-              class: "btn dashboard-sections-grid-item-test-latency",
-              title: _("Test latency"),
-              "aria-label": _("Test latency"),
-              "aria-busy": latencyFetching ? "true" : void 0,
-              disabled: latencyFetching ? true : void 0,
-              click: (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (!latencyFetching) testLatency();
-              }
-            },
-            latencyFetching ? renderLoaderCircleIcon24() : renderGaugeIcon24()
-          )
-        ]
-      ),
-      ...exitAction && exitPanel2 ? [
-        renderExitPanel({
-          state: exitPanel2,
-          nodeName: exitPanel2.nodeName,
-          onRefresh: () => onRefreshExit?.(),
-          onCopy: (address) => onCopyExitAddress?.(address)
-        })
-      ] : []
-    ]),
-    // Everything below the title folds away; the title row and its actions stay.
-    ...collapsed ? [] : [
-      textE("div", { class: "fkp_dashboard-page__outbound-grid" }, [
-        ...metadataNodes,
-        ...outbounds.map((outbound) => renderOutbound(outbound))
-      ])
+    [
+      svgEl("path", { d: "M3 6h18" }),
+      svgEl("path", { d: "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" }),
+      svgEl("path", { d: "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" }),
+      svgEl("line", { x1: "10", x2: "10", y1: "11", y2: "17" }),
+      svgEl("line", { x1: "14", x2: "14", y1: "11", y2: "17" })
     ]
-  ]);
-}
-function renderSectionsPlaceholder(state) {
-  return renderSections({
-    ...state,
-    section: {
-      code: "",
-      sectionName: "",
-      displayName: "",
-      outbounds: [],
-      withTagSelect: false
-    },
-    onTestLatency: () => {
-    },
-    onTestOutboundLatency: () => {
-    },
-    onChooseOutbound: () => {
-    },
-    onCopyOutbound: () => {
-    },
-    onShowUrlTestInfo: () => {
-    },
-    onShowFallbackInfo: () => {
-    },
-    latencyFetching: false
-  });
-}
-function renderSections(props) {
-  if (props.failed) {
-    return renderFailedState();
-  }
-  if (props.loading) {
-    return renderLoadingState();
-  }
-  return renderDefaultState(props);
+  );
 }
 
-// src/forkop/tabs/dashboard/partials/renderWidget.ts
-function renderFailedState2() {
-  return textE(
-    "div",
+// src/icons/renderSquareTerminalIcon24.ts
+function renderSquareTerminalIcon24() {
+  const NS = "http://www.w3.org/2000/svg";
+  return svgEl(
+    "svg",
     {
-      id: "",
-      style: "height: 78px",
-      class: "fkp_dashboard-page__widgets-section__item centered"
+      xmlns: NS,
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "2",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      class: "lucide lucide-square-terminal-icon lucide-square-terminal"
     },
-    _("Currently unavailable")
+    [
+      svgEl("path", { d: "m7 11 2-2-2-2" }),
+      svgEl("path", { d: "M11 13h4" }),
+      svgEl("rect", {
+        width: "18",
+        height: "18",
+        x: "3",
+        y: "3",
+        rx: "2",
+        ry: "2"
+      })
+    ]
   );
-}
-function renderLoadingState2() {
-  return textE(
-    "div",
-    {
-      id: "",
-      style: "height: 78px",
-      class: "fkp_dashboard-page__widgets-section__item skeleton"
-    },
-    ""
-  );
-}
-function renderDefaultState2({ title, items }) {
-  return textE("div", { class: "fkp_dashboard-page__widgets-section__item" }, [
-    textE(
-      "b",
-      { class: "fkp_dashboard-page__widgets-section__item__title" },
-      title
-    ),
-    ...items.map(
-      (item) => textE(
-        "div",
-        {
-          class: "fkp_dashboard-page__widgets-section__item__row"
-        },
-        [
-          textE(
-            "span",
-            { class: "fkp_dashboard-page__widgets-section__item__row__key" },
-            `${item.key}: `
-          ),
-          textE(
-            "span",
-            { class: "fkp_dashboard-page__widgets-section__item__row__value" },
-            item.value
-          )
-        ]
-      )
-    )
-  ]);
-}
-function renderWidget(props) {
-  if (props.loading) {
-    return renderLoadingState2();
-  }
-  if (props.failed) {
-    return renderFailedState2();
-  }
-  return renderDefaultState2(props);
 }
 
 // src/partials/button/styles.ts
@@ -1794,44 +1109,6 @@ function renderButton({
   );
 }
 
-// src/helpers/showToast.ts
-function showToast(message2, type, duration = 3e3) {
-  let container = document.querySelector(".toast-container");
-  if (!container) {
-    container = document.createElement("div");
-    container.className = "toast-container";
-    document.body.appendChild(container);
-  }
-  const toast = document.createElement("div");
-  toast.className = `toast toast-${type}`;
-  toast.textContent = message2;
-  container.appendChild(toast);
-  setTimeout(() => toast.classList.add("visible"), 100);
-  setTimeout(() => {
-    toast.classList.remove("visible");
-    setTimeout(() => toast.remove(), 300);
-  }, duration);
-}
-
-// src/helpers/copyToClipboard.ts
-function copyToClipboard(text8) {
-  const textarea = document.createElement("textarea");
-  textarea.value = text8;
-  document.body.appendChild(textarea);
-  textarea.select();
-  let copied = false;
-  try {
-    copied = document.execCommand("copy");
-  } catch (error) {
-    console.error("copyToClipboard", error);
-  }
-  showToast(
-    copied ? _("Copied") : _("Failed to copy!"),
-    copied ? "success" : "error"
-  );
-  document.body.removeChild(textarea);
-}
-
 // src/helpers/downloadAsTxt.ts
 function downloadAsTxt(text8, filename) {
   const blob = new Blob([text8], { type: "text/plain;charset=utf-8" });
@@ -1922,99 +1199,241 @@ ${styles}
 ${styles2}
 `;
 
-// src/forkop/tabs/dashboard/partials/renderToolbar.ts
-function renderToolbar({
-  testAll,
-  updateSubscriptions,
-  updateLists
-}) {
-  const actions = [
-    testAll && renderButton({
-      classNames: ["fkp_dashboard-page__toolbar__action"],
-      icon: renderGaugeIcon24,
-      text: _("Test all sections"),
-      loading: testAll.busy,
-      onClick: testAll.onClick
-    }),
-    updateSubscriptions && renderButton({
-      classNames: ["fkp_dashboard-page__toolbar__action"],
-      icon: renderRotateCcwIcon24,
-      text: _("Update subscriptions"),
-      loading: updateSubscriptions.busy,
-      onClick: updateSubscriptions.onClick
-    }),
-    updateLists && renderButton({
-      classNames: ["fkp_dashboard-page__toolbar__action"],
-      icon: renderDownloadIcon24,
-      text: _("Update lists"),
-      loading: updateLists.busy,
-      onClick: updateLists.onClick
-    })
-  ].filter((action) => Boolean(action));
-  return actions.length ? [textE("div", { class: "fkp_dashboard-page__toolbar" }, actions)] : [];
+// src/forkop/helpers/isActiveLuciTab.ts
+function isActiveLuciTab(tabId) {
+  if (typeof document === "undefined") {
+    return false;
+  }
+  return Boolean(
+    document.querySelector(
+      `.cbi-tab[data-tab="${tabId}"]:not(.cbi-tab-disabled)`
+    )
+  );
 }
 
-// src/forkop/tabs/dashboard/render.ts
-function render() {
-  return textE(
-    "div",
-    {
-      id: "dashboard-status",
-      class: "fkp_dashboard-page"
-    },
-    [
-      textE("div", { class: "fkp_dashboard-page__content" }, [
-        textE("div", { class: "fkp_dashboard-page__widgets-section" }, [
-          textE(
-            "div",
-            { id: "dashboard-widget-traffic" },
-            renderWidget({
-              loading: true,
-              failed: false,
-              title: "",
-              items: []
-            })
-          ),
-          textE(
-            "div",
-            { id: "dashboard-widget-traffic-total" },
-            renderWidget({
-              loading: true,
-              failed: false,
-              title: "",
-              items: []
-            })
-          ),
-          textE(
-            "div",
-            { id: "dashboard-widget-load" },
-            renderWidget({
-              loading: true,
-              failed: false,
-              title: "",
-              items: []
-            })
-          ),
-          textE(
-            "div",
-            { id: "dashboard-widget-core" },
-            renderWidget({
-              loading: true,
-              failed: false,
-              title: "",
-              items: []
-            })
-          )
-        ]),
-        textE("div", { id: "dashboard-sections-toolbar" }),
-        textE(
-          "div",
-          { id: "dashboard-sections-grid" },
-          renderSectionsPlaceholder({ loading: true, failed: false })
-        )
-      ])
-    ]
+// src/forkop/tabs/diagnostic/checks/groups.ts
+var DIAGNOSTICS_CHECKS_ORDER = [
+  "SERVICE" /* SERVICE */,
+  "DNS" /* DNS */,
+  "TRAFFIC" /* TRAFFIC */,
+  "SECTIONS" /* SECTIONS */,
+  "SERVERS" /* SERVERS */
+];
+function diagnosticsCheckTitle(code) {
+  switch (code) {
+    case "SERVICE" /* SERVICE */:
+      return _("Service");
+    case "DNS" /* DNS */:
+      return "DNS";
+    case "TRAFFIC" /* TRAFFIC */:
+      return _("Traffic");
+    case "SECTIONS" /* SECTIONS */:
+      return _("Sections");
+    case "SERVERS" /* SERVERS */:
+      return _("VPN server");
+  }
+}
+
+// src/forkop/tabs/diagnostic/diagnostic.store.ts
+function createDiagnosticCheck(code, description, state = "skipped") {
+  return {
+    code,
+    title: diagnosticsCheckTitle(code),
+    order: DIAGNOSTICS_CHECKS_ORDER.indexOf(code),
+    description,
+    items: [],
+    state
+  };
+}
+function diagnosticsCheckCodes(options = {}) {
+  return DIAGNOSTICS_CHECKS_ORDER.filter(
+    (code) => code !== "SERVERS" /* SERVERS */ || options.includeServers === true
   );
+}
+function getDiagnosticsChecks(description, options = {}) {
+  return diagnosticsCheckCodes(options).map(
+    (code) => createDiagnosticCheck(code, description)
+  );
+}
+function getLoadingDiagnosticsChecks(options = {}) {
+  return {
+    diagnosticsChecks: getDiagnosticsChecks(_("Pending"), options)
+  };
+}
+var initialDiagnosticStore = {
+  diagnosticsSystemInfo: {
+    loading: true,
+    loaded: false,
+    capabilitiesLoaded: false,
+    forkop_version: "loading",
+    luci_app_version: "loading",
+    sing_box_version: "loading",
+    sing_box_variant: "",
+    server_inbounds_enabled_count: -1,
+    openwrt_version: "loading",
+    device_model: "loading"
+  },
+  diagnosticsActions: {
+    restart: {
+      loading: false
+    },
+    start: {
+      loading: false
+    },
+    stop: {
+      loading: false
+    },
+    enable: {
+      loading: false
+    },
+    disable: {
+      loading: false
+    },
+    report: {
+      loading: false
+    },
+    showConfig: {
+      loading: false
+    },
+    showSingBoxConfig: {
+      loading: false
+    }
+  },
+  diagnosticsRunAction: { loading: false, finished: null },
+  diagnosticsChecks: getDiagnosticsChecks(_("Not running"))
+};
+
+// src/forkop/services/store.service.ts
+function jsonStableStringify(obj) {
+  return JSON.stringify(obj, (_2, value) => {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      return Object.keys(value).sort().reduce(
+        (acc, key) => {
+          acc[key] = value[key];
+          return acc;
+        },
+        {}
+      );
+    }
+    return value;
+  });
+}
+function jsonEqual(a, b) {
+  try {
+    return jsonStableStringify(a) === jsonStableStringify(b);
+  } catch {
+    return false;
+  }
+}
+var StoreService = class {
+  constructor(initial) {
+    this.listeners = /* @__PURE__ */ new Set();
+    this.value = initial;
+    this.initial = structuredClone(initial);
+  }
+  get() {
+    return this.value;
+  }
+  set(next) {
+    const prev = this.value;
+    const diff = {};
+    for (const key in next) {
+      if (!jsonEqual(next[key], prev[key])) diff[key] = next[key];
+    }
+    if (Object.keys(diff).length === 0) {
+      return;
+    }
+    const merged = { ...prev, ...next };
+    this.value = merged;
+    this.listeners.forEach((cb) => cb(this.value, prev, diff));
+  }
+  reset(keys) {
+    const prev = this.value;
+    const next = structuredClone(this.value);
+    if (keys && keys.length > 0) {
+      keys.forEach((key) => {
+        next[key] = structuredClone(this.initial[key]);
+      });
+    } else {
+      Object.assign(next, structuredClone(this.initial));
+    }
+    if (jsonEqual(prev, next)) return;
+    this.value = next;
+    const diff = {};
+    for (const key in next) {
+      if (!jsonEqual(next[key], prev[key])) diff[key] = next[key];
+    }
+    this.listeners.forEach((cb) => cb(this.value, prev, diff));
+  }
+  subscribe(cb) {
+    this.listeners.add(cb);
+    cb(this.value, this.value, {});
+    return () => this.listeners.delete(cb);
+  }
+  unsubscribe(cb) {
+    this.listeners.delete(cb);
+  }
+  subscribeKey(key, cb) {
+    let prev = this.value[key];
+    const wrapper = (val) => {
+      if (!jsonEqual(val[key], prev)) {
+        prev = val[key];
+        cb(val[key]);
+      }
+    };
+    this.listeners.add(wrapper);
+    return () => this.listeners.delete(wrapper);
+  }
+};
+var initialStore = {
+  tabService: {
+    current: "",
+    all: []
+  },
+  bandwidthWidget: {
+    loading: true,
+    failed: false,
+    data: { up: 0, down: 0 }
+  },
+  trafficTotalWidget: {
+    loading: true,
+    failed: false,
+    data: { downloadTotal: 0, uploadTotal: 0 }
+  },
+  connectionsWidget: {
+    loading: true,
+    failed: false,
+    data: { connections: 0 }
+  },
+  coreUsageWidget: {
+    loading: true,
+    failed: false,
+    data: { cpu: null, memory: 0, startedAt: 0 }
+  },
+  serviceState: {
+    loading: true,
+    failed: false,
+    data: {
+      singbox: 0,
+      forkopRunning: 0,
+      forkopEnabled: 0,
+      forkopBusy: null
+    }
+  },
+  sectionsWidget: {
+    loading: true,
+    failed: false,
+    data: [],
+    hasRemoteLists: false
+  },
+  ...initialDiagnosticStore
+};
+var store = new StoreService(initialStore);
+
+// src/forkop/methods/custom/getConfigSections.ts
+async function getConfigSections() {
+  await uci.load(FORKOP_UCI_PACKAGE);
+  return uci.sections(FORKOP_UCI_PACKAGE);
 }
 
 // src/helpers/getClashApiUrl.ts
@@ -2044,55 +1463,6 @@ function getClashUILoginUrl(secret) {
   const { hostname } = window.location;
   const query = Object.entries({ hostname, port: "9090", secret }).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&");
   return `${getClashUIUrl()}/?${query}`;
-}
-
-// src/helpers/onMount.ts
-function getTarget(target2) {
-  if (typeof target2 === "string") {
-    return document.getElementById(target2);
-  }
-  return target2;
-}
-async function onMount(target2) {
-  return new Promise((resolve) => {
-    let observer = null;
-    const resolveIfMountedAndVisible = () => {
-      const mountedTarget = getTarget(target2);
-      if (mountedTarget && mountedTarget.isConnected && mountedTarget.offsetParent !== null) {
-        observer?.disconnect();
-        resolve(mountedTarget);
-        return true;
-      }
-      return false;
-    };
-    if (resolveIfMountedAndVisible()) {
-      return;
-    }
-    observer = new MutationObserver(() => {
-      resolveIfMountedAndVisible();
-    });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["class", "style", "hidden"]
-    });
-  });
-}
-
-// src/helpers/preserveScrollForPage.ts
-function preserveScrollForPage(renderFn) {
-  const scrollY = window.scrollY;
-  renderFn();
-  requestAnimationFrame(() => {
-    window.scrollTo({ top: scrollY });
-  });
-}
-
-// src/forkop/methods/custom/getConfigSections.ts
-async function getConfigSections() {
-  await uci.load(FORKOP_UCI_PACKAGE);
-  return uci.sections(FORKOP_UCI_PACKAGE);
 }
 
 // src/helpers/alignLuciRpcTimeout.ts
@@ -2218,6 +1588,8 @@ var Forkop;
     AvailableMethods2["GET_CORE_FEATURES"] = "get_core_features";
     AvailableMethods2["SERVICE_ACTION_ASYNC"] = "service_action_async";
     AvailableMethods2["UI_ACTION_ACK"] = "ui_action_ack";
+    AvailableMethods2["INSTALLER_START"] = "installer_start";
+    AvailableMethods2["INSTALLER_STATUS"] = "installer_status";
   })(AvailableMethods = Forkop2.AvailableMethods || (Forkop2.AvailableMethods = {}));
 })(Forkop || (Forkop = {}));
 
@@ -2780,6 +2152,12 @@ function closeAllClashApiConnections() {
   );
 }
 
+// src/helpers/isCopyableProxyLink.ts
+var COPYABLE_PROXY_URI_RE = /^(anytls|http2|http3|https?|naive\+https|naive\+quic|mieru|mierus|vless|vmess|trojan|ss|hysteria|hysteria2|hy2|tuic|socks|socks4|socks4a|socks5|tt):\/\//i;
+function isCopyableProxyLink(link) {
+  return COPYABLE_PROXY_URI_RE.test((link || "").trim());
+}
+
 // src/forkop/methods/custom/getDashboardSections.ts
 var EXPORTABLE_PROVIDER_PROXY_TYPES = /* @__PURE__ */ new Set([
   "anytls",
@@ -2999,7 +2377,7 @@ function uniqueCodes(codes) {
 function isUrlTestProxyEntry(entry) {
   return entry?.value?.type?.toLowerCase() === "urltest";
 }
-function getLatencySortValue2(outbound) {
+function getLatencySortValue(outbound) {
   const latency = Number(outbound.latency);
   return Number.isFinite(latency) && latency > 0 ? latency : Number.POSITIVE_INFINITY;
 }
@@ -3008,7 +2386,7 @@ function sortUrlTestMembers(outbounds) {
     if (left.outbound.selected !== right.outbound.selected) {
       return left.outbound.selected ? -1 : 1;
     }
-    const latencyDiff = getLatencySortValue2(left.outbound) - getLatencySortValue2(right.outbound);
+    const latencyDiff = getLatencySortValue(left.outbound) - getLatencySortValue(right.outbound);
     if (latencyDiff !== 0) {
       return latencyDiff;
     }
@@ -3607,6 +2985,2478 @@ var RemoteFakeIPMethods = {
   getFakeIpCheck
 };
 
+// src/forkop/services/systemInfo.service.ts
+var UNKNOWN_SYSTEM_INFO = {
+  loading: false,
+  loaded: false,
+  capabilitiesLoaded: false,
+  forkop_version: _("unknown"),
+  luci_app_version: _("unknown"),
+  sing_box_version: _("unknown"),
+  sing_box_variant: "",
+  server_inbounds_enabled_count: -1,
+  openwrt_version: _("unknown"),
+  device_model: _("unknown")
+};
+var systemInfoPromise = null;
+var latestSystemInfoRequestId = 0;
+function hasLoadedSystemInfo() {
+  const systemInfo = store.get().diagnosticsSystemInfo;
+  return Boolean(systemInfo.loaded) && !systemInfo.loading;
+}
+async function ensureSystemInfo({
+  force = false,
+  silent = false
+} = {}) {
+  if (!force && hasLoadedSystemInfo()) {
+    return store.get().diagnosticsSystemInfo;
+  }
+  if (systemInfoPromise && !force) {
+    return systemInfoPromise;
+  }
+  const requestId = ++latestSystemInfoRequestId;
+  const currentSystemInfo = store.get().diagnosticsSystemInfo;
+  if (!silent) {
+    store.set({
+      diagnosticsSystemInfo: {
+        ...currentSystemInfo,
+        loading: true
+      }
+    });
+  }
+  const promise = (async () => {
+    try {
+      const systemInfo = await ForkopShellMethods.getSystemInfo();
+      if (requestId !== latestSystemInfoRequestId) {
+        return store.get().diagnosticsSystemInfo;
+      }
+      if (systemInfo.success) {
+        const nextSystemInfo = {
+          ...UNKNOWN_SYSTEM_INFO,
+          loading: false,
+          loaded: true,
+          capabilitiesLoaded: true,
+          server_inbounds_enabled_count: currentSystemInfo.server_inbounds_enabled_count,
+          ...systemInfo.data
+        };
+        store.set({
+          diagnosticsSystemInfo: nextSystemInfo
+        });
+        return nextSystemInfo;
+      }
+    } catch (error) {
+      logger.error("[SYSTEM_INFO]", "ensureSystemInfo failed", error);
+    }
+    if (requestId === latestSystemInfoRequestId && !silent) {
+      const latestSystemInfo = store.get().diagnosticsSystemInfo;
+      const nextSystemInfo = {
+        ...UNKNOWN_SYSTEM_INFO,
+        loading: false,
+        loaded: false,
+        capabilitiesLoaded: latestSystemInfo.capabilitiesLoaded,
+        server_inbounds_enabled_count: latestSystemInfo.server_inbounds_enabled_count
+      };
+      store.set({
+        diagnosticsSystemInfo: nextSystemInfo
+      });
+      return nextSystemInfo;
+    }
+    return store.get().diagnosticsSystemInfo;
+  })();
+  systemInfoPromise = promise;
+  try {
+    return await promise;
+  } finally {
+    if (systemInfoPromise === promise) {
+      systemInfoPromise = null;
+    }
+  }
+}
+
+// src/forkop/tabs/components/installerApi.ts
+var INSTALLER_OBJECT = "forkop.installer";
+var START_TIMEOUT_MS = 15e3;
+var STATUS_TIMEOUT_MS = 1e4;
+var READ_TIMEOUT_MS = 5e3;
+function parseJson(text8) {
+  try {
+    return JSON.parse(text8);
+  } catch {
+    return null;
+  }
+}
+var installerApi = {
+  async start(action, variant, purge, lang) {
+    const response = await executeShellCommand({
+      command: "/usr/bin/forkop",
+      args: [
+        Forkop.AvailableMethods.INSTALLER_START,
+        action,
+        variant,
+        purge ? "1" : "0",
+        lang
+      ],
+      timeout: START_TIMEOUT_MS
+    });
+    const reply = parseJson(response.stdout);
+    if (!reply?.success || !reply.id) {
+      throw new Error(
+        reply?.message || response.stderr || _("Failed to execute")
+      );
+    }
+    return { id: reply.id, started: Boolean(reply.started) };
+  },
+  // From the files the run leaves, through the CLI: for a page that has just opened, and for a
+  // run whose process is gone.
+  async status(offset) {
+    const response = await executeShellCommand({
+      command: "/usr/bin/forkop",
+      args: [Forkop.AvailableMethods.INSTALLER_STATUS, String(offset)],
+      timeout: STATUS_TIMEOUT_MS
+    });
+    const snapshot = parseJson(response.stdout);
+    if ((response.code ?? 0) !== 0 || !snapshot || typeof snapshot.id !== "string") {
+      throw new Error(response.stderr || _("Failed to execute"));
+    }
+    return snapshot;
+  },
+  async read(id, offset) {
+    const reply = await callUbus({
+      object: INSTALLER_OBJECT,
+      method: "read",
+      params: { id, offset },
+      timeoutMs: READ_TIMEOUT_MS,
+      retryUnavailable: false
+    });
+    if (reply.success) {
+      return { snapshot: reply.data, gone: false };
+    }
+    if (reply.unavailable) {
+      return { snapshot: null, gone: true };
+    }
+    throw new Error(reply.message);
+  },
+  async input(id, data) {
+    const reply = await callUbus({
+      object: INSTALLER_OBJECT,
+      method: "input",
+      params: { id, data },
+      timeoutMs: READ_TIMEOUT_MS,
+      retryUnavailable: false
+    });
+    return reply.success && Boolean(reply.data.accepted);
+  },
+  async stop(id) {
+    const reply = await callUbus({
+      object: INSTALLER_OBJECT,
+      method: "stop",
+      params: { id },
+      timeoutMs: READ_TIMEOUT_MS,
+      retryUnavailable: false
+    });
+    return reply.success && Boolean(reply.data.accepted);
+  }
+};
+
+// src/helpers/isDocumentVisible.ts
+function isDocumentVisible() {
+  return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
+}
+function whenDocumentVisible(callback) {
+  if (isDocumentVisible()) {
+    callback();
+    return;
+  }
+  const onChange = () => {
+    if (!isDocumentVisible()) {
+      return;
+    }
+    document.removeEventListener("visibilitychange", onChange);
+    callback();
+  };
+  document.addEventListener("visibilitychange", onChange);
+}
+
+// src/forkop/helpers/pollChain.ts
+function createPollChain(run, nextDelay) {
+  let generation = 0;
+  let active = false;
+  let running = false;
+  let timer = null;
+  const request = (current) => {
+    if (current !== generation || running) {
+      return;
+    }
+    running = true;
+    void Promise.resolve().then(run).catch(() => void 0).finally(() => {
+      running = false;
+      if (current === generation) {
+        schedule(nextDelay(), current);
+      }
+    });
+  };
+  const schedule = (delay, current) => {
+    timer = setTimeout(() => {
+      timer = null;
+      whenDocumentVisible(() => request(current));
+    }, delay);
+  };
+  const clearTimer = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+  return {
+    get active() {
+      return active;
+    },
+    start(delay) {
+      if (active) {
+        return;
+      }
+      active = true;
+      generation += 1;
+      schedule(delay, generation);
+    },
+    stop() {
+      active = false;
+      generation += 1;
+      running = false;
+      clearTimer();
+    },
+    // A request already on its way finishes and schedules the next one itself.
+    now() {
+      if (!active || running) {
+        return;
+      }
+      clearTimer();
+      schedule(0, generation);
+    }
+  };
+}
+
+// src/forkop/tabs/components/installerRun.ts
+var LIVE_POLL_MS = 400;
+var CATCH_UP_POLL_MS = 50;
+var BACKGROUND_POLL_MS = 2e3;
+var LOST_AFTER_MS = 6e3;
+var AFTER_RUN_MS = 3e3;
+var INITIAL = {
+  id: "",
+  action: null,
+  loaded: false,
+  starting: false,
+  running: false,
+  interactive: false,
+  exit: null,
+  interrupted: false,
+  stopping: false,
+  changed: false,
+  lost: false,
+  after: null
+};
+function afterRun(state) {
+  if (state.action === "uninstall" && state.exit === 0) {
+    return "leave";
+  }
+  return state.changed ? "reload" : null;
+}
+function createInstallerRun(options) {
+  let state = { ...INITIAL };
+  let offset = 0;
+  let hot = false;
+  let watched = false;
+  let shown2 = false;
+  let catchingUp = false;
+  let failingSince = null;
+  let stopAsked = false;
+  const emit = () => options.onChange({ ...state });
+  const shouldPoll = () => state.running || shown2 && !state.loaded;
+  function follow(id) {
+    if (id !== state.id) {
+      options.terminal.reset();
+      offset = 0;
+      watched = false;
+      stopAsked = false;
+    }
+  }
+  function settle() {
+    const after = afterRun(state);
+    if (!watched || !after) {
+      return;
+    }
+    state.after = after;
+    setTimeout(() => options.onAfterRun(after), AFTER_RUN_MS);
+  }
+  function apply(snapshot) {
+    follow(snapshot.id);
+    const from = snapshot.offset ?? 0;
+    catchingUp = false;
+    if (from === offset && snapshot.data) {
+      options.terminal.write(snapshot.data);
+      offset = snapshot.next ?? offset;
+      catchingUp = true;
+    } else if (from !== offset) {
+      catchingUp = true;
+    }
+    const wasRunning = state.running && state.id === snapshot.id;
+    state = {
+      ...state,
+      id: snapshot.id,
+      action: snapshot.action ?? null,
+      loaded: true,
+      running: snapshot.running,
+      interactive: Boolean(snapshot.interactive),
+      exit: snapshot.exit ?? null,
+      interrupted: Boolean(snapshot.interrupted),
+      stopping: Boolean(snapshot.stop_requested) || stopAsked,
+      changed: Boolean(snapshot.changed)
+    };
+    if (snapshot.running) {
+      watched = true;
+      hot = true;
+    } else if (wasRunning) {
+      settle();
+    }
+  }
+  async function poll() {
+    try {
+      let snapshot = null;
+      if (hot && state.id) {
+        const read = await options.api.read(state.id, offset);
+        hot = !read.gone;
+        snapshot = read.snapshot;
+      }
+      apply(snapshot ?? await options.api.status(offset));
+      failingSince = null;
+    } catch {
+      failingSince ?? (failingSince = Date.now());
+    }
+    state.lost = failingSince !== null && Date.now() - failingSince >= LOST_AFTER_MS;
+    emit();
+    if (!shouldPoll()) {
+      chain.stop();
+    }
+  }
+  const chain = createPollChain(
+    poll,
+    () => !shown2 ? BACKGROUND_POLL_MS : catchingUp ? CATCH_UP_POLL_MS : LIVE_POLL_MS
+  );
+  function readNow() {
+    if (chain.active) {
+      chain.now();
+    } else {
+      chain.start(0);
+    }
+  }
+  return {
+    get state() {
+      return { ...state };
+    },
+    // A tab coming into view reads the run once, and goes on reading while it runs.
+    setShown(next) {
+      shown2 = next;
+      if (shown2) {
+        readNow();
+      } else if (!state.running) {
+        chain.stop();
+      }
+    },
+    // Something else said a run has begun: the feed, or another page.
+    refresh() {
+      if (!chain.active) {
+        chain.start(0);
+      }
+    },
+    async start(action, variant = "", purge = false) {
+      if (state.running || state.starting) {
+        return;
+      }
+      state.starting = true;
+      emit();
+      try {
+        const result = await options.api.start(
+          action,
+          variant,
+          purge,
+          options.lang()
+        );
+        follow(result.id);
+        state = {
+          ...state,
+          id: result.id,
+          action: result.started ? action : null,
+          starting: false,
+          running: true,
+          interactive: result.started ? action !== "uninstall" : false,
+          exit: null,
+          interrupted: false,
+          stopping: false,
+          changed: false,
+          after: null
+        };
+        watched = true;
+        hot = true;
+        readNow();
+      } catch (error) {
+        state.starting = false;
+        options.onStartFailed(
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+      emit();
+    },
+    async input(data) {
+      if (!state.running || !state.interactive || !state.id) {
+        return;
+      }
+      await options.api.input(state.id, data);
+      chain.now();
+    },
+    // install.sh stops while it has changed nothing and otherwise finishes what it changes; the
+    // run's end says which.
+    async stop() {
+      if (!state.running || !state.id || state.stopping) {
+        return;
+      }
+      const id = state.id;
+      stopAsked = true;
+      state.stopping = true;
+      emit();
+      const accepted = await options.api.stop(id).catch(() => false);
+      if (!accepted && state.id === id) {
+        stopAsked = false;
+      }
+      readNow();
+    }
+  };
+}
+
+// src/forkop/tabs/components/terminalScreen.ts
+var DEFAULT_STYLE = Object.freeze({
+  fg: null,
+  bg: null,
+  bold: false,
+  dim: false,
+  italic: false,
+  underline: false,
+  inverse: false
+});
+var TAB_WIDTH = 8;
+var ESC = "\x1B";
+var BEL = "\x07";
+function sgrColor(params, index) {
+  if (params[index + 1] === 5) {
+    const value = params[index + 2];
+    return {
+      color: value !== void 0 && value < 16 ? value : null,
+      used: 2
+    };
+  }
+  if (params[index + 1] === 2) {
+    return { color: null, used: 4 };
+  }
+  return { color: null, used: 0 };
+}
+var TerminalScreen = class {
+  constructor() {
+    this.lines = [[]];
+    this.row = 0;
+    this.col = 0;
+    // the first line changed since the view last drew
+    this.dirtyFrom = 0;
+    this.style = DEFAULT_STYLE;
+    this.state = "text";
+    this.params = "";
+  }
+  write(data) {
+    for (const ch of data) {
+      this.feed(ch);
+    }
+  }
+  reset() {
+    this.lines = [[]];
+    this.row = 0;
+    this.col = 0;
+    this.dirtyFrom = 0;
+    this.style = DEFAULT_STYLE;
+    this.state = "text";
+    this.params = "";
+  }
+  text() {
+    return this.lines.map(
+      (line) => line.map((cell) => cell.ch).join("").replace(/\s+$/, "")
+    ).join("\n").replace(/\n+$/, "");
+  }
+  touch(row2) {
+    if (row2 < this.dirtyFrom) {
+      this.dirtyFrom = row2;
+    }
+  }
+  feed(ch) {
+    switch (this.state) {
+      case "escape":
+        this.escape(ch);
+        return;
+      case "csi":
+        this.csi(ch);
+        return;
+      case "osc":
+        if (ch === BEL) {
+          this.state = "text";
+        } else if (ch === ESC) {
+          this.state = "osc-escape";
+        }
+        return;
+      case "osc-escape":
+        this.state = ch === "\\" ? "text" : "osc";
+        return;
+      default:
+        this.plain(ch);
+    }
+  }
+  plain(ch) {
+    switch (ch) {
+      case ESC:
+        this.state = "escape";
+        return;
+      case "\r":
+        this.col = 0;
+        return;
+      case "\n":
+        this.lineFeed();
+        return;
+      case "\b":
+        if (this.col > 0) {
+          this.col -= 1;
+        }
+        return;
+      case "	":
+        this.tab();
+        return;
+    }
+    if (ch < " " || ch === "\x7F") {
+      return;
+    }
+    this.put(ch);
+  }
+  escape(ch) {
+    if (ch === "[") {
+      this.state = "csi";
+      this.params = "";
+      return;
+    }
+    if (ch >= " " && ch <= "/") {
+      return;
+    }
+    this.state = ch === "]" ? "osc" : "text";
+  }
+  csi(ch) {
+    if (/[0-9;?<=>]/.test(ch)) {
+      this.params += ch;
+      return;
+    }
+    this.state = "text";
+    if (this.params.startsWith("?") || !/[@-~]/.test(ch)) {
+      return;
+    }
+    const params = this.params.split(";").map((part2) => part2 === "" ? NaN : Number(part2));
+    const first = Number.isNaN(params[0]) ? 0 : params[0];
+    switch (ch) {
+      case "m":
+        this.sgr(params.map((value) => Number.isNaN(value) ? 0 : value));
+        return;
+      case "K":
+        this.eraseInLine(first);
+        return;
+      case "C":
+        this.moveTo(this.col + Math.max(first, 1));
+        return;
+      case "D":
+        this.moveTo(this.col - Math.max(first, 1));
+        return;
+      case "G":
+        this.moveTo(Math.max(first, 1) - 1);
+        return;
+      case "J":
+        if (first === 2 || first === 3) {
+          this.reset();
+        }
+        return;
+    }
+  }
+  sgr(params) {
+    let style = { ...this.style };
+    for (let i = 0; i < params.length; i++) {
+      const value = params[i];
+      if (value === 0) {
+        style = { ...DEFAULT_STYLE };
+      } else if (value === 1) {
+        style.bold = true;
+      } else if (value === 2) {
+        style.dim = true;
+      } else if (value === 3) {
+        style.italic = true;
+      } else if (value === 4) {
+        style.underline = true;
+      } else if (value === 7) {
+        style.inverse = true;
+      } else if (value === 22) {
+        style.bold = false;
+        style.dim = false;
+      } else if (value === 23) {
+        style.italic = false;
+      } else if (value === 24) {
+        style.underline = false;
+      } else if (value === 27) {
+        style.inverse = false;
+      } else if (value >= 30 && value <= 37) {
+        style.fg = value - 30;
+      } else if (value >= 90 && value <= 97) {
+        style.fg = value - 90 + 8;
+      } else if (value === 39) {
+        style.fg = null;
+      } else if (value >= 40 && value <= 47) {
+        style.bg = value - 40;
+      } else if (value >= 100 && value <= 107) {
+        style.bg = value - 100 + 8;
+      } else if (value === 49) {
+        style.bg = null;
+      } else if (value === 38 || value === 48) {
+        const { color, used } = sgrColor(params, i);
+        if (value === 38) {
+          style.fg = color;
+        } else {
+          style.bg = color;
+        }
+        i += used;
+      }
+    }
+    this.style = Object.freeze(style);
+  }
+  line() {
+    return this.lines[this.row];
+  }
+  put(ch) {
+    const line = this.line();
+    while (line.length < this.col) {
+      line.push({ ch: " ", style: DEFAULT_STYLE });
+    }
+    line[this.col] = { ch, style: this.style };
+    this.col += 1;
+    this.touch(this.row);
+  }
+  lineFeed() {
+    this.row += 1;
+    if (this.row >= this.lines.length) {
+      this.lines.push([]);
+    }
+    this.touch(this.row);
+  }
+  tab() {
+    this.moveTo((Math.floor(this.col / TAB_WIDTH) + 1) * TAB_WIDTH);
+  }
+  moveTo(col) {
+    this.col = Math.max(0, col);
+  }
+  eraseInLine(mode) {
+    const line = this.line();
+    if (mode === 0) {
+      line.length = Math.min(line.length, this.col);
+    } else if (mode === 1) {
+      for (let i = 0; i <= this.col && i < line.length; i++) {
+        line[i] = { ch: " ", style: DEFAULT_STYLE };
+      }
+    } else if (mode === 2) {
+      line.length = 0;
+    }
+    this.touch(this.row);
+  }
+};
+
+// src/forkop/tabs/components/terminal.ts
+var INPUT_FLUSH_MS = 30;
+var FOLLOW_SLACK_PX = 24;
+function styleClass(style) {
+  let fg = style.fg;
+  let bg = style.bg;
+  const classes = [];
+  if (style.inverse) {
+    [fg, bg] = [bg, fg];
+    classes.push("fkp_terminal__inverse");
+  }
+  if (fg !== null) {
+    classes.push(`fkp_terminal__fg-${fg}`);
+  }
+  if (bg !== null) {
+    classes.push(`fkp_terminal__bg-${bg}`);
+  }
+  if (style.bold) {
+    classes.push("fkp_terminal__bold");
+  }
+  if (style.dim) {
+    classes.push("fkp_terminal__dim");
+  }
+  if (style.italic) {
+    classes.push("fkp_terminal__italic");
+  }
+  if (style.underline) {
+    classes.push("fkp_terminal__underline");
+  }
+  return classes.join(" ");
+}
+function lineRuns(cells, cursor2) {
+  const runs = [];
+  const length = cursor2 === null ? cells.length : Math.max(cells.length, cursor2 + 1);
+  for (let i = 0; i < length; i++) {
+    const cell = cells[i];
+    const className = cell ? styleClass(cell.style) : "";
+    const ch = cell?.ch ?? " ";
+    if (i === cursor2) {
+      runs.push({
+        className: `${className} fkp_terminal__cursor`.trim(),
+        text: ch === " " ? "\xA0" : ch
+      });
+      continue;
+    }
+    const last = runs[runs.length - 1];
+    if (last && i - 1 !== cursor2 && last.className === className) {
+      last.text += ch;
+    } else {
+      runs.push({ className, text: ch });
+    }
+  }
+  return runs;
+}
+var CONTROL_KEYS = {
+  d: "",
+  u: ""
+};
+var PLAIN_KEYS = {
+  Enter: "\r",
+  Backspace: "\x7F",
+  Tab: "	"
+};
+function keyInput(event) {
+  if (event.altKey || event.metaKey) {
+    return void 0;
+  }
+  return event.ctrlKey ? CONTROL_KEYS[event.key.toLowerCase()] : PLAIN_KEYS[event.key];
+}
+function isInterrupt(event) {
+  return event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === "c";
+}
+function typedInput(value) {
+  return value.replace(/\r\n|\n/g, "\r");
+}
+function span(run) {
+  const node = document.createElement("span");
+  if (run.className) {
+    node.className = run.className;
+  }
+  node.textContent = run.text;
+  return node;
+}
+function createTerminal(options) {
+  const screen = new TerminalScreen();
+  const output = document.createElement("pre");
+  output.className = "fkp_terminal__output";
+  output.setAttribute("role", "log");
+  output.setAttribute("aria-label", options.label);
+  const input = document.createElement("textarea");
+  input.className = "fkp_terminal__input";
+  input.setAttribute("aria-label", options.label);
+  input.setAttribute("autocomplete", "off");
+  input.setAttribute("autocapitalize", "off");
+  input.setAttribute("autocorrect", "off");
+  input.spellcheck = false;
+  input.tabIndex = -1;
+  const root = document.createElement("div");
+  root.className = "fkp_terminal";
+  root.append(output, input);
+  const lineNodes = [];
+  let inputEnabled = false;
+  let composing = false;
+  let pending = "";
+  let flushTimer = null;
+  let drawnCursorRow = null;
+  let following = true;
+  function atBottom() {
+    return output.scrollHeight - output.scrollTop - output.clientHeight <= FOLLOW_SLACK_PX;
+  }
+  function keepToEnd() {
+    if (following) {
+      output.scrollTop = output.scrollHeight;
+    }
+  }
+  output.addEventListener("scroll", () => {
+    if (output.clientHeight > 0) {
+      following = atBottom();
+    }
+  });
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(keepToEnd).observe(output);
+  }
+  function drawLine(row2, cursor2) {
+    let node = lineNodes[row2];
+    if (!node) {
+      node = document.createElement("span");
+      node.className = "fkp_terminal__line";
+      lineNodes[row2] = node;
+      output.appendChild(node);
+    }
+    const parts = row2 === 0 ? [] : [document.createTextNode("\n")];
+    for (const run of lineRuns(screen.lines[row2], cursor2)) {
+      parts.push(span(run));
+    }
+    node.replaceChildren(...parts);
+  }
+  function draw() {
+    const cursorRow = inputEnabled ? screen.row : null;
+    let from = screen.dirtyFrom;
+    if (drawnCursorRow !== null && drawnCursorRow !== cursorRow) {
+      from = Math.min(from, drawnCursorRow);
+    }
+    if (cursorRow !== null) {
+      from = Math.min(from, cursorRow);
+    }
+    while (lineNodes.length > screen.lines.length) {
+      lineNodes.pop()?.remove();
+    }
+    for (let row2 = Math.max(0, from); row2 < screen.lines.length; row2++) {
+      drawLine(row2, row2 === cursorRow ? screen.col : null);
+    }
+    screen.dirtyFrom = screen.lines.length;
+    drawnCursorRow = cursorRow;
+    keepToEnd();
+  }
+  function flushInput() {
+    flushTimer = null;
+    const data = pending;
+    pending = "";
+    if (data) {
+      options.onInput(data);
+    }
+  }
+  function send(data) {
+    if (!inputEnabled || !data) {
+      return;
+    }
+    pending += data;
+    flushTimer ?? (flushTimer = setTimeout(flushInput, INPUT_FLUSH_MS));
+  }
+  function takeTyped() {
+    const value = input.value;
+    input.value = "";
+    send(typedInput(value));
+  }
+  input.addEventListener("keydown", (event) => {
+    if (!inputEnabled || event.isComposing) {
+      return;
+    }
+    if (isInterrupt(event)) {
+      if (!window.getSelection()?.toString()) {
+        event.preventDefault();
+        options.onInterrupt();
+      }
+      return;
+    }
+    const data = keyInput(event);
+    if (data !== void 0) {
+      event.preventDefault();
+      send(data);
+    }
+  });
+  input.addEventListener("compositionstart", () => {
+    composing = true;
+  });
+  input.addEventListener("compositionend", () => {
+    composing = false;
+    takeTyped();
+  });
+  input.addEventListener("input", () => {
+    if (!composing) {
+      takeTyped();
+    }
+  });
+  input.addEventListener(
+    "focus",
+    () => root.classList.add("fkp_terminal--focused")
+  );
+  input.addEventListener(
+    "blur",
+    () => root.classList.remove("fkp_terminal--focused")
+  );
+  root.addEventListener("click", () => {
+    if (inputEnabled && !window.getSelection()?.toString()) {
+      input.focus({ preventScroll: true });
+    }
+  });
+  return {
+    element: root,
+    write(data) {
+      screen.write(data);
+      draw();
+    },
+    reset() {
+      screen.reset();
+      lineNodes.splice(0).forEach((node) => node.remove());
+      drawnCursorRow = null;
+      following = true;
+      draw();
+    },
+    setInput(enabled) {
+      if (enabled === inputEnabled) {
+        return;
+      }
+      inputEnabled = enabled;
+      root.classList.toggle("fkp_terminal--input", enabled);
+      if (!enabled) {
+        pending = "";
+        input.blur();
+      }
+      draw();
+    },
+    focus() {
+      if (inputEnabled) {
+        input.focus({ preventScroll: true });
+      }
+    },
+    text() {
+      return screen.text();
+    }
+  };
+}
+
+// src/forkop/tabs/components/initController.ts
+var controllerInitialized = false;
+function installerLanguage() {
+  return document.documentElement.lang.toLowerCase().startsWith("ru") ? "ru" : "en";
+}
+function componentsTabShown() {
+  return store.get().tabService.current === "components" || isActiveLuciTab("components");
+}
+function part(root, id) {
+  return root.querySelector(`#${id}`);
+}
+function statusOf(state) {
+  if (state.starting || state.running) {
+    let text8 = _("in progress");
+    if (state.lost) {
+      text8 = _("no answer from the router");
+    } else if (state.stopping) {
+      text8 = _("stopping...");
+    }
+    return { tone: "progress", icon: renderLoaderCircleIcon24, text: text8 };
+  }
+  if (state.exit === 0) {
+    return { tone: "success", icon: renderCircleCheckIcon24, text: _("done") };
+  }
+  return {
+    tone: "error",
+    icon: renderCircleXIcon24,
+    text: state.interrupted || state.stopping ? _("interrupted") : _("failed")
+  };
+}
+var AFTER_RUN_TEXTS = {
+  reload: () => _("the page reloads"),
+  leave: () => _("going to the LuCI home page")
+};
+function initController() {
+  if (controllerInitialized || !pageRoot) {
+    return;
+  }
+  controllerInitialized = true;
+  const root = pageRoot;
+  const terminal = createTerminal({
+    label: _("Installer output"),
+    onInput: (data) => void run.input(data),
+    onInterrupt: () => void run.stop()
+  });
+  const runStatus = textE("span", { class: "fkp_components-page__run-status" });
+  const copyButton = textE(
+    "button",
+    {
+      type: "button",
+      class: "btn cbi-button fkp_components-page__icon-button",
+      title: _("Copy the output"),
+      "aria-label": _("Copy the output"),
+      click: () => copyToClipboard(terminal.text())
+    },
+    [renderCopyIcon24()]
+  );
+  const stopButton = textE(
+    "button",
+    {
+      type: "button",
+      class: "btn cbi-button cbi-button-remove fkp_components-page__icon-button",
+      title: _("Interrupt the installer"),
+      "aria-label": _("Interrupt the installer"),
+      click: () => void run.stop()
+    },
+    [renderCircleStopIcon24()]
+  );
+  const runSide = textE("div", { class: "fkp_components-page__run-side" }, [
+    runStatus,
+    stopButton,
+    copyButton
+  ]);
+  part(root, "components-run").append(
+    textE("div", { class: "fkp_components-page__run-header" }, [
+      textE("div", { class: "fkp_components-page__run-title" }, [
+        renderSquareTerminalIcon24(),
+        textE("span", {}, _("Terminal"))
+      ]),
+      runSide
+    ]),
+    terminal.element
+  );
+  let runState = null;
+  let runDrawn = "";
+  function renderRun(state) {
+    runSide.hidden = !state.id && !state.starting;
+    stopButton.hidden = !state.running || !state.id;
+    stopButton.disabled = state.stopping;
+    terminal.setInput(state.running && state.interactive);
+    const drawn = JSON.stringify([
+      state.starting || state.running,
+      state.exit,
+      state.interrupted,
+      state.stopping,
+      state.lost,
+      state.after
+    ]);
+    if (drawn === runDrawn) {
+      return;
+    }
+    runDrawn = drawn;
+    const status = statusOf(state);
+    const after = state.after ? ` \xB7 ${AFTER_RUN_TEXTS[state.after]()}` : "";
+    runStatus.className = `fkp_components-page__run-status fkp_components-page__run-status--${status.tone}`;
+    runStatus.replaceChildren(
+      status.icon(),
+      textE("span", {}, status.text + after)
+    );
+  }
+  let actionsDrawn = "";
+  function renderActions(state) {
+    const operation = store.get().serviceState.data.forkopBusy;
+    const live = state.starting || state.running;
+    const blocked = live || operation !== null && operation !== "install";
+    const drawn = JSON.stringify([blocked, live && state.action]);
+    if (drawn === actionsDrawn) {
+      return;
+    }
+    actionsDrawn = drawn;
+    const button = (action, icon, text8, classNames, onClick) => renderButton({
+      classNames,
+      icon,
+      text: text8,
+      loading: live && state.action === action,
+      disabled: blocked,
+      onClick
+    });
+    part(root, "components-actions").replaceChildren(
+      textE("b", {}, _("Available actions")),
+      button(
+        "update",
+        renderDownloadIcon24,
+        _("Run the installer"),
+        ["cbi-button-apply"],
+        () => void run.start("update")
+      ),
+      button("variant", renderLayersIcon24, _("Change the build"), [], () => {
+        void run.start("variant").then(() => terminal.focus());
+      }),
+      button(
+        "uninstall",
+        renderTrashIcon24,
+        _("Remove Forkop"),
+        ["cbi-button-remove"],
+        openRemoveDialog
+      )
+    );
+  }
+  function renderVersions() {
+    const info = store.get().diagnosticsSystemInfo;
+    const loaded = Boolean(info.loaded);
+    part(root, "components-forkop-version").replaceChildren(
+      loaded ? info.forkop_version : ""
+    );
+    const core = part(root, "components-core-version");
+    core.replaceChildren(loaded ? info.sing_box_version : "");
+    if (loaded && info.sing_box_variant) {
+      core.append(
+        textE(
+          "span",
+          { class: "fkp_components-page__badge" },
+          info.sing_box_variant
+        )
+      );
+    }
+  }
+  function openRemoveDialog() {
+    const purge = textE("input", {
+      type: "checkbox",
+      class: "cbi-input-checkbox"
+    });
+    ui.showModal(_("Remove Forkop?"), [
+      textE(
+        "p",
+        {},
+        _(
+          "Forkop, its page and its core, sing-box-forkop, will be removed from the router."
+        )
+      ),
+      textE("label", { class: "fkp_components-page__checkbox" }, [
+        purge,
+        textE("span", {}, _("Remove the settings too"))
+      ]),
+      textE("div", { class: "button-row" }, [
+        textE(
+          "button",
+          {
+            type: "button",
+            class: "btn cbi-button",
+            click: () => ui.hideModal()
+          },
+          _("Cancel")
+        ),
+        " ",
+        textE(
+          "button",
+          {
+            type: "button",
+            class: "btn cbi-button cbi-button-negative",
+            click: () => {
+              ui.hideModal();
+              void run.start("uninstall", "", purge.checked);
+            }
+          },
+          _("Yes, remove")
+        )
+      ])
+    ]);
+  }
+  const run = createInstallerRun({
+    api: installerApi,
+    terminal,
+    lang: installerLanguage,
+    onChange: (state) => {
+      runState = state;
+      renderRun(state);
+      renderActions(state);
+    },
+    onStartFailed: (message2) => showToast(message2, "error"),
+    onAfterRun: (after) => {
+      if (after === "leave") {
+        window.location.href = L.url("admin");
+      } else {
+        window.location.reload();
+      }
+    }
+  });
+  renderRun(run.state);
+  renderActions(run.state);
+  renderVersions();
+  store.subscribeKey("diagnosticsSystemInfo", renderVersions);
+  store.subscribeKey("tabService", () => {
+    run.setShown(componentsTabShown());
+    if (componentsTabShown()) {
+      void ensureSystemInfo();
+    }
+  });
+  store.subscribeKey("serviceState", (serviceState) => {
+    if (serviceState.data.forkopBusy === "install") {
+      run.refresh();
+    }
+    renderActions(runState ?? run.state);
+  });
+  if (componentsTabShown()) {
+    run.setShown(true);
+    void ensureSystemInfo();
+  } else if (store.get().serviceState.data.forkopBusy === "install") {
+    run.refresh();
+  }
+}
+
+// src/forkop/tabs/components/styles.ts
+var SCREEN_TEXT = "#d4d4d4";
+var ANSI_COLORS = [
+  "#4a4a4a",
+  "#e5675f",
+  "#2fbf71",
+  "#e5c07b",
+  "#61afef",
+  "#c678dd",
+  "#4fb3d9",
+  "#d4d4d4",
+  "#7a7a7a",
+  "#ff7b72",
+  "#56d68f",
+  "#f0d58c",
+  "#84c1f5",
+  "#d79ae8",
+  "#76c8e6",
+  "#ffffff"
+];
+var ansiStyles = ANSI_COLORS.map(
+  (color, index) => `.fkp_terminal__fg-${index} { color: ${color}; }
+.fkp_terminal__bg-${index} { background: ${color}; }`
+).join("\n");
+var styles3 = `
+#cbi-${FORKOP_UCI_PACKAGE}-components > h3 {
+    display: none;
+}
+
+/* A DummyValue's value sits in an <output> inside the theme's flex row; this makes the page
+fill the column. */
+#cbi-${FORKOP_UCI_PACKAGE}-components-_mount_node {
+    display: block !important;
+    container-type: inline-size;
+    margin: 16px 0 22px;
+    padding: 0;
+}
+
+/* The controls take what their buttons need, the terminal the rest of the row: as tall as the
+controls at least, growing with its output up to its limit. */
+.fkp_components-page {
+    box-sizing: border-box;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(17rem, max-content) minmax(0, 1fr);
+    grid-gap: 10px;
+}
+
+.fkp_components-page__controls {
+    align-self: start;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-row-gap: 10px;
+}
+
+.fkp_components-page__block {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-row-gap: 10px;
+    padding: 10px;
+    border: 2px var(--background-color-low, lightgray) solid;
+    border-radius: 4px;
+}
+
+/* A definite zero width keeps a long version string from widening the column. */
+.fkp_components-page__block--versions {
+    width: 0;
+    min-width: 100%;
+    box-sizing: border-box;
+}
+
+.fkp_components-page__block > .fkp-partial-button {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+}
+
+.fkp_components-page__version {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-column-gap: 5px;
+}
+
+.fkp_components-page__version > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.fkp_components-page__badge {
+    display: inline-block;
+    margin-left: 0.4rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    color: var(--text-color-medium);
+    background: var(--background-color-low);
+    font-size: 0.72rem;
+    line-height: 1.2;
+    vertical-align: 0.08rem;
+}
+
+.fkp_components-page__run {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    border: 2px var(--background-color-low, lightgray) solid;
+    border-radius: 4px;
+}
+
+/* The header band in the outline's colour, as a dashboard section starts. */
+.fkp_components-page__run-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 10px;
+    min-height: 26px;
+    padding: 4px 6px 4px 10px;
+    background: var(--background-color-low, lightgray);
+}
+
+.fkp_components-page__run-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--text-color-highest, inherit);
+    font-weight: 700;
+}
+
+.fkp_components-page__run-title svg,
+.fkp_components-page__run-status svg {
+    display: block;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+}
+
+.fkp_components-page__run-side {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.fkp_components-page__run-side[hidden] {
+    display: none;
+}
+
+.fkp_components-page__run-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: var(--text-color-medium, inherit);
+}
+
+.fkp_components-page__run-status--success {
+    color: var(--success-color-high, green);
+}
+
+.fkp_components-page__run-status--error {
+    color: var(--error-color-high, red);
+}
+
+.fkp_components-page .btn.fkp_components-page__icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    min-width: 26px;
+    margin: 0;
+    padding: 0;
+}
+
+.fkp_components-page .btn.fkp_components-page__icon-button[hidden] {
+    display: none;
+}
+
+.fkp_components-page__icon-button svg {
+    display: block;
+    width: 15px;
+    height: 15px;
+}
+
+.fkp_components-page__checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 1em;
+    cursor: pointer;
+    user-select: none;
+}
+
+.fkp_components-page__checkbox input {
+    margin: 0;
+}
+
+.fkp_terminal {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+}
+
+/* A console's dark screen, a shade of the theme's own background. */
+.fkp_components-page .fkp_terminal__output {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-height: 12rem;
+    max-height: max(18rem, 62vh);
+    margin: 0;
+    padding: 8px 10px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border: 0;
+    border-radius: 0;
+    color-scheme: dark;
+    background: #191919;
+    background: color-mix(in srgb, var(--background-color-high, #fff) 6%, #101010);
+    color: ${SCREEN_TEXT};
+    font-family: ${MONOSPACE_FONT};
+    font-size: 13px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: normal;
+    cursor: text;
+    user-select: text;
+}
+
+.fkp_terminal--focused .fkp_terminal__output {
+    box-shadow: inset 0 0 0 1px var(--primary-color-medium, dodgerblue);
+}
+
+.fkp_terminal__input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    resize: none;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+${ansiStyles}
+
+.fkp_terminal__inverse:not([class*="fkp_terminal__bg-"]) {
+    background: ${SCREEN_TEXT};
+}
+
+.fkp_terminal__inverse:not([class*="fkp_terminal__fg-"]) {
+    color: #101010;
+}
+
+.fkp_terminal__bold { font-weight: 700; }
+.fkp_terminal__dim { opacity: 0.7; }
+.fkp_terminal__italic { font-style: italic; }
+.fkp_terminal__underline { text-decoration: underline; }
+
+/* A hollow block while the terminal is not typed into, a blinking one while it is. */
+.fkp_terminal__cursor {
+    box-shadow: inset 0 0 0 1px #8a8a8a;
+}
+
+.fkp_terminal--focused .fkp_terminal__cursor {
+    color: #101010;
+    background: ${SCREEN_TEXT};
+    box-shadow: none;
+    animation: fkp_terminal-blink 1.1s steps(1) infinite;
+}
+
+@keyframes fkp_terminal-blink {
+    50% {
+        color: inherit;
+        background: transparent;
+    }
+}
+
+/* Below about 20rem of terminal beside the controls, the two stack. */
+@container (max-width: 599px) {
+    .fkp_components-page {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .fkp_components-page .fkp_terminal__output {
+        max-height: max(16rem, 55vh);
+    }
+}
+`;
+
+// src/forkop/tabs/components/index.ts
+var ComponentsTab = {
+  render,
+  initController,
+  styles: styles3
+};
+
+// src/forkop/tabs/dashboard/partials/renderFlagEmojis.ts
+var FLAG_EMOJI_PATTERN = /([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a}]+\u{e007f})/gu;
+var EXACT_FLAG_EMOJI_PATTERN = /^([\u{1f1e6}-\u{1f1ff}]{2}|\u{1f3f4}[\u{e0061}-\u{e007a}]+\u{e007f})$/u;
+function renderFlagEmojis(value) {
+  return value.split(FLAG_EMOJI_PATTERN).filter(Boolean).map(
+    (part2) => EXACT_FLAG_EMOJI_PATTERN.test(part2) ? textE("span", { class: "fkp_dashboard-page__flag-emoji" }, part2) : part2
+  );
+}
+
+// src/forkop/tabs/dashboard/latencyClassName.ts
+function latencyClassName(latency) {
+  if (!latency) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--empty";
+  }
+  if (latency < 800) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--green";
+  }
+  if (latency < 1500) {
+    return "fkp_dashboard-page__outbound-grid__item__latency--yellow";
+  }
+  return "fkp_dashboard-page__outbound-grid__item__latency--red";
+}
+
+// src/forkop/tabs/dashboard/sectionLatencyTarget.ts
+function sectionLatencyTarget(section2) {
+  if (section2.withTagSelect) {
+    return { type: "group", tag: section2.code };
+  }
+  const outbound = section2.outbounds[0];
+  return outbound ? { type: "proxy", tag: outbound.code } : void 0;
+}
+
+// src/helpers/prettyBytes.ts
+function prettyBytes(n) {
+  const UNITS = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+  if (n < 1e3) {
+    return n + " B";
+  }
+  const exponent = Math.min(Math.floor(Math.log10(n) / 3), UNITS.length - 1);
+  n = Number((n / Math.pow(1e3, exponent)).toPrecision(3));
+  const unit = UNITS[exponent];
+  return n + " " + unit;
+}
+
+// src/helpers/relativeTime.ts
+function pageLanguage() {
+  return document.documentElement.lang || void 0;
+}
+var TIME_UNITS = [
+  ["year", 31536e3],
+  ["month", 2592e3],
+  ["day", 86400],
+  ["hour", 3600],
+  ["minute", 60]
+];
+function relativeTime(seconds3, style = "long") {
+  const difference = seconds3 - Date.now() / 1e3;
+  const format2 = new Intl.RelativeTimeFormat(pageLanguage(), {
+    numeric: "auto",
+    style
+  });
+  for (const [unit, size] of TIME_UNITS) {
+    if (Math.abs(difference) >= size) {
+      return format2.format(Math.round(difference / size), unit);
+    }
+  }
+  return format2.format(0, "minute");
+}
+
+// src/forkop/tabs/dashboard/partials/renderExitPanel.ts
+function describeCountry(code) {
+  if (!code || code === "XX") {
+    return void 0;
+  }
+  if (code === "T1") {
+    return { flag: "", name: "Tor" };
+  }
+  if (!/^[A-Z]{2}$/.test(code)) {
+    return { flag: "", name: code };
+  }
+  const flag2 = String.fromCodePoint(
+    ...[...code].map((letter) => 127462 + letter.charCodeAt(0) - 65)
+  );
+  let name = code;
+  try {
+    const lang = typeof document === "undefined" ? "" : document.documentElement?.lang;
+    name = new Intl.DisplayNames(lang ? [lang] : [], { type: "region" }).of(code) || code;
+  } catch {
+  }
+  return { flag: flag2, name };
+}
+function renderCountry(code) {
+  const country = describeCountry(code);
+  if (!country) {
+    return void 0;
+  }
+  return textE("span", { class: "fkp_dashboard-page__exit-panel__country" }, [
+    ...renderFlagEmojis(country.flag),
+    textE("span", { title: code }, country.name)
+  ]);
+}
+function renderAddressRow(label, family, onCopy) {
+  const address = family.address;
+  return [
+    textE("dt", {}, label),
+    textE(
+      "dd",
+      {},
+      address ? [
+        textE(
+          "span",
+          { class: "fkp_dashboard-page__exit-panel__address" },
+          address
+        ),
+        textE(
+          "button",
+          {
+            type: "button",
+            class: "btn fkp_dashboard-page__exit-panel__icon-button",
+            title: _("Copy address"),
+            "aria-label": _("Copy address"),
+            click: () => onCopy(address)
+          },
+          renderCopyIcon24()
+        )
+      ] : textE(
+        "span",
+        {
+          class: "fkp_dashboard-page__exit-panel__missing",
+          title: family.error || void 0
+        },
+        _("no answer")
+      )
+    )
+  ];
+}
+function renderCountryRow(report2) {
+  const primary = report2.ipv4.address ? report2.ipv4 : report2.ipv6;
+  const country = renderCountry(primary.country);
+  if (!country) {
+    return [];
+  }
+  const ipv6Country = primary === report2.ipv4 && report2.ipv6.address && report2.ipv6.country !== report2.ipv4.country ? renderCountry(report2.ipv6.country) : void 0;
+  return [
+    textE("dt", {}, _("Country")),
+    textE("dd", {}, [
+      country,
+      ...ipv6Country ? [
+        textE(
+          "span",
+          { class: "fkp_dashboard-page__exit-panel__family-note" },
+          "IPv6:"
+        ),
+        ipv6Country
+      ] : []
+    ])
+  ];
+}
+function renderReport(report2, stale, onCopy) {
+  const lookupAddress = report2.ipv4.address || report2.ipv6.address;
+  return [
+    textE(
+      "dl",
+      {
+        class: [
+          "fkp_dashboard-page__exit-panel__facts",
+          stale ? "fkp_dashboard-page__exit-panel__facts--stale" : ""
+        ].filter(Boolean).join(" ")
+      },
+      [
+        ...renderAddressRow("IPv4", report2.ipv4, onCopy),
+        ...renderAddressRow("IPv6", report2.ipv6, onCopy),
+        ...renderCountryRow(report2)
+      ]
+    ),
+    ...lookupAddress ? [
+      textE("div", { class: "fkp_dashboard-page__exit-panel__footer" }, [
+        textE(
+          "a",
+          {
+            href: `https://ipinfo.io/${lookupAddress}`,
+            target: "_blank",
+            rel: "noopener noreferrer"
+          },
+          `${_("About the address on ipinfo.io")} \u2197`
+        )
+      ])
+    ] : []
+  ];
+}
+function renderStatus(state) {
+  return state.loading ? textE("div", { class: "fkp_dashboard-page__exit-panel__status" }, [
+    renderLoaderCircleIcon24(),
+    textE("span", {}, _("Finding the exit\u2026"))
+  ]) : textE(
+    "div",
+    {
+      class: "fkp_dashboard-page__exit-panel__status fkp_dashboard-page__exit-panel__status--error"
+    },
+    _("No answer: %s").format(state.error || _("unknown error"))
+  );
+}
+function renderExitPanel({
+  state,
+  nodeName,
+  onRefresh,
+  onCopy
+}) {
+  return textE(
+    "div",
+    {
+      class: "fkp_dashboard-page__exit-panel",
+      role: "dialog",
+      "aria-label": _("Exit IP"),
+      click: (event) => event.stopPropagation()
+    },
+    [
+      textE("div", { class: "fkp_dashboard-page__exit-panel__header" }, [
+        textE("div", { class: "fkp_dashboard-page__exit-panel__heading" }, [
+          textE(
+            "span",
+            { class: "fkp_dashboard-page__exit-panel__caption" },
+            _("Exit through")
+          ),
+          textE(
+            "span",
+            { class: "fkp_dashboard-page__exit-panel__node" },
+            nodeName ? renderFlagEmojis(nodeName) : "\u2026"
+          )
+        ]),
+        textE(
+          "button",
+          {
+            type: "button",
+            class: "btn fkp_dashboard-page__exit-panel__icon-button",
+            title: _("Check again"),
+            "aria-label": _("Check again"),
+            "aria-busy": state.loading ? "true" : void 0,
+            disabled: state.loading ? true : void 0,
+            click: () => onRefresh()
+          },
+          state.loading ? renderLoaderCircleIcon24() : renderRotateCcwIcon24()
+        )
+      ]),
+      ...state.report ? renderReport(state.report, state.loading, onCopy) : [renderStatus(state)]
+    ]
+  );
+}
+
+// src/forkop/tabs/dashboard/partials/renderSections.ts
+function renderFailedState() {
+  return textE(
+    "div",
+    {
+      class: "fkp_dashboard-page__outbound-section centered",
+      style: "height: 127px"
+    },
+    textE("span", {}, [textE("span", {}, _("Dashboard currently unavailable"))])
+  );
+}
+function renderLoadingState() {
+  return textE("div", {
+    id: "dashboard-sections-grid-skeleton",
+    class: "fkp_dashboard-page__outbound-section skeleton",
+    style: "height: 127px"
+  });
+}
+function isValidHttpUrl(url) {
+  return Boolean(url && /^https?:\/\/\S+$/i.test(url));
+}
+function formatBytes(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    return void 0;
+  }
+  return prettyBytes(value);
+}
+function formatDate(seconds3) {
+  if (typeof seconds3 !== "number" || !Number.isFinite(seconds3) || seconds3 <= 0) {
+    return void 0;
+  }
+  const date = new Date(seconds3 * 1e3);
+  if (Number.isNaN(date.getTime())) {
+    return void 0;
+  }
+  return date.toLocaleDateString(void 0, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+}
+var UPDATED_CLASS = "fkp_dashboard-page__subscription-meta__updated";
+function updatedLabel(seconds3) {
+  return relativeTime(Math.min(seconds3, Date.now() / 1e3), "short");
+}
+function renderUpdated(seconds3) {
+  const date = new Date(seconds3 * 1e3);
+  return textE(
+    "time",
+    {
+      class: UPDATED_CLASS,
+      dateTime: date.toISOString(),
+      title: _("Updated %s").format(
+        date.toLocaleString(pageLanguage(), {
+          dateStyle: "medium",
+          timeStyle: "short"
+        })
+      )
+    },
+    updatedLabel(seconds3)
+  );
+}
+function refreshSubscriptionAges(root) {
+  root.querySelectorAll(`time.${UPDATED_CLASS}`).forEach((node) => {
+    const label = updatedLabel(Date.parse(node.dateTime) / 1e3);
+    if (node.textContent !== label) {
+      node.textContent = label;
+    }
+  });
+}
+function getLatencySortValue2(outbound) {
+  return Number.isFinite(outbound.latency) && outbound.latency > 0 ? outbound.latency : Number.POSITIVE_INFINITY;
+}
+function renderMetadataAction(label, url) {
+  if (!isValidHttpUrl(url)) {
+    return void 0;
+  }
+  return textE(
+    "a",
+    {
+      class: "fkp_dashboard-page__subscription-meta__action",
+      href: url,
+      target: "_blank",
+      rel: "noopener noreferrer",
+      title: label,
+      "aria-label": label
+    },
+    `${label} \u2197`
+  );
+}
+function renderSubscriptionMetadata(metadata) {
+  if (!metadata) {
+    return void 0;
+  }
+  const title = metadata.title || metadata.fileName;
+  const traffic = metadata.traffic;
+  const used = formatBytes(traffic?.used) || "0 B";
+  const total = traffic?.isUnlimited ? "\u221E" : formatBytes(traffic?.total) || "0 B";
+  const expire = formatDate(metadata.expire);
+  const refillDate = formatDate(metadata.refillDate);
+  const rows = [
+    traffic ? {
+      label: _("Traffic"),
+      value: `${used} / ${total}`
+    } : void 0,
+    expire ? { label: _("Expires"), value: expire } : void 0,
+    refillDate ? { label: _("Refill"), value: refillDate } : void 0
+  ].filter(Boolean);
+  const actions = [
+    renderMetadataAction(_("Profile"), metadata.webPageUrl),
+    renderMetadataAction(_("Support"), metadata.supportUrl),
+    renderMetadataAction(_("More details"), metadata.announceUrl)
+  ].filter(Boolean);
+  if (!title && !rows.length && !actions.length && !metadata.announce) {
+    return void 0;
+  }
+  const name = [
+    ...metadata.subscriptionTag ? [
+      textE(
+        "div",
+        { class: "fkp_dashboard-page__subscription-meta__heading" },
+        [
+          textE(
+            "span",
+            {
+              class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
+            },
+            metadata.subscriptionTag
+          )
+        ]
+      )
+    ] : [],
+    ...title ? [
+      textE(
+        "div",
+        { class: "fkp_dashboard-page__subscription-meta__title" },
+        title
+      )
+    ] : []
+  ];
+  return textE("div", { class: "fkp_dashboard-page__subscription-meta" }, [
+    textE("div", { class: "fkp_dashboard-page__subscription-meta__main" }, [
+      name.length ? textE(
+        "div",
+        { class: "fkp_dashboard-page__subscription-meta__name" },
+        name
+      ) : "",
+      rows.length ? textE(
+        "div",
+        { class: "fkp_dashboard-page__subscription-meta__facts" },
+        rows.map(
+          (row2) => textE(
+            "div",
+            { class: "fkp_dashboard-page__subscription-meta__fact" },
+            [
+              textE(
+                "span",
+                {
+                  class: "fkp_dashboard-page__subscription-meta__fact-key"
+                },
+                row2.label
+              ),
+              textE(
+                "span",
+                {
+                  class: "fkp_dashboard-page__subscription-meta__fact-value"
+                },
+                row2.value
+              )
+            ]
+          )
+        )
+      ) : "",
+      actions.length ? textE(
+        "div",
+        { class: "fkp_dashboard-page__subscription-meta__actions" },
+        actions
+      ) : "",
+      metadata.updatedAt ? renderUpdated(metadata.updatedAt) : ""
+    ]),
+    metadata.announce ? textE(
+      "blockquote",
+      { class: "fkp_dashboard-page__subscription-meta__announce" },
+      metadata.announce
+    ) : ""
+  ]);
+}
+function renderDefaultState({
+  section: section2,
+  onChooseOutbound,
+  onCopyOutbound,
+  onShowUrlTestInfo,
+  onShowFallbackInfo,
+  onTestLatency,
+  onTestOutboundLatency,
+  onSortByLatencyChange,
+  onCollapsedChange,
+  latencyFetching,
+  latencyFetchingTargets = /* @__PURE__ */ new Set(),
+  sortByLatency,
+  collapsible,
+  collapsed,
+  exitPanel: exitPanel2,
+  onToggleExit,
+  onRefreshExit,
+  onCopyExitAddress
+}) {
+  function testLatency() {
+    const target2 = sectionLatencyTarget(section2);
+    if (target2) {
+      onTestLatency(target2.tag);
+    }
+  }
+  function renderOutbound(outbound) {
+    const canCopyLink = Boolean(outbound.canCopyLink) || isCopyableProxyLink(outbound.link);
+    const groupInfo = outbound.urlTestInfo || outbound.fallbackInfo;
+    const hasGroupMembers = !groupInfo || groupInfo.outbounds.length > 0;
+    const canChooseOutbound = section2.withTagSelect && hasGroupMembers && !outbound.selected;
+    const showLatency = hasGroupMembers;
+    const latencyType = groupInfo ? "group" : "proxy";
+    const latencyTarget = outbound.code;
+    const outboundLatencyFetching = latencyFetchingTargets.has(latencyTarget);
+    const canTestOutboundLatency = showLatency && !outboundLatencyFetching;
+    const className = [
+      "fkp_dashboard-page__outbound-grid__item",
+      outbound.selected ? "fkp_dashboard-page__outbound-grid__item--active" : "",
+      canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--selectable" : "",
+      section2.withTagSelect && !canChooseOutbound ? "fkp_dashboard-page__outbound-grid__item--disabled" : ""
+    ].filter(Boolean).join(" ");
+    const latencyClass = latencyClassName(outbound.latency);
+    const latencyValue = outbound.latency ? `${outbound.latency}ms` : _("N/A");
+    const latency = showLatency ? textE(
+      "button",
+      {
+        type: "button",
+        class: `btn fkp_dashboard-page__outbound-grid__item__latency ${latencyClass}`,
+        title: _("Test latency"),
+        "aria-label": _("Test latency"),
+        "aria-busy": outboundLatencyFetching ? "true" : void 0,
+        disabled: canTestOutboundLatency ? void 0 : true,
+        click: (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (canTestOutboundLatency) {
+            onTestOutboundLatency(latencyType, latencyTarget);
+          }
+        }
+      },
+      [
+        outboundLatencyFetching ? renderLoaderCircleIcon24() : renderRotateCcwIcon24(),
+        textE(
+          "span",
+          {
+            class: "fkp_dashboard-page__outbound-grid__item__latency-value"
+          },
+          latencyValue
+        )
+      ]
+    ) : void 0;
+    return textE(
+      "div",
+      {
+        class: className,
+        "aria-disabled": section2.withTagSelect && !canChooseOutbound ? "true" : void 0,
+        click: () => canChooseOutbound && window.getSelection()?.isCollapsed !== false && onChooseOutbound(section2.sectionName, section2.code, outbound.code)
+      },
+      [
+        textE("div", { class: "fkp_dashboard-page__outbound-grid__item__header" }, [
+          textE("b", {}, [
+            ...outbound.subscriptionTag ? [
+              textE(
+                "span",
+                {
+                  class: "fkp_dashboard-page__outbound-grid__item__subscription-tag"
+                },
+                outbound.subscriptionTag
+              )
+            ] : [],
+            ...renderFlagEmojis(outbound.displayName)
+          ]),
+          ...canCopyLink ? [
+            textE(
+              "button",
+              {
+                type: "button",
+                class: "btn fkp_dashboard-page__outbound-grid__item__copy-button",
+                title: _("Copy proxy link"),
+                "aria-label": _("Copy proxy link"),
+                click: (event) => {
+                  event.stopPropagation();
+                  onCopyOutbound(section2, outbound);
+                }
+              },
+              renderCopyIcon24()
+            )
+          ] : [],
+          ...outbound.urlTestInfo ? [
+            textE(
+              "button",
+              {
+                type: "button",
+                class: "btn fkp_dashboard-page__outbound-grid__item__copy-button",
+                title: _("URLTest details"),
+                "aria-label": _("URLTest details"),
+                click: (event) => {
+                  event.stopPropagation();
+                  onShowUrlTestInfo(outbound);
+                }
+              },
+              renderInfoIcon24()
+            )
+          ] : [],
+          ...outbound.fallbackInfo ? [
+            textE(
+              "button",
+              {
+                type: "button",
+                class: "btn fkp_dashboard-page__outbound-grid__item__copy-button",
+                title: _("Fallback details"),
+                "aria-label": _("Fallback details"),
+                click: (event) => {
+                  event.stopPropagation();
+                  onShowFallbackInfo(outbound);
+                }
+              },
+              renderInfoIcon24()
+            )
+          ] : []
+        ]),
+        textE("div", { class: "fkp_dashboard-page__outbound-grid__item__footer" }, [
+          textE(
+            "div",
+            { class: "fkp_dashboard-page__outbound-grid__item__type" },
+            [outbound.fallbackInfo ? _("Fallback") : outbound.type].filter(
+              Boolean
+            )
+          ),
+          ...latency ? [latency] : []
+        ])
+      ]
+    );
+  }
+  const metadataNodes = (section2.subscriptionMetadata || []).map((metadata) => renderSubscriptionMetadata(metadata)).filter(Boolean);
+  const outbounds = sortByLatency ? [...section2.outbounds].sort(
+    (left, right) => getLatencySortValue2(left) - getLatencySortValue2(right)
+  ) : section2.outbounds;
+  const latencySortAction = section2.outbounds.length > 1 ? textE(
+    "button",
+    {
+      type: "button",
+      class: [
+        "btn fkp_dashboard-page__outbound-section__sort-by-latency",
+        sortByLatency ? "fkp_dashboard-page__outbound-section__sort-by-latency--active" : ""
+      ].filter(Boolean).join(" "),
+      title: _("Sort by latency"),
+      "aria-label": _("Sort by latency"),
+      "aria-pressed": sortByLatency ? "true" : "false",
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onSortByLatencyChange?.(section2.sectionName, !sortByLatency);
+      }
+    },
+    renderListFilterIcon24()
+  ) : void 0;
+  const exitAction = onToggleExit && sectionLatencyTarget(section2) ? textE(
+    "button",
+    {
+      type: "button",
+      class: [
+        "btn fkp_dashboard-page__outbound-section__exit",
+        exitPanel2 ? "fkp_dashboard-page__outbound-section__exit--open" : ""
+      ].filter(Boolean).join(" "),
+      title: _("Check IP"),
+      "aria-label": _("Check IP"),
+      "aria-haspopup": "dialog",
+      "aria-expanded": exitPanel2 ? "true" : "false",
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onToggleExit();
+      }
+    },
+    renderGlobeIcon24()
+  ) : void 0;
+  const collapseLabel = collapsed ? _("Expand section") : _("Collapse section");
+  const collapseAction = collapsible ? textE(
+    "button",
+    {
+      type: "button",
+      class: [
+        "btn fkp_dashboard-page__outbound-section__collapse",
+        collapsed ? "fkp_dashboard-page__outbound-section__collapse--collapsed" : ""
+      ].filter(Boolean).join(" "),
+      title: collapseLabel,
+      "aria-label": collapseLabel,
+      "aria-expanded": collapsed ? "false" : "true",
+      click: (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onCollapsedChange?.(section2.sectionName, !collapsed);
+      }
+    },
+    renderChevronUpIcon24()
+  ) : void 0;
+  const selected = section2.withTagSelect && (collapsed || section2.outbounds.length > 1) ? section2.outbounds.find((outbound) => outbound.selected) : void 0;
+  const current = selected ? textE("span", { class: "fkp_dashboard-page__outbound-section__current" }, [
+    textE(
+      "span",
+      { class: "fkp_dashboard-page__outbound-section__current-name" },
+      renderFlagEmojis(selected.displayName)
+    ),
+    ...selected.latency ? [
+      textE(
+        "span",
+        { class: latencyClassName(selected.latency) },
+        `${selected.latency}ms`
+      )
+    ] : []
+  ]) : void 0;
+  const headerFold = collapsible ? {
+    class: "fkp_dashboard-page__outbound-section__title-section fkp_dashboard-page__outbound-section__title-section--foldable",
+    click: () => {
+      if (window.getSelection()?.isCollapsed !== false) {
+        onCollapsedChange?.(section2.sectionName, !collapsed);
+      }
+    }
+  } : { class: "fkp_dashboard-page__outbound-section__title-section" };
+  return textE("div", { class: "fkp_dashboard-page__outbound-section" }, [
+    textE("div", headerFold, [
+      textE("div", { class: "fkp_dashboard-page__outbound-section__heading" }, [
+        ...collapseAction ? [collapseAction] : [],
+        textE(
+          "div",
+          {
+            class: "fkp_dashboard-page__outbound-section__title-section__title"
+          },
+          section2.displayName
+        ),
+        ...current ? [current] : [],
+        // Beside the node it describes, far from the look-alike latency test.
+        ...exitAction ? [exitAction] : []
+      ]),
+      textE(
+        "div",
+        {
+          class: "fkp_dashboard-page__outbound-section__title-section__actions"
+        },
+        [
+          ...latencySortAction ? [latencySortAction] : [],
+          textE(
+            "button",
+            {
+              type: "button",
+              class: "btn dashboard-sections-grid-item-test-latency",
+              title: _("Test latency"),
+              "aria-label": _("Test latency"),
+              "aria-busy": latencyFetching ? "true" : void 0,
+              disabled: latencyFetching ? true : void 0,
+              click: (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!latencyFetching) testLatency();
+              }
+            },
+            latencyFetching ? renderLoaderCircleIcon24() : renderGaugeIcon24()
+          )
+        ]
+      ),
+      ...exitAction && exitPanel2 ? [
+        renderExitPanel({
+          state: exitPanel2,
+          nodeName: exitPanel2.nodeName,
+          onRefresh: () => onRefreshExit?.(),
+          onCopy: (address) => onCopyExitAddress?.(address)
+        })
+      ] : []
+    ]),
+    // Everything below the title folds away; the title row and its actions stay.
+    ...collapsed ? [] : [
+      textE("div", { class: "fkp_dashboard-page__outbound-grid" }, [
+        ...metadataNodes,
+        ...outbounds.map((outbound) => renderOutbound(outbound))
+      ])
+    ]
+  ]);
+}
+function renderSectionsPlaceholder(state) {
+  return renderSections({
+    ...state,
+    section: {
+      code: "",
+      sectionName: "",
+      displayName: "",
+      outbounds: [],
+      withTagSelect: false
+    },
+    onTestLatency: () => {
+    },
+    onTestOutboundLatency: () => {
+    },
+    onChooseOutbound: () => {
+    },
+    onCopyOutbound: () => {
+    },
+    onShowUrlTestInfo: () => {
+    },
+    onShowFallbackInfo: () => {
+    },
+    latencyFetching: false
+  });
+}
+function renderSections(props) {
+  if (props.failed) {
+    return renderFailedState();
+  }
+  if (props.loading) {
+    return renderLoadingState();
+  }
+  return renderDefaultState(props);
+}
+
+// src/forkop/tabs/dashboard/partials/renderWidget.ts
+function renderFailedState2() {
+  return textE(
+    "div",
+    {
+      id: "",
+      style: "height: 78px",
+      class: "fkp_dashboard-page__widgets-section__item centered"
+    },
+    _("Currently unavailable")
+  );
+}
+function renderLoadingState2() {
+  return textE(
+    "div",
+    {
+      id: "",
+      style: "height: 78px",
+      class: "fkp_dashboard-page__widgets-section__item skeleton"
+    },
+    ""
+  );
+}
+function renderDefaultState2({ title, items }) {
+  return textE("div", { class: "fkp_dashboard-page__widgets-section__item" }, [
+    textE(
+      "b",
+      { class: "fkp_dashboard-page__widgets-section__item__title" },
+      title
+    ),
+    ...items.map(
+      (item) => textE(
+        "div",
+        {
+          class: "fkp_dashboard-page__widgets-section__item__row"
+        },
+        [
+          textE(
+            "span",
+            { class: "fkp_dashboard-page__widgets-section__item__row__key" },
+            `${item.key}: `
+          ),
+          textE(
+            "span",
+            { class: "fkp_dashboard-page__widgets-section__item__row__value" },
+            item.value
+          )
+        ]
+      )
+    )
+  ]);
+}
+function renderWidget(props) {
+  if (props.loading) {
+    return renderLoadingState2();
+  }
+  if (props.failed) {
+    return renderFailedState2();
+  }
+  return renderDefaultState2(props);
+}
+
+// src/forkop/tabs/dashboard/partials/renderToolbar.ts
+function renderToolbar({
+  testAll,
+  updateSubscriptions,
+  updateLists
+}) {
+  const actions = [
+    testAll && renderButton({
+      classNames: ["fkp_dashboard-page__toolbar__action"],
+      icon: renderGaugeIcon24,
+      text: _("Test all sections"),
+      loading: testAll.busy,
+      onClick: testAll.onClick
+    }),
+    updateSubscriptions && renderButton({
+      classNames: ["fkp_dashboard-page__toolbar__action"],
+      icon: renderRotateCcwIcon24,
+      text: _("Update subscriptions"),
+      loading: updateSubscriptions.busy,
+      onClick: updateSubscriptions.onClick
+    }),
+    updateLists && renderButton({
+      classNames: ["fkp_dashboard-page__toolbar__action"],
+      icon: renderDownloadIcon24,
+      text: _("Update lists"),
+      loading: updateLists.busy,
+      onClick: updateLists.onClick
+    })
+  ].filter((action) => Boolean(action));
+  return actions.length ? [textE("div", { class: "fkp_dashboard-page__toolbar" }, actions)] : [];
+}
+
+// src/forkop/tabs/dashboard/render.ts
+function render2() {
+  return textE(
+    "div",
+    {
+      id: "dashboard-status",
+      class: "fkp_dashboard-page"
+    },
+    [
+      textE("div", { class: "fkp_dashboard-page__content" }, [
+        textE("div", { class: "fkp_dashboard-page__widgets-section" }, [
+          textE(
+            "div",
+            { id: "dashboard-widget-traffic" },
+            renderWidget({
+              loading: true,
+              failed: false,
+              title: "",
+              items: []
+            })
+          ),
+          textE(
+            "div",
+            { id: "dashboard-widget-traffic-total" },
+            renderWidget({
+              loading: true,
+              failed: false,
+              title: "",
+              items: []
+            })
+          ),
+          textE(
+            "div",
+            { id: "dashboard-widget-load" },
+            renderWidget({
+              loading: true,
+              failed: false,
+              title: "",
+              items: []
+            })
+          ),
+          textE(
+            "div",
+            { id: "dashboard-widget-core" },
+            renderWidget({
+              loading: true,
+              failed: false,
+              title: "",
+              items: []
+            })
+          )
+        ]),
+        textE("div", { id: "dashboard-sections-toolbar" }),
+        textE(
+          "div",
+          { id: "dashboard-sections-grid" },
+          renderSectionsPlaceholder({ loading: true, failed: false })
+        )
+      ])
+    ]
+  );
+}
+
+// src/helpers/onMount.ts
+function getTarget(target2) {
+  if (typeof target2 === "string") {
+    return document.getElementById(target2);
+  }
+  return target2;
+}
+async function onMount(target2) {
+  return new Promise((resolve) => {
+    let observer = null;
+    const resolveIfMountedAndVisible = () => {
+      const mountedTarget = getTarget(target2);
+      if (mountedTarget && mountedTarget.isConnected && mountedTarget.offsetParent !== null) {
+        observer?.disconnect();
+        resolve(mountedTarget);
+        return true;
+      }
+      return false;
+    };
+    if (resolveIfMountedAndVisible()) {
+      return;
+    }
+    observer = new MutationObserver(() => {
+      resolveIfMountedAndVisible();
+    });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden"]
+    });
+  });
+}
+
+// src/helpers/preserveScrollForPage.ts
+function preserveScrollForPage(renderFn) {
+  const scrollY = window.scrollY;
+  renderFn();
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: scrollY });
+  });
+}
+
 // src/forkop/services/tab.service.ts
 var TabService = class _TabService {
   constructor() {
@@ -3663,225 +5513,6 @@ var TabService = class _TabService {
   }
 };
 var TabServiceInstance = TabService.getInstance();
-
-// src/forkop/tabs/diagnostic/checks/groups.ts
-var DIAGNOSTICS_CHECKS_ORDER = [
-  "SERVICE" /* SERVICE */,
-  "DNS" /* DNS */,
-  "TRAFFIC" /* TRAFFIC */,
-  "SECTIONS" /* SECTIONS */,
-  "SERVERS" /* SERVERS */
-];
-function diagnosticsCheckTitle(code) {
-  switch (code) {
-    case "SERVICE" /* SERVICE */:
-      return _("Service");
-    case "DNS" /* DNS */:
-      return "DNS";
-    case "TRAFFIC" /* TRAFFIC */:
-      return _("Traffic");
-    case "SECTIONS" /* SECTIONS */:
-      return _("Sections");
-    case "SERVERS" /* SERVERS */:
-      return _("VPN server");
-  }
-}
-
-// src/forkop/tabs/diagnostic/diagnostic.store.ts
-function createDiagnosticCheck(code, description, state = "skipped") {
-  return {
-    code,
-    title: diagnosticsCheckTitle(code),
-    order: DIAGNOSTICS_CHECKS_ORDER.indexOf(code),
-    description,
-    items: [],
-    state
-  };
-}
-function diagnosticsCheckCodes(options = {}) {
-  return DIAGNOSTICS_CHECKS_ORDER.filter(
-    (code) => code !== "SERVERS" /* SERVERS */ || options.includeServers === true
-  );
-}
-function getDiagnosticsChecks(description, options = {}) {
-  return diagnosticsCheckCodes(options).map(
-    (code) => createDiagnosticCheck(code, description)
-  );
-}
-function getLoadingDiagnosticsChecks(options = {}) {
-  return {
-    diagnosticsChecks: getDiagnosticsChecks(_("Pending"), options)
-  };
-}
-var initialDiagnosticStore = {
-  diagnosticsSystemInfo: {
-    loading: true,
-    loaded: false,
-    capabilitiesLoaded: false,
-    forkop_version: "loading",
-    luci_app_version: "loading",
-    sing_box_version: "loading",
-    sing_box_variant: "",
-    server_inbounds_enabled_count: -1,
-    openwrt_version: "loading",
-    device_model: "loading"
-  },
-  diagnosticsActions: {
-    restart: {
-      loading: false
-    },
-    start: {
-      loading: false
-    },
-    stop: {
-      loading: false
-    },
-    enable: {
-      loading: false
-    },
-    disable: {
-      loading: false
-    },
-    report: {
-      loading: false
-    },
-    showConfig: {
-      loading: false
-    },
-    showSingBoxConfig: {
-      loading: false
-    }
-  },
-  diagnosticsRunAction: { loading: false, finished: null },
-  diagnosticsChecks: getDiagnosticsChecks(_("Not running"))
-};
-
-// src/forkop/services/store.service.ts
-function jsonStableStringify(obj) {
-  return JSON.stringify(obj, (_2, value) => {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      return Object.keys(value).sort().reduce(
-        (acc, key) => {
-          acc[key] = value[key];
-          return acc;
-        },
-        {}
-      );
-    }
-    return value;
-  });
-}
-function jsonEqual(a, b) {
-  try {
-    return jsonStableStringify(a) === jsonStableStringify(b);
-  } catch {
-    return false;
-  }
-}
-var StoreService = class {
-  constructor(initial) {
-    this.listeners = /* @__PURE__ */ new Set();
-    this.value = initial;
-    this.initial = structuredClone(initial);
-  }
-  get() {
-    return this.value;
-  }
-  set(next) {
-    const prev = this.value;
-    const diff = {};
-    for (const key in next) {
-      if (!jsonEqual(next[key], prev[key])) diff[key] = next[key];
-    }
-    if (Object.keys(diff).length === 0) {
-      return;
-    }
-    const merged = { ...prev, ...next };
-    this.value = merged;
-    this.listeners.forEach((cb) => cb(this.value, prev, diff));
-  }
-  reset(keys) {
-    const prev = this.value;
-    const next = structuredClone(this.value);
-    if (keys && keys.length > 0) {
-      keys.forEach((key) => {
-        next[key] = structuredClone(this.initial[key]);
-      });
-    } else {
-      Object.assign(next, structuredClone(this.initial));
-    }
-    if (jsonEqual(prev, next)) return;
-    this.value = next;
-    const diff = {};
-    for (const key in next) {
-      if (!jsonEqual(next[key], prev[key])) diff[key] = next[key];
-    }
-    this.listeners.forEach((cb) => cb(this.value, prev, diff));
-  }
-  subscribe(cb) {
-    this.listeners.add(cb);
-    cb(this.value, this.value, {});
-    return () => this.listeners.delete(cb);
-  }
-  unsubscribe(cb) {
-    this.listeners.delete(cb);
-  }
-  subscribeKey(key, cb) {
-    let prev = this.value[key];
-    const wrapper = (val) => {
-      if (!jsonEqual(val[key], prev)) {
-        prev = val[key];
-        cb(val[key]);
-      }
-    };
-    this.listeners.add(wrapper);
-    return () => this.listeners.delete(wrapper);
-  }
-};
-var initialStore = {
-  tabService: {
-    current: "",
-    all: []
-  },
-  bandwidthWidget: {
-    loading: true,
-    failed: false,
-    data: { up: 0, down: 0 }
-  },
-  trafficTotalWidget: {
-    loading: true,
-    failed: false,
-    data: { downloadTotal: 0, uploadTotal: 0 }
-  },
-  connectionsWidget: {
-    loading: true,
-    failed: false,
-    data: { connections: 0 }
-  },
-  coreUsageWidget: {
-    loading: true,
-    failed: false,
-    data: { cpu: null, memory: 0, startedAt: 0 }
-  },
-  serviceState: {
-    loading: true,
-    failed: false,
-    data: {
-      singbox: 0,
-      forkopRunning: 0,
-      forkopEnabled: 0,
-      forkopBusy: null
-    }
-  },
-  sectionsWidget: {
-    loading: true,
-    failed: false,
-    data: [],
-    hasRemoteLists: false
-  },
-  ...initialDiagnosticStore
-};
-var store = new StoreService(initialStore);
 
 // src/forkop/services/forkopWaitTransport.ts
 var FORKOP_SERVICE_OBJECT = "forkop";
@@ -4100,25 +5731,6 @@ function takeLogNotificationHandoff(storage = getSessionStorage(), now = Date.no
   } catch {
     return null;
   }
-}
-
-// src/helpers/isDocumentVisible.ts
-function isDocumentVisible() {
-  return typeof document === "undefined" || !document.visibilityState || document.visibilityState === "visible";
-}
-function whenDocumentVisible(callback) {
-  if (isDocumentVisible()) {
-    callback();
-    return;
-  }
-  const onChange = () => {
-    if (!isDocumentVisible()) {
-      return;
-    }
-    document.removeEventListener("visibilitychange", onChange);
-    callback();
-  };
-  document.addEventListener("visibilitychange", onChange);
 }
 
 // src/forkop/services/localActionOverlay.service.ts
@@ -4596,94 +6208,6 @@ function startRuntimeUiStatePolling() {
   });
 }
 
-// src/forkop/services/systemInfo.service.ts
-var UNKNOWN_SYSTEM_INFO = {
-  loading: false,
-  loaded: false,
-  capabilitiesLoaded: false,
-  forkop_version: _("unknown"),
-  luci_app_version: _("unknown"),
-  sing_box_version: _("unknown"),
-  sing_box_variant: "",
-  server_inbounds_enabled_count: -1,
-  openwrt_version: _("unknown"),
-  device_model: _("unknown")
-};
-var systemInfoPromise = null;
-var latestSystemInfoRequestId = 0;
-function hasLoadedSystemInfo() {
-  const systemInfo = store.get().diagnosticsSystemInfo;
-  return Boolean(systemInfo.loaded) && !systemInfo.loading;
-}
-async function ensureSystemInfo({
-  force = false,
-  silent = false
-} = {}) {
-  if (!force && hasLoadedSystemInfo()) {
-    return store.get().diagnosticsSystemInfo;
-  }
-  if (systemInfoPromise && !force) {
-    return systemInfoPromise;
-  }
-  const requestId = ++latestSystemInfoRequestId;
-  const currentSystemInfo = store.get().diagnosticsSystemInfo;
-  if (!silent) {
-    store.set({
-      diagnosticsSystemInfo: {
-        ...currentSystemInfo,
-        loading: true
-      }
-    });
-  }
-  const promise = (async () => {
-    try {
-      const systemInfo = await ForkopShellMethods.getSystemInfo();
-      if (requestId !== latestSystemInfoRequestId) {
-        return store.get().diagnosticsSystemInfo;
-      }
-      if (systemInfo.success) {
-        const nextSystemInfo = {
-          ...UNKNOWN_SYSTEM_INFO,
-          loading: false,
-          loaded: true,
-          capabilitiesLoaded: true,
-          server_inbounds_enabled_count: currentSystemInfo.server_inbounds_enabled_count,
-          ...systemInfo.data
-        };
-        store.set({
-          diagnosticsSystemInfo: nextSystemInfo
-        });
-        return nextSystemInfo;
-      }
-    } catch (error) {
-      logger.error("[SYSTEM_INFO]", "ensureSystemInfo failed", error);
-    }
-    if (requestId === latestSystemInfoRequestId && !silent) {
-      const latestSystemInfo = store.get().diagnosticsSystemInfo;
-      const nextSystemInfo = {
-        ...UNKNOWN_SYSTEM_INFO,
-        loading: false,
-        loaded: false,
-        capabilitiesLoaded: latestSystemInfo.capabilitiesLoaded,
-        server_inbounds_enabled_count: latestSystemInfo.server_inbounds_enabled_count
-      };
-      store.set({
-        diagnosticsSystemInfo: nextSystemInfo
-      });
-      return nextSystemInfo;
-    }
-    return store.get().diagnosticsSystemInfo;
-  })();
-  systemInfoPromise = promise;
-  try {
-    return await promise;
-  } finally {
-    if (systemInfoPromise === promise) {
-      systemInfoPromise = null;
-    }
-  }
-}
-
 // src/forkop/services/core.service.ts
 var SYSTEM_INFO_PREFETCH_DELAY_MS = 2e3;
 function showLogNotification(notification) {
@@ -4887,18 +6411,6 @@ async function getClashApiSecret2() {
   return settings?.yacd_secret_key || "";
 }
 
-// src/forkop/helpers/isActiveLuciTab.ts
-function isActiveLuciTab(tabId) {
-  if (typeof document === "undefined") {
-    return false;
-  }
-  return Boolean(
-    document.querySelector(
-      `.cbi-tab[data-tab="${tabId}"]:not(.cbi-tab-disabled)`
-    )
-  );
-}
-
 // src/forkop/helpers/tabLifecycle.ts
 var TAB_HIDDEN_GRACE_MS = 1e4;
 function createTabLifecycle(options) {
@@ -4945,65 +6457,6 @@ function pollDelayForDuration(baseIntervalMs, durationMs, maxIntervalMs) {
     Math.max(baseIntervalMs, Math.round(durationMs * POLL_DUTY_FACTOR)),
     maxIntervalMs
   );
-}
-
-// src/forkop/helpers/pollChain.ts
-function createPollChain(run, nextDelay) {
-  let generation = 0;
-  let active = false;
-  let running = false;
-  let timer = null;
-  const request = (current) => {
-    if (current !== generation || running) {
-      return;
-    }
-    running = true;
-    void Promise.resolve().then(run).catch(() => void 0).finally(() => {
-      running = false;
-      if (current === generation) {
-        schedule(nextDelay(), current);
-      }
-    });
-  };
-  const schedule = (delay, current) => {
-    timer = setTimeout(() => {
-      timer = null;
-      whenDocumentVisible(() => request(current));
-    }, delay);
-  };
-  const clearTimer = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
-    }
-  };
-  return {
-    get active() {
-      return active;
-    },
-    start(delay) {
-      if (active) {
-        return;
-      }
-      active = true;
-      generation += 1;
-      schedule(delay, generation);
-    },
-    stop() {
-      active = false;
-      generation += 1;
-      running = false;
-      clearTimer();
-    },
-    // A request already on its way finishes and schedules the next one itself.
-    now() {
-      if (!active || running) {
-        return;
-      }
-      clearTimer();
-      schedule(0, generation);
-    }
-  };
 }
 
 // src/forkop/helpers/formatDuration.ts
@@ -6188,16 +7641,16 @@ function refreshDetailsModal() {
     redrawn.scrollTop = scrollTop;
   }
 }
-function showDetailsModal(title, render5) {
+function showDetailsModal(title, render6) {
   closeDetailsModal();
   const container = textE(
     "div",
     { class: "fkp_dashboard-page__urltest-details" },
-    render5()
+    render6()
   );
   activeDetailsModal = {
     container,
-    render: render5,
+    render: render6,
     unsubscribe: store.subscribeKey("sectionsWidget", () => {
       refreshDetailsModal();
     })
@@ -6579,7 +8032,7 @@ function registerLifecycleListeners() {
     () => dashboardLifecycle.update()
   );
 }
-async function initController() {
+async function initController2() {
   if (dashboardControllerInitialized) {
     return;
   }
@@ -6592,7 +8045,7 @@ async function initController() {
 }
 
 // src/forkop/tabs/dashboard/styles.ts
-var styles3 = `
+var styles4 = `
 @font-face {
     font-family: "Twemoji Country Flags";
     src: url("/luci-static/resources/view/forkop/fonts/TwemojiCountryFlags.woff2") format("woff2");
@@ -7537,13 +8990,13 @@ its own name's length. */
 
 // src/forkop/tabs/dashboard/index.ts
 var DashboardTab = {
-  render,
-  initController,
-  styles: styles3
+  render: render2,
+  initController: initController2,
+  styles: styles4
 };
 
 // src/forkop/tabs/diagnostic/renderDiagnostic.ts
-function render2() {
+function render3() {
   return textE("div", { id: "diagnostic-status", class: "fkp_diagnostic-page" }, [
     textE("div", { class: "fkp_diagnostic-page__controls" }, [
       textE("div", { id: "fkp_diagnostic-page-actions" }),
@@ -8988,7 +10441,7 @@ function registerLifecycleListeners2() {
     }
   });
 }
-async function initController2() {
+async function initController3() {
   if (diagnosticControllerInitialized) {
     return;
   }
@@ -9004,7 +10457,7 @@ async function initController2() {
 }
 
 // src/forkop/tabs/diagnostic/styles.ts
-var styles4 = `
+var styles5 = `
 
 #cbi-${FORKOP_UCI_PACKAGE}-diagnostic > h3 {
     display: none;
@@ -9245,13 +10698,13 @@ controls. */
 
 // src/forkop/tabs/diagnostic/index.ts
 var DiagnosticTab = {
-  render: render2,
-  initController: initController2,
-  styles: styles4
+  render: render3,
+  initController: initController3,
+  styles: styles5
 };
 
 // src/forkop/tabs/monitoring/render.ts
-function render3() {
+function render4() {
   return textE(
     "div",
     {
@@ -11022,7 +12475,7 @@ function registerLifecycleListeners3() {
     () => monitoringLifecycle.update()
   );
 }
-async function initController3() {
+async function initController4() {
   if (monitoringControllerInitialized) {
     return;
   }
@@ -11034,7 +12487,7 @@ async function initController3() {
 }
 
 // src/forkop/tabs/monitoring/styles.ts
-var styles5 = `
+var styles6 = `
 /* The tab is one DummyValue inside the theme's flex row; a block mount node gives the page's
 width: 100% something to resolve against. */
 #cbi-${FORKOP_UCI_PACKAGE}-monitoring-_mount_node {
@@ -11532,9 +12985,9 @@ when the width runs short. */
 
 // src/forkop/tabs/monitoring/index.ts
 var MonitoringTab = {
-  render: render3,
-  initController: initController3,
-  styles: styles5
+  render: render4,
+  initController: initController4,
+  styles: styles6
 };
 
 // src/forkop/tabs/logs/render.ts
@@ -11550,7 +13003,7 @@ function renderActionButton(id, label) {
     label
   );
 }
-function render4() {
+function render5() {
   return textE("div", { id: "logs-status", class: "fkp_logs-page" }, [
     textE("div", { class: "fkp_logs-page__toolbar" }, [
       textE("div", { class: "fkp_logs-page__controls" }, [
@@ -11607,7 +13060,7 @@ function filterLogText(text8, query) {
 
 // src/forkop/tabs/logs/initController.ts
 var AUTO_REFRESH_INTERVAL_MS = 2e3;
-var controllerInitialized = false;
+var controllerInitialized2 = false;
 var loading2 = false;
 var rawLogs = "";
 var logsLoaded = false;
@@ -11702,11 +13155,11 @@ function downloadVisibleLogs() {
     downloadAsTxt(visibleLogs, `forkop-logs-${timestamp2}`);
   }
 }
-async function initController4() {
-  if (controllerInitialized) {
+async function initController5() {
+  if (controllerInitialized2) {
     return;
   }
-  controllerInitialized = true;
+  controllerInitialized2 = true;
   await onMount("logs-status");
   const autoRefresh = element2("logs-auto-refresh");
   autoRefresh.checked = true;
@@ -11735,7 +13188,7 @@ async function initController4() {
 }
 
 // src/forkop/tabs/logs/styles.ts
-var styles6 = `
+var styles7 = `
 #cbi-${FORKOP_UCI_PACKAGE}-logs,
 #cbi-${FORKOP_UCI_PACKAGE}-logs > .cbi-section-node,
 #cbi-${FORKOP_UCI_PACKAGE}-logs .cbi-value,
@@ -11884,9 +13337,9 @@ fill the column. */
 
 // src/forkop/tabs/logs/index.ts
 var LogsTab = {
-  render: render4,
-  initController: initController4,
-  styles: styles6
+  render: render5,
+  initController: initController5,
+  styles: styles7
 };
 
 // src/styles.ts
@@ -11895,6 +13348,7 @@ ${DashboardTab.styles}
 ${DiagnosticTab.styles}
 ${MonitoringTab.styles}
 ${LogsTab.styles}
+${ComponentsTab.styles}
 ${PartialStyles}
 
 
@@ -12091,15 +13545,15 @@ function injectGlobalStyles() {
 
 // src/forkop/tabs/mountTab.ts
 var mountNodes = /* @__PURE__ */ new Map();
-function mountTab(key, render5, initController5) {
+function mountTab(key, render6, initController6) {
   let node = mountNodes.get(key);
   if (!node) {
-    node = render5();
+    node = render6();
     mountNodes.set(key, node);
   }
   const report2 = (error) => console.error(`[TABS] Failed to start the ${key} controller`, error);
   try {
-    Promise.resolve(initController5()).catch(report2);
+    Promise.resolve(initController6()).catch(report2);
   } catch (error) {
     report2(error);
   }
@@ -12650,10 +14104,10 @@ function validAsciiDomain(hostname, requireDot = true) {
     return false;
   }
   const parts = hostname.split(".");
-  if (parts.some((part) => !part || part.length > 63)) {
+  if (parts.some((part2) => !part2 || part2.length > 63)) {
     return false;
   }
-  if (parts.some((part) => !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(part))) {
+  if (parts.some((part2) => !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(part2))) {
     return false;
   }
   if (!requireDot) {
@@ -14903,10 +16357,10 @@ function digestName(value) {
 }
 function netmaskLength(mask) {
   const parts = `${mask || ""}`.split(".");
-  if (parts.length !== 4 || parts.some((part) => !/^\d{1,3}$/.test(part))) {
+  if (parts.length !== 4 || parts.some((part2) => !/^\d{1,3}$/.test(part2))) {
     return -1;
   }
-  const bits = parts.map((part) => Number(part).toString(2).padStart(8, "0")).join("");
+  const bits = parts.map((part2) => Number(part2).toString(2).padStart(8, "0")).join("");
   return /^1*0*$/.test(bits) && bits.length === 32 ? bits.indexOf("0") : -1;
 }
 function looksLikeOpenVPNConfig(input) {
@@ -17279,7 +18733,7 @@ function parseUnsigned(value, maximum) {
 }
 function parseRange(value, maximum = UINT32_MAX) {
   const parts = value.split("-");
-  if (parts.length > 2 || parts.some((part) => part === "")) return void 0;
+  if (parts.length > 2 || parts.some((part2) => part2 === "")) return void 0;
   const from = parseUnsigned(parts[0], maximum);
   const to = parts.length === 2 ? parseUnsigned(parts[1], maximum) : from;
   if (from === void 0 || to === void 0 || from > to) return void 0;
@@ -17288,7 +18742,7 @@ function parseRange(value, maximum = UINT32_MAX) {
 function validateRange(value) {
   if (parseRange(value) !== void 0) return true;
   const parts = value.split("-");
-  return parts.length === 2 && parts.every((part) => parseUnsigned(part, UINT32_MAX) !== void 0) ? message.rangeReversed() : message.numberOrRange();
+  return parts.length === 2 && parts.every((part2) => parseUnsigned(part2, UINT32_MAX) !== void 0) ? message.rangeReversed() : message.numberOrRange();
 }
 function validateWireGuardKey(value) {
   const normalized = value.trim();
@@ -18857,11 +20311,11 @@ function validateExpectedStatus(value) {
     return true;
   }
   const parts = normalized.replaceAll(",", "/").split("/");
-  const valid = parts.length <= 28 && parts.every((part) => {
-    if (!part.trim()) {
+  const valid = parts.length <= 28 && parts.every((part2) => {
+    if (!part2.trim()) {
       return true;
     }
-    const codes = part.split("-").map((bound) => bound.trim().replace(/[[\] ]/g, ""));
+    const codes = part2.split("-").map((bound) => bound.trim().replace(/[[\] ]/g, ""));
     return codes.length <= 2 && codes.every(
       (code) => /^[0-9]+$/.test(code) && Number(code) >= 100 && Number(code) <= 599
     ) && (codes.length === 1 || Number(codes[0]) <= Number(codes[1]));
@@ -23664,7 +25118,7 @@ function isHostname(value) {
     return false;
   }
   return hostname.split(".").every(
-    (part) => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(part)
+    (part2) => /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(part2)
   );
 }
 function isHost(value) {
@@ -23682,7 +25136,7 @@ function isPrivateOrReservedIpv4(value) {
   if (!isIpv4(value)) {
     return true;
   }
-  const [a, b] = value.split(".").map((part) => parseInt(part, 10));
+  const [a, b] = value.split(".").map((part2) => parseInt(part2, 10));
   return a === 0 || a === 10 || a === 127 || a >= 224 || a === 100 && b >= 64 && b <= 127 || a === 169 && b === 254 || a === 172 && b >= 16 && b <= 31 || a === 192 && b === 168 || a === 192 && b === 0 || a === 192 && b === 2 || a === 198 && (b === 18 || b === 19 || b === 51) || a === 203 && b === 0;
 }
 function isPrivateOrReservedIp(value) {
@@ -24207,7 +25661,7 @@ function freeTunnelSubnet(sectionId) {
 }
 function ipv6Bytes(address) {
   const [head, tail = ""] = address.split("::");
-  const groups = (part) => part ? part.split(":") : [];
+  const groups = (part2) => part2 ? part2.split(":") : [];
   const missing = 8 - groups(head).length - groups(tail).length;
   const hextets = address.includes("::") ? [...groups(head), ...Array(missing).fill("0"), ...groups(tail)] : groups(head);
   return hextets.flatMap((hextet) => {
@@ -27807,7 +29261,8 @@ var BUSY_LABELS = {
   start: () => _("starting..."),
   stop: () => _("stopping..."),
   restart: () => _("restarting..."),
-  apply: () => _("applying...")
+  apply: () => _("applying..."),
+  install: () => _("installer running...")
 };
 function getServiceStatusDisplay({
   running,
@@ -27930,6 +29385,7 @@ var ForkopView = {
     addMountedTab(forkopMap, "dashboard", _("Dashboard"), DashboardTab);
     addMountedTab(forkopMap, "monitoring", _("Monitoring"), MonitoringTab);
     addMountedTab(forkopMap, "logs", _("Logs"), LogsTab);
+    addMountedTab(forkopMap, "components", _("Components"), ComponentsTab);
     const rendered = await forkopMap.render();
     coreService();
     return rendered;

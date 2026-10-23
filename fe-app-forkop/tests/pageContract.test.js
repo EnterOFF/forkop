@@ -24,6 +24,10 @@ import { FORKOP_WAIT_TIMEOUT_MS } from '../src/forkop/services/forkopWaitTranspo
 import { FORKOP_ACTION_OPENINGS } from '../src/forkop/services/logNotificationDeduper.service';
 import { tunnelStorageSettings } from '../src/forkop/tabs/sections/tunnels/model';
 import { AMNEZIA_PARAMETERS } from '../src/helpers/wireguard';
+import {
+  INSTALLER_ACTIONS,
+  INSTALLER_OBJECT,
+} from '../src/forkop/tabs/components/installerApi';
 
 const contract = JSON.parse(
   fs.readFileSync(path.join(ROOT, 'tests/fixtures/page_contract.json'), 'utf8'),
@@ -198,5 +202,24 @@ describe('a password field', () => {
       );
       expect(written, `${field} is not stored in ${stored}`).toBe(true);
     }
+  });
+});
+
+describe('the installer', () => {
+  it('is followed through the object its runner publishes, with the methods the ACL grants', () => {
+    expect(INSTALLER_OBJECT).toBe(contract.installer.object);
+    expect([...INSTALLER_ACTIONS]).toEqual(contract.installer.actions);
+    const acl = JSON.parse(
+      fs.readFileSync(
+        path.join(
+          ROOT,
+          'luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json',
+        ),
+        'utf8',
+      ),
+    );
+    expect(
+      [...acl['luci-app-forkop'].read.ubus[INSTALLER_OBJECT]].sort(),
+    ).toEqual(contract.installer.methods);
   });
 });

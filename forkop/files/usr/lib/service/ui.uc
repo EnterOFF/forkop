@@ -9,6 +9,7 @@ let uci = require("core.uci");
 let subscription_headers = require("singbox.subscription_headers");
 let health = require("service.health");
 let lock = require("service.lock");
+let installer = require("service.installer");
 
 const CONFIG_NAME = "forkop";
 const FINISHED_TTL_SECONDS = 3600;
@@ -133,6 +134,8 @@ function current_state() {
     let sing_box_running = forkop_running || health.sing_box_service_stable(STABLE_MIN_AGE) ? 1 : 0;
     let sing_box_enabled = executable(paths.rc_dir + "/S99sing-box") ? 1 : 0;
     let job = running_service_job();
+    // install.sh stops Forkop and replaces its packages: no action of the page runs meanwhile
+    let busy = installer.active() ? "install" : job == null ? null : (job.action == "reload" ? "apply" : job.action);
 
     return {
         service: {
@@ -140,7 +143,7 @@ function current_state() {
                 running: forkop_running,
                 enabled: forkop_enabled,
                 status: health.service_status_text(forkop_running, forkop_enabled),
-                busy: job == null ? null : (job.action == "reload" ? "apply" : job.action)
+                busy
             },
             sing_box: {
                 running: sing_box_running,
@@ -154,10 +157,12 @@ function current_state() {
 }
 
 // A new job for an action, unless one is running already: { status, job_id },
-// with status 2 while another action runs.
+// with status 2 while another action or the installer runs.
 function begin(action, source, pid) {
     if (!SERVICE_ACTIONS[action])
         return { status: 1, job_id: "" };
+    if (installer.active())
+        return { status: 2, job_id: "" };
     let owner = common.own_pid();
     if (!lock.acquire(paths.service_action_lock, owner, ACTION_LOCK_OWNER_GRACE))
         return { status: 2, job_id: "" };
@@ -250,6 +255,8 @@ function start_action(action) {
     let started = start_worker(action, "ui", "");
     if (started.success)
         return response(true, started.job_id, "Service " + action + " started");
+    if (installer.active())
+        return response(false, "", "The installer is running");
     return response(false, "", active_action() != "" ? "Another service action is already running" : "Failed to write service action worker pid");
 }
 

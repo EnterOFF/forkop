@@ -2,6 +2,7 @@ import { FORKOP_LUCI_APP_VERSION, FORKOP_UCI_PACKAGE } from '../../constants';
 import { injectGlobalStyles } from '../../helpers/injectGlobalStyles';
 import { coreService } from '../services/core.service';
 import { loadCoreFeatures } from '../services/coreFeatures.service';
+import { ComponentsTab } from '../tabs/components';
 import { DashboardTab } from '../tabs/dashboard';
 import { DiagnosticTab } from '../tabs/diagnostic';
 import { LogsTab } from '../tabs/logs';
@@ -110,6 +111,7 @@ export const ForkopView = {
     addMountedTab(forkopMap, 'dashboard', _('Dashboard'), DashboardTab);
     addMountedTab(forkopMap, 'monitoring', _('Monitoring'), MonitoringTab);
     addMountedTab(forkopMap, 'logs', _('Logs'), LogsTab);
+    addMountedTab(forkopMap, 'components', _('Components'), ComponentsTab);
 
     const rendered = await forkopMap.render();
     coreService();

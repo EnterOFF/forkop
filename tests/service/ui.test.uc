@@ -6,6 +6,7 @@ let fixture = require("fixture");
 let lock = require("service.lock");
 let health = require("service.health");
 let ui = require("service.ui");
+let installer = require("service.installer");
 
 let me = common.own_pid();
 
@@ -16,7 +17,17 @@ function fresh() {
     ui.paths.reload_lock = dir + "/forkop.reload.lock";
     ui.paths.pending_reload = dir + "/reload.pending";
     ui.paths.rc_dir = dir + "/rc.d";
+    installer.paths.state = dir + "/installer/state.json";
     return dir;
+}
+
+// A process whose command line names marker; the second command keeps the shell from
+// replacing itself with sleep.
+function live_process(marker) {
+    let pipe = stub.real.popen("sh -c 'sleep 30; :' " + marker + " >/dev/null 2>&1 & echo $!", "r");
+    let pid = trim(pipe.read("all"));
+    pipe.close();
+    return pid;
 }
 
 function job(id) {
@@ -128,6 +139,22 @@ t.test("the state tells what the service is apart from what is being done to it"
     t.eq(state.capabilities, { server_inbounds_enabled_count: 2 });
     t.eq(length(state.actions.service), 1);
     t.eq(keys(state.actions), [ "service" ]);
+});
+
+t.test("while the installer runs the service is busy with it and takes no action of the page", () => {
+    fresh();
+    fixture.seed({});
+    health.forkop_stably_running = () => false;
+    health.sing_box_service_stable = () => false;
+    let runner = live_process("installer_run");
+    common.ensure_dir(common.parent_dir(installer.paths.state));
+    fs.writefile(installer.paths.state, sprintf("%J", { schema: 1, id: "run-1", action: "update", runner_pid: runner, finished_at: null }));
+    t.eq(ui.current_state().service.forkop.busy, "install");
+    t.eq(ui.begin("start", "initd", me), { status: 2, job_id: "" });
+    t.eq(ui.start_action("restart"), { success: false, job_id: "", message: "The installer is running" });
+    stub.real.system("kill " + runner);
+    t.eq(ui.current_state().service.forkop.busy, null, "a runner that died ends the run");
+    t.eq(ui.begin("start", "initd", me).status, 0);
 });
 
 t.done();

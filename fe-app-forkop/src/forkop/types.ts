@@ -112,6 +112,8 @@ export namespace Forkop {
     GET_CORE_FEATURES = 'get_core_features',
     SERVICE_ACTION_ASYNC = 'service_action_async',
     UI_ACTION_ACK = 'ui_action_ack',
+    INSTALLER_START = 'installer_start',
+    INSTALLER_STATUS = 'installer_status',
   }
 
   export interface Outbound {
@@ -430,7 +432,31 @@ export namespace Forkop {
   }
 
   // `status` is what the service is, `busy` what is being done to it; an apply leaves it running.
-  export type ServiceBusy = 'start' | 'stop' | 'restart' | 'apply';
+  export type ServiceBusy = 'start' | 'stop' | 'restart' | 'apply' | 'install';
+
+  export type InstallerAction = 'update' | 'variant' | 'uninstall';
+
+  // A run of install.sh as service/installer.uc reports it, with its output from `offset` on.
+  export interface InstallerSnapshot {
+    id: string;
+    action?: InstallerAction;
+    variant?: string | null;
+    purge?: boolean;
+    interactive?: boolean;
+    running: boolean;
+    exit?: number | null;
+    interrupted?: boolean;
+    stop_requested?: boolean;
+    changed?: boolean;
+    offset?: number;
+    next?: number;
+    data?: string;
+  }
+
+  export interface InstallerStartResult {
+    id: string;
+    started: boolean;
+  }
 
   export interface GetStatus {
     running: number;

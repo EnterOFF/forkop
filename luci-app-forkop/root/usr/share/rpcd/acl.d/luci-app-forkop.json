@@ -17,6 +17,11 @@
           "usage",
           "refresh"
         ],
+        "forkop.installer": [
+          "read",
+          "input",
+          "stop"
+        ],
         "luci-rpc": [
           "getDHCPLeases",
           "getHostHints"

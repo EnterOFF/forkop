@@ -34,6 +34,7 @@ describe('service status display', () => {
     ['stop' as const, 'stopping...'],
     ['restart' as const, 'restarting...'],
     ['apply' as const, 'applying...'],
+    ['install' as const, 'installer running...'],
   ])('names the %s operation', (busy, label) => {
     expect(getServiceStatusDisplay({ running: true, busy })).toEqual({
       label,

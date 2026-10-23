@@ -143,6 +143,23 @@ describe('service control presentation', () => {
   it('shows restart while the service is running even when autostart is off', () => {
     expect(controls(true, null).restart.visible).toBe(true);
   });
+
+  it('offers no lifecycle control while the installer runs, whatever the service does', () => {
+    for (const running of [true, false]) {
+      const state = controls(running, 'install');
+      expect([
+        state.restart.visible,
+        state.start.visible,
+        state.stop.visible,
+      ]).toEqual([false, false, false]);
+    }
+    expect(
+      shouldDisableDiagnosticRunAction({
+        capabilitiesLoaded: true,
+        operation: 'install',
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('a state that has not arrived yet', () => {

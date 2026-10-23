@@ -14,6 +14,7 @@ let common = require("core.common");
 let exec = require("core.exec");
 let constants = require("core.constants");
 let ui = require("service.ui");
+let installer = require("service.installer");
 let uci = require("core.uci");
 let health = require("service.health");
 let features = require("singbox.features");
@@ -61,6 +62,7 @@ function watch_signature() {
     return path_signature(paths.config) + "|" +
         path_signature(ui.paths.service_actions) + "|" +
         path_signature(ui.paths.reload_lock) + "|" +
+        path_signature(installer.paths.state) + "|" +
         path_signature(ui.paths.rc_dir + "/S" + constants.FORKOP_START_PRIORITY + "forkop");
 }
 

@@ -95,4 +95,7 @@ function __refuse_connections() {
     connect_fails = true;
 }
 
-return { connect, __on, __notify, __invoke, __reset, __calls, __refuse_connections };
+return {
+    connect, __on, __notify, __invoke, __reset, __calls, __refuse_connections,
+    __published: function(name) { return published[name]; }
+};

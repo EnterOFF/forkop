@@ -344,5 +344,10 @@
     { "key": "max_handshake_attempts", "kind": "range", "one_sided": true },
     { "key": "random_trailers", "kind": "flag", "one_sided": false },
     { "key": "disable_cookies", "kind": "flag", "one_sided": false }
-  ]
+  ],
+  "installer": {
+    "object": "forkop.installer",
+    "methods": ["input", "read", "stop"],
+    "actions": ["update", "variant", "uninstall"]
+  }
 }

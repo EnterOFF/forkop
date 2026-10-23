@@ -478,6 +478,7 @@ declare global {
       ...args: unknown[]
     ): T;
     resource(...parts: string[]): string;
+    url(...parts: string[]): string;
     error(type: string, message?: string): never;
   };
 

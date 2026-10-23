@@ -102,6 +102,10 @@ function ui() {
     return require("service.ui");
 }
 
+function installer() {
+    return require("service.installer");
+}
+
 const COMMANDS = {
     start: { help: "Start Forkop service", run: init_script("start") },
     stop: { help: "Stop Forkop service", run: init_script("stop") },
@@ -131,6 +135,9 @@ const COMMANDS = {
     get_core_features: { help: "Get what the installed sing-box can do, from the tags it was built with, in JSON format", run: json(() => require("singbox.features").report()) },
     service_action_async: { args: 1, usage: "<action>", help: "Start a service action in the background", run: action_reply((action) => ui().start_action(action)) },
     ui_action_ack: { args: 1, usage: "<job>", help: "Acknowledge a finished service action state", run: action_reply((job) => ui().acknowledge(job)) },
+    installer_start: { args: 4, usage: "<update|variant|uninstall> <variant> <purge> <lang>", help: "Run install.sh in the background for the Components tab", run: reply((action, variant, purge, lang) => installer().start(action, variant, purge, lang)) },
+    installer_status: { args: 1, usage: "[offset]", help: "Show the Components tab's run of install.sh in JSON format", run: json((offset) => installer().status(offset)) },
+    installer_run: { args: 1, run: (args) => installer().run(args[0]) },
     generate_reality_keypair: { help: "Generate a sing-box Reality key pair in JSON format", run: reply(() => require("server.service").reality_keypair()) },
     generate_warp_profile: { help: "Generate a Cloudflare WARP profile in JSON format", run: warp_profile },
     package_prerm: { args: 1, run: (args) => require("service.package").prerm(args[0]) },
