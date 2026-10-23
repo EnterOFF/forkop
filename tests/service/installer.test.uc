@@ -417,6 +417,8 @@ t.test("install.sh that cannot be downloaded is tried three times and said as in
         uloop.__fire("timer");
     });
     t.eq([ length(uloop.__processes()), state().exit ], [ 1, 1 ], "an answer of the server's own is not tried again");
+    t.eq(fs.readfile(installer.paths.output), "\u001b[1;31m[x]\u001b[0m В последнем релизе Forkop нет install.sh\r\n",
+        "a release that predates install.sh, as 1.0.5 does");
 });
 
 t.test("a stop between two tries of a download ends the run at once", () => {

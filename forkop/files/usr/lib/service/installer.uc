@@ -59,6 +59,7 @@ const TEXTS = {
     unreachable: [ "Check that %s opens from the router", "Проверьте, открывается ли %s с роутера" ],
     command_only: [ "Forkop %s installs only with this command in a console:",
         "Forkop %s устанавливается только этой командой в консоли:" ],
+    no_script: [ "The latest Forkop release has no install.sh", "В последнем релизе Forkop нет install.sh" ],
     no_terminal: [ "Cannot open a terminal for the installer", "Не удалось открыть терминал для установщика" ],
     interrupted: [ "Interrupted: nothing was changed", "Прервано, ничего не изменено" ]
 };
@@ -589,12 +590,15 @@ function run(id) {
         attempt();
     }
 
-    // As install.sh says it: a name the router cannot resolve, or a server it cannot reach.
+    // As install.sh says it: a release without the file, a name the router cannot resolve, or a
+    // server it cannot reach.
     function download_failed(code) {
+        if (code == FETCH_HTTP_ERROR)
+            return fail_with([ mark_line("error", text(state.lang, "no_script")) ]);
         let host = url_host(release_url(""));
         let say = (reason) => fail_with([ mark_line("error", text(state.lang, "download_failed")),
             mark_line("warn", text(state.lang, reason, host)) ]);
-        if (code == FETCH_HTTP_ERROR || match(host, /^([0-9.]+|\[.*\])$/))
+        if (match(host, /^([0-9.]+|\[.*\])$/))
             return say("unreachable");
         download = uloop.process("nslookup", [ host ], env, (status) => {
             download = null;
