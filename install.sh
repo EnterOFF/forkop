@@ -58,7 +58,7 @@ FOREIGN_PKGS='' FOREIGN_WORLD='' FOREIGN_FILES='' LEFTOVERS=''
 F_VERSION='' F_TAG='' F_CORE_MIN='' C_VERSION='' C_TAG='' C_FORKOP_MIN=''
 I18N=0 NEED_FORKOP=0 NEED_APP=0 NEED_I18N=0
 CORE_ACTION=none CORE_VARIANT='' CORE_REINSTALL=0
-FILE_FORKOP='' FILE_APP='' FILE_I18N='' FILE_CORE='' GOT=''
+FILE_FORKOP='' FILE_APP='' FILE_I18N='' FILE_CORE='' FILE_IP='' GOT=''
 CONFIG_PLAN=none CONFIG_FROM='' CONFIG_REASON=''
 REMOVE_PKGS='' REMOVE_FILES='' DEPS_MISSING='' DEPS_KB=0 LISTS_FAILED=0 PREDELETE_CORE=0 OPKG_FLAGS='' OPKG_DB_COPY=''
 RESULT_FORKOP='' RESULT_CORE='' RESULT_VARIANT='' BACKUP=''
@@ -1016,9 +1016,27 @@ check_packages() {
 	step check "$(t 'Checking the packages' 'Проверка пакетов')"
 	plan_removals
 	check_dependencies
+	plan_ip_swap
 	check_space
 	check_config
 	preflight
+}
+
+# apk keeps an ip-full an older Forkop pulled in, as it is the new one's ip: ip-tiny replaces it
+plan_ip_swap() {
+	local depends file
+	[ "$PM" = apk ] && [ -n "$(pkg_version ip-full)" ] && ! in_world ip-full && [ -z "$(needed_by ip-full)" ] || return 0
+	if [ -n "$FILE_FORKOP" ]; then depends=$(field "$(control_of "$FILE_FORKOP")" Depends); else depends=$(pkg_depends forkop); fi
+	contains ip "$(dep_names "$depends" | tr '\n' ' ')" || return 0
+	# apk reads the feed indexes to fetch it, as for a dependency, and fetches none on its own
+	if [ "$(mem_available_kb)" -lt 19456 ] 2>/dev/null; then
+		log "ip-full stays: too little RAM to fetch ip-tiny"
+		return 0
+	fi
+	[ -n "$DEPS_MISSING" ] || run apk update
+	run apk fetch -o "$WORK" ip-tiny
+	for file in "$WORK"/ip-tiny-*.apk; do [ ! -f "$file" ] || FILE_IP=$file; done
+	[ -n "$FILE_IP" ] || log "ip-full stays: ip-tiny was not fetched"
 }
 
 check_dependencies() { # what the feeds give of DEPS_MISSING, simulated: DEPS_KB of it installed
@@ -1185,7 +1203,7 @@ preflight() { # every package manager command apply runs, simulated
 	local out="$WORK/preflight" name hint=''
 	[ "$LISTS_FAILED" = 0 ] || hint=$(network_hint)
 	set --
-	for name in "$FILE_CORE" "$FILE_FORKOP" "$FILE_APP" "$FILE_I18N"; do [ -z "$name" ] || set -- "$@" "$name"; done
+	for name in "$FILE_CORE" "$FILE_FORKOP" "$FILE_APP" "$FILE_I18N" "$FILE_IP"; do [ -z "$name" ] || set -- "$@" "$name"; done
 	if [ "$PM" = apk ]; then
 		for name in $(apk_constraints); do set -- "$@" "$name"; done
 		# as the transaction runs once the dependencies are in
@@ -1396,7 +1414,7 @@ transaction() {
 	before=$(removals)
 	cp "$WORK/db" "$WORK/db.before"
 	set --
-	for name in "$FILE_CORE" "$FILE_FORKOP" "$FILE_APP" "$FILE_I18N"; do [ -z "$name" ] || set -- "$@" "$name"; done
+	for name in "$FILE_CORE" "$FILE_FORKOP" "$FILE_APP" "$FILE_I18N" "$FILE_IP"; do [ -z "$name" ] || set -- "$@" "$name"; done
 	if [ "$PM" = apk ]; then
 		for name in $(apk_constraints); do set -- "$@" "$name"; done
 		# the dependencies are in: the feed indexes would take RAM and the network while Forkop is down
@@ -1450,6 +1468,7 @@ check_installed() { # what the transaction left, against what it was to install
 	[ -z "$FORK_URL" ] || [ "$(pkg_url forkop)" != "$FORK_URL" ] || contains forkop "$problems" || problems="$problems forkop"
 	[ -z "$FILE_APP" ] || [ "$(pkg_version luci-app-forkop)" = "$F_VERSION" ] || problems="$problems luci-app-forkop"
 	[ -z "$FILE_I18N" ] || [ "$(pkg_version luci-i18n-forkop-ru)" = "$F_VERSION" ] || problems="$problems luci-i18n-forkop-ru"
+	[ -z "$FILE_IP" ] || [ -n "$(pkg_version ip-tiny)" ] || problems="$problems ip-tiny"
 	for name in $REMOVE_PKGS; do
 		[ -z "$(pkg_version "$name")" ] || problems="$problems $name"
 	done
@@ -1489,9 +1508,11 @@ clean_up_after() {
 	BACKUP=$(config_copies | awk -v before="$WORK/copies" 'BEGIN { while ((getline line < before) > 0) seen[line] = 1 } !($0 in seen)' | tail -n 1)
 	# shellcheck disable=SC2086
 	[ "$PM" != apk ] || [ -z "$DEPS_MISSING" ] || world_drop $DEPS_MISSING
+	# a package added from its file stays in the world pinned to it
+	[ -z "$FILE_IP" ] || world_drop "$(grep '^ip-tiny><' /etc/apk/world)"
 	# /tmp is RAM, which the start of Forkop needs more than these files
 	rm -rf "$WORK/new" "$WORK/sing-box.old.gz"
-	for file in "$FILE_FORKOP" "$FILE_APP" "$FILE_I18N" "$FILE_CORE"; do
+	for file in "$FILE_FORKOP" "$FILE_APP" "$FILE_I18N" "$FILE_CORE" "$FILE_IP"; do
 		[ -z "$file" ] || rm -f "$file"
 	done
 }
@@ -1535,6 +1556,7 @@ package_names() { # the packages the transaction installs, by name
 		file=${file##*/}
 		names="${names:+$names, }${file%%_*}"
 	done
+	[ -z "$FILE_IP" ] || names="$names, ip-tiny"
 	printf '%s' "$names"
 }
 
