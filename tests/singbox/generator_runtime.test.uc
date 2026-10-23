@@ -776,6 +776,14 @@ t.test("the Clash API dashboard downloads its interface direct, wherever the lis
     t.eq(without_ui.experimental.clash_api.external_ui_download_detour, null, "no interface, nothing to download");
 });
 
+t.test("the Clash API asks for the key with YACD and without it", () => {
+    let section = [ { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org" } ];
+    for (let yacd in [ "0", "1" ]) {
+        let api = build({ settings: settings({ enable_yacd: yacd, yacd_secret_key: "0123abcd" }), section }).experimental.clash_api;
+        t.eq([ api.external_controller, api.secret ], [ "127.0.0.1:9090", "0123abcd" ], "YACD " + yacd);
+    }
+});
+
 t.test("fully routed devices follow their section at its priority", () => {
     let f = build({
         settings: settings(),

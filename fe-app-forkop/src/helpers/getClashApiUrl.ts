@@ -34,3 +34,14 @@ export function getClashUIUrl(): string {
 
   return `http://${hostname}:9090/ui`;
 }
+
+// YACD takes its backend and key from these query values on load, decoding each with
+// decodeURIComponent (a "+" stays a "+"), then drops them from the address.
+export function getClashUILoginUrl(secret: string): string {
+  const { hostname } = window.location;
+  const query = Object.entries({ hostname, port: '9090', secret })
+    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+    .join('&');
+
+  return `${getClashUIUrl()}/?${query}`;
+}

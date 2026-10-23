@@ -152,12 +152,12 @@ function clash_api_config(settings, service_address) {
     let result = {
         external_controller: controller + ":" + runtime_constants.CLASH_API_CONTROLLER_PORT
     };
+    let secret = option(settings, "yacd_secret_key", "");
+    if (secret != "")
+        result.secret = secret;
     if (bool_option(settings, "enable_yacd", false)) {
         result.external_ui = "ui";
         result.external_ui_download_detour = runtime_constants.DIRECT_OUTBOUND_TAG;
-        let secret = option(settings, "yacd_secret_key", "");
-        if (secret != "")
-            result.secret = secret;
     }
     return result;
 }

@@ -528,3 +528,30 @@ describe('a number the backend reads as digits only', () => {
     expect(option.validate('settings', '300')).toBe(true);
   });
 });
+
+describe('the Clash API key', () => {
+  async function keyOption(values) {
+    harness.uci.add('forkop', 'settings', 'settings');
+    Object.assign(harness.store.get('settings'), values);
+    const map = new harness.form.Map('forkop');
+    const section = map.section(harness.form.NamedSection, 'settings');
+    harness.bundle.createSettingsContent(section);
+    section.cfgsections = () => ['settings'];
+    await section.load();
+    return section.children.find(
+      (option) => option.option === 'yacd_secret_key',
+    );
+  }
+
+  it.each([
+    [{}, true],
+    [{ enable_yacd: '1' }, true],
+    [{ enable_yacd: '0', enable_yacd_wan_access: '1' }, true],
+    [{ enable_yacd: '1', enable_yacd_wan_access: '1' }, 'Required'],
+  ])('may stay empty with %o: %s', async (values, verdict) => {
+    const option = await keyOption(values);
+
+    expect(option.validate('settings', '')).toBe(verdict);
+    expect(option.validate('settings', 'chosen')).toBe(true);
+  });
+});

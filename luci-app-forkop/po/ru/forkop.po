@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-23 14:39+0300\n"
-"PO-Revision-Date: 2026-10-23 14:39+0300\n"
+"POT-Creation-Date: 2026-10-23 19:18+0300\n"
+"PO-Revision-Date: 2026-10-23 19:18+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -448,6 +448,9 @@ msgstr "Шифр"
 
 msgid "Cipher suites up to TLS 1.2, separated by colons (tls-cipher in the profile)"
 msgstr "Наборы шифров до TLS 1.2 через двоеточие (tls-cipher в профиле)"
+
+msgid "Clash API key"
+msgstr "Ключ Clash API"
 
 msgid "Clash API request timed out after it was sent"
 msgstr "Запрос к Clash API был отправлен, но истекло время ожидания ответа"
@@ -2015,9 +2018,6 @@ msgstr "Поиск"
 msgid "Seconds, or a range such as 25-35"
 msgstr "Секунды или диапазон, например 25-35"
 
-msgid "Secret key for authenticating remote access to YACD when WAN access is enabled"
-msgstr "Секретный ключ для аутентификации удаленного доступа к YACD при включенном доступе через WAN"
-
 msgid "Section"
 msgstr "Секция"
 
@@ -2723,8 +2723,8 @@ msgstr "С отпечатками сертификат CA не нужен (peer-
 msgid "XHTTP mode"
 msgstr "Режим XHTTP"
 
-msgid "YACD Secret Key"
-msgstr "Секретный ключ YACD"
+msgid "YACD and other Clash API clients log in with it"
+msgstr "С ним входят YACD и другие клиенты Clash API"
 
 msgid "YAML is not supported"
 msgstr "YAML не поддерживается"

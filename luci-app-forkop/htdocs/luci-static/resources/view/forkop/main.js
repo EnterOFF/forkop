@@ -2034,6 +2034,11 @@ function getClashUIUrl() {
   const { hostname } = window.location;
   return `http://${hostname}:9090/ui`;
 }
+function getClashUILoginUrl(secret) {
+  const { hostname } = window.location;
+  const query = Object.entries({ hostname, port: "9090", secret }).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&");
+  return `${getClashUIUrl()}/?${query}`;
+}
 
 // src/helpers/onMount.ts
 function getTarget(target2) {
@@ -27436,14 +27441,16 @@ function addServiceOptions(section2) {
 
 // src/forkop/tabs/settings/form/traffic.ts
 function addTrafficOptions(section2) {
-  let o = section2.option(
-    form.Flag,
-    "enable_yacd",
-    _("Enable YACD"),
-    `<a href="${getClashUIUrl()}" target="_blank">${getClashUIUrl()}</a>`
-  );
+  let o = section2.option(form.Flag, "enable_yacd", _("Enable YACD"));
   o.default = "0";
   o.rmempty = false;
+  const renderWidget2 = o.renderWidget;
+  o.renderWidget = function(sectionId, optionIndex, cfgvalue) {
+    const key = `${uci.get(FORKOP_UCI_PACKAGE, sectionId, "yacd_secret_key") || ""}`;
+    const href = getClashUILoginUrl(key).replaceAll("&", "&amp;");
+    this.description = `<a href="${href}" target="_blank">${getClashUIUrl()}</a>`;
+    return renderWidget2.call(this, sectionId, optionIndex, cfgvalue);
+  };
   o = section2.option(
     form.Flag,
     "enable_yacd_wan_access",
@@ -27458,14 +27465,17 @@ function addTrafficOptions(section2) {
   o = section2.option(
     form.Value,
     "yacd_secret_key",
-    _("YACD Secret Key"),
-    _(
-      "Secret key for authenticating remote access to YACD when WAN access is enabled"
-    )
+    _("Clash API key"),
+    _("YACD and other Clash API clients log in with it")
   );
-  o.depends("enable_yacd_wan_access", "1");
-  o.retain = true;
-  o.validate = required();
+  o.password = true;
+  o.validate = function(sectionId, value) {
+    const wanAccess = ["enable_yacd", "enable_yacd_wan_access"].every(
+      (name) => currentOptionValue(this, sectionId, name) === "1"
+    );
+    return wanAccess ? required().call(this, sectionId, value) : true;
+  };
+  addGenerateButton(o, () => randomHex(16));
   o = section2.option(
     form.Flag,
     "disable_quic",
