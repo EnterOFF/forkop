@@ -32,17 +32,22 @@ const PUBLISH_TRIES = 10;
 const INTERRUPT_TRIES = 10;
 // The run downloads as install.sh does: uclient-fetch, which every OpenWrt has, three tries, and a
 // download that stalls this long ends. 8 is its status for an HTTP error; it says nothing else
-// of a failure, so the name of the server is looked up after one.
+// of a failure, so the name of the server, or GitHub's rate limit, is looked up after one.
 const DOWNLOAD_TIMEOUT_SECONDS = 30;
 const DOWNLOAD_TRIES = 3;
 const DOWNLOAD_RETRY_MS = 2000;
 const FETCH_HTTP_ERROR = 8;
+const FILE_MISSING = -1;
+// github.com answers a release link with a header line longer than uclient-fetch reads, so the
+// release comes through GitHub's API; a mirror keeps github.com's release paths.
+const API_URL = "https://api.github.com";
 
 let paths = {
     state: "/var/run/forkop-installer/state.json",
     output: "/var/run/forkop-installer/output",
     script: "/var/run/forkop-installer/install.sh",
     manifest: "/var/run/forkop-installer/release.json",
+    listing: "/var/run/forkop-installer/listing.json",
     start_lock: "/var/run/forkop-installer/start.lock",
     cli: "/usr/bin/forkop",
     install_log: "/tmp/forkop-install.log",
@@ -61,6 +66,9 @@ const TEXTS = {
     command_only: [ "Forkop %s installs only with this command in a console:",
         "Forkop %s устанавливается только этой командой в консоли:" ],
     no_script: [ "The latest Forkop release has no install.sh", "В последнем релизе Forkop нет install.sh" ],
+    rate_limited: [ "GitHub refuses more requests from this address for now: it allows 60 an hour without an account",
+        "GitHub пока не принимает запросы с этого адреса: без входа он даёт 60 запросов в час" ],
+    try_later: [ "Run it again later: the limit is reset within the hour", "Запустите снова позже: лимит сбрасывается в течение часа" ],
     no_terminal: [ "Cannot open a terminal for the installer", "Не удалось открыть терминал для установщика" ],
     interrupted: [ "Interrupted: nothing was changed", "Прервано, ничего не изменено" ]
 };
@@ -236,10 +244,32 @@ function install_arguments(action, variant, purge, lang) {
     return argv;
 }
 
-// The latest release's file at the address install.sh downloads from.
+// The mirror install.sh downloads from instead of GitHub, if one is set.
+function mirror_url() {
+    return getenv("FORKOP_DOWNLOAD_URL") || null;
+}
+
+// The latest release's file at the mirror.
 function release_url(file) {
-    let base = getenv("FORKOP_DOWNLOAD_URL") || "https://github.com";
-    return base + "/" + constants.FORKOP_RELEASE_REPO + "/releases/latest/download/" + file;
+    return mirror_url() + "/" + constants.FORKOP_RELEASE_REPO + "/releases/latest/download/" + file;
+}
+
+// GitHub's account of the latest release, which gives each file's address in the API.
+function listing_url() {
+    return API_URL + "/repos/" + constants.FORKOP_RELEASE_REPO + "/releases/latest";
+}
+
+function asset_url(listing, file) {
+    let value = common.parse_json(listing);
+    for (let asset in (type(value?.assets) == "array" ? value.assets : []))
+        if (asset?.name == file && type(asset.url) == "string")
+            return asset.url;
+    return null;
+}
+
+// GitHub's /rate_limit answer, which costs no request: whether the API refuses this address now.
+function rate_limited(answer) {
+    return common.parse_json(answer)?.resources?.core?.remaining === 0;
 }
 
 function url_host(url) {
@@ -467,6 +497,7 @@ function run(id) {
         terminal = null;
         fs.unlink(paths.script);
         fs.unlink(paths.manifest);
+        fs.unlink(paths.listing);
         state = { ...state, exit: exit_code, finished_at: common.now_seconds(), changed: package_signature() != packages_before };
         write_state(state);
         uloop.timer(LINGER_MS, () => uloop.end());
@@ -583,14 +614,14 @@ function run(id) {
         fail_with([ mark_line("warn", text(state.lang, "command_only", found.version)), plain_line(found.command) ]);
     }
 
-    function fetch(file, path, done) {
+    function fetch_url(url, path, accept, done) {
         let tries = 0;
         let attempt = null;
+        let args = [ "-q", "-T", "" + DOWNLOAD_TIMEOUT_SECONDS, ...(accept ? [ "--header=Accept: " + accept ] : []), "-O", path, url ];
         attempt = () => {
             tries++;
             fs.unlink(path);
-            download = uloop.process("uclient-fetch", [ "-q", "-T", "" + DOWNLOAD_TIMEOUT_SECONDS, "-O", path, release_url(file) ],
-                env, (code) => {
+            download = uloop.process("uclient-fetch", args, env, (code) => {
                 download = null;
                 if (state.stop_requested === true)
                     return stopped();
@@ -605,21 +636,39 @@ function run(id) {
         attempt();
     }
 
-    // As install.sh says it: a release without the file, a name the router cannot resolve, or a
-    // server it cannot reach.
+    // A file of the latest release, from the mirror or at its address in the API's listing.
+    function fetch(file, path, done) {
+        if (mirror_url())
+            return fetch_url(release_url(file), path, null, done);
+        let url = asset_url(fs.readfile(paths.listing), file);
+        if (url == null)
+            return done(FILE_MISSING);
+        fetch_url(url, path, "application/octet-stream", done);
+    }
+
+    // As install.sh says it: a release without the file, GitHub's rate limit, a name the router
+    // cannot resolve, or a server it cannot reach.
     function download_failed(code) {
-        if (code == FETCH_HTTP_ERROR)
-            return fail_with([ mark_line("error", text(state.lang, "no_script")) ]);
-        let host = url_host(release_url(""));
-        let say = (reason) => fail_with([ mark_line("error", text(state.lang, "download_failed")),
-            mark_line("warn", text(state.lang, reason, host)) ]);
+        let say = (lines) => fail_with(map(lines, (line) => mark_line(line[0], line[1])));
+        if (code == FILE_MISSING || (code == FETCH_HTTP_ERROR && mirror_url()))
+            return say([ [ "error", text(state.lang, "no_script") ] ]);
+        if (code == FETCH_HTTP_ERROR) {
+            // the API answers its rate limit and a missing release alike with an HTTP error
+            return fetch_url(API_URL + "/rate_limit", paths.listing, null, (status) => {
+                if (status == 0 && rate_limited(fs.readfile(paths.listing)))
+                    return say([ [ "error", text(state.lang, "rate_limited") ], [ "warn", text(state.lang, "try_later") ] ]);
+                say([ [ "error", text(state.lang, "no_script") ] ]);
+            });
+        }
+        let host = url_host(mirror_url() || API_URL);
+        let unreachable = (reason) => say([ [ "error", text(state.lang, "download_failed") ], [ "warn", text(state.lang, reason, host) ] ]);
         if (match(host, /^([0-9.]+|\[.*\])$/))
-            return say("unreachable");
+            return unreachable("unreachable");
         download = uloop.process("nslookup", [ host ], env, (status) => {
             download = null;
             if (state.stop_requested === true)
                 return stopped();
-            say(status == 0 ? "unreachable" : "unresolved");
+            unreachable(status == 0 ? "unreachable" : "unresolved");
         });
     }
 
@@ -679,7 +728,10 @@ function run(id) {
     if (object == null)
         exec.log("warn", "The installer could not publish the ubus object " + OBJECT_NAME + "; the page cannot type into its terminal");
 
-    fetch("install.sh", paths.script, on_script);
+    if (mirror_url())
+        fetch("install.sh", paths.script, on_script);
+    else
+        fetch_url(listing_url(), paths.listing, null, (code) => code == 0 ? fetch("install.sh", paths.script, on_script) : download_failed(code));
     uloop.run();
     if (connection != null)
         connection.disconnect();
@@ -704,6 +756,9 @@ return {
     whole_characters,
     install_arguments,
     release_url,
+    listing_url,
+    asset_url,
+    rate_limited,
     url_host,
     child_script,
     pump_script,

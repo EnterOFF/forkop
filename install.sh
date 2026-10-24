@@ -14,7 +14,8 @@
 # Colors follow whether stdout is a terminal, questions whether /dev/tty opens: a page that runs it
 # on a pseudo-terminal without making it the controlling one gets colors and no questions.
 #
-# FORKOP_DOWNLOAD_URL replaces https://github.com, for a mirror with the same release paths;
+# The releases come through api.github.com, which takes 60 requests an hour from an address
+# without an account; FORKOP_DOWNLOAD_URL names a mirror with github.com's release paths instead.
 # https_proxy and http_proxy are honored, NO_COLOR turns colors off.
 #
 # Every release carries release.json beside its packages, install.sh and SHA256SUMS:
@@ -27,7 +28,9 @@ set -u
 
 FORKOP_REPO=ushan0v/forkop
 CORE_REPO=ushan0v/sing-box-forkop
-DOWNLOAD_URL=${FORKOP_DOWNLOAD_URL:-https://github.com}
+# github.com answers a release link with a header line longer than uclient-fetch reads
+API_URL=https://api.github.com
+MIRROR=${FORKOP_DOWNLOAD_URL:-}
 LOG=/tmp/forkop-install.log
 LOCK_DIR=/var/lock/forkop-install.lock
 OUR_PACKAGES="forkop luci-app-forkop luci-i18n-forkop-ru sing-box-forkop"
@@ -549,30 +552,29 @@ dep_names() { # the package names a Depends field lists
 
 # --- downloads ------------------------------------------------------------------------------
 
-fetch() { # fetch URL FILE: 0, 2 when the server answered with an HTTP error, 1 when it was not reached
+fetch() { # fetch URL FILE [ACCEPT]: 0; 2 when the server answered with an HTTP error, 3 when that was GitHub's rate limit; 1 when it was not reached
 	local status
-	if command -v curl >/dev/null 2>&1; then
-		curl -fsSL --connect-timeout 15 --retry 2 -o "$2" "$1" 2>>"$LOG"
-		status=$?
-		[ "$status" != 22 ] || return 2
-	else
-		# uclient-fetch exits 8 when the server answers with an error, 4 when it is not reached
-		wget -q -T 30 -O "$2" "$1" 2>>"$LOG"
-		status=$?
-		[ "$status" != 8 ] || return 2
+	wget -T 30 ${3:+"--header=Accept: $3"} -O "$2" "$1" 2>"$WORK/fetch.log"
+	status=$?
+	cat "$WORK/fetch.log" >>"$LOG"
+	# uclient-fetch exits 8 when the server answers with an error, which it names unless -q, 4 when it
+	# is not reached; GitHub's API answers 403 or 429 once an address spent its requests
+	if [ "$status" = 8 ]; then
+		grep -q -e 'HTTP error 403' -e 'HTTP error 429' -e 'ERROR 403' -e 'ERROR 429' "$WORK/fetch.log" && return 3
+		return 2
 	fi
 	[ "$status" = 0 ]
 }
 
-download() { # download URL FILE, three tries: 0, or 2 when the server has no such file, 1 when it was not reached
+download() { # download URL FILE [ACCEPT], three tries: 0; 2 when the server has no such file, 3 for GitHub's rate limit; 1 when it was not reached
 	local try status
 	for try in 1 2 3; do
 		rm -f "$2"
 		log "download $1"
-		fetch "$1" "$2"
+		fetch "$1" "$2" "${3:-}"
 		status=$?
 		[ "$status" != 0 ] || [ ! -s "$2" ] || return 0
-		[ "$status" != 2 ] || { rm -f "$2"; return 2; }
+		case $status in 2 | 3) rm -f "$2"; return "$status" ;; esac
 		if [ "$(mem_available_kb)" -lt 4096 ] 2>/dev/null || [ "$(free_kb /tmp)" -lt 1024 ] 2>/dev/null; then
 			rm -f "$2"
 			fail 1 no_memory "$(t 'Not enough RAM for the downloads' 'Не хватает оперативной памяти для загрузки')" \
@@ -584,12 +586,25 @@ download() { # download URL FILE, three tries: 0, or 2 when the server has no su
 	return 1
 }
 
-release_url() { # release_url REPO TAG FILE: TAG empty for the latest release
+release_url() { # release_url REPO TAG FILE: FILE at the mirror, TAG empty for the latest release
 	if [ -n "$2" ]; then
-		printf '%s/%s/releases/download/%s/%s' "$DOWNLOAD_URL" "$1" "$2" "$3"
+		printf '%s/%s/releases/download/%s/%s' "$MIRROR" "$1" "$2" "$3"
 	else
-		printf '%s/%s/releases/latest/download/%s' "$DOWNLOAD_URL" "$1" "$3"
+		printf '%s/%s/releases/latest/download/%s' "$MIRROR" "$1" "$3"
 	fi
+}
+
+asset_url() { # asset_url forkop|core FILE: where FILE of the release is, empty when the release has none
+	if [ -n "$MIRROR" ]; then
+		if [ "$1" = core ]; then release_url "$CORE_REPO" "$C_TAG" "$2"; else release_url "$FORKOP_REPO" "$F_TAG" "$2"; fi
+	else
+		jsonfilter -i "$WORK/$1.release" -e "@.assets[@.name=\"$2\"].url" 2>/dev/null
+	fi
+}
+
+rate_limited() {
+	fail 1 rate_limit "$(t 'GitHub refuses more requests from this address for now: it takes 60 an hour without an account' 'GitHub пока не принимает запросы с этого адреса: без входа он даёт 60 запросов в час')" \
+		"$(t 'Run the installer again later: the limit is reset within the hour' 'Запустите установщик снова позже: лимит сбрасывается в течение часа')"
 }
 
 checksum_of() { # checksum_of NAME SUMS
@@ -608,7 +623,8 @@ resolves() { # resolves HOST: an address, or a name the router resolves
 }
 
 network_hint() {
-	local host=${DOWNLOAD_URL#*://}
+	local host=${MIRROR:-$API_URL}
+	host=${host#*://}
 	host=${host%%/*}
 	host=${host%:*}
 	if [ "$FORKOP_ENABLED" = 0 ] && pidof sing-box sing-box-core >/dev/null 2>&1; then
@@ -818,24 +834,35 @@ read_manifest() { # read_manifest FILE NAME: prints version, tag and requirement
 }
 
 fetch_or_fail() { # fetch_or_fail URL FILE NAME RELEASE: a file of a release, or the reason it is not there
-	download "$1" "$2"
-	case $? in
+	local status=2
+	[ -z "$1" ] || { download "$1" "$2" application/octet-stream; status=$?; }
+	case $status in
 	0) return 0 ;;
 	2) fail 1 release "$(t 'Release %s has no %s' 'В релизе %s нет %s' "$4" "$3")" ;;
+	3) rate_limited ;;
 	esac
 	fail 1 network "$(t 'Cannot download %s' 'Не удалось скачать %s' "$3")" "$(network_hint)"
 }
 
-fetch_release() { # fetch_release forkop|core: the latest release's manifest
-	local repo=$FORKOP_REPO name=Forkop package=forkop manifest="$WORK/$1.json"
+fetch_release() { # fetch_release forkop|core: the latest release's manifest, and from the API its files
+	local repo=$FORKOP_REPO name=Forkop package=forkop manifest="$WORK/$1.json" url status=0
 	[ "$1" = forkop ] || repo=$CORE_REPO name=sing-box-forkop package=sing-box-forkop
-	download "$(release_url "$repo" '' release.json)" "$manifest"
-	case $? in
+	if [ -z "$MIRROR" ]; then
+		download "$API_URL/repos/$repo/releases/latest" "$WORK/$1.release"
+		status=$?
+	fi
+	if [ "$status" = 0 ]; then
+		url=$(asset_url "$1" release.json)
+		status=2
+		[ -z "$url" ] || { download "$url" "$manifest" application/octet-stream; status=$?; }
+	fi
+	case $status in
 	0) ;;
 	2)
 		fail 1 release "$(t 'The latest %s release has no release.json' 'В последнем релизе %s нет release.json' "$name")" \
 			"$(t 'Download the latest install.sh' 'Скачайте свежий install.sh')"
 		;;
+	3) rate_limited ;;
 	*) fail 1 network "$(t 'Cannot download the information on the %s release' 'Не удалось скачать сведения о релизе %s' "$name")" "$(network_hint)" ;;
 	esac
 	read_manifest "$manifest" "$package" >"$WORK/$1.fields" ||
@@ -959,10 +986,6 @@ stop_if_current() { # nothing to install: the installed versions, and the run en
 
 # --- getting the packages -------------------------------------------------------------------
 
-package_url() { # package_url forkop|core FILE
-	if [ "$1" = core ]; then release_url "$CORE_REPO" "$C_TAG" "$2"; else release_url "$FORKOP_REPO" "$F_TAG" "$2"; fi
-}
-
 core_file() { # core_file VARIANT
 	printf 'sing-box-forkop_%s_%s_%s.%s' "$C_VERSION" "$1" "$ARCH" "$EXT"
 }
@@ -970,15 +993,15 @@ core_file() { # core_file VARIANT
 get_package() { # get_package forkop|core FILE: GOT is FILE of that release, checked against its SHA256SUMS
 	local sums="$WORK/$1.sums" file="$WORK/$2" url name="Forkop $F_VERSION"
 	[ "$1" = forkop ] || name="sing-box-forkop $C_VERSION"
-	[ -s "$sums" ] || fetch_or_fail "$(package_url "$1" SHA256SUMS)" "$sums" SHA256SUMS "$name"
+	[ -s "$sums" ] || fetch_or_fail "$(asset_url "$1" SHA256SUMS)" "$sums" SHA256SUMS "$name"
 	if [ -z "$(checksum_of "$2" "$sums")" ]; then
 		[ "$1" = forkop ] || fail 1 release "$(t 'Release sing-box-forkop %s has no %s build for %s' 'В релизе sing-box-forkop %s нет сборки %s для %s' "$C_VERSION" "$CORE_VARIANT" "$ARCH")"
 		fail 1 release "$(t 'Release %s has no %s' 'В релизе %s нет %s' "$name" "$2")"
 	fi
-	url=$(package_url "$1" "$2")
+	url=$(asset_url "$1" "$2")
 	fetch_or_fail "$url" "$file" "$2" "$name"
 	if ! verify "$file" "$sums"; then
-		if ! download "$url" "$file" || ! verify "$file" "$sums"; then
+		if ! download "$url" "$file" application/octet-stream || ! verify "$file" "$sums"; then
 			fail 1 checksum "$(t '%s is damaged: its SHA256 sum does not match' 'Файл %s повреждён: сумма SHA256 не совпадает' "$2")"
 		fi
 	fi

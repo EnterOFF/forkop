@@ -7,6 +7,7 @@ let common = require("core.common");
 let installer = require("service.installer");
 
 let me = common.own_pid();
+const MIRROR = "http://10.0.2.2:18090";
 
 // The run's directory, and the system's files beside it in a directory of their own.
 function fresh() {
@@ -16,6 +17,7 @@ function fresh() {
     installer.paths.output = dir + "/output";
     installer.paths.script = dir + "/install.sh";
     installer.paths.manifest = dir + "/release.json";
+    installer.paths.listing = dir + "/listing.json";
     installer.paths.start_lock = dir + "/start.lock";
     installer.paths.cli = system + "/forkop";
     installer.paths.proc = system + "/proc";
@@ -122,14 +124,20 @@ t.test("a read hands over whole UTF-8 characters only", () => {
     t.eq(installer.whole_characters(""), 0);
 });
 
-t.test("install.sh and release.json come from the latest release at the address install.sh uses", () => {
-    stub.env({ FORKOP_DOWNLOAD_URL: null });
-    t.eq(installer.release_url("install.sh"), "https://github.com/ushan0v/forkop/releases/latest/download/install.sh");
-    stub.env({ FORKOP_DOWNLOAD_URL: "http://10.0.2.2:18090" });
-    t.eq(installer.release_url("release.json"), "http://10.0.2.2:18090/ushan0v/forkop/releases/latest/download/release.json");
+t.test("the latest release comes through GitHub's API, or from a mirror at github.com's release paths", () => {
+    t.eq(installer.listing_url(), "https://api.github.com/repos/ushan0v/forkop/releases/latest");
+    let listing = "{\"assets\":[{\"name\":\"release.json\",\"url\":\"https://api.github.com/repos/ushan0v/forkop/releases/assets/2\"}," +
+        "{\"name\":\"install.sh\",\"url\":\"https://api.github.com/repos/ushan0v/forkop/releases/assets/1\"}]}";
+    t.eq(installer.asset_url(listing, "install.sh"), "https://api.github.com/repos/ushan0v/forkop/releases/assets/1");
+    t.eq(installer.asset_url(listing, "SHA256SUMS"), null, "a file the release has not got");
+    t.eq([ installer.asset_url("{\"message\":\"Not Found\"}", "install.sh"), installer.asset_url(null, "install.sh") ], [ null, null ]);
+    t.eq([ installer.rate_limited("{\"resources\":{\"core\":{\"remaining\":0}}}"),
+        installer.rate_limited("{\"resources\":{\"core\":{\"remaining\":12}}}"), installer.rate_limited(null) ], [ true, false, false ]);
+    stub.env({ FORKOP_DOWNLOAD_URL: MIRROR });
+    t.eq(installer.release_url("release.json"), MIRROR + "/ushan0v/forkop/releases/latest/download/release.json");
     stub.restore();
-    t.eq(installer.url_host("http://10.0.2.2:18090/ushan0v/forkop"), "10.0.2.2");
-    t.eq(installer.url_host("https://github.com/x"), "github.com");
+    t.eq(installer.url_host(MIRROR + "/ushan0v/forkop"), "10.0.2.2");
+    t.eq(installer.url_host("https://api.github.com"), "api.github.com");
 });
 
 t.test("a release that installs only from a console names its command", () => {
@@ -239,15 +247,18 @@ t.test("a runner that never records itself leaves an interrupted run", () => {
     t.eq([ state().interrupted, state().finished_at != null ], [ true, true ]);
 });
 
-// Runs the runner over a recorded run; `steps` are what happens while its loop runs.
-function run_with(value, steps) {
+// Runs the runner over a recorded run; `steps` are what happens while its loop runs. The run
+// downloads from a mirror, or through GitHub's API when `source` is "api".
+function run_with(value, steps, source) {
     fresh();
     write_state(value);
     ubus.__reset();
     uloop.__reset();
+    stub.env({ FORKOP_DOWNLOAD_URL: source == "api" ? null : MIRROR });
     let result = { status: null };
     uloop.__on_run(() => steps(result));
     result.status = installer.run(value.id ?? "run-1");
+    stub.env({});
     return result;
 }
 
@@ -270,7 +281,7 @@ t.test("the runner downloads install.sh, runs it in a terminal and records how i
     run_with({}, (result) => {
         let downloads = uloop.__processes();
         t.eq(downloads[0].executable, "uclient-fetch");
-        t.contains(join(" ", downloads[0].args), "-O " + installer.paths.script + " https://github.com/ushan0v/forkop/releases/latest/download/install.sh");
+        t.contains(join(" ", downloads[0].args), "-O " + installer.paths.script + " " + MIRROR + "/ushan0v/forkop/releases/latest/download/install.sh");
         t.eq(state().runner_pid, me, "the runner records itself first");
         uloop.__exit(0, 0);
         t.contains(join(" ", uloop.__processes()[1].args), "release.json", "an install checks the release first");
@@ -420,29 +431,82 @@ t.test("install.sh that cannot be downloaded is tried three times and said as in
     };
     run_with({ lang: "en" }, () => {
         fail_three_times();
-        t.eq(uloop.__processes()[3].executable + " " + join(" ", uloop.__processes()[3].args), "nslookup github.com");
+        t.eq(uloop.__processes()[3].executable + " " + join(" ", uloop.__processes()[3].args), "nslookup api.github.com");
         uloop.__exit(3, 1);
         uloop.__fire("timer");
-    });
+    }, "api");
     t.eq(fs.readfile(installer.paths.output),
-        "\u001b[1;31m[x]\u001b[0m Cannot download install.sh\r\n\u001b[1;33m[!]\u001b[0m The router cannot resolve github.com: check its DNS and internet connection\r\n");
+        "\u001b[1;31m[x]\u001b[0m Cannot download install.sh\r\n\u001b[1;33m[!]\u001b[0m The router cannot resolve api.github.com: check its DNS and internet connection\r\n");
     t.eq(state().exit, 1);
 
     run_with({}, () => {
         fail_three_times();
         uloop.__exit(3, 0);
         uloop.__fire("timer");
-    });
+    }, "api");
     t.eq(fs.readfile(installer.paths.output),
-        "\u001b[1;31m[x]\u001b[0m Не удалось скачать install.sh\r\n\u001b[1;33m[!]\u001b[0m Проверьте, открывается ли github.com с роутера\r\n");
+        "\u001b[1;31m[x]\u001b[0m Не удалось скачать install.sh\r\n\u001b[1;33m[!]\u001b[0m Проверьте, открывается ли api.github.com с роутера\r\n");
+
+    run_with({}, () => {
+        fs.writefile(installer.paths.listing, "{\"tag_name\":\"1.0.5\",\"assets\":[{\"name\":\"forkop_1.0.5.apk\",\"url\":\"https://api.github.com/x/1\"}]}");
+        uloop.__exit(0, 0);
+        uloop.__fire("timer");
+    }, "api");
+    t.eq([ length(uloop.__processes()), state().exit ], [ 1, 1 ], "nothing is fetched for a file the listing has not got");
+    t.eq(fs.readfile(installer.paths.output), "\u001b[1;31m[x]\u001b[0m В последнем релизе Forkop нет install.sh\r\n",
+        "a release that predates install.sh, as 1.0.5 does");
+
+    run_with({}, () => {
+        uloop.__exit(0, 8);
+        t.eq(join(" ", uloop.__processes()[1].args), "-q -T 30 -O " + installer.paths.listing + " https://api.github.com/rate_limit",
+            "an answer of the server's own is not tried again, and the rate limit is looked up");
+        fs.writefile(installer.paths.listing, "{\"resources\":{\"core\":{\"limit\":60,\"remaining\":0}}}");
+        uloop.__exit(1, 0);
+        uloop.__fire("timer");
+    }, "api");
+    t.eq(fs.readfile(installer.paths.output),
+        "\u001b[1;31m[x]\u001b[0m GitHub пока не принимает запросы с этого адреса: без входа он даёт 60 запросов в час\r\n" +
+        "\u001b[1;33m[!]\u001b[0m Запустите снова позже: лимит сбрасывается в течение часа\r\n");
+
+    run_with({}, () => {
+        uloop.__exit(0, 8);
+        fs.writefile(installer.paths.listing, "{\"resources\":{\"core\":{\"limit\":60,\"remaining\":41}}}");
+        uloop.__exit(1, 0);
+        uloop.__fire("timer");
+    }, "api");
+    t.eq(fs.readfile(installer.paths.output), "\u001b[1;31m[x]\u001b[0m В последнем релизе Forkop нет install.sh\r\n",
+        "an HTTP error with requests left is a missing release");
 
     run_with({}, () => {
         uloop.__exit(0, 8);
         uloop.__fire("timer");
     });
-    t.eq([ length(uloop.__processes()), state().exit ], [ 1, 1 ], "an answer of the server's own is not tried again");
-    t.eq(fs.readfile(installer.paths.output), "\u001b[1;31m[x]\u001b[0m В последнем релизе Forkop нет install.sh\r\n",
-        "a release that predates install.sh, as 1.0.5 does");
+    t.eq([ length(uloop.__processes()), fs.readfile(installer.paths.output) ],
+        [ 1, "\u001b[1;31m[x]\u001b[0m В последнем релизе Forkop нет install.sh\r\n" ], "a mirror's HTTP error is a missing file");
+});
+
+t.test("through GitHub's API the run reads the release's listing, then its files at their addresses there", () => {
+    run_with({}, () => {
+        let listing = uloop.__processes()[0];
+        t.eq([ listing.executable, join(" ", listing.args) ],
+            [ "uclient-fetch", "-q -T 30 -O " + installer.paths.listing + " https://api.github.com/repos/ushan0v/forkop/releases/latest" ]);
+        fs.writefile(installer.paths.listing, "{\"assets\":[{\"name\":\"install.sh\",\"url\":\"https://api.github.com/repos/ushan0v/forkop/releases/assets/1\"}," +
+            "{\"name\":\"release.json\",\"url\":\"https://api.github.com/repos/ushan0v/forkop/releases/assets/2\"}]}");
+        uloop.__exit(0, 0);
+        t.eq(join(" ", uloop.__processes()[1].args), "-q -T 30 --header=Accept: application/octet-stream -O " + installer.paths.script +
+            " https://api.github.com/repos/ushan0v/forkop/releases/assets/1");
+        uloop.__exit(1, 0);
+        t.eq(uloop.__processes()[2].args[5], installer.paths.manifest);
+        t.eq(uloop.__processes()[2].args[6], "https://api.github.com/repos/ushan0v/forkop/releases/assets/2");
+        fs.writefile(installer.paths.manifest, "{\"version\":\"2.0.1\"}");
+        uloop.__exit(2, 0);
+        t.eq(uloop.__processes()[4].args[4], installer.paths.script, "install.sh runs");
+        uloop.__exit(4, 0);
+        uloop.__exit(3, 0);
+        uloop.__fire("timer");
+    }, "api");
+    t.eq(state().exit, 0);
+    t.eq(fs.stat(installer.paths.listing), null, "the listing goes with the downloads");
 });
 
 t.test("a stop between two tries of a download ends the run at once", () => {

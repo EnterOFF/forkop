@@ -10,7 +10,7 @@
 ### Установка
 
 ```sh
-sh <(wget -O - https://github.com/ushan0v/forkop/releases/latest/download/install.sh)
+sh <(wget -O - https://raw.githubusercontent.com/ushan0v/forkop/main/install.sh)
 ```
 
 Та же команда обновляет Forkop и его ядро sing-box-forkop. С Forkop 1.0.x на 2.0 переходят только ею: кнопка обновления во вкладке «Компоненты» 1.0.x откажет, ничего не изменив. Установщик переносит настройки и заменяет прежнее ядро; из других пакетов удаляет только те, что не могут стоять рядом с Forkop.
