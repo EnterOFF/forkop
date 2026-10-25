@@ -174,8 +174,10 @@ describe('the core widgets', () => {
   it('count the age from one start per core and the load between two readings of it', async () => {
     mocks.readCoreUsage
       .mockResolvedValueOnce(reading(100000, 1_060_000, 500))
-      .mockResolvedValueOnce(reading(100000, 1_062_100, 600))
-      .mockResolvedValueOnce(reading(200000, 2_005_000, 30));
+      .mockResolvedValueOnce(reading(100000, 1_060_500, 520))
+      .mockResolvedValueOnce(reading(100000, 1_062_600, 620))
+      .mockResolvedValueOnce(reading(200000, 2_005_000, 30))
+      .mockResolvedValueOnce(reading(200000, 2_005_500, 40));
     await openDashboard();
     const { store } = await import('../../../services/store.service');
     const usage = () => store.get().coreUsageWidget;
@@ -187,8 +189,15 @@ describe('the core widgets', () => {
       data: { cpu: null, memory: 25_600_000, startedAt: firstStart },
     });
 
-    await vi.advanceTimersByTimeAsync(2000);
+    await vi.advanceTimersByTimeAsync(499);
+    expect(usage().data.cpu).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
     expect(usage().data.startedAt).toBe(firstStart);
+    expect(usage().data.cpu).toBeCloseTo(20, 2);
+
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(usage().data.cpu).toBeCloseTo(20, 2);
+    await vi.advanceTimersByTimeAsync(1);
     expect(usage().data.cpu).toBeCloseTo(23.81, 2);
 
     await vi.advanceTimersByTimeAsync(2000);
@@ -197,6 +206,9 @@ describe('the core widgets', () => {
       memory: 25_600_000,
       startedAt: Date.now() - 5000,
     });
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(usage().data.cpu).toBeCloseTo(10, 2);
   });
 
   it('say the core is unavailable while it is not running', async () => {

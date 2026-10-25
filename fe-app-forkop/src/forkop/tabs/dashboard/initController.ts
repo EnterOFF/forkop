@@ -414,8 +414,10 @@ function stopWidgetsPolling() {
   }
 }
 
-// The load is what the core used between two readings, so they come close together.
+// The load is what the core used between two readings, so they come close together; the widget
+// waits for its first load, so the second reading comes sooner.
 const CORE_USAGE_INTERVAL_MS = 2000;
+const CORE_USAGE_FIRST_INTERVAL_MS = 500;
 const CORE_USAGE_BACKOFF_MAX_MS = 30000;
 // Ages are counted on this browser's clock between readings.
 const AGE_TICK_MS = 1000;
@@ -471,13 +473,17 @@ async function pollCoreUsage(dataUpdatesId: number) {
 
 const coreUsagePoll = createPollChain(
   () => pollCoreUsage(dashboardDataUpdatesId),
-  () =>
-    coreUsageFailures > 0
-      ? Math.min(
-          CORE_USAGE_INTERVAL_MS * 2 ** coreUsageFailures,
-          CORE_USAGE_BACKOFF_MAX_MS,
-        )
-      : CORE_USAGE_INTERVAL_MS,
+  () => {
+    if (coreUsageFailures > 0) {
+      return Math.min(
+        CORE_USAGE_INTERVAL_MS * 2 ** coreUsageFailures,
+        CORE_USAGE_BACKOFF_MAX_MS,
+      );
+    }
+    return store.get().coreUsageWidget.data.cpu === null
+      ? CORE_USAGE_FIRST_INTERVAL_MS
+      : CORE_USAGE_INTERVAL_MS;
+  },
 );
 
 function restartCoreUsagePollAfterFailure() {

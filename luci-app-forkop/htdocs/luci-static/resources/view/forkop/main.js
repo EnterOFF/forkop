@@ -10111,6 +10111,7 @@ function stopWidgetsPolling() {
   }
 }
 var CORE_USAGE_INTERVAL_MS = 2e3;
+var CORE_USAGE_FIRST_INTERVAL_MS = 500;
 var CORE_USAGE_BACKOFF_MAX_MS = 3e4;
 var AGE_TICK_MS = 1e3;
 var coreUsageFailures = 0;
@@ -10156,10 +10157,15 @@ async function pollCoreUsage(dataUpdatesId) {
 }
 var coreUsagePoll = createPollChain(
   () => pollCoreUsage(dashboardDataUpdatesId),
-  () => coreUsageFailures > 0 ? Math.min(
-    CORE_USAGE_INTERVAL_MS * 2 ** coreUsageFailures,
-    CORE_USAGE_BACKOFF_MAX_MS
-  ) : CORE_USAGE_INTERVAL_MS
+  () => {
+    if (coreUsageFailures > 0) {
+      return Math.min(
+        CORE_USAGE_INTERVAL_MS * 2 ** coreUsageFailures,
+        CORE_USAGE_BACKOFF_MAX_MS
+      );
+    }
+    return store.get().coreUsageWidget.data.cpu === null ? CORE_USAGE_FIRST_INTERVAL_MS : CORE_USAGE_INTERVAL_MS;
+  }
 );
 function restartCoreUsagePollAfterFailure() {
   if (coreUsageFailures === 0) {
