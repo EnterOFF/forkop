@@ -22,6 +22,8 @@ const FAKEIP4 = singbox_constants.FAKEIP_INET4_RANGE;
 const FAKEIP6 = singbox_constants.FAKEIP_INET6_RANGE;
 const TPROXY_PORT = singbox_constants.TPROXY_INBOUND_PORT;
 const TPROXY6_ADDRESS = singbox_constants.TPROXY_INBOUND6_ADDRESS;
+// Before mwan3's rules, which start at 1001.
+const BOUND_RULE_PRIORITY = "106";
 const EXCLUDED4 = "forkop_excluded";
 const EXCLUDED6 = "forkop_excluded6";
 const ELEMENTS_PER_COMMAND = 5000;
@@ -403,6 +405,28 @@ function ensure_tproxy_routing() {
         "Failed to add the IPv6 TProxy routing rule");
 }
 
+function bound_rule(family, action, device) {
+    return [ nft_state.IP_BIN, family, "rule", action, "priority", BOUND_RULE_PRIORITY,
+        "fwmark", OUTBOUND_MARK + "/" + OUTBOUND_MARK, "oif", device, "lookup", "main" ];
+}
+
+// mwan3 marks the router's own packets for the uplink its policy chose, whose table has no route
+// through another one: what the core sends bound to a device goes by the main table before that.
+function route_bound_devices(devices) {
+    let ipv6 = length(nft_state.ipv6_interfaces() ?? []) > 0;
+    for (let family in [ "-4", "-6" ]) {
+        let name = family == "-6" ? "IPv6" : "IPv4";
+        let wanted = family == "-4" || ipv6 ? devices : [];
+        let present = nft_state.bound_rule_devices(family, BOUND_RULE_PRIORITY, OUTBOUND_MARK);
+        for (let device in present)
+            if (index(wanted, device) < 0 && !exec.ok(bound_rule(family, "del", device)))
+                die("Failed to remove the " + name + " routing rule of interface " + device);
+        for (let device in wanted)
+            if (index(present, device) < 0 && !exec.ok(bound_rule(family, "add", device)))
+                die("Failed to add the " + name + " routing rule of interface " + device);
+    }
+}
+
 // nft repeats the refused command, which for a set line is thousands of addresses, so only
 // the first line is the reason. A large transaction can also get nft killed for memory.
 function refusal(result) {
@@ -435,4 +459,4 @@ function ensure_bridge_netfilter_disabled() {
     return true;
 }
 
-return { paths, build, apply, capture_command, refusal, ensure_tproxy_routing, ensure_bridge_netfilter_disabled, remove_rt_table_entry };
+return { paths, build, apply, capture_command, refusal, ensure_tproxy_routing, route_bound_devices, ensure_bridge_netfilter_disabled, remove_rt_table_entry };

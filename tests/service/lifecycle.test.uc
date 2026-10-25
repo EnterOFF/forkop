@@ -92,6 +92,14 @@ function reset(options) {
         event("nft applied");
         world.network = true;
     };
+    runtime.bound_devices = () => world.bound ?? [];
+    nft.route_bound_devices = (devices) => {
+        if (world.bound_rules_fail && length(devices) > 0)
+            die("Failed to add the IPv4 routing rule of interface wwan0");
+        if (length(devices) > 0 || length(world.bound_rules ?? []) > 0)
+            event("bound to " + (length(devices) > 0 ? join(" ", devices) : "nothing"));
+        world.bound_rules = devices;
+    };
     // A network restart takes the routing and leaves the table.
     nft.ensure_tproxy_routing = () => {
         if (world.routing_fails)
@@ -221,6 +229,22 @@ t.test("a start answers only once sing-box is ready, then turns the table on, th
     t.eq(fs.readfile(lifecycle.paths.applied_nft), world.script, "the applied table is recorded");
     t.eq(world.logs, [ "[info] Starting Forkop", "[info] Forkop started" ]);
     t.eq(result.stdout, "", "a start prints nothing");
+});
+
+t.test("what the core sends bound to a device is routed from before it starts until it stops", () => {
+    reset({ bound: [ "eth1", "wwan0" ] });
+    t.eq(run(() => lifecycle.start()).result, 0);
+    t.eq(world.events, [ "firewall opened", "config checked", "bound to eth1 wwan0", "sing-box started", "nft applied", "watcher started",
+        "rule-set worker started" ]);
+    run(() => lifecycle.stop());
+    t.contains(world.events, "bound to nothing");
+    t.eq(world.bound_rules, []);
+
+    reset({ bound: [ "wwan0" ], bound_rules_fail: true });
+    let result = run(() => lifecycle.start());
+    t.eq(result.result, 1);
+    t.eq(failures_logged(), [ "[error] Failed to add the IPv4 routing rule of interface wwan0" ]);
+    t.eq(filter(world.events, (e) => e == "sing-box started"), []);
 });
 
 t.test("a configuration restored from an older release is migrated before anything else of a start", () => {
@@ -364,6 +388,23 @@ t.test("a changed table is rebuilt with the rule-set worker stopped around it, a
     t.eq(result.result, 0);
     t.eq(world.events, [ "firewall opened", "config written", "rule-set worker stopped", "nft applied", "rule-set worker started" ]);
     t.eq(world.logs, [ "[info] Applying configuration", "[info] Configuration applied" ]);
+});
+
+t.test("a reload routes the devices the new configuration binds before the core reads it", () => {
+    let result = reloaded({ config_changed: true, bound: [ "eth1", "wwan0" ], bound_rules: [ "eth1", "gone0" ] });
+    t.eq(result.result, 0);
+    t.eq(world.events, [ "firewall opened", "config written", "bound to eth1 wwan0", "capture paused", "sing-box reloaded",
+        "reloaded with the capture paused", "capture resumed" ]);
+
+    result = reloaded({ bound: [ "wwan0" ], bound_rules: [ "wwan0" ] });
+    t.eq(world.events, [ "firewall opened", "config written", "bound to wwan0" ], "an unchanged configuration has them checked");
+    t.contains(world.logs, "[info] Configuration already applied; nothing changed");
+
+    result = reloaded({ config_changed: true, bound: [ "wwan0" ], bound_rules_fail: true });
+    t.eq(result.result, 1);
+    t.eq(failures_logged(), [ "[error] Failed to add the IPv4 routing rule of interface wwan0" ]);
+    t.eq(world.logs[length(world.logs) - 1], "[warn] Configuration not applied; Forkop is stopped");
+    t.eq(filter(world.events, (e) => e == "sing-box reloaded"), []);
 });
 
 t.test("a configuration refused while it is generated leaves the running runtime and its table alone, and is said once", () => {
@@ -581,9 +622,9 @@ t.test("the crash pause leaves alone what a lifecycle action or a live core owns
 });
 
 t.test("the routing a network restart took is put back under a running core and its table", () => {
-    running({ routing_lost: true });
+    running({ routing_lost: true, bound: [ "wwan0" ] });
     let result = run(() => lifecycle.restore_routing());
-    t.eq([ result.result, world.events ], [ true, [ "routing restored" ] ]);
+    t.eq([ result.result, world.events ], [ true, [ "routing restored", "bound to wwan0" ] ]);
     t.eq(world.logs, [ "[info] The WAN came up without Forkop's routing; restored it" ]);
 
     running({ routing_lost: true, routing_fails: true });

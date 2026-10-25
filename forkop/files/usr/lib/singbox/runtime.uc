@@ -134,6 +134,17 @@ function write_config(checked) {
     return true;
 }
 
+// The devices the running configuration binds the core's own sockets to.
+function bound_devices() {
+    let config = common.read_json_file(common.option(settings(), "config_path", ""));
+    let bound = map([ ...(config?.outbounds ?? []), ...(config?.endpoints ?? []) ], (item) => item?.bind_interface);
+    let devices = [];
+    for (let name in [ config?.route?.default_interface, ...bound ])
+        if (type(name) == "string" && name != "" && index(devices, name) < 0)
+            push(devices, name);
+    return sort(devices);
+}
+
 function version() {
     let value = packages.version("sing-box-forkop") || trim(fs.readfile(packages.paths.sing_box_version) ?? "");
     return replace(value, /~/g, "-");
@@ -180,5 +191,5 @@ function warp_profile() {
 
 return {
     configure_service, write_config, listen_address, device_ipv4_address,
-    mwan3_active, version, process_running, warp_profile
+    mwan3_active, bound_devices, version, process_running, warp_profile
 };

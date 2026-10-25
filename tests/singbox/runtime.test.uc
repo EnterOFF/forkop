@@ -148,6 +148,21 @@ t.test("the service runs the generated file as root, committed only when somethi
     stub.restore();
 });
 
+t.test("the devices the core binds are the default interface and every bind_interface of the running file", () => {
+    let dir = stub.tmpdir();
+    fixture.seed(configuration(dir));
+    t.eq(runtime.bound_devices(), [], "no file yet");
+    fs.mkdir(dir + "/etc");
+    fs.mkdir(dir + "/etc/sing-box");
+    fs.writefile(dir + "/etc/sing-box/config.json", sprintf("%J", {
+        route: { default_interface: "eth1", final: "direct-out" },
+        outbounds: [ { type: "direct", tag: "direct-out" }, { type: "direct", tag: "lte", bind_interface: "wwan0" },
+            { type: "vless", tag: "json", bind_interface: "eth1", server: "a.example" } ],
+        endpoints: [ { type: "wireguard", tag: "wg", bind_interface: "pppoe-wan" } ]
+    }));
+    t.eq(runtime.bound_devices(), [ "eth1", "pppoe-wan", "wwan0" ]);
+});
+
 t.test("the core version is the package's, with the release spelling", () => {
     let dir = stub.tmpdir();
     packages.paths.opkg_status = dir + "/status";

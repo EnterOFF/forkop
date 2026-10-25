@@ -198,6 +198,13 @@ function cleanup_network() {
             log("error", step[2]);
             ok = false;
         }
+    try {
+        nft.route_bound_devices([]);
+    }
+    catch (e) {
+        log("error", e.message);
+        ok = false;
+    }
     fs.unlink(paths.applied_nft);
     return ok;
 }
@@ -257,6 +264,7 @@ function start_runtime() {
     try {
         runtime.configure_service();
         runtime.write_config(true);
+        nft.route_bound_devices(runtime.bound_devices());
     }
     catch (e) {
         log("error", e.message);
@@ -472,6 +480,7 @@ function restore_routing() {
     if (lost) {
         try {
             nft.ensure_tproxy_routing();
+            nft.route_bound_devices(runtime.bound_devices());
             log("info", "The WAN came up without Forkop's routing; restored it");
         }
         catch (e) {
@@ -525,6 +534,12 @@ function reload_runtime(reason) {
     }
     catch (e) {
         return abort_reload(e.message, false);
+    }
+    try {
+        nft.route_bound_devices(runtime.bound_devices());
+    }
+    catch (e) {
+        return abort_reload(e.message, true);
     }
 
     let nft_changed = fs.readfile(paths.applied_nft) != built.script;

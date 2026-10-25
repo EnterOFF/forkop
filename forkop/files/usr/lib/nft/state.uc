@@ -87,6 +87,26 @@ function has_tproxy_marking_rule_text(rule_list, mark) {
     return false;
 }
 
+// The devices of the rules nft/apply.uc keeps at the priority, as iproute2 lists them:
+// "106: from all fwmark 0x8000000/0x8000000 oif eth1 [detached] lookup main".
+function bound_rule_devices_text(rule_list, priority, mark) {
+    let expected_mark = parse_mark_number(mark);
+    let devices = [];
+    for (let line in split(as_string(rule_list), "\n")) {
+        let fields = normalized_fields(line);
+        let count = length(fields);
+        let oif = index(fields, "oif");
+        if (count > 0 && fields[0] == priority + ":" && oif > 0 && oif + 1 < count && rule_line_has_fwmark(fields, expected_mark) &&
+            fields[count - 2] == "lookup" && fields[count - 1] == "main")
+            push(devices, fields[oif + 1]);
+    }
+    return devices;
+}
+
+function bound_rule_devices(family, priority, mark) {
+    return bound_rule_devices_text(command_output_from_args([ IP_BIN, family, "rule", "list", "priority", priority ]), priority, mark);
+}
+
 function has_local_default_route_text(route_list, family) {
     family = int(family || 4);
     for (let line in split(as_string(route_list), "\n")) {
@@ -231,6 +251,7 @@ return {
     runtime_network_configured_snapshot,
     runtime_network_configured,
     rt_table_has_entry,
+    bound_rule_devices,
     tproxy_route4_present,
     tproxy_route6_present,
     tproxy_marking_rule4_present,

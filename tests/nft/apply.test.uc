@@ -306,6 +306,72 @@ t.test("IPv6 left on some interfaces but off on lo is refused, since that traffi
     t.eq(filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f"), [], "the table is not applied");
 });
 
+const BOUND = "priority 106 fwmark 0x08000000/0x08000000 oif ";
+
+// The rules route_bound_devices finds at its priority, as iproute2 lists them; no_ipv6 is a
+// kernel without IPv6, whose rule list fails.
+function bound_rules(options) {
+    fixture.kernel_ipv6(options?.no_ipv6 ? null : options?.ipv6 ?? { lo: "0", "br-lan": "0" });
+    stub.commands([
+        [ "/sbin/ip -4 rule list priority 106", { stdout: options?.listed4 ?? "" } ],
+        [ "/sbin/ip -6 rule list priority 106", options?.no_ipv6 ? { status: 2 } : { stdout: options?.listed6 ?? "" } ],
+        [ (argv) => argv[0] == "/sbin/ip" && argv[2] == "rule" && (argv[3] == "add" || argv[3] == "del"), { status: options?.refused ? 2 : 0 } ]
+    ]);
+}
+
+function rule_changes() {
+    let lines = filter(stub.command_lines(), (line) => match(line, / rule (add|del) /) != null);
+    stub.restore();
+    return map(lines, (line) => replace(line, BOUND, "... "));
+}
+
+t.test("what the core sends bound to a device goes by the main table, in both families", () => {
+    bound_rules();
+    nft.route_bound_devices([ "eth1", "pppoe-wan" ]);
+    t.eq(rule_changes(), [
+        "/sbin/ip -4 rule add ... eth1 lookup main", "/sbin/ip -4 rule add ... pppoe-wan lookup main",
+        "/sbin/ip -6 rule add ... eth1 lookup main", "/sbin/ip -6 rule add ... pppoe-wan lookup main"
+    ]);
+});
+
+t.test("the rules follow the devices, and other rules at that priority are left alone", () => {
+    let listed = "106:\tfrom all fwmark 0x8000000/0x8000000 oif eth1 lookup main\n" +
+        "106:\tfrom all fwmark 0x8000000/0x8000000 oif gone0 [detached] lookup main\n" +
+        "106:\tfrom all fwmark 0x200000/0x200000 oif usb0 lookup main\n" +
+        "106:\tfrom all oif wwan0 lookup 100\n";
+    bound_rules({ listed4: listed, listed6: listed });
+    nft.route_bound_devices([ "eth1", "wwan0" ]);
+    t.eq(rule_changes(), [
+        "/sbin/ip -4 rule del ... gone0 lookup main", "/sbin/ip -4 rule add ... wwan0 lookup main",
+        "/sbin/ip -6 rule del ... gone0 lookup main", "/sbin/ip -6 rule add ... wwan0 lookup main"
+    ]);
+
+    bound_rules({ listed4: listed, listed6: listed });
+    nft.route_bound_devices([]);
+    t.eq(rule_changes(), [
+        "/sbin/ip -4 rule del ... eth1 lookup main", "/sbin/ip -4 rule del ... gone0 lookup main",
+        "/sbin/ip -6 rule del ... eth1 lookup main", "/sbin/ip -6 rule del ... gone0 lookup main"
+    ], "none bound: every one of them goes");
+});
+
+t.test("IPv6 off leaves only IPv4 rules, and a kernel without IPv6 is asked nothing of it", () => {
+    let listed = "106:\tfrom all fwmark 0x8000000/0x8000000 oif eth1 lookup main\n";
+    bound_rules({ ipv6: { lo: "1", "br-lan": "1", eth1: "1" }, listed6: listed });
+    nft.route_bound_devices([ "eth1" ]);
+    t.eq(rule_changes(), [ "/sbin/ip -4 rule add ... eth1 lookup main", "/sbin/ip -6 rule del ... eth1 lookup main" ]);
+
+    bound_rules({ no_ipv6: true });
+    nft.route_bound_devices([ "eth1" ]);
+    t.eq(rule_changes(), [ "/sbin/ip -4 rule add ... eth1 lookup main" ]);
+});
+
+t.test("a rule the kernel refuses fails with its family and interface", () => {
+    bound_rules({ refused: true });
+    let e = t.throws(() => nft.route_bound_devices([ "eth1" ]));
+    stub.restore();
+    t.eq(e.message, "Failed to add the IPv4 routing rule of interface eth1");
+});
+
 t.test("a rebuilt table keeps what the rule-set worker wrote and defines everything else again", () => {
     fixture.seed({ settings: {}, section: [
         { ".name": "fed", action: "connection", community_lists: [ "telegram" ], destinations: "192.0.2.0/24" },
