@@ -138,8 +138,7 @@
     "url": "url",
     "warp_auth_token": "warp_profile_auth_token",
     "warp_license_key": "warp_profile_license_key",
-    "warp_private_key": "warp_profile_private_key",
-    "yacd_secret_key": "yacd_secret_key"
+    "warp_private_key": "warp_profile_private_key"
   },
   "link_features": [
     ["hy2://secret@example.com:443?sni=example.com#h", ["quic"]],

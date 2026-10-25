@@ -38,13 +38,13 @@ export function addTrafficOptions(section: CBISection) {
   o.default = '0';
   o.rmempty = false;
 
+  // Unmasked: browsers offer to save any password field on the page as the router's login.
   o = section.option(
     form.Value,
     'yacd_secret_key',
     _('Clash API key'),
     _('YACD and other Clash API clients log in with it'),
   );
-  o.password = true;
   // With access from the WAN the controller listens on every address.
   o.validate = function (this: CBIOption, sectionId: string, value: string) {
     const wanAccess = ['enable_yacd', 'enable_yacd_wan_access'].every(

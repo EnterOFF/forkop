@@ -29276,7 +29276,6 @@ function addTrafficOptions(section2) {
     _("Clash API key"),
     _("YACD and other Clash API clients log in with it")
   );
-  o.password = true;
   o.validate = function(sectionId, value) {
     const wanAccess = ["enable_yacd", "enable_yacd_wan_access"].every(
       (name) => currentOptionValue(this, sectionId, name) === "1"
