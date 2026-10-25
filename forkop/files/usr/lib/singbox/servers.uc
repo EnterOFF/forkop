@@ -226,9 +226,6 @@ function apply_transport(inbound, section, protocol) {
         transport.mode = option(section, "transport_xhttp_mode", "auto");
         transport.path = path != "" ? path : "/";
         maybe_string(transport, "host", host);
-        // The only field the core has no default for: a zero range is refused as "x_padding_bytes
-        // cannot be disabled".
-        transport.x_padding_bytes = "100-1000";
     }
     else {
         return;
