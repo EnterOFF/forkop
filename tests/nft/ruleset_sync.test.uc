@@ -9,7 +9,7 @@ let sync = require("nft.ruleset_sync");
 
 let dir = stub.tmpdir();
 let config_path = dir + "/config.json";
-fs.writefile(config_path, "{\"experimental\":{\"clash_api\":{\"external_controller\":\"0.0.0.0:9090\",\"secret\":\"test-secret\"}}}");
+fs.writefile(config_path, "{\"experimental\":{\"clash_api\":{\"external_controller\":\"[::]:9090\",\"secret\":\"test-secret\"}}}");
 
 const ALPHA = "https://example.com/alpha.srs";
 const BETA = "https://example.com/beta.txt";

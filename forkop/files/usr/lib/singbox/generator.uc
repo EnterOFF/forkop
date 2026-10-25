@@ -144,13 +144,14 @@ function ensure_custom_ruleset(config, reference) {
 
 function clash_api_config(settings, service_address) {
     let controller = as_string(service_address || "");
+    // sing-box listens on 0.0.0.0 over IPv4 only, on :: over both families.
     if (bool_option(settings, "enable_yacd", false) && bool_option(settings, "enable_yacd_wan_access", false))
-        controller = "0.0.0.0";
+        controller = "::";
     else if (controller == "")
         controller = "127.0.0.1";
 
     let result = {
-        external_controller: controller + ":" + runtime_constants.CLASH_API_CONTROLLER_PORT
+        external_controller: (index(controller, ":") >= 0 ? "[" + controller + "]" : controller) + ":" + runtime_constants.CLASH_API_CONTROLLER_PORT
     };
     let secret = option(settings, "yacd_secret_key", "");
     if (secret != "")

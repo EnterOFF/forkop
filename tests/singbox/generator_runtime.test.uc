@@ -784,6 +784,17 @@ t.test("the Clash API asks for the key with YACD and without it", () => {
     }
 });
 
+t.test("with access from the WAN the Clash API listens on both address families", () => {
+    let section = [ { ".name": "proxy", enabled: "1", action: "connection", outbound_jsons: [ "{\"type\":\"direct\"}" ], destinations: "example.org" } ];
+    let controller = (extra, address) => {
+        fixture.seed({ settings: settings(extra), section });
+        return generator.build({ service_address: address }).experimental.clash_api.external_controller;
+    };
+    t.eq(controller({ enable_yacd: "1", enable_yacd_wan_access: "1" }, "192.168.1.1"), "[::]:9090");
+    t.eq(controller({ enable_yacd: "0", enable_yacd_wan_access: "1" }, "192.168.1.1"), "192.168.1.1:9090", "no WAN access without YACD");
+    t.eq(controller({ enable_yacd: "1" }, "fd00::1"), "[fd00::1]:9090", "an IPv6 LAN address");
+});
+
 t.test("fully routed devices follow their section at its priority", () => {
     let f = build({
         settings: settings(),

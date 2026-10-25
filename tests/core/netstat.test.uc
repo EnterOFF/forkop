@@ -13,6 +13,7 @@ t.test("a wildcard listener and an explicit address are in each other's way", ()
     t.eq(netstat.tcp_endpoint_in_use(IPV4_WILDCARD, "192.168.1.1:9090"), true);
     t.eq(netstat.tcp_endpoint_in_use(EXPLICIT, "0.0.0.0:9090"), true);
     t.eq(netstat.tcp_endpoint_in_use(IPV6_WILDCARD, "192.168.1.1:9090"), true, "a dual-stack wildcard");
+    t.eq(netstat.tcp_endpoint_in_use(EXPLICIT, "[::]:9090"), true, "a dual-stack wildcard asked for");
 });
 
 t.test("another address or another port is not", () => {
