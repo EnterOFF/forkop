@@ -435,4 +435,4 @@ function ensure_bridge_netfilter_disabled() {
     return true;
 }
 
-return { paths, build, apply, capture_command, refusal, ensure_bridge_netfilter_disabled, remove_rt_table_entry };
+return { paths, build, apply, capture_command, refusal, ensure_tproxy_routing, ensure_bridge_netfilter_disabled, remove_rt_table_entry };

@@ -92,6 +92,13 @@ function reset(options) {
         event("nft applied");
         world.network = true;
     };
+    // A network restart takes the routing and leaves the table.
+    nft.ensure_tproxy_routing = () => {
+        if (world.routing_fails)
+            die("Failed to add the IPv4 TProxy routing rule");
+        event("routing restored");
+        world.routing_lost = false;
+    };
     nft_state.table_present = () => world.network;
     for (let name in [ "tproxy_marking_rule4_present", "tproxy_marking_rule6_present", "tproxy_route4_present", "tproxy_route6_present" ])
         nft_state[name] = () => false;
@@ -101,9 +108,9 @@ function reset(options) {
     health.pid_is_sing_box = (pid) => pid == world.pid && pid > 0 && !world.forked;
     health.start_ticks = (pid) => pid == world.pid ? world.ticks : null;
     health.sing_box_runtime_ports_ready = () => world.ports;
-    health.forkop_runtime_network_configured = () => world.network && world.capture;
+    health.forkop_runtime_network_configured = () => world.network && world.capture && !world.routing_lost;
     health.sing_box_service_running = () => world.pid > 0;
-    health.forkop_running = () => world.pid > 0 && world.ports && world.network && world.capture;
+    health.forkop_running = () => world.pid > 0 && world.ports && world.network && world.capture && !world.routing_lost;
     watch.start_worker = () => { event("watcher started"); return !world.watcher_fails; };
     watch.stop_worker = () => { event("watcher stopped"); return true; };
     rulesets.start_worker = () => { event("rule-set worker started"); return !world.ruleset_fails; };
@@ -571,6 +578,38 @@ t.test("the crash pause leaves alone what a lifecycle action or a live core owns
     running();
     run(() => lifecycle.crash_resume());
     t.eq(world.events, [], "a capture that is not paused");
+});
+
+t.test("the routing a network restart took is put back under a running core and its table", () => {
+    running({ routing_lost: true });
+    let result = run(() => lifecycle.restore_routing());
+    t.eq([ result.result, world.events ], [ true, [ "routing restored" ] ]);
+    t.eq(world.logs, [ "[info] The WAN came up without Forkop's routing; restored it" ]);
+
+    running({ routing_lost: true, routing_fails: true });
+    result = run(() => lifecycle.restore_routing());
+    t.eq(result.result, false);
+    t.eq(failures_logged(), [ "[error] Failed to add the IPv4 TProxy routing rule" ]);
+});
+
+t.test("restoring the routing leaves alone what a stop, an action or a crash owns, and a routing in place", () => {
+    running({ routing_lost: true });
+    fs.writefile(lifecycle.paths.planned_stop, "1\n");
+    t.eq([ run(() => lifecycle.restore_routing()).result, world.events ], [ false, [] ], "a stop Forkop made itself");
+
+    running({ routing_lost: true });
+    fs.mkdir(lifecycle.paths.lock);
+    t.eq([ run(() => lifecycle.restore_routing()).result, world.events ], [ false, [] ], "an action holding the lock");
+
+    crashed({ routing_lost: true });
+    t.eq([ run(() => lifecycle.restore_routing()).result, world.events ], [ false, [] ], "a core procd is bringing back");
+
+    running({ routing_lost: true });
+    world.network = false;
+    t.eq([ run(() => lifecycle.restore_routing()).result, world.events ], [ false, [] ], "no table");
+
+    running();
+    t.eq([ run(() => lifecycle.restore_routing()).result, world.events, world.logs ], [ false, [], [] ], "nothing lost");
 });
 
 t.test("a start clears the planned stop, so a later crash is cleaned up", () => {

@@ -461,6 +461,28 @@ function crash_resume() {
     return 0;
 }
 
+// netifd flushes every ip rule as it starts and a device going down takes its routes: after a
+// network restart the core and its table run with nothing routing to them.
+function restore_routing() {
+    let owner = common.own_pid();
+    if (!lock.acquire(paths.lock, owner))
+        return false;
+    let lost = fs.stat(paths.planned_stop) == null && nft_state.table_present(NFT_TABLE) &&
+        health.sing_box_service_running() && !forkop_running();
+    if (lost) {
+        try {
+            nft.ensure_tproxy_routing();
+            log("info", "The WAN came up without Forkop's routing; restored it");
+        }
+        catch (e) {
+            log("error", e.message);
+        }
+    }
+    let restored = lost && forkop_running();
+    lock.release(paths.lock, owner);
+    return restored;
+}
+
 // A forced reload reapplies the configuration whether or not it changed.
 function reload_announcement(reason, forced) {
     if (!forced)
@@ -602,4 +624,4 @@ function uninstall() {
     return 0;
 }
 
-return { paths, start, stop, reload, crash_cleanup, crash_pause, crash_resume, enable, disable, uninstall, wait_ready };
+return { paths, start, stop, reload, crash_cleanup, crash_pause, crash_resume, restore_routing, enable, disable, uninstall, wait_ready };

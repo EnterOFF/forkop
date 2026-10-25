@@ -5,6 +5,7 @@ let common = require("core.common");
 let exec = require("core.exec");
 let constants = require("core.constants");
 let uci = require("core.uci");
+let nft_state = require("nft.state");
 let health = require("service.health");
 let lock = require("service.lock");
 let ui = require("service.ui");
@@ -24,7 +25,8 @@ let paths = {
     autostart: "/etc/rc.d/S" + constants.FORKOP_START_PRIORITY + "forkop"
 };
 
-// Loaded only by the hooks that run it: the status, trigger and WAN hooks do not.
+// Loaded only by the hooks that run it: the status and trigger hooks do not, the WAN hook only
+// to put back the routing of a table that is still there.
 function lifecycle() {
     return require("service.lifecycle");
 }
@@ -165,8 +167,12 @@ function monitored(interface_name) {
         index(common.words(common.option(values, "badwan_monitored_interfaces", "")), interface_name) >= 0;
 }
 
+function routing_restored() {
+    return nft_state.table_present(constants.NFT_TABLE_NAME) && lifecycle().restore_routing();
+}
+
 function wan_up() {
-    if (!runtime_running())
+    if (!runtime_running() && !routing_restored())
         return retry_start();
     lock.consume_request(paths.start_retry);
     if (!monitored("wan"))

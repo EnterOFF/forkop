@@ -4,6 +4,7 @@ let fs = require("fs");
 let common = require("core.common");
 let fixture = require("fixture");
 let lock = require("service.lock");
+let nft_state = require("nft.state");
 let health = require("service.health");
 let ui = require("service.ui");
 let lifecycle = require("service.lifecycle");
@@ -12,6 +13,8 @@ let initd = require("service.initd");
 let me = common.own_pid();
 let calls = [];
 let running = false;
+let table = false;
+let restored = false;
 let lifecycle_status = 0;
 
 function fresh(settings) {
@@ -28,8 +31,15 @@ function fresh(settings) {
     fixture.seed({ settings: settings ?? {} });
     calls = [];
     running = false;
+    table = false;
+    restored = false;
     lifecycle_status = 0;
     health.forkop_stably_running = () => running;
+    nft_state.table_present = () => table;
+    lifecycle.restore_routing = () => {
+        push(calls, "lifecycle restore routing");
+        return restored;
+    };
     lifecycle.start = () => { push(calls, "lifecycle start"); return lifecycle_status; };
     lifecycle.stop = () => { push(calls, "lifecycle stop"); return lifecycle_status; };
     lifecycle.reload = (reason) => {
@@ -197,6 +207,34 @@ t.test("a monitored WAN coming back reapplies a running configuration", () => {
     running = true;
     initd.wan_up();
     t.eq(reloads, [ "interface_up:wan" ], "an unmonitored WAN");
+    stub.restore();
+});
+
+t.test("a WAN coming up after a network restart puts back the routing under a table that is still there", () => {
+    fresh({ enable_badwan_interface_monitoring: "1", badwan_monitored_interfaces: "wan" });
+    let commands = [];
+    hooks(true, [ [ "/etc/init.d/forkop", (argv) => { push(commands, argv[1] + " " + argv[2]); return {}; } ] ]);
+    fs.writefile(initd.paths.autostart, "");
+    lock.mark_request(initd.paths.start_retry, "start_failed");
+    table = true;
+    restored = true;
+    initd.wan_up();
+    t.eq(calls, [ "lifecycle restore routing" ]);
+    t.eq(commands, [ "reload interface_up:wan" ], "a monitored WAN is reapplied as on any WAN-up");
+    t.ok(fs.stat(initd.paths.start_retry) == null, "no restart is left to try");
+
+    calls = [];
+    commands = [];
+    restored = false;
+    lock.mark_request(initd.paths.start_retry, "start_failed");
+    initd.wan_up();
+    t.eq([ calls, commands ], [ [ "lifecycle restore routing" ], [ "restart triggered" ] ], "a routing it could not restore leaves the failed start to retry");
+
+    calls = [];
+    commands = [];
+    table = false;
+    initd.wan_up();
+    t.eq(calls, [], "a stopped Forkop has no table and no routing to restore");
     stub.restore();
 });
 
