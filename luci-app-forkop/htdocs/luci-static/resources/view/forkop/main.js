@@ -6010,8 +6010,9 @@ function linkUsesXhttpHttp3(type, link) {
   const query = linkQuery(link);
   const transport3 = queryValue(query.get("type")) || queryValue(query.get("net"));
   const security = queryValue(query.get("security")).toLowerCase();
+  const reality = security === "reality" || Boolean(query.get("pbk"));
   const alpn = queryValue(query.get("alpn")).split(",").map((item) => item.trim()).filter(Boolean);
-  return (transport3 === "xhttp" || transport3 === "splithttp") && (type === "trojan" || ["tls", "xtls", "reality"].includes(security)) && alpn[0] === "h3";
+  return (transport3 === "xhttp" || transport3 === "splithttp") && (type === "trojan" || ["tls", "xtls"].includes(security)) && !reality && alpn.length === 1 && alpn[0] === "h3";
 }
 function linkCoreFeatures(link) {
   const value = `${link || ""}`.trim();
@@ -7172,7 +7173,7 @@ function listOf(value) {
 }
 function servesXhttpHttp3(protocol, value) {
   const alpn = listOf(value("tls_alpn"));
-  return ["vless", "vmess", "trojan"].includes(protocol) && `${value("transport") || "tcp"}` === "xhttp" && effectiveSecurity(protocol, `${value("security") || ""}`) !== "none" && alpn.length === 1 && alpn[0] === "h3";
+  return ["vless", "vmess", "trojan"].includes(protocol) && `${value("transport") || "tcp"}` === "xhttp" && effectiveSecurity(protocol, `${value("security") || ""}`) === "tls" && alpn.length === 1 && alpn[0] === "h3";
 }
 function serverListenTransports(protocol, value) {
   if (servesXhttpHttp3(protocol, value)) {

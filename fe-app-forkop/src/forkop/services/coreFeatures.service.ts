@@ -157,8 +157,8 @@ function queryValue(value: string | undefined) {
   }
 }
 
-// The core runs XHTTP over HTTP/3 when TLS offers h3 first; the parameters are Xray's, read as
-// singbox/features.uc reads them.
+// The core runs XHTTP over HTTP/3, as Xray does, when TLS other than Reality offers h3 alone; the
+// parameters are Xray's, read as singbox/features.uc reads them.
 function linkUsesXhttpHttp3(type: string, link: string) {
   if (
     !['vless', 'vmess', 'trojan'].includes(type) ||
@@ -170,13 +170,16 @@ function linkUsesXhttpHttp3(type: string, link: string) {
   const transport =
     queryValue(query.get('type')) || queryValue(query.get('net'));
   const security = queryValue(query.get('security')).toLowerCase();
+  const reality = security === 'reality' || Boolean(query.get('pbk'));
   const alpn = queryValue(query.get('alpn'))
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
   return (
     (transport === 'xhttp' || transport === 'splithttp') &&
-    (type === 'trojan' || ['tls', 'xtls', 'reality'].includes(security)) &&
+    (type === 'trojan' || ['tls', 'xtls'].includes(security)) &&
+    !reality &&
+    alpn.length === 1 &&
     alpn[0] === 'h3'
   );
 }

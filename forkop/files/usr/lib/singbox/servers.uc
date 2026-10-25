@@ -266,12 +266,12 @@ function transports(protocol, network) {
     return [ "tcp" ];
 }
 
-// sing-box serves XHTTP over HTTP/3, on UDP, when TLS offers h3 alone.
+// sing-box serves XHTTP over HTTP/3, on UDP, when TLS other than Reality offers h3 alone.
 function serves_xhttp_http3(section) {
     let protocol = option(section, "protocol", "vless");
     return (protocol == "vless" || protocol == "vmess" || protocol == "trojan") &&
         option(section, "transport", "tcp") == "xhttp" &&
-        effective_security(section, protocol) != "none" &&
+        effective_security(section, protocol) == "tls" &&
         join(",", list_option(section, "tls_alpn")) == "h3";
 }
 

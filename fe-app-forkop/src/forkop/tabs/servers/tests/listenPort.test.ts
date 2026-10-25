@@ -67,7 +67,7 @@ describe('the listen port of a server', () => {
     expect(listenTransports('vless', '')).toEqual(['tcp']);
   });
 
-  it('takes UDP for XHTTP over HTTP/3, which TLS offering h3 alone picks', () => {
+  it('takes UDP for XHTTP over HTTP/3, which TLS other than Reality offering h3 alone picks', () => {
     const server = (values: Record<string, unknown>) => (name: string) =>
       values[name];
     const xhttp = { security: 'tls', transport: 'xhttp', tls_alpn: ['h3'] };
@@ -79,6 +79,15 @@ describe('the listen port of a server', () => {
     ).toEqual(['tcp']);
     expect(
       serverListenTransports('vless', server({ ...xhttp, security: 'none' })),
+    ).toEqual(['tcp']);
+    expect(
+      serverListenTransports(
+        'vless',
+        server({ ...xhttp, security: 'reality' }),
+      ),
+    ).toEqual(['tcp']);
+    expect(
+      serverListenTransports('vless', server({ ...xhttp, security: '' })),
     ).toEqual(['tcp']);
     expect(
       serverListenTransports('vless', server({ ...xhttp, transport: 'ws' })),

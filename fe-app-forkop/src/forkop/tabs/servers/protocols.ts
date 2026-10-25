@@ -234,14 +234,14 @@ function listOf(value: unknown) {
     .filter(Boolean);
 }
 
-// sing-box serves XHTTP over HTTP/3, on UDP, when TLS offers h3 alone; singbox/servers.uc reads
-// it the same way.
+// sing-box serves XHTTP over HTTP/3, on UDP, when TLS other than Reality offers h3 alone, as Xray
+// does; singbox/servers.uc reads it the same way.
 export function servesXhttpHttp3(protocol: string, value: ServerValue) {
   const alpn = listOf(value('tls_alpn'));
   return (
     ['vless', 'vmess', 'trojan'].includes(protocol) &&
     `${value('transport') || 'tcp'}` === 'xhttp' &&
-    effectiveSecurity(protocol, `${value('security') || ''}`) !== 'none' &&
+    effectiveSecurity(protocol, `${value('security') || ''}`) === 'tls' &&
     alpn.length === 1 &&
     alpn[0] === 'h3'
   );
@@ -422,7 +422,7 @@ export function protocolCoreFeature(protocol: unknown) {
 
 // What a server asks of the core that the installed one lacks, or ''. The
 // Reality handshake needs uTLS, and a NaiveProxy or TrustTunnel server over UDP
-// is HTTP/3, as is XHTTP when TLS offers h3 alone.
+// is HTTP/3, as is XHTTP when TLS other than Reality offers h3 alone.
 export function serverMissingCoreFeature(sectionId: string) {
   const protocol = getProtocol(sectionId);
   const needed = [

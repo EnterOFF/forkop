@@ -210,8 +210,8 @@ function query_value(value) {
     return trim(url.percent_decode(value ?? ""));
 }
 
-// The core runs XHTTP over HTTP/3 when TLS offers h3 first; the parameters are Xray's, as the
-// core's link parser reads them.
+// The core runs XHTTP over HTTP/3, as Xray does, when TLS other than Reality offers h3 alone; the
+// parameters are Xray's, as the core's link parser reads them.
 function uses_xhttp_http3(type_name, link) {
     if ((type_name != "vless" && type_name != "vmess" && type_name != "trojan") ||
         (type_name == "vmess" && vmess_payload(link) != null))
@@ -219,10 +219,11 @@ function uses_xhttp_http3(type_name, link) {
     let query = link_query(link);
     let transport = query_value(query.type) || query_value(query.net);
     let security = lc(query_value(query.security));
+    let reality = security == "reality" || (query.pbk ?? "") != "";
     let alpn = filter(map(split(query_value(query.alpn), ","), (item) => trim(item)), (item) => item != "");
     return (transport == "xhttp" || transport == "splithttp") &&
-        (type_name == "trojan" || security == "tls" || security == "xtls" || security == "reality") &&
-        alpn[0] == "h3";
+        (type_name == "trojan" || security == "tls" || security == "xtls") && !reality &&
+        length(alpn) == 1 && alpn[0] == "h3";
 }
 
 function link_type(link) {
