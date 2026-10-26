@@ -82,6 +82,7 @@ import {
   getBuiltInRulesetReferences,
   getCustomRulesetReferences,
   loadRulesetValues,
+  refuseHeldBuiltinLists,
   showRuleSetSettingsModal,
   validateCustomRulesetReference,
   writeBuiltInRulesetReferences,
@@ -570,6 +571,20 @@ export function createSectionContent(section: CBISection) {
   builtInRulesetOption.load = function (section_id: string) {
     loadRulesetValues(this);
     return getBuiltInRulesetReferences(section_id);
+  };
+  builtInRulesetOption.renderWidget = function (
+    section_id: string,
+    option_index: string,
+    cfgvalue: unknown,
+  ) {
+    const node = form.DynamicList.prototype.renderWidget.call(
+      this,
+      section_id,
+      option_index,
+      cfgvalue,
+    );
+    refuseHeldBuiltinLists(node);
+    return node;
   };
   builtInRulesetOption.write = function (section_id: string, values: unknown) {
     writeBuiltInRulesetReferences(section_id, values);

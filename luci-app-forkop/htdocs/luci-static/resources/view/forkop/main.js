@@ -74,6 +74,34 @@ var DOMAIN_LIST_OPTIONS = {
   youtube: "YouTube",
   ads: "Ads"
 };
+var RU_BLOCKED_RKN_LISTS = [
+  "youtube",
+  "discord",
+  "facebook",
+  "instagram",
+  "x",
+  "telegram",
+  "whatsapp",
+  "roblox"
+];
+var RU_BLOCKED_GEO_LISTS = [
+  "chatgpt",
+  "claude",
+  "gemini",
+  "spotify",
+  "supercell",
+  "tiktok"
+];
+var DOMAIN_LIST_INCLUDES = {
+  ru_blocked_all: [
+    "ru_blocked_rkn",
+    "ru_blocked_geo",
+    ...RU_BLOCKED_RKN_LISTS,
+    ...RU_BLOCKED_GEO_LISTS
+  ],
+  ru_blocked_rkn: RU_BLOCKED_RKN_LISTS,
+  ru_blocked_geo: RU_BLOCKED_GEO_LISTS
+};
 var COMMAND_TIMEOUT = 1e4;
 var MONOSPACE_FONT = 'ui-monospace, "Cascadia Mono", "SF Mono", SFMono-Regular, Menlo, Consolas, "DejaVu Sans Mono", "Liberation Mono", monospace';
 
@@ -23955,6 +23983,50 @@ function loadRulesetValues(option2) {
 function isBuiltinRulesetValue(value) {
   return Object.prototype.hasOwnProperty.call(DOMAIN_LIST_OPTIONS, value);
 }
+function builtinListLabel(value) {
+  return DOMAIN_LIST_OPTIONS[value] ?? value;
+}
+function builtinListRefusal(selected, picked) {
+  const holder = selected.find(
+    (value) => (DOMAIN_LIST_INCLUDES[value] ?? []).includes(picked)
+  );
+  if (holder) {
+    return _("%s is already in %s").format(
+      builtinListLabel(picked),
+      builtinListLabel(holder)
+    );
+  }
+  const held = selected.filter(
+    (value) => (DOMAIN_LIST_INCLUDES[picked] ?? []).includes(value)
+  );
+  if (held.length === 0) {
+    return null;
+  }
+  const names = held.map(builtinListLabel).join(", ");
+  return (held.length === 1 ? _("%s is already in %s: remove it first") : _("%s are already in %s: remove them first")).format(names, builtinListLabel(picked));
+}
+function refuseHeldBuiltinLists(dl) {
+  dl.addEventListener(
+    "cbi-dropdown-change",
+    (event) => {
+      const detail = event.detail;
+      const picked = detail?.value?.value;
+      if (picked == null) {
+        return;
+      }
+      const refusal = builtinListRefusal(
+        dynamicListItemValues(dl),
+        `${picked}`
+      );
+      if (refusal) {
+        event.stopImmediatePropagation();
+        detail.instance.setValues(detail.element, null);
+        showToast(refusal, "error");
+      }
+    },
+    true
+  );
+}
 function validateCustomRulesetReference(value) {
   if (!value) {
     return true;
@@ -27313,6 +27385,16 @@ function createSectionContent(section2) {
   builtInRulesetOption.load = function(section_id) {
     loadRulesetValues(this);
     return getBuiltInRulesetReferences(section_id);
+  };
+  builtInRulesetOption.renderWidget = function(section_id, option_index, cfgvalue) {
+    const node = form.DynamicList.prototype.renderWidget.call(
+      this,
+      section_id,
+      option_index,
+      cfgvalue
+    );
+    refuseHeldBuiltinLists(node);
+    return node;
   };
   builtInRulesetOption.write = function(section_id, values) {
     writeBuiltInRulesetReferences(section_id, values);

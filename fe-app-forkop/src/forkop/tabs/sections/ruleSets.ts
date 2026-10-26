@@ -1,8 +1,14 @@
-import { DOMAIN_LIST_OPTIONS, FORKOP_UCI_PACKAGE } from '../../../constants';
+import {
+  DOMAIN_LIST_INCLUDES,
+  DOMAIN_LIST_OPTIONS,
+  FORKOP_UCI_PACKAGE,
+} from '../../../constants';
+import { showToast } from '../../../helpers/showToast';
 import { message } from '../../../validators/messages';
 import { validatePath } from '../../../validators/validatePath';
 import { validateUrl } from '../../../validators/validateUrl';
 import { itemSettingsFlag, readItemSettingsMap } from '../../cbi/itemSettings';
+import { dynamicListItemValues } from '../../cbi/listItems';
 import {
   normalizeDynamicListItems,
   uniqueDynamicListItems,
@@ -111,6 +117,62 @@ export function loadRulesetValues(option: CBIOption) {
 
 function isBuiltinRulesetValue(value: string) {
   return Object.prototype.hasOwnProperty.call(DOMAIN_LIST_OPTIONS, value);
+}
+
+function builtinListLabel(value: string) {
+  return (DOMAIN_LIST_OPTIONS as Record<string, string>)[value] ?? value;
+}
+
+// Why a list picked beside the selected ones would add nothing, or null: a selected regional list
+// holds it, or it holds some of the selected ones.
+export function builtinListRefusal(selected: string[], picked: string) {
+  const holder = selected.find((value) =>
+    (DOMAIN_LIST_INCLUDES[value] ?? []).includes(picked),
+  );
+  if (holder) {
+    return _('%s is already in %s').format(
+      builtinListLabel(picked),
+      builtinListLabel(holder),
+    );
+  }
+
+  const held = selected.filter((value) =>
+    (DOMAIN_LIST_INCLUDES[picked] ?? []).includes(value),
+  );
+  if (held.length === 0) {
+    return null;
+  }
+  const names = held.map(builtinListLabel).join(', ');
+  return (
+    held.length === 1
+      ? _('%s is already in %s: remove it first')
+      : _('%s are already in %s: remove them first')
+  ).format(names, builtinListLabel(picked));
+}
+
+// LuCI adds a picked list in a listener on the list itself; this one runs first, in the capture
+// phase, and keeps a list out that the selection already holds or that would hold the selection.
+export function refuseHeldBuiltinLists(dl: HTMLElement) {
+  dl.addEventListener(
+    'cbi-dropdown-change',
+    (event) => {
+      const detail = (event as CustomEvent).detail;
+      const picked = detail?.value?.value;
+      if (picked == null) {
+        return;
+      }
+      const refusal = builtinListRefusal(
+        dynamicListItemValues(dl),
+        `${picked}`,
+      );
+      if (refusal) {
+        event.stopImmediatePropagation();
+        detail.instance.setValues(detail.element, null);
+        showToast(refusal, 'error');
+      }
+    },
+    true,
+  );
 }
 
 // The backend refuses a YAML list by its extension.

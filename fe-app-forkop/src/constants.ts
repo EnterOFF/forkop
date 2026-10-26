@@ -65,6 +65,37 @@ export const DOMAIN_LIST_OPTIONS = {
   ads: 'Ads',
 };
 
+const RU_BLOCKED_RKN_LISTS = [
+  'youtube',
+  'discord',
+  'facebook',
+  'instagram',
+  'x',
+  'telegram',
+  'whatsapp',
+  'roblox',
+];
+const RU_BLOCKED_GEO_LISTS = [
+  'chatgpt',
+  'claude',
+  'gemini',
+  'spotify',
+  'supercell',
+  'tiktok',
+];
+
+// The lists forkop-lists builds into a regional list whole, subnets included (its lists.toml).
+export const DOMAIN_LIST_INCLUDES: Record<string, string[]> = {
+  ru_blocked_all: [
+    'ru_blocked_rkn',
+    'ru_blocked_geo',
+    ...RU_BLOCKED_RKN_LISTS,
+    ...RU_BLOCKED_GEO_LISTS,
+  ],
+  ru_blocked_rkn: RU_BLOCKED_RKN_LISTS,
+  ru_blocked_geo: RU_BLOCKED_GEO_LISTS,
+};
+
 export const COMMAND_TIMEOUT = 10000;
 
 // The theme's own monospace stack falls back to Courier New on Windows and Linux.
