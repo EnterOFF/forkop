@@ -20,7 +20,7 @@
 #
 # Every release carries release.json beside its packages, install.sh and SHA256SUMS:
 #   {"schema":1,"name":"forkop","version":"2.0.0","tag":"2.0.0","page":URL,
-#    "requires":{"sing-box-forkop":"1.14.3-r1"},"min_config_version":"1.0.2"}
+#    "requires":{"sing-box-forkop":"1.14.4-r1"},"min_config_version":"1.0.2"}
 # The core's says "name":"sing-box-forkop" and requires the oldest Forkop it works with. An
 # "install_command" field says the release installs only with that command, not from the page.
 

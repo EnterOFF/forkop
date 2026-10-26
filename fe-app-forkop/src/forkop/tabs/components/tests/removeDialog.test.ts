@@ -59,7 +59,7 @@ const button = (nodes: Array<FakeNode | string>, text: string) =>
 const info = (overrides: Record<string, unknown> = {}) => ({
   loaded: true,
   forkop_version: '2.0.0',
-  sing_box_version: '1.14.3-r1',
+  sing_box_version: '1.14.4-r1',
   sing_box_variant: 'base',
   ...overrides,
 });
@@ -68,7 +68,7 @@ describe('what a removal names', () => {
   it('names Forkop and the core by version, the core with its build', () => {
     expect(removedPackages(info())).toEqual([
       'Forkop 2.0.0',
-      'sing-box-forkop 1.14.3-r1 (base)',
+      'sing-box-forkop 1.14.4-r1 (base)',
     ]);
   });
 
@@ -98,7 +98,7 @@ describe('the removal dialog', () => {
     ui.hideModal = vi.fn();
     onRemove = vi.fn();
     nodes = renderRemoveDialog(
-      ['Forkop 2.0.0', 'sing-box-forkop 1.14.3-r1 (base)'],
+      ['Forkop 2.0.0', 'sing-box-forkop 1.14.4-r1 (base)'],
       onRemove,
     ) as unknown as Array<FakeNode | string>;
   });
@@ -107,7 +107,7 @@ describe('the removal dialog', () => {
     const list = find(nodes, (node) => node.type === 'ul');
     expect(list.children.map(textOf)).toEqual([
       'Forkop 2.0.0',
-      'sing-box-forkop 1.14.3-r1 (base)',
+      'sing-box-forkop 1.14.4-r1 (base)',
     ]);
   });
 

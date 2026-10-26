@@ -134,7 +134,7 @@ t.test("the core check names the version the binary reports, and the package's v
     packages.paths.sing_box_version = dir + "/version";
     packages.paths.sing_box_variant = dir + "/variant";
     features.paths.binary = dir + "/sing-box";
-    fs.writefile(packages.paths.sing_box_version, "1.14.3-r1
+    fs.writefile(packages.paths.sing_box_version, "1.14.4-r1
 ");
     fs.writefile(packages.paths.sing_box_variant, "tiny
 ");
@@ -153,18 +153,18 @@ CGO: disabled
         return value;
     };
     let tags = "with_clash_api,with_utls,with_quic";
-    t.eq(core_of("1.14.3-r1", tags), { installed: true, binary: "1.14.3-r1", version: "1.14.3-r1", variant: "tiny",
+    t.eq(core_of("1.14.4-r1", tags), { installed: true, binary: "1.14.4-r1", version: "1.14.4-r1", variant: "tiny",
         outdated: false, required: require("core.constants").SB_REQUIRED_VERSION, problem: "" });
-    t.eq(core_of("1.14.3-r1+72", tags).variant, "tiny", "a build between releases of the package's release");
-    t.eq(core_of("1.14.4-r1", tags).variant, "", "a binary of another build copied over the package's");
+    t.eq(core_of("1.14.4-r1+72", tags).variant, "tiny", "a build between releases of the package's release");
+    t.eq(core_of("1.14.5-r1", tags).variant, "", "a binary of another build copied over the package's");
 
     let foreign = core_of("1.12.22", tags);
     t.eq([ foreign.binary, foreign.version, foreign.variant, foreign.outdated ], [ "1.12.22", "", "", false ], "not sing-box-forkop");
     let old = core_of("1.13.18-extended-2.6.5-f165", tags);
     t.eq([ old.version, old.outdated ], [ "1.13.18-extended-2.6.5-f165", true ], "sing-box-forkop older than Forkop needs");
 
-    t.contains(core_of("1.14.3-r1", "with_utls,with_quic").problem, "sing-box was built without with_clash_api");
-    t.contains(core_of("1.14.3-r1", "with_clash_api,with_wireguard,with_openvpn").problem,
+    t.contains(core_of("1.14.4-r1", "with_utls,with_quic").problem, "sing-box was built without with_clash_api");
+    t.contains(core_of("1.14.4-r1", "with_clash_api,with_wireguard,with_openvpn").problem,
         "sing-box was built with with_wireguard, with_openvpn but without with_gvisor");
 });
 

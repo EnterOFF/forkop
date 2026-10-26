@@ -16,11 +16,11 @@ function service(
     last_error: '',
     core: {
       installed: true,
-      binary: '1.14.3-r1',
-      version: '1.14.3-r1',
+      binary: '1.14.4-r1',
+      version: '1.14.4-r1',
       variant: 'base',
       outdated: false,
-      required: '1.14.3-r1',
+      required: '1.14.4-r1',
       problem: '',
     },
     foreign_sing_box: [],
@@ -59,7 +59,7 @@ describe('the service check', () => {
       {
         state: 'success',
         key: 'Core',
-        value: 'sing-box-forkop 1.14.3-r1 (base)',
+        value: 'sing-box-forkop 1.14.4-r1 (base)',
       },
       { state: 'success', key: 'Conflicts', value: 'none found' },
       { state: 'success', key: 'Memory', value: '44 MB of 234 MB free' },
@@ -121,7 +121,7 @@ describe('the service check', () => {
       state: 'error',
       key: 'Core',
       value:
-        'sing-box-forkop 1.13.18-extended-2.6.5-f165 is outdated: 1.14.3-r1 or newer is needed',
+        'sing-box-forkop 1.13.18-extended-2.6.5-f165 is outdated: 1.14.4-r1 or newer is needed',
     });
     expect(
       core({
@@ -135,13 +135,13 @@ describe('the service check', () => {
       value: 'sing-box was built with with_wireguard but without with_gvisor',
     });
     expect(
-      core({ binary: '1.14.3-r1+2', version: '1.14.3-r1+2', variant: '' })
+      core({ binary: '1.14.4-r1+2', version: '1.14.4-r1+2', variant: '' })
         ?.value,
-    ).toBe('sing-box-forkop 1.14.3-r1+2');
+    ).toBe('sing-box-forkop 1.14.4-r1+2');
     expect(core({})).toEqual({
       state: 'success',
       key: 'Core',
-      value: 'sing-box-forkop 1.14.3-r1 (base)',
+      value: 'sing-box-forkop 1.14.4-r1 (base)',
     });
   });
 

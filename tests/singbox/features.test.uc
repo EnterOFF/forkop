@@ -8,7 +8,7 @@ const BASE = "badlinkname,tfogo_checklinkname0,with_anytls,with_clash_api,with_g
 const TINY = "badlinkname,tfogo_checklinkname0,with_clash_api,with_quic,with_utls";
 
 function version_text(tags) {
-    return "sing-box version 1.14.3-f.1\n\nEnvironment: go1.26.4 linux/arm64\n" +
+    return "sing-box version 1.14.4-r1\n\nEnvironment: go1.26.10 linux/arm64\n" +
         (tags == null ? "" : "Tags: " + tags + "\n") + "CGO: disabled\n";
 }
 
