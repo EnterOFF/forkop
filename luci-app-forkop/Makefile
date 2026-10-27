@@ -21,7 +21,7 @@ LUCI_PKGARCH:=all
 LUCI_LANG.ru:=Русский (Russian)
 LUCI_LANG.en:=English
 LUCI_MAINTAINER:=ushan0v <ushan0v@users.noreply.github.com>
-LUCI_DESCRIPTION:=Rule-based sing-box orchestration for OpenWrt, LuCI app
+LUCI_DESCRIPTION:=Web interface for Forkop
 LUCI_MINIFY_JS:=0
 
 PKG_LICENSE:=GPL-2.0-or-later

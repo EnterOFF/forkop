@@ -29,7 +29,7 @@ define Package/forkop
 endef
 
 define Package/forkop/description
-	Rule-based sing-box orchestration for OpenWrt
+	Rule-based traffic routing for OpenWrt
 endef
 
 define Build/Configure
