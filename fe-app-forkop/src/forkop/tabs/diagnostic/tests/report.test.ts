@@ -87,7 +87,6 @@ describe('the diagnostic report', () => {
         checks: '✓ Service — OK\n',
         log: 'forkop: [info] Forkop started\n',
         forkop_config: "config settings 'settings'\n",
-        sing_box_config: '{}\n',
         nftables: '',
         ip_rules: '105: from all fwmark 0x4000000/0x4000000 lookup forkop\n',
       },
@@ -105,11 +104,11 @@ describe('the diagnostic report', () => {
       '== Checks ==\n✓ Service — OK\n',
       '== Log ==\nforkop: [info] Forkop started\n',
       '== Forkop configuration ==',
-      '== sing-box configuration ==',
       '== nftables ==\nempty\n',
       '== Routing rules ==',
     ]) {
       expect(text).toContain(heading);
     }
+    expect(text).not.toContain('sing-box configuration');
   });
 });

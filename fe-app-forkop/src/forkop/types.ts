@@ -432,7 +432,6 @@ export namespace Forkop {
     checks: string;
     log: string;
     forkop_config: string;
-    sing_box_config: string;
     nftables: string;
     ip_rules: string;
   }

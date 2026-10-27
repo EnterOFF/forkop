@@ -7,7 +7,10 @@ let core_url = require("core.url");
 let uci = require("core.uci");
 let mask = require("diagnostics.mask");
 
-const LOG_LINES = 200;
+const LOG_LINES = 50;
+
+// logread's line: ctime, facility.level, then the message with its tag.
+const CORE_LINE = /^.{24} [a-z]+\.[a-z]+ sing-box\[/;
 
 let paths = {
     forkop_config: "/etc/config/forkop"
@@ -17,9 +20,18 @@ function output(argv) {
     return exec.output(argv) ?? "";
 }
 
-function last_lines(text, count) {
-    let lines = split(rtrim(text ?? "", "\n"), "\n");
-    return join("\n", slice(lines, length(lines) > count ? length(lines) - count : 0)) + "\n";
+function log_tail(text) {
+    let lines = filter(split(text ?? "", "\n"), (line) => line != "");
+    let left = { core: LOG_LINES, forkop: LOG_LINES };
+    let kept = [];
+    for (let i = length(lines) - 1; i >= 0 && (left.core > 0 || left.forkop > 0); i--)
+        if (left[match(lines[i], CORE_LINE) ? "core" : "forkop"]-- > 0)
+            unshift(kept, lines[i]);
+    return length(kept) == 0 ? "" : join("\n", kept) + "\n";
+}
+
+function chains(table) {
+    return replace(table, /\tset [^\n]*\{\n(\t\t[^\n]*\n)*\t\}\n\n/g, "");
 }
 
 function server_hosts() {
@@ -48,7 +60,7 @@ function resolver_addresses(settings) {
 function report(visibility, checks) {
     let masked = visibility != "raw";
     let settings = uci.get_all(constants.FORKOP_CONFIG_NAME, "settings") ?? {};
-    let sing_box = common.read_json_file(common.option(settings, "config_path", ""));
+    let sing_box = masked ? common.read_json_file(common.option(settings, "config_path", "")) : null;
     let hosts = masked ? sort(uniq([ ...mask.hosts(sing_box), ...server_hosts() ]), (a, b) => length(b) - length(a)) : [];
     let resolvers = resolver_addresses(settings);
     let text = (value) => masked ? mask.text(value, hosts, resolvers) : value;
@@ -57,10 +69,9 @@ function report(visibility, checks) {
 
     return {
         checks: text(checks ?? ""),
-        log: text(last_lines(output([ "logread", "-e", constants.FORKOP_LOG_PATTERN ]), LOG_LINES)),
+        log: text(log_tail(output([ "logread", "-e", constants.FORKOP_LOG_PATTERN ]))),
         forkop_config: names(masked ? mask.forkop_config(forkop) : forkop),
-        sing_box_config: sing_box == null ? "" : names(sprintf("%.2J\n", masked ? mask.sing_box_config(sing_box) : sing_box)),
-        nftables: text(output([ "nft", "-t", "list", "table", "inet", constants.NFT_TABLE_NAME ])),
+        nftables: text(chains(output([ "nft", "-t", "list", "table", "inet", constants.NFT_TABLE_NAME ]))),
         ip_rules: text(output([ "ip", "-4", "rule" ]) + output([ "ip", "-6", "rule" ]))
     };
 }

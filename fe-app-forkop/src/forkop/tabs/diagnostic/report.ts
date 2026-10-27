@@ -83,7 +83,6 @@ export function reportText(
     section(_('Checks'), attachments.checks),
     section(_('Log'), attachments.log),
     section(_('Forkop configuration'), attachments.forkop_config),
-    section(_('sing-box configuration'), attachments.sing_box_config),
     section('nftables', attachments.nftables),
     section(_('Routing rules'), attachments.ip_rules),
   ].join('\n');
