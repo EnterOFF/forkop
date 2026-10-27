@@ -304,6 +304,39 @@ t.test("the installed versions are read again as soon as the package database ch
     stub.restore();
 });
 
+t.test("an uploaded configuration is checked and staged by commands of their own, which get the caller's session in their environment", () => {
+    let dir = stub.tmpdir();
+    let seen = {};
+    started((service) => {
+        service.paths.import_file = dir + "/forkop-import.conf";
+        service.paths.import_answer = dir + "/answer";
+        fs.writefile(service.paths.import_file, "config settings 'settings'\n");
+        let check = ubus.__invoke("forkop", "import_config", { ubus_rpc_session: "page-session" });
+        let stage = ubus.__invoke("forkop", "import_config", { stage: true, ubus_rpc_session: "page-session" });
+        let runs = uloop.__processes();
+        seen.parked = [ check.deferred, stage.deferred ];
+        seen.commands = map(runs, (run) => [ run.executable, ...run.args ]);
+        seen.sessions = map(runs, (run) => run.env.FORKOP_RPC_SESSION);
+        seen.path = runs[0].env.PATH;
+
+        fs.writefile(runs[0].args[2], "{ \"success\": true, \"changed\": false }\n");
+        uloop.__exit(0, 0);
+        seen.checked = check.replied;
+        uloop.__exit(1, 139);
+        seen.staged = stage.replied;
+    });
+    t.eq(seen.parked, [ true, true ]);
+    t.eq(seen.commands, [
+        [ "/bin/sh", "-c", "umask 077; exec \"$@\" > \"$0\"", dir + "/answer.1", "/usr/bin/forkop", "import_config_check", dir + "/forkop-import.conf" ],
+        [ "/bin/sh", "-c", "umask 077; exec \"$@\" > \"$0\"", dir + "/answer.2", "/usr/bin/forkop", "import_config", dir + "/forkop-import.conf" ]
+    ]);
+    t.eq(seen.sessions, [ "page-session", "page-session" ]);
+    t.eq(seen.path, getenv("PATH"), "the rest of the environment is kept");
+    t.eq(seen.checked, { success: true, changed: false });
+    t.eq(seen.staged, { success: false, reason: "failed", detail: "The import command gave no answer" });
+    t.eq(fs.lsdir(dir), [], "the uploaded file and the answers are gone");
+});
+
 t.test("the state carries what the installed core was built with", () => {
     let features = require("singbox.features");
     features.paths.binary = stub.tmpdir() + "/sing-box";

@@ -375,53 +375,6 @@ async function handleDisable() {
   );
 }
 
-// The backend masks these, and values are fetched again only when the toggle asks to show them.
-function diagnosticText(
-  load: (
-    masked: boolean,
-  ) => Promise<{ success: boolean; data?: unknown; error?: string }>,
-) {
-  return async ({ maskValues }: { maskValues: boolean }) => {
-    const result = await load(maskValues);
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to load diagnostics');
-    }
-    return typeof result.data === 'string'
-      ? result.data
-      : JSON.stringify(result.data, null, 2);
-  };
-}
-
-// The backend masks what it shows, and a failed read is reported, not only logged.
-async function showDiagnosticModal(
-  action: 'showConfig' | 'showSingBoxConfig',
-  title: string,
-  name: string,
-  load: (
-    masked: boolean,
-  ) => Promise<{ success: boolean; data?: unknown; error?: string }>,
-) {
-  setDiagnosticActionLoading(action, true);
-
-  try {
-    const getText = diagnosticText(load);
-    const text = await getText({ maskValues: true });
-
-    ui.showModal(
-      title,
-      renderModal(text, name, {
-        getText,
-        showMaskValuesToggle: true,
-      }),
-    );
-  } catch (error) {
-    logger.error('[DIAGNOSTIC]', name, error);
-    showToast(_('Failed to load diagnostics'), 'error');
-  } finally {
-    setDiagnosticActionLoading(action, false);
-  }
-}
-
 // The finished run's checks plus what the router adds; masked, the router hides the same values
 // in the checks.
 async function buildReport(masked: boolean) {
@@ -467,24 +420,6 @@ async function handleReport() {
   }
 }
 
-function handleShowForkopConfig() {
-  return showDiagnosticModal(
-    'showConfig',
-    _('Forkop configuration'),
-    'show_config',
-    ForkopShellMethods.showConfig,
-  );
-}
-
-function handleShowSingBoxConfig() {
-  return showDiagnosticModal(
-    'showSingBoxConfig',
-    _('sing-box configuration'),
-    'show_sing_box_config',
-    ForkopShellMethods.showSingBoxConfig,
-  );
-}
-
 function renderDiagnosticAvailableActionsWidget() {
   const diagnosticsActions = store.get().diagnosticsActions;
   const serviceState = store.get().serviceState;
@@ -518,20 +453,6 @@ function renderDiagnosticAvailableActionsWidget() {
     stop: { ...controls.stop, onClick: handleStop },
     enable: { ...autostart.enable, onClick: handleEnable },
     disable: { ...autostart.disable, onClick: handleDisable },
-    // Read-only actions are never gated by the service state or another action; each only blocks its
-    // own double submit.
-    showConfig: {
-      loading: diagnosticsActions.showConfig.loading,
-      visible: true,
-      onClick: handleShowForkopConfig,
-      disabled: diagnosticsActions.showConfig.loading,
-    },
-    showSingBoxConfig: {
-      loading: diagnosticsActions.showSingBoxConfig.loading,
-      visible: true,
-      onClick: handleShowSingBoxConfig,
-      disabled: diagnosticsActions.showSingBoxConfig.loading,
-    },
   });
 
   return preserveScrollForPage(() => {

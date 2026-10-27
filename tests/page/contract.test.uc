@@ -82,10 +82,11 @@ t.test("the state service parks a request as long as the page expects", () => {
     t.eq(state_service.MAX_WAIT_MS, contract.state_wait_ms);
 });
 
-// rpcd refuses a method the page's ACL does not list.
+// rpcd refuses a method the page's ACL does not list; the one that changes something is a write.
 t.test("the page may call every method the state service publishes", () => {
-    let acl = json(fs.readfile(repo.path("luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json")));
-    t.eq(sort(acl["luci-app-forkop"].read.ubus.forkop), sort(keys(state_service.object_methods())));
+    let acl = json(fs.readfile(repo.path("luci-app-forkop/root/usr/share/rpcd/acl.d/luci-app-forkop.json")))["luci-app-forkop"];
+    t.eq(sort([ ...acl.read.ubus.forkop, ...acl.write.ubus.forkop ]), sort(keys(state_service.object_methods())));
+    t.eq(acl.write.ubus.forkop, [ "import_config" ]);
 });
 
 t.test("the option every password field is stored in is masked in diagnostics", () => {

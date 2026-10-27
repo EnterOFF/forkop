@@ -150,14 +150,6 @@ export const ForkopShellMethods = {
   // Through the CLI: init script commands wait on procd's per-service lock.
   enable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.ENABLE),
   disable: async () => callBaseMethod<unknown>(Forkop.AvailableMethods.DISABLE),
-  showConfig: async (masked = true) =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.SHOW_CONFIG, [
-      masked ? 'masked' : 'raw',
-    ]),
-  showSingBoxConfig: async (masked = true) =>
-    callBaseMethod<unknown>(Forkop.AvailableMethods.SHOW_SING_BOX_CONFIG, [
-      masked ? 'masked' : 'raw',
-    ]),
   checkLogs,
   // The state service holds the versions until the installed packages change; the CLI answers
   // when it is not running.

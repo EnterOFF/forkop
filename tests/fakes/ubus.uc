@@ -10,17 +10,29 @@ function copy(value) {
     return value == null ? null : json(sprintf("%J", value));
 }
 
+// A handler fails its call with what __failure returns: the call gives null, and error() the
+// message once, as the real module reports a status.
+function __failure(message) {
+    return { ".ubus_error": message };
+}
+
 function connect() {
     if (connect_fails)
         return null;
 
+    let last_error = null;
     return {
         call: function(object, method, args) {
             push(calls, { object, method, args: copy(args) });
             let handler = handlers[object + "." + method];
             if (handler == null)
                 return null;
-            return type(handler) == "function" ? handler(copy(args)) : copy(handler);
+            let reply = type(handler) == "function" ? handler(copy(args)) : copy(handler);
+            if (type(reply) == "object" && reply[".ubus_error"] != null) {
+                last_error = reply[".ubus_error"];
+                return null;
+            }
+            return reply;
         },
 
         publish: function(name, methods) {
@@ -48,7 +60,9 @@ function connect() {
         },
 
         error: function() {
-            return null;
+            let error = last_error;
+            last_error = null;
+            return error;
         }
     };
 }
@@ -96,6 +110,6 @@ function __refuse_connections() {
 }
 
 return {
-    connect, __on, __notify, __invoke, __reset, __calls, __refuse_connections,
+    connect, __on, __notify, __invoke, __reset, __calls, __refuse_connections, __failure,
     __published: function(name) { return published[name]; }
 };

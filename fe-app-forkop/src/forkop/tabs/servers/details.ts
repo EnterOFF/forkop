@@ -7,7 +7,8 @@ import {
 import { getListenPort, getPublicHost } from './network';
 import { loadIssuedMaterial } from './issued';
 import type { IssuedMaterial } from './issued';
-import { buildClientProfile, downloadProfile } from './profile';
+import { buildClientProfile } from './profile';
+import { downloadFile } from '../../../helpers/downloadFile';
 import {
   getProtocol,
   getServerName,
@@ -323,7 +324,7 @@ function renderProfileRow(
         'aria-label': label,
         click: (ev: Event) => {
           ev.preventDefault();
-          downloadProfile(profile, name, type);
+          downloadFile(profile, name, type);
         },
       },
       iconSvg('download'),

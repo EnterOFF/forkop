@@ -36,6 +36,22 @@
       ]
     },
     "write": {
+      "cgi-io": [
+        "upload"
+      ],
+      "file": {
+        "/tmp/forkop-import.conf": [
+          "write"
+        ]
+      },
+      "ubus": {
+        "file": [
+          "remove"
+        ],
+        "forkop": [
+          "import_config"
+        ]
+      },
       "uci": [
         "forkop"
       ]

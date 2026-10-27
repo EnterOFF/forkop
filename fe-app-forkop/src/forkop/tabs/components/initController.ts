@@ -7,7 +7,9 @@ import {
   renderCircleXIcon24,
   renderCopyIcon24,
   renderDownloadIcon24,
+  renderFileDownIcon24,
   renderFileTextIcon24,
+  renderFileUpIcon24,
   renderLayersIcon24,
   renderLoaderCircleIcon24,
   renderSquareTerminalIcon24,
@@ -18,6 +20,14 @@ import { isActiveLuciTab } from '../../helpers/isActiveLuciTab';
 import { store } from '../../services/store.service';
 import { ensureSystemInfo } from '../../services/systemInfo.service';
 import type { Forkop } from '../../types';
+import {
+  configImportApi,
+  configText,
+  downloadConfig,
+  MAX_CONFIG_SIZE,
+  refusalMessage,
+  renderImportDialog,
+} from './configFile';
 import { installerApi } from './installerApi';
 import {
   createInstallerRun,
@@ -269,6 +279,124 @@ export function initController(): void {
     }
   }
 
+  // A refusal carries its reason, which takes longer to read than a toast usually stays.
+  const REFUSAL_TOAST_MS = 8000;
+  // The theme styles file inputs over the hidden attribute.
+  const configFileInput = E('input', {
+    type: 'file',
+    style: 'display: none',
+  }) as HTMLInputElement;
+  configFileInput.addEventListener('change', () => {
+    const file = configFileInput.files?.[0];
+    // the same file picked again must fire again
+    configFileInput.value = '';
+    if (file) {
+      void uploadConfig(file);
+    }
+  });
+  let configBusy: 'download' | 'upload' | null = null;
+  let configDrawn = '';
+
+  function renderConfig() {
+    const live = Boolean(runState?.starting || runState?.running);
+    const drawn = JSON.stringify([configBusy, live]);
+    if (drawn === configDrawn) {
+      return;
+    }
+    configDrawn = drawn;
+    part(root, 'components-config').replaceChildren(
+      E('b', {}, _('Configuration')),
+      E('div', { class: 'fkp_components-page__config-buttons' }, [
+        renderButton({
+          icon: renderFileDownIcon24,
+          text: _('Download'),
+          loading: configBusy === 'download',
+          onClick: () => void saveConfig(),
+        }),
+        renderButton({
+          icon: renderFileUpIcon24,
+          text: _('Upload'),
+          loading: configBusy === 'upload',
+          // install.sh may replace the configuration under the staged changes
+          disabled: live,
+          onClick: () => configFileInput.click(),
+        }),
+      ]),
+      configFileInput,
+    );
+  }
+
+  function setConfigBusy(busy: typeof configBusy) {
+    configBusy = busy;
+    renderConfig();
+  }
+
+  async function saveConfig() {
+    setConfigBusy('download');
+    try {
+      await downloadConfig();
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : String(error),
+        'error',
+      );
+    } finally {
+      setConfigBusy(null);
+    }
+  }
+
+  async function stageConfig(text: string) {
+    const staged = await configImportApi.stage(text).catch((error) => ({
+      success: false as const,
+      reason: 'staging',
+      to: '',
+      min: '',
+      detail: error instanceof Error ? error.message : String(error),
+    }));
+    if (!staged.success) {
+      ui.hideModal();
+      showToast(refusalMessage(staged), 'error', REFUSAL_TOAST_MS);
+      return;
+    }
+    // The forms show what they loaded; the staged configuration reaches them with the page.
+    window.location.reload();
+  }
+
+  async function uploadConfig(file: File) {
+    if (file.size > MAX_CONFIG_SIZE) {
+      showToast(
+        _('The file is over 1 MB, far larger than a Forkop configuration'),
+        'error',
+      );
+      return;
+    }
+    setConfigBusy('upload');
+    try {
+      const text = configText(await file.text());
+      const check = await configImportApi.check(text);
+      if (!check.success) {
+        showToast(refusalMessage(check), 'error', REFUSAL_TOAST_MS);
+      } else if (!check.changed) {
+        showToast(
+          _('Nothing to upload: the file holds the current configuration'),
+          'success',
+        );
+      } else {
+        ui.showModal(
+          _('Upload the configuration?'),
+          renderImportDialog(file.name, check, () => stageConfig(text)),
+        );
+      }
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : String(error),
+        'error',
+      );
+    } finally {
+      setConfigBusy(null);
+    }
+  }
+
   function openRemoveDialog() {
     ui.showModal(
       _('Remove Forkop?'),
@@ -287,6 +415,7 @@ export function initController(): void {
       runState = state;
       renderRun(state);
       renderActions(state);
+      renderConfig();
     },
     onStartFailed: (message) => showToast(message, 'error'),
     onAfterRun: (after) => {
@@ -300,6 +429,7 @@ export function initController(): void {
 
   renderRun(run.state);
   renderActions(run.state);
+  renderConfig();
   renderVersions();
   store.subscribeKey('diagnosticsSystemInfo', renderVersions);
   store.subscribeKey('tabService', () => {

@@ -93,12 +93,6 @@ export const initialDiagnosticStore: Pick<
     report: {
       loading: false,
     },
-    showConfig: {
-      loading: false,
-    },
-    showSingBoxConfig: {
-      loading: false,
-    },
   },
   diagnosticsRunAction: { loading: false, finished: null },
   diagnosticsChecks: getDiagnosticsChecks(_('Not running')),

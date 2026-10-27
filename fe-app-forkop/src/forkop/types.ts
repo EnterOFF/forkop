@@ -115,7 +115,6 @@ export namespace Forkop {
     ENABLE = 'enable',
     DISABLE = 'disable',
     SHOW_CONFIG = 'show_config',
-    SHOW_SING_BOX_CONFIG = 'show_sing_box_config',
     CHECK_LOGS = 'check_logs',
     GET_SYSTEM_INFO = 'get_system_info',
     GET_UI_STATE = 'get_ui_state',

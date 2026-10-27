@@ -16,7 +16,6 @@ vi.mock('../profile', () => ({
     fileName: 'user-am2ra.conf',
     type: 'text/plain',
   }),
-  downloadProfile: vi.fn(),
 }));
 vi.mock('../links', () => ({
   buildClientLinks: () => [{ title: '', link: 'vless://id@example.com:443' }],

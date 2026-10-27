@@ -46,8 +46,14 @@ let paths = {
     config: "/etc/config/forkop",
     // Both package managers record installs and removals in these files; watching them is a stat,
     // reading the versions a CLI run.
-    package_databases: [ "/usr/lib/opkg/status", "/lib/apk/db/installed" ]
+    package_databases: [ "/usr/lib/opkg/status", "/lib/apk/db/installed" ],
+    // The rpcd ACL lets the page upload a configuration here and nowhere else.
+    import_file: "/tmp/forkop-import.conf",
+    import_answer: "/tmp/forkop-import.answer"
 };
+
+const IMPORT_FAILED = { success: false, reason: "failed", detail: "The import command gave no answer" };
+let import_runs = 0;
 
 function path_signature(path) {
     let stat = fs.stat(path);
@@ -354,6 +360,27 @@ function object_methods() {
                 return null;
             },
             args: { revision: 0, cursor: 0, ubus_rpc_session: "" }
+        },
+        // A command of its own checks or stages the upload, keeping the migrations out of this process;
+        // the caller's LuCI session goes in its environment, as any process can read a command line.
+        import_config: {
+            call: function(request) {
+                let answer = paths.import_answer + "." + ++import_runs;
+                let finish = (reply) => {
+                    fs.unlink(answer);
+                    fs.unlink(paths.import_file);
+                    request.reply(reply);
+                };
+                request.defer();
+                let child = require("uloop").process("/bin/sh", [ "-c", "umask 077; exec \"$@\" > \"$0\"", answer,
+                    constants.FORKOP_BIN, request.args.stage ? "import_config" : "import_config_check", paths.import_file ],
+                    { ...getenv(), FORKOP_RPC_SESSION: request.args.ubus_rpc_session ?? "" },
+                    () => finish(common.read_json_file(answer) ?? IMPORT_FAILED));
+                if (child == null)
+                    finish(IMPORT_FAILED);
+                return null;
+            },
+            args: { stage: false, ubus_rpc_session: "" }
         },
         // Where the log stands now, for a page to wait from.
         logs: {

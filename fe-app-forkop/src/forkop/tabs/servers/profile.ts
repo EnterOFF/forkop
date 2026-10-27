@@ -171,13 +171,3 @@ export function buildClientProfile(
     ? buildOpenVPNProfile(sectionId, client, material)
     : buildWireGuardProfile(sectionId, client, material);
 }
-
-export function downloadProfile(profile: string, name: string, type: string) {
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(new Blob([profile], { type }));
-  link.download = name;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 0);
-}

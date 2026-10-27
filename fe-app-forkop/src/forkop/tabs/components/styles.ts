@@ -77,10 +77,17 @@ controls at least, growing with its output up to its limit. */
     box-sizing: border-box;
 }
 
-.fkp_components-page__block > .fkp-partial-button {
+.fkp_components-page__block > .fkp-partial-button,
+.fkp_components-page__config-buttons > .fkp-partial-button {
     width: 100%;
     min-width: 0;
     margin: 0;
+}
+
+.fkp_components-page__config-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-gap: 10px;
 }
 
 .fkp_components-page__version {

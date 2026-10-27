@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FORKOP\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-26 18:14+0300\n"
-"PO-Revision-Date: 2026-10-26 18:14+0300\n"
+"POT-Creation-Date: 2026-10-27 16:04+0300\n"
+"PO-Revision-Date: 2026-10-27 16:04+0300\n"
 "Last-Translator: ushan0v\n"
 "Language-Team: none\n"
 "Language: ru\n"
@@ -61,6 +61,12 @@ msgstr "%s не отвечает"
 
 msgid "%s does not resolve"
 msgstr "%s не резолвится"
+
+msgid "%s holds a configuration of Forkop %s, which is brought to %s as an update would bring it."
+msgstr "В файле %s — конфигурация Forkop %s. Её переведут на %s, как при обновлении."
+
+msgid "%s holds a configuration of Forkop %s."
+msgstr "В файле %s — конфигурация Forkop %s."
 
 msgid "%s intercepts traffic"
 msgstr "%s перехватывает трафик"
@@ -917,6 +923,9 @@ msgstr "Не удалось загрузить диагностику"
 msgid "Failed to load logs"
 msgstr "Не удалось загрузить логи"
 
+msgid "Failed to load the configuration: %s"
+msgstr "Не удалось загрузить конфигурацию: %s"
+
 msgid "Failed to pin the server"
 msgstr "Не удалось закрепить сервер"
 
@@ -937,6 +946,9 @@ msgstr "Ошибка обновления списков"
 
 msgid "Failed to update subscriptions"
 msgstr "Ошибка обновления подписок"
+
+msgid "Failed to upload the file: %s"
+msgstr "Не удалось загрузить файл на роутер: %s"
 
 msgid "Fallback"
 msgstr "Fallback"
@@ -1328,6 +1340,9 @@ msgstr "Только IPv6"
 msgid "Issues detected"
 msgstr "Обнаружены проблемы"
 
+msgid "It replaces the current one through unsaved changes, as if you made them by hand. Forkop runs it once you apply them."
+msgstr "Она заменит текущую через непринятые изменения, будто вы внесли их сами. Forkop заработает с ней, когда вы их примените."
+
 msgid "Jmin is greater than Jmax"
 msgstr "Jmin больше Jmax"
 
@@ -1598,6 +1613,9 @@ msgstr "Ни одно устройство сети не одобрено как
 msgid "No domain"
 msgstr "Нет домена"
 
+msgid "No Forkop release wrote configuration version %s"
+msgstr "Конфигурации версии %s нет ни в одном выпуске Forkop"
+
 msgid "No gateway"
 msgstr "Не указан шлюз"
 
@@ -1693,6 +1711,9 @@ msgstr "Не поддерживается этим протоколом"
 
 msgid "Nothing after %s"
 msgstr "Пусто после %s"
+
+msgid "Nothing to upload: the file holds the current configuration"
+msgstr "Загружать нечего: в файле текущая конфигурация"
 
 msgid "Number or range from 0 to 4294967295"
 msgstr "Число или диапазон от 0 до 4294967295"
@@ -2279,9 +2300,6 @@ msgstr "sing-box %s, а не sing-box-forkop"
 msgid "sing-box Clash API"
 msgstr "Clash API sing-box"
 
-msgid "sing-box configuration"
-msgstr "Конфигурация sing-box"
-
 msgid "sing-box is built without %s"
 msgstr "sing-box собран без %s"
 
@@ -2453,8 +2471,29 @@ msgstr "Протокол Array Networks в sing-box не поддерживае�
 msgid "The authorities the router trusts are not used"
 msgstr "Центры сертификации, которым доверяет роутер, не используются"
 
+msgid "The configuration is from Forkop %s, and Forkop loads configurations from %s on"
+msgstr "Конфигурация от Forkop %s, а загрузить можно конфигурации от %s и новее"
+
+msgid "The configuration is from Forkop %s, newer than this one: update Forkop first"
+msgstr "Конфигурация от Forkop %s, он новее установленного: сначала обновите Forkop"
+
+msgid "The configuration of Forkop %s cannot be brought to %s: %s"
+msgstr "Конфигурацию Forkop %s не удаётся перевести на %s: %s"
+
 msgid "The device internet traffic leaves through. Without one, only tailnet devices and the subnets they share are reachable"
 msgstr "Устройство, через которое трафик выходит в интернет. Без него доступны только устройства сети и подсети, которые они открывают"
+
+msgid "The file is not a Forkop configuration: it names no version"
+msgstr "Это не конфигурация Forkop: в ней не указана версия"
+
+msgid "The file is not a Forkop configuration: its version is not a release number"
+msgstr "Это не конфигурация Forkop: её версия не номер выпуска"
+
+msgid "The file is not a UCI configuration"
+msgstr "Это не конфигурация UCI"
+
+msgid "The file is over 1 MB, far larger than a Forkop configuration"
+msgstr "Файл больше 1 МБ, а конфигурация Forkop намного меньше"
 
 msgid "The group joins as the single node it has selected"
 msgstr "Группа участвует как один выбранный узел"
@@ -2681,6 +2720,9 @@ msgstr "Неизвестный параметр %s"
 msgid "Unknown token mode %s"
 msgstr "Неизвестный режим токена %s"
 
+msgid "Unsaved changes to Forkop made earlier are replaced."
+msgstr "Непринятые изменения Forkop, сделанные раньше, будут заменены."
+
 msgid "Unsupported link"
 msgstr "Ссылка не поддерживается"
 
@@ -2707,6 +2749,12 @@ msgstr "Обновлено %s"
 
 msgid "Uplink"
 msgstr "Исходящий"
+
+msgid "Upload"
+msgstr "Загрузить"
+
+msgid "Upload the configuration?"
+msgstr "Загрузить конфигурацию?"
 
 msgid "Uploaded"
 msgstr "Отдано"
@@ -2791,6 +2839,9 @@ msgstr "Адрес сервера WARP"
 
 msgid "WARP server port"
 msgstr "Порт сервера WARP"
+
+msgid "What the update changes in it:"
+msgstr "Что изменится при переводе:"
 
 msgid "What to do when this section's conditions match"
 msgstr "Что делать при совпадении условий этой секции"

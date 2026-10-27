@@ -75,6 +75,7 @@ declare global {
     get(config: string, section: string): UciSectionObject | null;
     get(config: string, section: string, option: string): UciValue;
     get_all(config: string, section: string): UciSectionObject | null;
+    get_first(config: string, type: string, option: string): UciValue;
     set(config: string, section: string, option: string, value: UciValue): void;
     unset(config: string, section: string, option: string): void;
     add(config: string, type: string, name?: string): string;
@@ -468,6 +469,8 @@ declare global {
   const L: {
     env?: {
       rpctimeout?: number;
+      sessionid?: string;
+      cgi_base?: string;
     };
     // Wraps anything into an array: LuCI stores a one-element uci list as a
     // bare string, so every list read goes through this.

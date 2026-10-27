@@ -92,12 +92,10 @@ t.test("a second run finds the configuration current and changes nothing", () =>
     migrate(setup);
     let migrated = uci.__sections("forkop");
 
-    // Seeding by name turns the anonymous sections into named ones of the same name.
-    let reseeded = map(migrated, (section) => ({ ...section, ".anonymous": false }));
     let again = router("migrated", migrated);
     let run = migrate(again);
     t.eq([ run.status, uci.__commits(), run.logs, kept_aside(again) ], [ 0, [], [], [] ]);
-    t.eq(uci.__sections("forkop"), reseeded);
+    t.eq(uci.__sections("forkop"), migrated);
 });
 
 t.test("a configuration without a migratable version is kept aside and replaced by the defaults, with one warning", () => {

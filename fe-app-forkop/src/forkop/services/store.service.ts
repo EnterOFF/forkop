@@ -182,8 +182,6 @@ export interface StoreType {
     enable: { loading: boolean };
     disable: { loading: boolean };
     report: { loading: boolean };
-    showConfig: { loading: boolean };
-    showSingBoxConfig: { loading: boolean };
   };
   diagnosticsSystemInfo: {
     loading: boolean;

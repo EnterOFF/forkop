@@ -2,8 +2,6 @@ import { renderButton } from '../../../../partials';
 import {
   renderCirclePlayIcon24,
   renderCircleStopIcon24,
-  renderCogIcon24,
-  renderFileTextIcon24,
   renderPauseIcon24,
   renderPlayIcon24,
   renderRotateCcwIcon24,
@@ -38,8 +36,6 @@ interface IRenderAvailableActionsProps {
   stop: ActionProps;
   enable: ActionProps;
   disable: ActionProps;
-  showConfig: ActionProps;
-  showSingBoxConfig: ActionProps;
 }
 
 export function renderAvailableActions({
@@ -48,8 +44,6 @@ export function renderAvailableActions({
   stop,
   enable,
   disable,
-  showConfig,
-  showSingBoxConfig,
 }: IRenderAvailableActionsProps) {
   return E('div', { class: 'fkp_diagnostic-page__controls__actions' }, [
     E('b', {}, _('Available actions')),
@@ -101,24 +95,6 @@ export function renderAvailableActions({
         text: _('Enable autostart'),
         loading: enable.loading,
         disabled: enable.disabled,
-      }),
-    ]),
-    ...insertIf(showConfig.visible, [
-      renderButton({
-        onClick: showConfig.onClick,
-        icon: renderFileTextIcon24,
-        text: _('Forkop configuration'),
-        loading: showConfig.loading,
-        disabled: showConfig.disabled,
-      }),
-    ]),
-    ...insertIf(showSingBoxConfig.visible, [
-      renderButton({
-        onClick: showSingBoxConfig.onClick,
-        icon: renderCogIcon24,
-        text: _('sing-box configuration'),
-        loading: showSingBoxConfig.loading,
-        disabled: showSingBoxConfig.disabled,
       }),
     ]),
   ]);

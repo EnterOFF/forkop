@@ -154,9 +154,9 @@ function changes(before, after) {
     return ops;
 }
 
-function model_from_cursor(cursor) {
+function model_from_cursor(cursor, package_name) {
     let sections = [];
-    cursor.foreach(CONFIG_NAME, null, (section) => {
+    cursor.foreach(package_name ?? CONFIG_NAME, null, (section) => {
         let copy = {};
         for (let key, value in section)
             if (key != ".index")
@@ -166,8 +166,21 @@ function model_from_cursor(cursor) {
     return { sections };
 }
 
-function apply(cursor, ops) {
-    let created = {};
+// A configuration file anywhere, as UCI reads it with no change staged on top.
+function read_file(path) {
+    path = as_string(path);
+    let slash = rindex(path, "/");
+    let dir = slash > 0 ? substr(path, 0, slash) : ".";
+    let package_name = substr(path, slash + 1);
+    let cursor = uci.cursor(dir, "/var/run/forkop-migration-check.nonexistent");
+    if (!cursor.load(package_name))
+        return { error: "UCI cannot read " + path + ": " + (cursor.error() ?? "unknown error") };
+    return { model: model_from_cursor(cursor, package_name) };
+}
+
+// created collects the name UCI gave each section added in place of its placeholder.
+function apply(cursor, ops, created) {
+    created ??= {};
     let resolve = (value) => type(value) == "array"
         ? map(value, (item) => created[item] ?? item)
         : created[value] ?? value;
@@ -346,25 +359,13 @@ function start() {
 // The installer's question before it changes anything: what this release would do to the
 // configuration at path. Reads only the file, and writes nothing anywhere.
 function check(path) {
-    path = as_string(path);
-    let slash = rindex(path, "/");
-    let dir = slash > 0 ? substr(path, 0, slash) : ".";
-    let package_name = substr(path, slash + 1);
-    if (fs.stat(path) == null)
+    if (fs.stat(as_string(path)) == null)
         return { result: "reset", from: "unknown", reason: "missing" };
 
-    let cursor = uci.cursor(dir, "/var/run/forkop-migration-check.nonexistent");
-    if (!cursor.load(package_name))
-        return { result: "fail", from: "unknown", reason: "UCI cannot read " + path + ": " + (cursor.error() ?? "unknown error") };
-    let sections = [];
-    cursor.foreach(package_name, null, (section) => {
-        let copy = {};
-        for (let key, value in section)
-            if (key != ".index")
-                copy[key] = value;
-        push(sections, copy);
-    });
-    let model = { sections };
+    let loaded = read_file(path);
+    if (loaded.error != null)
+        return { result: "fail", from: "unknown", reason: loaded.error };
+    let model = loaded.model;
     let decision = decide(model);
     if (decision.result == "current")
         return { result: "current", to: TARGET_CONFIG_VERSION };
@@ -456,6 +457,6 @@ function main(argv) {
 }
 
 if (sourcepath(1) != null && sourcepath(1) != "")
-    return { paths, MIN_CONFIG_VERSION, TARGET_CONFIG_VERSION, decide, migrate, changes, run, start, check, main };
+    return { paths, MIN_CONFIG_VERSION, TARGET_CONFIG_VERSION, decide, migrate, changes, apply, read_file, run, start, check, main };
 
 exit(main(ARGV));

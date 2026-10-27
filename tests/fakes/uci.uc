@@ -182,13 +182,13 @@ function cursor() {
 
 // Replaces a whole package. Sections are given in file order as objects with
 // ".name" and ".type" plus their options; a missing ".name" makes the section
-// anonymous.
+// anonymous, and ".anonymous" marks one named as UCI names it by its position.
 function __seed(config, sections) {
     let data = empty_package();
     for (let section in sections ?? []) {
         let name = section[".name"];
-        let anonymous = name == null;
-        if (anonymous)
+        let anonymous = section[".anonymous"] ?? (name == null);
+        if (name == null)
             name = sprintf("cfg%06x", ++data.anonymous_counter);
         let options = {};
         for (let key, value in section)

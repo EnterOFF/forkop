@@ -106,6 +106,12 @@ function installer() {
     return require("service.installer");
 }
 
+// The state service hands over the page's LuCI session in the environment, which rpcd lets no
+// page set itself.
+function config_import(step) {
+    return action_reply((path) => require("config.import")[step](path, getenv("FORKOP_RPC_SESSION")));
+}
+
 function installer_log() {
     let log = installer().log_text();
     if (log == null) {
@@ -138,6 +144,8 @@ const COMMANDS = {
     show_config: { args: 1, help: "Display current Forkop configuration", run: text((visibility) => diagnostics().show_config(visibility || "masked")) },
     show_version: { help: "Show Forkop version", run: () => { print(constants.FORKOP_VERSION, "\n"); return 0; } },
     show_sing_box_config: { args: 1, help: "Show sing-box configuration", run: text((visibility) => diagnostics().show_sing_box_config(visibility || "masked")) },
+    import_config_check: { args: 1, usage: "<path>", help: "Tell in JSON format what loading a Forkop configuration file on the page would change", run: config_import("check") },
+    import_config: { args: 1, usage: "<path>", help: "Stage a Forkop configuration file as unsaved changes of the LuCI session in FORKOP_RPC_SESSION", run: config_import("stage") },
     get_status: { help: "Get Forkop service status", run: json(() => diagnostics().status()) },
     get_system_info: { help: "Get system information in JSON format", run: json(() => diagnostics().system_info()) },
     get_subscription_default_headers: { help: "Get default subscription request headers in JSON format", run: json(() => ui().default_headers()) },
