@@ -1590,15 +1590,20 @@ function validate_native_rule_set_update_settings(settings) {
 function validate_runtime_mark_ranges_context(context) {
     let fakeip_mark = parse_number(context.nft_fakeip_mark);
     let outbound_mark = parse_number(context.nft_outbound_mark);
+    let router_mark = parse_number(context.nft_router_mark);
 
-    if (fakeip_mark == null || outbound_mark == null)
+    if (fakeip_mark == null || outbound_mark == null || router_mark == null)
         fail_validation("Forkop marks contain invalid numeric constants");
     if ((fakeip_mark & TAILSCALE_FWMARK_MASK) != 0)
         fail_validation("FakeIP mark overlaps Tailscale fwmark mask 0x00ff0000");
     if ((outbound_mark & TAILSCALE_FWMARK_MASK) != 0)
         fail_validation("Outbound mark overlaps Tailscale fwmark mask 0x00ff0000");
+    if ((router_mark & TAILSCALE_FWMARK_MASK) != 0)
+        fail_validation("Router mark overlaps Tailscale fwmark mask 0x00ff0000");
     if (fakeip_mark == outbound_mark)
         fail_validation("FakeIP mark and outbound mark are the same value");
+    if ((router_mark & (fakeip_mark | outbound_mark)) != 0)
+        fail_validation("Router mark shares bits with the FakeIP or outbound mark");
 }
 
 function refuse_without(feature, core_tags, what) {
@@ -1713,6 +1718,7 @@ function context_from_runtime() {
     return {
         nft_fakeip_mark: as_string(constants.NFT_FAKEIP_MARK),
         nft_outbound_mark: as_string(constants.NFT_OUTBOUND_MARK),
+        nft_router_mark: as_string(constants.NFT_ROUTER_MARK),
         sing_box_required_version: as_string(constants.SB_REQUIRED_VERSION),
         // Unknown without a core to ask, which the requirement check refuses first.
         core_tags: features.tags()

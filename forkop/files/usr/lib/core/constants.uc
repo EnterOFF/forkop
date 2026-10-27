@@ -22,6 +22,8 @@ return {
     NFT_PAUSE_CHAIN_NAME: "capture_pause",
     NFT_FAKEIP_MARK: "0x04000000",
     NFT_OUTBOUND_MARK: "0x08000000",
+    // What the router itself sends to sing-box: a mark of its own keeps rule 104 off its lookups.
+    NFT_ROUTER_MARK: "0x10000000",
     // A redirect hooked earlier would take a query before Forkop sees it.
     NFT_DNS_REDIRECT_PRIORITY: -101,
     NFT_SYSTEM_DNS_REDIRECT_PRIORITY: -100,

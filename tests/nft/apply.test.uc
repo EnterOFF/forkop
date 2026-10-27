@@ -48,9 +48,9 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
     has(lines, T + "mangle jump priority_rules");
     has(lines, T + "proxy meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1602 counter");
     has(lines, T + "proxy meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip6 to [::1]:1602 counter");
-    before(lines, T + "proxy iifname lo meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1604 counter accept",
+    before(lines, T + "proxy iifname lo meta mark & 0x10000000 == 0x10000000 meta l4proto tcp tproxy ip to :1604 counter accept",
         T + "proxy meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1602 counter", "System TProxy classification");
-    has(lines, T + "proxy iifname lo meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip6 to [::1]:1604 counter accept");
+    has(lines, T + "proxy iifname lo meta mark & 0x10000000 == 0x10000000 meta l4proto tcp tproxy ip6 to [::1]:1604 counter accept");
     has(lines, T + "mangle_output meta mark & 0x08000000 == 0x08000000 counter return", "sing-box's own traffic, whatever bits mwan3 adds");
     before(lines, T + "mangle_output meta l4proto { tcp, udp } th dport 53 return", T + "mangle_output jump priority_output_rules",
         "the resolver reaches its upstream directly");
@@ -64,7 +64,7 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
     lacks(lines, "system_dns_redirect udp dport 53", "the resolver's upstream queries are not taken back");
     for (let pair in [ [ "ip", "198.18.0.0/16" ], [ "ip6", "fc00::/112" ] ])
         for (let proto in [ "tcp", "udp" ])
-            has(lines, T + "mangle_output " + pair[0] + " daddr " + pair[1] + " meta l4proto " + proto + " meta mark set 0x04000000 counter",
+            has(lines, T + "mangle_output " + pair[0] + " daddr " + pair[1] + " meta l4proto " + proto + " meta mark set 0x10000000 counter",
                 "the router's own FakeIP traffic");
     for (let absent in [ "forkop_subnets", "forkop_ports", "forkop_ip_ports", "forkop_dns_sources", "forkop_excluded" ])
         lacks(lines, absent);
@@ -72,23 +72,25 @@ t.test("the base table captures the source interfaces, FakeIP and the TProxy inb
 
 t.test("a flow handed to sing-box stays captured whatever the sets hold, and a pause holds back what goes to it", () => {
     let lines = script_lines({ settings: { routing_excluded_ips: "192.168.1.50 @system" } });
-    let held = "ct direction original ct mark & 0x04000000 == 0x04000000 meta mark set 0x04000000 counter accept";
-    for (let chain in [ "mangle", "mangle_output" ]) {
-        let first = filter(lines, (line) => index(line, T + chain + " ") == 0)[0];
-        t.eq(first, T + chain + " " + held, chain + ": a held flow is not matched against the sets or the exclusions");
+    let held = (mark) => "ct direction original ct mark & " + mark + " == " + mark + " meta mark set " + mark + " counter accept";
+    for (let pair in [ [ "mangle", "0x04000000" ], [ "mangle_output", "0x10000000" ] ]) {
+        let first = filter(lines, (line) => index(line, T + pair[0] + " ") == 0)[0];
+        t.eq(first, T + pair[0] + " " + held(pair[1]), pair[0] + ": a held flow is not matched against the sets or the exclusions");
     }
     has(lines, "add chain inet ForkopTable capture_pause { }");
     for (let chain in [ "proxy", "dns_redirect", "system_dns_redirect" ]) {
         let first = filter(lines, (line) => index(line, T + chain + " ") == 0)[0];
         t.eq(first, T + chain + " jump capture_pause", chain + " asks the pause first");
     }
-    before(lines, T + "proxy meta mark & 0x04000000 == 0x04000000 ct mark set ct mark | 0x04000000",
-        T + "proxy iifname lo meta mark & 0x04000000 == 0x04000000 meta l4proto tcp tproxy ip to :1604 counter accept",
-        "the flow is marked before any TProxy rule accepts its packet");
+    for (let mark in [ "0x04000000", "0x10000000" ])
+        before(lines, T + "proxy meta mark & " + mark + " == " + mark + " ct mark set ct mark | " + mark,
+            T + "proxy iifname lo meta mark & 0x10000000 == 0x10000000 meta l4proto tcp tproxy ip to :1604 counter accept",
+            "the flow is marked before any TProxy rule accepts its packet");
 
     t.eq(nft.capture_command(true), [ "nft", "flush chain inet ForkopTable capture_pause" ]);
     t.eq(nft.capture_command(false), [ "nft", "flush chain inet ForkopTable capture_pause; " +
         "add rule inet ForkopTable capture_pause meta mark & 0x04000000 == 0x04000000 counter drop; " +
+        "add rule inet ForkopTable capture_pause meta mark & 0x10000000 == 0x10000000 counter drop; " +
         "add rule inet ForkopTable capture_pause counter accept" ], "paused: traffic for sing-box waits, lookups go to their resolver");
 });
 
@@ -143,8 +145,8 @@ t.test("section rules keep configuration order and reach only the traffic their 
     has(lines, T + "priority_rules iifname @forkop_interfaces ip6 saddr @forkop_rule_bypass_first_fully_sources6 ip6 daddr != @localv6 ip6 daddr != fc00::/112 counter accept");
     has(lines, T + "priority_rules iifname @forkop_interfaces ip saddr @forkop_rule_wide_proxy_fully_sources " + local + "meta l4proto tcp meta mark set 0x04000000 counter accept");
     has(lines, T + "priority_output_rules " + local + "ip daddr != 198.18.0.0/16 counter accept", "the System device fully routed around the proxy");
-    has(lines, T + "priority_output_rules " + local + "meta l4proto tcp meta mark set 0x04000000 counter accept", "the System device fully routed through it");
-    has(lines, T + "priority_output_rules " + local + "ip daddr @forkop_rule_system_filter_subnets meta mark set 0x04000000 counter accept");
+    has(lines, T + "priority_output_rules " + local + "meta l4proto tcp meta mark set 0x10000000 counter accept", "the System device fully routed through it");
+    has(lines, T + "priority_output_rules " + local + "ip daddr @forkop_rule_system_filter_subnets meta mark set 0x10000000 counter accept");
     has(lines, T + "priority_rules iifname @forkop_interfaces ip saddr @forkop_rule_client_filter_sources " + local + "ip daddr @forkop_rule_client_filter_subnets meta mark set 0x04000000 counter accept");
     t.eq(filter(lines, (l) => index(l, "priority_rules iifname") >= 0 && index(l, "system_filter") >= 0), [], "a System-only filter on forwarded traffic");
     t.eq(filter(lines, (l) => index(l, "priority_output_rules") >= 0 && index(l, "client_filter") >= 0), [], "a client filter on the router's traffic");
@@ -160,7 +162,7 @@ t.test("section rules keep configuration order and reach only the traffic their 
     t.eq(length(filter(lines, (l) => index(l, "th dport @forkop_rule_builtin_subnets_proto_ports") >= 0)), 2, "one rule per chain covers both transports");
     has(lines, T + "priority_rules iifname @forkop_interfaces " + local + "ip daddr @forkop_rule_ip_and_ports_subnets tcp dport @forkop_rule_ip_and_ports_ports meta mark set 0x04000000 counter accept",
         "an address with a port is matched against both plain sets");
-    has(lines, T + "priority_output_rules ip6 daddr != @localv6 ip6 daddr @forkop_rule_ip_and_ports_subnets6 udp dport @forkop_rule_ip_and_ports_ports meta mark set 0x04000000 counter accept");
+    has(lines, T + "priority_output_rules ip6 daddr != @localv6 ip6 daddr @forkop_rule_ip_and_ports_subnets6 udp dport @forkop_rule_ip_and_ports_ports meta mark set 0x10000000 counter accept");
     lacks(lines, "ip daddr @forkop_rule_ip_and_ports_subnets meta mark", "an address with a port is never matched without it");
     lacks(lines, T + "priority_rules iifname @forkop_interfaces " + local + "tcp dport @forkop_rule_ip_and_ports_ports", "a port next to an address on its own");
 
@@ -243,6 +245,7 @@ function routing(ip_state) {
         [ "/sbin/ip -6 route list table forkop", { stdout: ip_state?.route6 ?? "" } ],
         [ "/sbin/ip -4 rule list table forkop", { stdout: ip_state?.rule4 ?? "" } ],
         [ "/sbin/ip -6 rule list table forkop", { stdout: ip_state?.rule6 ?? "" } ],
+        [ "/sbin/ip -4 rule list priority 104", { stdout: ip_state?.rule104 ?? "" } ],
         [ /'\/sbin\/ip'.* 'add' /, {} ],
         [ "nft -t list table inet ForkopTable", { status: 1 } ],
         [ /^'nft' '-f' '-'/, { status: ip_state?.nft_status ?? 0 } ]
@@ -260,15 +263,20 @@ t.test("applying the table sets up its routing once and hands nft the whole scri
     t.eq(fs.readfile(nft.paths.rt_tables), "105 forkop\n");
     let commands = map(calls, (c) => join(" ", c.argv));
     for (let line in [ "/sbin/ip route add local 0.0.0.0/0 dev lo table forkop", "/sbin/ip -6 route add local ::/0 dev lo table forkop",
-        "/sbin/ip -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105", "/sbin/ip -6 rule add fwmark 0x04000000/0x04000000 table forkop priority 105" ])
+        "/sbin/ip -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105", "/sbin/ip -6 rule add fwmark 0x04000000/0x04000000 table forkop priority 105",
+        "/sbin/ip -4 rule add fwmark 0x10000000/0x10000000 table forkop priority 105", "/sbin/ip -6 rule add fwmark 0x10000000/0x10000000 table forkop priority 105",
+        "/sbin/ip -4 rule add iif lo fwmark 0x04000000/0x04000000 lookup main priority 104" ])
         t.contains(commands, line);
+    t.eq(filter(commands, (line) => index(line, "-6 rule add iif lo") >= 0), [], "IPv6 checks no source by a lookup");
     let transactions = filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f");
     t.eq(length(transactions), 1, "one transaction");
     t.eq(split(transactions[0].stdin, "\n")[0], "add table inet ForkopTable");
     t.eq(r.logs, [], "setting the routing up is a routine step and is not reported");
 
     let present = routing({ route4: "local default dev lo scope host", route6: "local default dev lo metric 1024 pref medium",
-        rule4: "105: from all fwmark 0x4000000/0x4000000 lookup forkop", rule6: "105: from all fwmark 0x4000000/0x4000000 lookup podkop" });
+        rule4: "105: from all fwmark 0x4000000/0x4000000 lookup forkop\n105: from all fwmark 0x10000000/0x10000000 lookup forkop",
+        rule6: "105: from all fwmark 0x4000000/0x4000000 lookup podkop\n105: from all fwmark 0x10000000/0x10000000 lookup podkop",
+        rule104: "104:\tfrom all fwmark 0x4000000/0x4000000 iif lo lookup main" });
     fs.writefile(nft.paths.rt_tables, "105 forkop\n");
     stub.commands(present.handlers);
     nft.apply(nft.build());
@@ -289,6 +297,8 @@ t.test("a router with IPv6 off everywhere, or a kernel without IPv6, gets IPv4 r
         let commands = map(calls, (c) => join(" ", c.argv));
         t.contains(commands, "/sbin/ip route add local 0.0.0.0/0 dev lo table forkop");
         t.contains(commands, "/sbin/ip -4 rule add fwmark 0x04000000/0x04000000 table forkop priority 105");
+        t.contains(commands, "/sbin/ip -4 rule add fwmark 0x10000000/0x10000000 table forkop priority 105");
+        t.contains(commands, "/sbin/ip -4 rule add iif lo fwmark 0x04000000/0x04000000 lookup main priority 104");
         t.eq(filter(commands, (line) => index(line, " -6 ") >= 0), [], "nothing is asked of IPv6");
         t.eq(length(filter(calls, (c) => c.argv[0] == "nft" && c.argv[1] == "-f")), 1, "the table is applied");
     }

@@ -18,6 +18,7 @@ const INTERFACES = constants.NFT_INTERFACE_SET_NAME;
 const PAUSE_CHAIN = constants.NFT_PAUSE_CHAIN_NAME;
 const FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
 const OUTBOUND_MARK = constants.NFT_OUTBOUND_MARK;
+const ROUTER_MARK = constants.NFT_ROUTER_MARK;
 const FAKEIP4 = singbox_constants.FAKEIP_INET4_RANGE;
 const FAKEIP6 = singbox_constants.FAKEIP_INET6_RANGE;
 const TPROXY_PORT = singbox_constants.TPROXY_INBOUND_PORT;
@@ -104,16 +105,19 @@ function tproxy_target(family, port) {
     return family == 6 ? core_ip.format_ipv6_tproxy_target(TPROXY6_ADDRESS, port) : ":" + port;
 }
 
-const CAPTURE_MARKED = [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK ];
+function marked(mark) {
+    return [ "meta", "mark", "&", mark, "==", mark ];
+}
+
 // A reply belongs to a connection the other side opened, or to one sing-box already holds:
 // handed to TProxy, it finds no socket of its own and the connection dies.
 const REPLY_RETURN = [ "ct", "direction", "reply", "return" ];
 
 // Packets of a flow sing-box holds are marked from the flow: only its first packet is NATed,
 // and a later one forwarded directly would let flow offloading take the whole connection.
-function add_held_flow_rule(chain) {
-    add_rule(chain, [ "ct", "direction", "original", "ct", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK,
-        "meta", "mark", "set", FAKEIP_MARK, "counter", "accept" ]);
+function add_held_flow_rule(chain, mark) {
+    add_rule(chain, [ "ct", "direction", "original", "ct", "mark", "&", mark, "==", mark,
+        "meta", "mark", "set", mark, "counter", "accept" ]);
 }
 
 // While sing-box rebinds its listeners its traffic is dropped, not sent direct: a forwarded
@@ -122,7 +126,8 @@ function capture_command(active) {
     let chain = [ "inet", TABLE, PAUSE_CHAIN ];
     let commands = [ [ "flush", "chain", ...chain ] ];
     if (!active)
-        push(commands, [ "add", "rule", ...chain, ...CAPTURE_MARKED, "counter", "drop" ], [ "add", "rule", ...chain, "counter", "accept" ]);
+        push(commands, [ "add", "rule", ...chain, ...marked(FAKEIP_MARK), "counter", "drop" ],
+            [ "add", "rule", ...chain, ...marked(ROUTER_MARK), "counter", "drop" ], [ "add", "rule", ...chain, "counter", "accept" ]);
     return [ "nft", join("; ", map(commands, (command) => join(" ", command))) ];
 }
 
@@ -158,7 +163,7 @@ function add_base(settings, excluded_router, excluded) {
     for (let proto in [ "tcp", "udp" ])
         add_rule("dns_redirect", [ "iifname", "@" + INTERFACES, proto, "dport", "53", "counter", "redirect", "to", ":" + singbox_constants.SOURCE_DNS_INBOUND_PORT ]);
 
-    add_held_flow_rule("mangle");
+    add_held_flow_rule("mangle", FAKEIP_MARK);
     add_excluded_returns("mangle", excluded);
     add_rule("mangle", [ "ct", "status", "dnat", "return" ]);
     add_rule("mangle", REPLY_RETURN);
@@ -173,17 +178,18 @@ function add_base(settings, excluded_router, excluded) {
             add_rule("mangle", [ "iifname", "@" + INTERFACES, pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", FAKEIP_MARK, "counter" ]);
 
     add_rule("proxy", [ "jump", PAUSE_CHAIN ]);
-    add_rule("proxy", [ ...CAPTURE_MARKED, "ct", "mark", "set", "ct", "mark", "|", FAKEIP_MARK ]);
+    for (let mark in [ FAKEIP_MARK, ROUTER_MARK ])
+        add_rule("proxy", [ ...marked(mark), "ct", "mark", "set", "ct", "mark", "|", mark ]);
     for (let family in [ 4, 6 ])
         for (let proto in [ "tcp", "udp" ])
-            add_rule("proxy", [ "iifname", "lo", "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK, "meta", "l4proto", proto,
+            add_rule("proxy", [ "iifname", "lo", ...marked(ROUTER_MARK), "meta", "l4proto", proto,
                 "tproxy", family == 6 ? "ip6" : "ip", "to", tproxy_target(family, system_tproxy_port), "counter", "accept" ]);
     for (let family in [ 4, 6 ])
         for (let proto in [ "tcp", "udp" ])
-            add_rule("proxy", [ "meta", "mark", "&", FAKEIP_MARK, "==", FAKEIP_MARK, "meta", "l4proto", proto,
+            add_rule("proxy", [ ...marked(FAKEIP_MARK), "meta", "l4proto", proto,
                 "tproxy", family == 6 ? "ip6" : "ip", "to", tproxy_target(family, TPROXY_PORT), "counter" ]);
 
-    add_held_flow_rule("mangle_output");
+    add_held_flow_rule("mangle_output", ROUTER_MARK);
     if (excluded_router)
         add_rule("mangle_output", [ "counter", "return" ]);
     add_rule("mangle_output", REPLY_RETURN);
@@ -223,7 +229,7 @@ function create_section_sets(m) {
 }
 
 // Bypass leaves FakeIP traffic alone: those addresses mean something only to sing-box.
-function section_rule(m, family, match_args, match_source) {
+function section_rule(m, family, match_args, match_source, mark) {
     let ip = family == 6 ? "ip6" : "ip";
     let args = [];
     if (match_source && m.needs_source_sets)
@@ -235,17 +241,17 @@ function section_rule(m, family, match_args, match_source) {
     if (m.action == "bypass")
         push(args, "counter", "accept");
     else
-        push(args, "meta", "mark", "set", FAKEIP_MARK, "counter", "accept");
+        push(args, "meta", "mark", "set", mark, "counter", "accept");
     return args;
 }
 
 function add_section_rule_pair(m, match4, match6) {
     if (!m.sources.selected || length(m.sources.ips) > 0)
         for (let family in [ 4, 6 ])
-            add_rule("priority_rules", [ "iifname", "@" + INTERFACES, ...section_rule(m, family, family == 6 ? match6 : match4, true) ]);
+            add_rule("priority_rules", [ "iifname", "@" + INTERFACES, ...section_rule(m, family, family == 6 ? match6 : match4, true, FAKEIP_MARK) ]);
     if (!m.sources.selected || m.sources.system)
         for (let family in [ 4, 6 ])
-            add_rule("priority_output_rules", section_rule(m, family, family == 6 ? match6 : match4, false));
+            add_rule("priority_output_rules", section_rule(m, family, family == 6 ? match6 : match4, false, ROUTER_MARK));
 }
 
 function add_fully_routed_rules(m) {
@@ -258,12 +264,12 @@ function add_fully_routed_rules(m) {
         for (let family in [ 4, 6 ])
             for (let proto in protocols)
                 add_rule("priority_rules", [ "iifname", "@" + INTERFACES, family == 6 ? "ip6" : "ip", "saddr",
-                    "@" + (family == 6 ? m.sets.fully_sources6 : m.sets.fully_sources), ...section_rule(m, family, transport(proto), false) ]);
+                    "@" + (family == 6 ? m.sets.fully_sources6 : m.sets.fully_sources), ...section_rule(m, family, transport(proto), false, FAKEIP_MARK) ]);
 
     if (m.fully.system)
         for (let family in [ 4, 6 ])
             for (let proto in protocols)
-                add_rule("priority_output_rules", section_rule(m, family, transport(proto), false));
+                add_rule("priority_output_rules", section_rule(m, family, transport(proto), false, ROUTER_MARK));
 }
 
 function add_section_rules(m) {
@@ -291,7 +297,7 @@ function add_section_rules(m) {
 function add_fakeip_output() {
     for (let pair in [ [ "ip", FAKEIP4 ], [ "ip6", FAKEIP6 ] ])
         for (let proto in [ "tcp", "udp" ])
-            add_rule("mangle_output", [ pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", FAKEIP_MARK, "counter" ]);
+            add_rule("mangle_output", [ pair[0], "daddr", pair[1], "meta", "l4proto", proto, "meta", "mark", "set", ROUTER_MARK, "counter" ]);
 }
 
 // Only loopback is captured, so the resolver's upstream queries never come back here;
@@ -385,12 +391,19 @@ function ensure_route(present, argv, failed) {
 function ensure_tproxy_routing() {
     let ip = nft_state.IP_BIN;
     let mark = FAKEIP_MARK + "/" + FAKEIP_MARK;
+    let router_mark = ROUTER_MARK + "/" + ROUTER_MARK;
     if (!ensure_rt_table_entry())
         die("Failed to add the " + RT_TABLE + " routing table to " + paths.rt_tables);
     ensure_route(() => nft_state.tproxy_route4_present(RT_TABLE), [ ip, "route", "add", "local", "0.0.0.0/0", "dev", "lo", "table", RT_TABLE ],
         "Failed to add the IPv4 TProxy route");
     ensure_route(() => nft_state.tproxy_marking_rule4_present(RT_TABLE, FAKEIP_MARK), [ ip, "-4", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
         "Failed to add the IPv4 TProxy routing rule");
+    ensure_route(() => nft_state.tproxy_marking_rule4_present(RT_TABLE, ROUTER_MARK), [ ip, "-4", "rule", "add", "fwmark", router_mark, "table", RT_TABLE, "priority", "105" ],
+        "Failed to add the IPv4 TProxy routing rule of the router's own traffic");
+    // With src_valid_mark on (tailscaled turns it on) the kernel checks the source of a packet it routes
+    // to itself by a lookup from lo with the packet's mark, which rule 105 would answer with its own address.
+    ensure_route(() => nft_state.source_check_rule4_present(FAKEIP_MARK), [ ip, "-4", "rule", "add", "iif", "lo", "fwmark", mark, "lookup", "main",
+        "priority", nft_state.SOURCE_CHECK_PRIORITY ], "Failed to add the IPv4 routing rule for the source check");
 
     let ipv6 = nft_state.ipv6_interfaces() ?? [];
     if (length(ipv6) == 0)
@@ -403,6 +416,8 @@ function ensure_tproxy_routing() {
         "Failed to add the IPv6 TProxy route");
     ensure_route(() => nft_state.tproxy_marking_rule6_present(RT_TABLE, FAKEIP_MARK), [ ip, "-6", "rule", "add", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
         "Failed to add the IPv6 TProxy routing rule");
+    ensure_route(() => nft_state.tproxy_marking_rule6_present(RT_TABLE, ROUTER_MARK), [ ip, "-6", "rule", "add", "fwmark", router_mark, "table", RT_TABLE, "priority", "105" ],
+        "Failed to add the IPv6 TProxy routing rule of the router's own traffic");
 }
 
 function bound_rule(family, action, device) {

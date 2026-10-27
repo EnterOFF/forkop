@@ -108,7 +108,7 @@ function reset(options) {
         world.routing_lost = false;
     };
     nft_state.table_present = () => world.network;
-    for (let name in [ "tproxy_marking_rule4_present", "tproxy_marking_rule6_present", "tproxy_route4_present", "tproxy_route6_present" ])
+    for (let name in [ "tproxy_marking_rule4_present", "tproxy_marking_rule6_present", "tproxy_route4_present", "tproxy_route6_present", "source_check_rule4_present" ])
         nft_state[name] = () => false;
     nft_state.ipv6_enabled = () => !world.ipv6_off;
     health.sing_box_service_pid_runtime = () => world.pid;

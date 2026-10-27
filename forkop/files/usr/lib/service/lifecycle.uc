@@ -23,6 +23,7 @@ const CONFIG_NAME = "forkop";
 const RT_TABLE = constants.RT_TABLE_NAME;
 const NFT_TABLE = constants.NFT_TABLE_NAME;
 const FAKEIP_MARK = constants.NFT_FAKEIP_MARK;
+const ROUTER_MARK = constants.NFT_ROUTER_MARK;
 const LOCK_TIMEOUT = 360;
 // A start watches a fresh sing-box long enough to see an early crash; a reload only has to
 // outlast the gap between the HUP and the ports dropping. The hold counts the consecutive
@@ -184,12 +185,19 @@ function cleanup_network() {
     let ok = true;
     let ip = nft_state.IP_BIN;
     let mark = FAKEIP_MARK + "/" + FAKEIP_MARK;
+    let router_mark = ROUTER_MARK + "/" + ROUTER_MARK;
     let steps = [
         [ () => nft_state.table_present(NFT_TABLE), [ "nft", "delete", "table", "inet", NFT_TABLE ], "Failed to remove the Forkop nftables table" ],
         [ () => nft_state.tproxy_marking_rule4_present(RT_TABLE, FAKEIP_MARK), [ ip, "-4", "rule", "del", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
             "Failed to remove the Forkop IPv4 routing rule" ],
         [ () => nft_state.tproxy_marking_rule6_present(RT_TABLE, FAKEIP_MARK), [ ip, "-6", "rule", "del", "fwmark", mark, "table", RT_TABLE, "priority", "105" ],
             "Failed to remove the Forkop IPv6 routing rule" ],
+        [ () => nft_state.tproxy_marking_rule4_present(RT_TABLE, ROUTER_MARK), [ ip, "-4", "rule", "del", "fwmark", router_mark, "table", RT_TABLE, "priority", "105" ],
+            "Failed to remove the Forkop IPv4 routing rule of the router's own traffic" ],
+        [ () => nft_state.tproxy_marking_rule6_present(RT_TABLE, ROUTER_MARK), [ ip, "-6", "rule", "del", "fwmark", router_mark, "table", RT_TABLE, "priority", "105" ],
+            "Failed to remove the Forkop IPv6 routing rule of the router's own traffic" ],
+        [ () => nft_state.source_check_rule4_present(FAKEIP_MARK), [ ip, "-4", "rule", "del", "iif", "lo", "fwmark", mark, "lookup", "main",
+            "priority", nft_state.SOURCE_CHECK_PRIORITY ], "Failed to remove the Forkop IPv4 routing rule for the source check" ],
         [ () => nft_state.tproxy_route4_present(RT_TABLE), [ ip, "route", "flush", "table", RT_TABLE ], "Failed to flush the Forkop IPv4 routing table" ],
         [ () => nft_state.tproxy_route6_present(RT_TABLE), [ ip, "-6", "route", "flush", "table", RT_TABLE ], "Failed to flush the Forkop IPv6 routing table" ]
     ];

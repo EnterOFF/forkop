@@ -5,6 +5,8 @@ let constants = require("core.constants");
 // iproute2, which the dependency puts at /sbin/ip: BusyBox ip mishandles Forkop's table entries
 const IP_BIN = "/sbin/ip";
 const PAUSE_CHAIN = constants.NFT_PAUSE_CHAIN_NAME;
+// Before the TProxy rules at 105.
+const SOURCE_CHECK_PRIORITY = "104";
 
 let paths = {
     ipv6_conf: "/proc/sys/net/ipv6/conf"
@@ -105,6 +107,24 @@ function bound_rule_devices_text(rule_list, priority, mark) {
 
 function bound_rule_devices(family, priority, mark) {
     return bound_rule_devices_text(command_output_from_args([ IP_BIN, family, "rule", "list", "priority", priority ]), priority, mark);
+}
+
+// "104: from all fwmark 0x4000000/0x4000000 iif lo lookup main", as iproute2 lists it
+function source_check_rule_text(rule_list, mark) {
+    let expected_mark = parse_mark_number(mark);
+    for (let line in split(as_string(rule_list), "\n")) {
+        let fields = normalized_fields(line);
+        let count = length(fields);
+        let iif = index(fields, "iif");
+        if (count > 0 && fields[0] == SOURCE_CHECK_PRIORITY + ":" && iif > 0 && fields[iif + 1] == "lo" &&
+            rule_line_has_fwmark(fields, expected_mark) && fields[count - 2] == "lookup" && fields[count - 1] == "main")
+            return true;
+    }
+    return false;
+}
+
+function source_check_rule4_present(mark) {
+    return source_check_rule_text(command_output_from_args([ IP_BIN, "-4", "rule", "list", "priority", SOURCE_CHECK_PRIORITY ]), mark);
 }
 
 function has_local_default_route_text(route_list, family) {
@@ -252,6 +272,8 @@ return {
     runtime_network_configured,
     rt_table_has_entry,
     bound_rule_devices,
+    SOURCE_CHECK_PRIORITY,
+    source_check_rule4_present,
     tproxy_route4_present,
     tproxy_route6_present,
     tproxy_marking_rule4_present,
