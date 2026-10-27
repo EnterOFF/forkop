@@ -1,4 +1,5 @@
 let common = require("core.common");
+let core_ip = require("core.ip");
 let uci_core = require("core.uci");
 let runtime_constants = require("singbox.constants");
 let runtime_dns = require("singbox.dns");
@@ -46,6 +47,15 @@ function runtime_settings() {
 
 function dhcp_dnsmasq_section() {
     return object_or_empty(uci_core.get_all("dhcp", "@dnsmasq[0]"));
+}
+
+// sysntpd's servers by name. Over DNS through TLS or HTTPS a clock behind the server's certificate
+// gets no answer, and then sysntpd never learns an address to set the clock from.
+function ntp_server_names() {
+    let ntp = object_or_empty(uci_core.get_all("system", "ntp"));
+    if (option(ntp, "enabled", "1") == "0")
+        return [];
+    return filter(list_option(ntp, "server"), (name) => !core_ip.valid_ip(name));
 }
 
 function local_resolver_domain() {
@@ -241,6 +251,9 @@ function base_config(settings, service_address) {
             domain: [ runtime_constants.FAKEIP_TEST_DOMAIN, runtime_constants.CHECK_PROXY_IP_DOMAIN ]
         }
     ];
+    let ntp_servers = ntp_server_names();
+    if (length(ntp_servers) > 0)
+        push(dns_rules, { inbound: runtime_constants.SYSTEM_DNS_INBOUND_TAG, action: "route", server: runtime_constants.BOOTSTRAP_DNS_SERVER_TAG, domain: ntp_servers });
 
     let dns_servers = [];
     for (let server in dns_config.servers)

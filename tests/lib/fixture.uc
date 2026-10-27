@@ -59,6 +59,8 @@ function seed(data) {
 
     if (data.dhcp_dnsmasq != null)
         uci.__seed("dhcp", [ { ".type": "dnsmasq", ...data.dhcp_dnsmasq } ]);
+    if (data.system_ntp != null)
+        uci.__seed("system", [ { ".type": "timeserver", ".name": "ntp", ...data.system_ntp } ]);
 }
 
 // The settings every generated configuration needs, merged with the test's own.

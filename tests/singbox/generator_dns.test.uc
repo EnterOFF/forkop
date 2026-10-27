@@ -19,6 +19,20 @@ t.test("a single DNS server is used directly", () => {
     t.eq(length(single.inbounds), 7);
 });
 
+t.test("the router asks the bootstrap servers for its NTP servers, whatever the main DNS needs a clock for", () => {
+    let ntp = (system_ntp) => filter(build({
+        settings: { dns_server: [ "https://dns.google/dns-query" ] },
+        section: [ { ".name": "direct", enabled: "1", action: "bypass", destinations: "example.org" } ],
+        system_ntp
+    }).dns.rules, (rule) => rule.server == "bootstrap-dns-server");
+    t.eq(ntp({ enabled: "1", server: [ "0.openwrt.pool.ntp.org", "192.0.2.123", "time.example" ] }), [
+        { inbound: "system-dns-in", action: "route", server: "bootstrap-dns-server", domain: [ "0.openwrt.pool.ntp.org", "time.example" ] }
+    ], "names only: an address needs no lookup");
+    t.eq(ntp({ enabled: "0", server: [ "0.openwrt.pool.ntp.org" ] }), [], "sysntpd turned off");
+    t.eq(ntp({ server: [ "192.0.2.123" ] }), [], "addresses only");
+    t.eq(ntp(null), [], "no NTP section");
+});
+
 t.test("several DNS servers become native fallback groups with their own query modes", () => {
     let multi = build({
         settings: {
