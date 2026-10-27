@@ -66,20 +66,27 @@ const checkFolding = new Map<string, boolean>();
 let forkopRunningInRun = true;
 let runServiceData: Forkop.ServiceCheckResult | undefined;
 
+const UNKNOWN_COUNTS = {
+  server_inbounds_enabled_count: -1,
+  sections_enabled_count: -1,
+};
+
 type ServiceRuntimeAction = 'restart' | 'start' | 'stop';
 type DiagnosticRunner = {
   code: DIAGNOSTICS_CHECKS;
   run: () => Promise<CheckOutcome>;
 };
 
+// Idle, an unknown count lists the sections, which most configurations have, and not the servers.
 function getDiagnosticsCheckOptions(
   systemInfo: Pick<
     StoreType['diagnosticsSystemInfo'],
-    'server_inbounds_enabled_count'
+    'server_inbounds_enabled_count' | 'sections_enabled_count'
   > = store.get().diagnosticsSystemInfo,
 ): DiagnosticsCheckOptions {
   return {
     includeServers: systemInfo.server_inbounds_enabled_count > 0,
+    includeSections: systemInfo.sections_enabled_count !== 0,
   };
 }
 
@@ -209,17 +216,18 @@ async function fetchDiagnosticsCapabilities({
         capabilitiesLoaded: true,
         server_inbounds_enabled_count:
           uiState.capabilities.server_inbounds_enabled_count,
+        sections_enabled_count: uiState.capabilities.sections_enabled_count,
       };
 
       applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
       return;
     }
 
-    // Without the runtime feed the server count is unknown, and the servers check decides itself.
+    // Without the runtime feed the counts are unknown, and the checks decide themselves.
     const nextSystemInfo = {
       ...store.get().diagnosticsSystemInfo,
       capabilitiesLoaded: true,
-      server_inbounds_enabled_count: -1,
+      ...UNKNOWN_COUNTS,
     };
 
     applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
@@ -233,7 +241,7 @@ async function fetchDiagnosticsCapabilities({
         diagnosticsSystemInfo: {
           ...currentSystemInfo,
           capabilitiesLoaded: true,
-          server_inbounds_enabled_count: -1,
+          ...UNKNOWN_COUNTS,
         },
       });
     }
@@ -653,10 +661,12 @@ async function runChecks() {
   try {
     await fetchDiagnosticsCapabilities({ resetChecks: false });
 
-    // A run checks the servers unless it knows there are none.
+    // A run checks the servers and sections unless it knows there are none.
+    const { server_inbounds_enabled_count, sections_enabled_count } =
+      store.get().diagnosticsSystemInfo;
     const checkOptions = {
-      includeServers:
-        store.get().diagnosticsSystemInfo.server_inbounds_enabled_count !== 0,
+      includeServers: server_inbounds_enabled_count !== 0,
+      includeSections: sections_enabled_count !== 0,
     };
 
     store.set({

@@ -521,6 +521,7 @@ export namespace Forkop {
 
   export interface GetUiCapabilities {
     server_inbounds_enabled_count: number;
+    sections_enabled_count: number;
     core?: CoreFeatures;
   }
 

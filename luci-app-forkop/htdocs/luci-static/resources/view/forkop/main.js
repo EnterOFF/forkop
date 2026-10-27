@@ -1273,7 +1273,7 @@ function createDiagnosticCheck(code, description, state = "skipped") {
 }
 function diagnosticsCheckCodes(options = {}) {
   return DIAGNOSTICS_CHECKS_ORDER.filter(
-    (code) => code !== "SERVERS" /* SERVERS */ || options.includeServers === true
+    (code) => (code !== "SERVERS" /* SERVERS */ || options.includeServers === true) && (code !== "SECTIONS" /* SECTIONS */ || options.includeSections !== false)
   );
 }
 function getDiagnosticsChecks(description, options = {}) {
@@ -1296,6 +1296,7 @@ var initialDiagnosticStore = {
     sing_box_version: "loading",
     sing_box_variant: "",
     server_inbounds_enabled_count: -1,
+    sections_enabled_count: -1,
     openwrt_version: "loading",
     device_model: "loading"
   },
@@ -3036,6 +3037,7 @@ var UNKNOWN_SYSTEM_INFO = {
   sing_box_version: _("unknown"),
   sing_box_variant: "",
   server_inbounds_enabled_count: -1,
+  sections_enabled_count: -1,
   openwrt_version: _("unknown"),
   device_model: _("unknown")
 };
@@ -3078,6 +3080,7 @@ async function ensureSystemInfo({
           loaded: true,
           capabilitiesLoaded: true,
           server_inbounds_enabled_count: currentSystemInfo.server_inbounds_enabled_count,
+          sections_enabled_count: currentSystemInfo.sections_enabled_count,
           ...systemInfo.data
         };
         store.set({
@@ -3095,7 +3098,8 @@ async function ensureSystemInfo({
         loading: false,
         loaded: false,
         capabilitiesLoaded: latestSystemInfo.capabilitiesLoaded,
-        server_inbounds_enabled_count: latestSystemInfo.server_inbounds_enabled_count
+        server_inbounds_enabled_count: latestSystemInfo.server_inbounds_enabled_count,
+        sections_enabled_count: latestSystemInfo.sections_enabled_count
       };
       store.set({
         diagnosticsSystemInfo: nextSystemInfo
@@ -6094,7 +6098,8 @@ function applyServiceState(uiState) {
   const nextSystemInfo = {
     ...currentSystemInfo,
     capabilitiesLoaded: true,
-    server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
+    server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count,
+    sections_enabled_count: uiState.capabilities.sections_enabled_count
   };
   store.set({
     serviceState: {
@@ -13273,9 +13278,14 @@ var handledServiceActionJobs = /* @__PURE__ */ new Set();
 var checkFolding = /* @__PURE__ */ new Map();
 var forkopRunningInRun = true;
 var runServiceData;
+var UNKNOWN_COUNTS = {
+  server_inbounds_enabled_count: -1,
+  sections_enabled_count: -1
+};
 function getDiagnosticsCheckOptions(systemInfo = store.get().diagnosticsSystemInfo) {
   return {
-    includeServers: systemInfo.server_inbounds_enabled_count > 0
+    includeServers: systemInfo.server_inbounds_enabled_count > 0,
+    includeSections: systemInfo.sections_enabled_count !== 0
   };
 }
 function getNotRunningDiagnosticsChecks(systemInfo = store.get().diagnosticsSystemInfo) {
@@ -13364,7 +13374,8 @@ async function fetchDiagnosticsCapabilities({
       const nextSystemInfo2 = {
         ...currentSystemInfo,
         capabilitiesLoaded: true,
-        server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count
+        server_inbounds_enabled_count: uiState.capabilities.server_inbounds_enabled_count,
+        sections_enabled_count: uiState.capabilities.sections_enabled_count
       };
       applyDiagnosticsCapabilities(nextSystemInfo2, resetChecks);
       return;
@@ -13372,7 +13383,7 @@ async function fetchDiagnosticsCapabilities({
     const nextSystemInfo = {
       ...store.get().diagnosticsSystemInfo,
       capabilitiesLoaded: true,
-      server_inbounds_enabled_count: -1
+      ...UNKNOWN_COUNTS
     };
     applyDiagnosticsCapabilities(nextSystemInfo, resetChecks);
   } catch (error) {
@@ -13383,7 +13394,7 @@ async function fetchDiagnosticsCapabilities({
         diagnosticsSystemInfo: {
           ...currentSystemInfo,
           capabilitiesLoaded: true,
-          server_inbounds_enabled_count: -1
+          ...UNKNOWN_COUNTS
         }
       });
     }
@@ -13697,8 +13708,10 @@ async function runChecks() {
   });
   try {
     await fetchDiagnosticsCapabilities({ resetChecks: false });
+    const { server_inbounds_enabled_count, sections_enabled_count } = store.get().diagnosticsSystemInfo;
     const checkOptions = {
-      includeServers: store.get().diagnosticsSystemInfo.server_inbounds_enabled_count !== 0
+      includeServers: server_inbounds_enabled_count !== 0,
+      includeSections: sections_enabled_count !== 0
     };
     store.set({
       diagnosticsChecks: getLoadingDiagnosticsChecks(checkOptions).diagnosticsChecks

@@ -115,9 +115,14 @@ function jobs(dir) {
     return result;
 }
 
+// The generator runs a server only once its dialog switched it on, and a section unless switched off.
 function capabilities() {
-    let enabled = filter(uci.section_objects(CONFIG_NAME, "server"), (s) => common.option(s, "enabled", "1") != "0");
-    return { server_inbounds_enabled_count: length(enabled) };
+    let enabled = (type_name, fallback) =>
+        length(filter(uci.section_objects(CONFIG_NAME, type_name), (s) => common.bool_option(s, "enabled", fallback)));
+    return {
+        server_inbounds_enabled_count: enabled("server", false),
+        sections_enabled_count: enabled("section", true)
+    };
 }
 
 function default_headers() {

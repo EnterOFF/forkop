@@ -21,4 +21,13 @@ describe('the order of the Status checks', () => {
       'SECTIONS',
     ]);
   });
+
+  it('lists no sections for a configuration without one, such as a VPN server alone', () => {
+    expect(
+      getDiagnosticsChecks('', {
+        includeServers: true,
+        includeSections: false,
+      }).map((check) => check.code),
+    ).toEqual(['SERVICE', 'DNS', 'TRAFFIC', 'SERVERS']);
+  });
 });

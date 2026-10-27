@@ -218,4 +218,30 @@ describe('diagnostic run lifecycle', () => {
     await showTab('diagnostic');
     expect(mocks.isReportOffered()).toBe(false);
   });
+
+  it('checks a VPN server alone without a sections check, idle or running', async () => {
+    const capabilities = mocks.uiState.capabilities;
+    mocks.uiState.capabilities = {
+      server_inbounds_enabled_count: 1,
+      sections_enabled_count: 0,
+    };
+    const codes = () =>
+      store.get().diagnosticsChecks.map((check) => check.code);
+
+    await showTab('diagnostic');
+    mocks.clickRunAction();
+    await flush();
+    while (mocks.isCheckRunning()) {
+      mocks.finishRunningCheck();
+      await flush();
+    }
+
+    expect(mocks.runnerCalls).toEqual(['SERVICE', 'DNS', 'TRAFFIC', 'SERVERS']);
+    expect(codes()).not.toContain('SECTIONS');
+
+    await showTab('dashboard');
+    expect(codes()).toEqual(['SERVICE', 'DNS', 'TRAFFIC', 'SERVERS']);
+
+    mocks.uiState.capabilities = capabilities;
+  });
 });

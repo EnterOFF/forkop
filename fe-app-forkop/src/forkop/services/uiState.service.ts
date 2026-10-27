@@ -29,6 +29,7 @@ function applyServiceState(uiState: Forkop.UiState) {
     capabilitiesLoaded: true,
     server_inbounds_enabled_count:
       uiState.capabilities.server_inbounds_enabled_count,
+    sections_enabled_count: uiState.capabilities.sections_enabled_count,
   };
 
   store.set({

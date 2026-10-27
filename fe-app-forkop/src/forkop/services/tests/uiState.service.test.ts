@@ -29,6 +29,7 @@ function createUiState(
     },
     capabilities: {
       server_inbounds_enabled_count: 0,
+      sections_enabled_count: 0,
       ...capabilities,
     },
     actions: {
@@ -73,6 +74,7 @@ describe('applyUiStateToStore', () => {
     expect(state.diagnosticsSystemInfo).toMatchObject({
       capabilitiesLoaded: true,
       server_inbounds_enabled_count: 0,
+      sections_enabled_count: 0,
     });
     expect(state.diagnosticsActions.start.loading).toBe(false);
   });

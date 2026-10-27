@@ -194,6 +194,7 @@ export interface StoreType {
     sing_box_version: string;
     sing_box_variant: string;
     server_inbounds_enabled_count: number;
+    sections_enabled_count: number;
     openwrt_version: string;
     device_model: string;
   };
