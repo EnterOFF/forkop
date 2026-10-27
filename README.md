@@ -1,62 +1,56 @@
-# Forkop (Podkop Plus)
+# Forkop
 
-[![Star](https://img.shields.io/github/stars/ushan0v/forkop?style=social)](https://github.com/ushan0v/forkop/stargazers)
-[![Releases](https://img.shields.io/github/v/release/ushan0v/forkop?label=releases)](https://github.com/ushan0v/forkop/releases)
-[![Telegram](https://img.shields.io/badge/Telegram-Forkop%20%7C%20Chat-2CA5E0?logo=telegram\&logoColor=white)](https://t.me/forkop_chat)
-[![AI Assistant](https://img.shields.io/badge/Telegram-Forkop%20%7C%20AI%20Assistant-2CA5E0?logo=telegram\&logoColor=white)](https://t.me/forkop_aibot)
+Маршрутизация трафика OpenWrt по правилам.
 
-> **Forkop — это бывший Podkop Plus.** Проект переименован и продолжает развиваться как независимый форк [Podkop](https://github.com/itdoginfo/podkop).
+[![Релиз](https://img.shields.io/github/v/release/ushan0v/forkop?label=%D1%80%D0%B5%D0%BB%D0%B8%D0%B7&color=0d9488)](https://github.com/ushan0v/forkop/releases/latest)
+[![Документация](https://img.shields.io/badge/%D0%B4%D0%BE%D0%BA%D1%83%D0%BC%D0%B5%D0%BD%D1%82%D0%B0%D1%86%D0%B8%D1%8F-ushan0v.github.io-0d9488)](https://ushan0v.github.io/forkop/)
+[![Чат в Telegram](https://img.shields.io/badge/Telegram-%D1%87%D0%B0%D1%82-2CA5E0?logo=telegram&logoColor=white)](https://t.me/forkop_chat)
 
-### Установка
+[Установка](https://ushan0v.github.io/forkop/guide/install) · [Быстрый старт](https://ushan0v.github.io/forkop/guide/quick-start) · [Руководство](https://ushan0v.github.io/forkop/sections/)
+
+## Требования
+
+- OpenWrt 24.10 или новее;
+- от 128 МБ оперативной памяти, лучше 256 МБ;
+- от 18 до 38 МБ свободной флеш-памяти, в зависимости от [сборки ядра](https://ushan0v.github.io/forkop/guide/install#сборки-ядра).
+
+## Установка
+
+Подключитесь к роутеру по SSH и выполните:
 
 ```sh
 sh <(wget -O - https://raw.githubusercontent.com/ushan0v/forkop/main/install.sh)
 ```
 
-Та же команда обновляет Forkop и его ядро sing-box-forkop. С Forkop 1.0.x на 2.0 переходят только ею: кнопка обновления во вкладке «Компоненты» 1.0.x откажет, ничего не изменив. Установщик переносит настройки и заменяет прежнее ядро; из других пакетов удаляет только те, что не могут стоять рядом с Forkop.
+Команда устанавливает или обновляет [Forkop](https://github.com/ushan0v/forkop) и [sing-box-forkop](https://github.com/ushan0v/sing-box-forkop).
 
-<details>
-<summary><sub>Параметры установщика</sub></summary>
+## Возможности
 
-Параметры пишутся после команды, например `sh <(wget -O - …/install.sh) --variant tiny`.
+- **Секции** для точечной маршрутизации трафика по правилам и спискам.
+- **Подключения** по ссылкам VLESS, Trojan, Shadowsocks, Hysteria2 и другим.
+- **Подписки** с поддержкой всех основных форматов.
+- **Туннели** WireGuard, AmneziaWG, Cloudflare WARP, OpenVPN и Tailscale.
+- **URLTest и Fallback** сами выбирают рабочий сервер.
+- **DNS** с шифрованием и DNS Fallback.
+- **VPN-сервер** на самом роутере.
+- **Дашборд и мониторинг** соединений.
 
-* `--variant base|full|tiny` — сборка ядра: base по умолчанию, tiny для маленькой флешки, full со всеми протоколами;
-* `--uninstall` — удалить Forkop и ядро, с `--purge` — вместе с настройками;
-* `--lang en` — сообщения на английском.
+## Документация
 
-</details>
+Вся документация на русском лежит на [ushan0v.github.io/forkop](https://ushan0v.github.io/forkop/).
 
-### Что нового в этом форке
+## Помощь
 
-* Поддержка подписок.
-* Поддержка sing-box-forkop, транспорта XHTTP и протокола TrustTunnel: ссылки `tt://` и собственный сервер.
-* Обновлённый LuCI-интерфейс.
-* Расширенное управление секциями.
-* Новые условия маршрутизации.
-* Возможность поднять собственный VPN/proxy-сервер.
-* Встроенный мониторинг соединений.
-* Расширенные настройки URLTest-групп.
-* Автоматический выбор узла по приоритету.
-* Каскадные подключения.
-* Маршрутизация DNS-запросов через прокси.
-* Резервные DNS-серверы.
-* Отдельные DNS-серверы для выбранных доменов.
-* Статичные DNS-записи в формате hosts.
-* Поддержка IPv6.
-* Действие Bypass с полным обходом sing-box.
-* Служба полностью переписана на ucode.
-* Другие исправления и улучшения.
+Вопросы и помощь в [чате в Telegram](https://t.me/forkop_chat). Об ошибках и предложениях пишите в [Issues](https://github.com/ushan0v/forkop/issues).
 
-### Документация
-
-Отдельной документации со всеми изменениями, нововведениями и инструкцией по настройке пока что не существует. Задать вопрос, сообщить о проблеме или обсудить проект можно в [Telegram-чате](https://t.me/forkop_chat) проекта.
-
-Как альтернативу документации для быстрых персонализированных ответов используйте бесплатного, специально для этого созданного, AI-ассистента [@forkop_aibot](https://t.me/forkop_aibot).
-
-### Поддержать проект
+## Поддержать проект
 
 * 💳 **Карты РФ / СБП / Tinkoff Pay:** [Донат на CloudTips](https://pay.cloudtips.ru/p/385e5af2)
 * 💎 **USDT (сеть TON):** `UQAOCDav39WJ2gvnzs9RQ_IsF2dcGrcpw4U0j6XGO7je7uwm`
 * 🟢 **USDT (сеть TRC-20):** `TEMaZFyM8RQpkbd5LvB8CFJwxCyhHauKAe`
 * 🪙 **USDT (сети ERC-20 / BEP-20 / Polygon / Monad):** `0xe8aabb21c320240fe45b6087e68c6fe40a92d8bf`
 * 🟠 **USDT (сеть Solana):** `AhhUjTci9zDKQjUfgLacFR4LiHX9nmZud6DZ8YdbpjEB`
+
+## Лицензия
+
+Forkop распространяется по лицензии [GPL-2.0-or-later](LICENSE).
