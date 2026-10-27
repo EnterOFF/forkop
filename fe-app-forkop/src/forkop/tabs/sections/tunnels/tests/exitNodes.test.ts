@@ -1,14 +1,40 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
-const mocks = vi.hoisted(() => ({ getClashApiTailscale: vi.fn() }));
-vi.mock('../../../../methods', () => ({
-  CustomForkopMethods: { getClashApiTailscale: mocks.getClashApiTailscale },
+const mocks = vi.hoisted(() => ({
+  getClashApiTailscale: vi.fn(),
+  getConfigSections: vi.fn(),
 }));
+vi.mock('../../../../methods', () => ({
+  CustomForkopMethods: {
+    getClashApiTailscale: mocks.getClashApiTailscale,
+    getConfigSections: mocks.getConfigSections,
+  },
+}));
+
+// The core runs the tunnel as vpn/tail.
+const applied = [
+  { '.type': 'section', '.name': 'section_1', label: 'vpn' },
+  {
+    '.type': 'tunnel',
+    '.name': 'tunnel_1',
+    section: 'section_1',
+    name: 'tail',
+  },
+];
 
 let module: typeof import('../exitNodes');
 beforeAll(async () => {
   vi.stubGlobal('_', (text: string) => text);
-  vi.stubGlobal('uci', { get: () => 'vpn' });
+  // The session's view, with the section renamed and not applied yet.
+  vi.stubGlobal('uci', { get: () => 'renamed' });
   vi.stubGlobal('form', {
     Value: {
       prototype: {
@@ -21,6 +47,9 @@ beforeAll(async () => {
   module = await import('../exitNodes');
 });
 afterAll(() => vi.unstubAllGlobals());
+beforeEach(() => {
+  mocks.getConfigSections.mockResolvedValue(applied);
+});
 
 const peer = (name: string, online: boolean, exitNodeOption = true) => ({
   name,
@@ -48,23 +77,22 @@ const running = (tag: string, peers: ReturnType<typeof peer>[]) => ({
   peers,
 });
 
-// The option as the dialog builds it, rendered for a Tailscale tunnel named tail.
-async function rendered() {
+// The option as the dialog builds it, rendered for a Tailscale tunnel.
+async function rendered(tunnelId = 'tunnel_1') {
   const option = {
     value(this: { keylist: string[] }, key: string) {
       this.keylist.push(key);
     },
   } as unknown as CBIOption & { keylist: string[]; description: string };
-  module.offerTailscaleExitNodes(option, 'vpn', {
+  module.offerTailscaleExitNodes(option, 'section_1', tunnelId, {
     tunnel_type: 'tailscale',
-    name: 'tail',
   });
   const widget = await option.renderWidget('settings', '0', '');
   return { widget, keys: option.keylist, description: option.description };
 }
 
 describe('the exit node field of a Tailscale tunnel', () => {
-  it('offers the approved exit nodes of the running tunnel, online first', async () => {
+  it('offers the approved exit nodes of the running tunnel, online first, by its applied names', async () => {
     respond([
       running('vpn/tail', [
         peer('zeta', true),
@@ -90,6 +118,10 @@ describe('the exit node field of a Tailscale tunnel', () => {
       keys: [],
       description: waiting,
     });
+    respond([running('vpn/tail', [peer('home', true)])]);
+    expect((await rendered('tunnel_new')).description).toBe(waiting);
+    mocks.getConfigSections.mockRejectedValue(new Error('timed out'));
+    expect((await rendered()).description).toBe(waiting);
     mocks.getClashApiTailscale.mockResolvedValue({
       success: false,
       error: 'x',

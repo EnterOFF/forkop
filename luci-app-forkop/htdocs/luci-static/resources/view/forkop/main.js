@@ -1476,41 +1476,6 @@ var initialStore = {
 };
 var store = new StoreService(initialStore);
 
-// src/forkop/methods/custom/getConfigSections.ts
-async function getConfigSections() {
-  await uci.load(FORKOP_UCI_PACKAGE);
-  return uci.sections(FORKOP_UCI_PACKAGE);
-}
-
-// src/helpers/getClashApiUrl.ts
-function getWindowLocation() {
-  return typeof window !== "undefined" ? window.location : void 0;
-}
-function canUseDirectClashApi() {
-  const location = getWindowLocation();
-  return typeof location?.hostname === "string" && location.hostname !== "" && location.protocol !== "https:";
-}
-function getClashWsUrl() {
-  const { hostname } = window.location;
-  return `ws://${hostname}:9090`;
-}
-function getClashSocketUrl(path, secret) {
-  return `${getClashWsUrl()}${path}?token=${encodeURIComponent(secret)}`;
-}
-function getClashApiUrl() {
-  const { hostname } = window.location;
-  return `http://${hostname}:9090`;
-}
-function getClashUIUrl() {
-  const { hostname } = window.location;
-  return `http://${hostname}:9090/ui`;
-}
-function getClashUILoginUrl(secret) {
-  const { hostname } = window.location;
-  const query = Object.entries({ hostname, port: "9090", secret }).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&");
-  return `${getClashUIUrl()}/?${query}`;
-}
-
 // src/helpers/alignLuciRpcTimeout.ts
 var LUCI_RPC_TIMEOUT_DEFAULT_SECONDS = 20;
 var LUCI_RPC_TIMEOUT_HEADROOM_SECONDS = 5;
@@ -1551,6 +1516,126 @@ async function withTimeout(promise, timeoutMs, operationName, timeoutMessage = _
     const elapsed = performance.now() - start;
     logger.debug("[SHELL]", `[${operationName}] took ${elapsed.toFixed(2)} ms`);
   }
+}
+
+// src/helpers/callUbus.ts
+function rpcModule() {
+  const candidate = typeof rpc === "undefined" ? void 0 : rpc;
+  return candidate;
+}
+var UNAVAILABLE_STATUS = /* @__PURE__ */ new Set([
+  2,
+  // invalid argument
+  4,
+  // method not found
+  5,
+  // not found
+  6
+  // permission denied
+]);
+function isUnavailable(error) {
+  const status = error?.ubus_rpc_status;
+  if (typeof status === "number") {
+    return UNAVAILABLE_STATUS.has(status);
+  }
+  const message2 = error instanceof Error ? error.message : String(error ?? "");
+  return /not found|permission denied|Object not found/i.test(message2);
+}
+var UNAVAILABLE_RETRIES = 2;
+var UNAVAILABLE_RETRY_MS = 700;
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+async function callUbus(options) {
+  const attempts = options.retryUnavailable === false ? 1 : UNAVAILABLE_RETRIES + 1;
+  let last = await callUbusOnce(options);
+  for (let attempt = 1; attempt < attempts && !last.success && last.unavailable; attempt++) {
+    await wait(UNAVAILABLE_RETRY_MS);
+    last = await callUbusOnce(options);
+  }
+  return last;
+}
+async function callUbusOnce({
+  object,
+  method,
+  params = {},
+  timeoutMs,
+  nobatch
+}) {
+  const rpc2 = rpcModule();
+  if (!rpc2) {
+    return { success: false, message: "rpc unavailable", unavailable: true };
+  }
+  alignLuciRpcTimeout(timeoutMs);
+  try {
+    const names = Object.keys(params);
+    const request = rpc2.declare({ object, method, params: names, nobatch });
+    const call = request(...names.map((name) => params[name]));
+    const data = await withTimeout(call, timeoutMs, `${object}.${method}`);
+    if (data === null || data === void 0) {
+      return { success: false, message: "empty reply", unavailable: false };
+    }
+    return { success: true, data };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : String(error),
+      unavailable: isUnavailable(error)
+    };
+  }
+}
+
+// src/forkop/services/forkopWaitTransport.ts
+var FORKOP_SERVICE_OBJECT = "forkop";
+var FORKOP_CALL_TIMEOUT_MS = 5e3;
+var FORKOP_WAIT_TIMEOUT_MS = 2e4;
+var FORKOP_WAIT_RETRY_MS = 3e3;
+
+// src/forkop/methods/custom/getConfigSections.ts
+async function getConfigSections() {
+  const applied = await callUbus({
+    object: FORKOP_SERVICE_OBJECT,
+    method: "config",
+    timeoutMs: FORKOP_CALL_TIMEOUT_MS,
+    retryUnavailable: false
+  });
+  if (applied.success) {
+    return applied.data.sections;
+  }
+  if (!applied.unavailable) {
+    throw new Error(applied.message);
+  }
+  await uci.load(FORKOP_UCI_PACKAGE);
+  return uci.sections(FORKOP_UCI_PACKAGE);
+}
+
+// src/helpers/getClashApiUrl.ts
+function getWindowLocation() {
+  return typeof window !== "undefined" ? window.location : void 0;
+}
+function canUseDirectClashApi() {
+  const location = getWindowLocation();
+  return typeof location?.hostname === "string" && location.hostname !== "" && location.protocol !== "https:";
+}
+function getClashWsUrl() {
+  const { hostname } = window.location;
+  return `ws://${hostname}:9090`;
+}
+function getClashSocketUrl(path, secret) {
+  return `${getClashWsUrl()}${path}?token=${encodeURIComponent(secret)}`;
+}
+function getClashApiUrl() {
+  const { hostname } = window.location;
+  return `http://${hostname}:9090`;
+}
+function getClashUIUrl() {
+  const { hostname } = window.location;
+  return `http://${hostname}:9090/ui`;
+}
+function getClashUILoginUrl(secret) {
+  const { hostname } = window.location;
+  const query = Object.entries({ hostname, port: "9090", secret }).map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join("&");
+  return `${getClashUIUrl()}/?${query}`;
 }
 
 // src/helpers/executeShellCommand.ts
@@ -1638,73 +1723,6 @@ var Forkop;
     AvailableMethods2["INSTALLER_LOG"] = "installer_log";
   })(AvailableMethods = Forkop2.AvailableMethods || (Forkop2.AvailableMethods = {}));
 })(Forkop || (Forkop = {}));
-
-// src/helpers/callUbus.ts
-function rpcModule() {
-  const candidate = typeof rpc === "undefined" ? void 0 : rpc;
-  return candidate;
-}
-var UNAVAILABLE_STATUS = /* @__PURE__ */ new Set([
-  2,
-  // invalid argument
-  4,
-  // method not found
-  5,
-  // not found
-  6
-  // permission denied
-]);
-function isUnavailable(error) {
-  const status = error?.ubus_rpc_status;
-  if (typeof status === "number") {
-    return UNAVAILABLE_STATUS.has(status);
-  }
-  const message2 = error instanceof Error ? error.message : String(error ?? "");
-  return /not found|permission denied|Object not found/i.test(message2);
-}
-var UNAVAILABLE_RETRIES = 2;
-var UNAVAILABLE_RETRY_MS = 700;
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-async function callUbus(options) {
-  const attempts = options.retryUnavailable === false ? 1 : UNAVAILABLE_RETRIES + 1;
-  let last = await callUbusOnce(options);
-  for (let attempt = 1; attempt < attempts && !last.success && last.unavailable; attempt++) {
-    await wait(UNAVAILABLE_RETRY_MS);
-    last = await callUbusOnce(options);
-  }
-  return last;
-}
-async function callUbusOnce({
-  object,
-  method,
-  params = {},
-  timeoutMs,
-  nobatch
-}) {
-  const rpc2 = rpcModule();
-  if (!rpc2) {
-    return { success: false, message: "rpc unavailable", unavailable: true };
-  }
-  alignLuciRpcTimeout(timeoutMs);
-  try {
-    const names = Object.keys(params);
-    const request = rpc2.declare({ object, method, params: names, nobatch });
-    const call = request(...names.map((name) => params[name]));
-    const data = await withTimeout(call, timeoutMs, `${object}.${method}`);
-    if (data === null || data === void 0) {
-      return { success: false, message: "empty reply", unavailable: false };
-    }
-    return { success: true, data };
-  } catch (error) {
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : String(error),
-      unavailable: isUnavailable(error)
-    };
-  }
-}
 
 // src/forkop/methods/shell/index.ts
 var UI_ACTION_RPC_TIMEOUT_MS = 15e3;
@@ -5978,12 +5996,6 @@ var TabService = class _TabService {
   }
 };
 var TabServiceInstance = TabService.getInstance();
-
-// src/forkop/services/forkopWaitTransport.ts
-var FORKOP_SERVICE_OBJECT = "forkop";
-var FORKOP_CALL_TIMEOUT_MS = 5e3;
-var FORKOP_WAIT_TIMEOUT_MS = 2e4;
-var FORKOP_WAIT_RETRY_MS = 3e3;
 
 // src/forkop/services/forkopLogFeed.service.ts
 var started = false;
@@ -26323,17 +26335,27 @@ function validateTunnelItemsBeforeSave(section_id, values) {
 }
 
 // src/forkop/tabs/sections/tunnels/exitNodes.ts
-async function loadTunnelExitNodes(tag) {
-  const response = await CustomForkopMethods.getClashApiTailscale();
-  const endpoint = response.success ? response.data?.endpoints?.find((item) => item.tag === tag) : void 0;
+var ABSENT = { state: "absent", candidates: [] };
+async function loadTunnelExitNodes(sectionId, tunnelId) {
+  const [applied, response] = await Promise.all([
+    CustomForkopMethods.getConfigSections().catch(() => []),
+    CustomForkopMethods.getClashApiTailscale()
+  ]);
+  const section2 = applied.find((item) => item[".name"] === sectionId);
+  const tunnel = applied.find((item) => item[".name"] === tunnelId);
+  if (!section2 || !tunnel || !response.success) {
+    return ABSENT;
+  }
+  const tag = `${section2.label?.trim() || sectionId}/${`${tunnel.name || ""}`.trim()}`;
+  const endpoint = response.data?.endpoints?.find((item) => item.tag === tag);
   if (!endpoint) {
-    return { state: "absent", candidates: [] };
+    return ABSENT;
   }
   if (endpoint.state === "NeedsLogin" || endpoint.state === "NeedsMachineAuth") {
     return { state: "signedOut", candidates: [] };
   }
   if (endpoint.state !== "Running") {
-    return { state: "absent", candidates: [] };
+    return ABSENT;
   }
   if (!endpoint.connected) {
     return { state: "offline", candidates: [] };
@@ -26365,13 +26387,10 @@ function describe({ state, candidates }) {
       );
   }
 }
-function offerTailscaleExitNodes(option2, sectionId, tunnel) {
+function offerTailscaleExitNodes(option2, sectionId, tunnelId, tunnel) {
   const renderWidget2 = form.Value.prototype.renderWidget;
   option2.renderWidget = function(itemId, optionIndex, cfgvalue) {
-    const section2 = uci.get(FORKOP_UCI_PACKAGE, sectionId, "label") || sectionId;
-    const lookup = tunnel.tunnel_type === "tailscale" ? loadTunnelExitNodes(
-      `${section2.trim()}/${`${tunnel.name || ""}`.trim()}`
-    ) : Promise.resolve({ state: "absent", candidates: [] });
+    const lookup = tunnel.tunnel_type === "tailscale" ? loadTunnelExitNodes(sectionId, tunnelId) : Promise.resolve(ABSENT);
     return lookup.then((exitNodes) => {
       this.keylist = [];
       this.vallist = [];
@@ -26772,7 +26791,12 @@ function showTunnelSettingsModal(section_id, itemValue, option2, widget, itemNod
   );
   tailscaleExitNodeOption.rmempty = true;
   tailscaleExitNodeOption.depends("tunnel_type", "tailscale");
-  offerTailscaleExitNodes(tailscaleExitNodeOption, section_id, data.settings);
+  offerTailscaleExitNodes(
+    tailscaleExitNodeOption,
+    section_id,
+    tunnelId,
+    data.settings
+  );
   const endpointJsonOption = itemSection.option(
     form.TextValue,
     "endpoint_json",

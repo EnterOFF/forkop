@@ -576,7 +576,12 @@ export function showTunnelSettingsModal(
   );
   tailscaleExitNodeOption.rmempty = true;
   tailscaleExitNodeOption.depends('tunnel_type', 'tailscale');
-  offerTailscaleExitNodes(tailscaleExitNodeOption, section_id, data.settings);
+  offerTailscaleExitNodes(
+    tailscaleExitNodeOption,
+    section_id,
+    tunnelId,
+    data.settings,
+  );
 
   const endpointJsonOption = itemSection.option(
     form.TextValue,

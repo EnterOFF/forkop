@@ -1,4 +1,3 @@
-import { FORKOP_UCI_PACKAGE } from '../../../../constants';
 import { CustomForkopMethods } from '../../../methods';
 import { ClashAPI } from '../../../types';
 
@@ -10,16 +9,27 @@ export interface TunnelExitNodes {
   candidates: ClashAPI.TailscalePeer[];
 }
 
-// Only the tunnel's own endpoint knows its tailnet, so a tunnel not yet running offers none.
-export async function loadTunnelExitNodes(
-  tag: string,
+const ABSENT: TunnelExitNodes = { state: 'absent', candidates: [] };
+
+// Only the tunnel's own endpoint knows its tailnet, so a tunnel not yet running offers none. The
+// core runs it under its applied names, which unsaved changes may have renamed since.
+async function loadTunnelExitNodes(
+  sectionId: string,
+  tunnelId: string,
 ): Promise<TunnelExitNodes> {
-  const response = await CustomForkopMethods.getClashApiTailscale();
-  const endpoint = response.success
-    ? response.data?.endpoints?.find((item) => item.tag === tag)
-    : undefined;
+  const [applied, response] = await Promise.all([
+    CustomForkopMethods.getConfigSections().catch(() => []),
+    CustomForkopMethods.getClashApiTailscale(),
+  ]);
+  const section = applied.find((item) => item['.name'] === sectionId);
+  const tunnel = applied.find((item) => item['.name'] === tunnelId);
+  if (!section || !tunnel || !response.success) {
+    return ABSENT;
+  }
+  const tag = `${section.label?.trim() || sectionId}/${`${tunnel.name || ''}`.trim()}`;
+  const endpoint = response.data?.endpoints?.find((item) => item.tag === tag);
   if (!endpoint) {
-    return { state: 'absent', candidates: [] };
+    return ABSENT;
   }
   if (
     endpoint.state === 'NeedsLogin' ||
@@ -28,7 +38,7 @@ export async function loadTunnelExitNodes(
     return { state: 'signedOut', candidates: [] };
   }
   if (endpoint.state !== 'Running') {
-    return { state: 'absent', candidates: [] };
+    return ABSENT;
   }
   if (!endpoint.connected) {
     return { state: 'offline', candidates: [] };
@@ -73,7 +83,8 @@ function describe({ state, candidates }: TunnelExitNodes) {
 export function offerTailscaleExitNodes(
   option: CBIOption,
   sectionId: string,
-  tunnel: { tunnel_type?: unknown; name?: unknown },
+  tunnelId: string,
+  tunnel: { tunnel_type?: unknown },
 ) {
   const renderWidget = form.Value.prototype.renderWidget;
   option.renderWidget = function (
@@ -81,14 +92,10 @@ export function offerTailscaleExitNodes(
     optionIndex: string,
     cfgvalue: unknown,
   ) {
-    const section =
-      (uci.get(FORKOP_UCI_PACKAGE, sectionId, 'label') as string) || sectionId;
-    const lookup: Promise<TunnelExitNodes> =
+    const lookup =
       tunnel.tunnel_type === 'tailscale'
-        ? loadTunnelExitNodes(
-            `${section.trim()}/${`${tunnel.name || ''}`.trim()}`,
-          )
-        : Promise.resolve({ state: 'absent', candidates: [] });
+        ? loadTunnelExitNodes(sectionId, tunnelId)
+        : Promise.resolve(ABSENT);
 
     return lookup.then((exitNodes) => {
       this.keylist = [];

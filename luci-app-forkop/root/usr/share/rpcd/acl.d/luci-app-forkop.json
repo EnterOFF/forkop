@@ -11,6 +11,7 @@
         "forkop": [
           "state",
           "state_wait",
+          "config",
           "system_info",
           "logs",
           "log_text",

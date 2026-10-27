@@ -289,6 +289,26 @@ t.test("a refresh after the configuration changed reads the committed configurat
     t.eq(counts, [ 1, 2 ]);
 });
 
+t.test("the page reads the committed configuration, again as soon as it changes", () => {
+    let uci = require("uci");
+    let dir = stub.tmpdir();
+    let service = fresh_service();
+    service.paths.config = dir + "/forkop";
+    let labels = () => map(service.object_methods().config.call({ args: {} }).sections, (section) => section.label);
+
+    uci.__seed("forkop", [ { ".type": "section", ".name": "main", label: "proxy" } ]);
+    fs.writefile(service.paths.config, "proxy");
+    let seen = [ labels() ];
+
+    uci.__seed("forkop", [
+        { ".type": "section", ".name": "main", label: "renamed" },
+        { ".type": "section", ".name": "added", label: "games" }
+    ]);
+    fs.writefile(service.paths.config, "renamed and added");
+    push(seen, labels());
+    t.eq(seen, [ [ "proxy" ], [ "renamed", "games" ] ]);
+});
+
 t.test("the installed versions are read again as soon as the package database changes", () => {
     let db = stub.tmpdir() + "/installed";
     fs.writefile(db, "one");

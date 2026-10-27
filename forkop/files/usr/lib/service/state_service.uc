@@ -281,14 +281,18 @@ function apply_settled_running(payload) {
     payload.service.sing_box.status = health.service_status_text(1, payload.service.sing_box.enabled);
 }
 
-// The revision moves only when the answer does, so a parked request stays parked.
-function recompute() {
-    // A changed configuration is read again rather than answered from memory.
+// A changed configuration is read again rather than answered from memory.
+function reread_changed_config() {
     let config = path_signature(paths.config);
     if (config != last_config) {
         last_config = config;
         uci.reset();
     }
+}
+
+// The revision moves only when the answer does, so a parked request stays parked.
+function recompute() {
+    reread_changed_config();
 
     let payload = ui.current_ui_state();
     // Read from the binary once, and again only once it changes.
@@ -412,6 +416,15 @@ function object_methods() {
                 return system_info.value == null
                     ? { available: false }
                     : { available: true, system_info: system_info.value };
+            },
+            args: { ubus_rpc_session: "" }
+        },
+        // The configuration the service runs from: rpcd lays a LuCI session's unsaved changes over
+        // every uci read the page makes, and the core was never given them.
+        config: {
+            call: function(request) {
+                reread_changed_config();
+                return { sections: uci.section_objects(constants.FORKOP_CONFIG_NAME) };
             },
             args: { ubus_rpc_session: "" }
         },
