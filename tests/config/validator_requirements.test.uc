@@ -4,22 +4,29 @@ let fixture = require("fixture");
 let connections = require("config.connections");
 let fs = require("fs");
 
-function present(action, enabled) {
+function proxies_nothing(sections, sources) {
     fixture.seed({
         settings: {},
-        section: [ { ".name": "sec", action, enabled, label: "sec" } ],
-        subscription_url: [ { ".name": "sub", section: "sec", url: "https://example.com/sub" } ]
+        server: [ { ".name": "in", protocol: "mixed", enabled: "1" } ],
+        section: sections,
+        subscription_url: sources ? [ { ".name": "sub", section: "sec", url: "https://example.com/sub" } ] : []
     });
     connections.load();
-    return require("config.validator").has_outbound_section();
+    return require("config.validator").connection_sections_proxy_nothing();
 }
 
-t.test("only an enabled Connection section counts as a proxy outbound", () => {
-    t.ok(present("connection", "1"));
-    t.ok(!present("bypass", "1"), "a Bypass section that kept a subscription");
-    t.ok(!present("dns", "1"), "a DNS section that kept a subscription");
-    t.ok(!present("connection", "0"), "a disabled Connection section");
-    t.ok(!present("zapret", "1"), "a section with a retired action");
+t.test("an enabled Connection section without servers proxies nothing, unless another one has them", () => {
+    t.ok(proxies_nothing([ { ".name": "sec", action: "connection" } ], false));
+    t.ok(proxies_nothing([ { ".name": "sec", action: "bypass" }, { ".name": "empty", action: "connection" } ], true),
+        "a Bypass section that kept a subscription");
+    t.ok(!proxies_nothing([ { ".name": "sec", action: "connection" }, { ".name": "empty", action: "connection" } ], true));
+});
+
+t.test("without an enabled Connection section nothing was meant to be proxied", () => {
+    t.ok(!proxies_nothing([], false), "a VPN server alone");
+    t.ok(!proxies_nothing([ { ".name": "sec", action: "block", destinations: "ads.example" } ], false));
+    t.ok(!proxies_nothing([ { ".name": "sec", action: "connection", enabled: "0" } ], true), "a disabled Connection section");
+    t.ok(!proxies_nothing([ { ".name": "sec", action: "zapret" } ], true), "a section with a retired action");
 });
 
 // check_requirements over a core that reports version and tags; a null version is a core that

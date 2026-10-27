@@ -1723,12 +1723,17 @@ function service_exists(service) {
     return file_executable("/etc/init.d/" + as_string(service));
 }
 
-function has_outbound_section() {
-    for (let section in sections_by_type("section"))
-        if (section_enabled(section) && connections.is_connections_action(rule_action(section)) &&
-            connections.has_connection_sources(section))
-            return true;
-    return false;
+// Without an enabled Connection section nothing was meant to be proxied, as on a VPN server alone.
+function connection_sections_proxy_nothing() {
+    let wanted = false;
+    for (let section in sections_by_type("section")) {
+        if (!section_enabled(section) || !connections.is_connections_action(rule_action(section)))
+            continue;
+        if (connections.has_connection_sources(section))
+            return false;
+        wanted = true;
+    }
+    return wanted;
 }
 
 // Whether the installed system can run Forkop at all. Throws with the reason.
@@ -1762,7 +1767,7 @@ function check_requirements() {
         core_exec.log("warn", "https-dns-proxy is configured in /etc/config/dhcp, and Forkop conflicts with it. Remove https-dns-proxy or its settings in /etc/config/dhcp");
 
     connections.load();
-    if (!has_outbound_section())
+    if (connection_sections_proxy_nothing())
         core_exec.log("warn", "No enabled Connection section has servers, so no traffic is proxied");
 }
 
@@ -1773,4 +1778,4 @@ function validate(overrides) {
     validate_runtime_config({ ...context_from_runtime(), ...object_or_empty(overrides) });
 }
 
-return { validate, check_requirements, has_outbound_section };
+return { validate, check_requirements, connection_sections_proxy_nothing };
